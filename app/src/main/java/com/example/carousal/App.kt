@@ -2,7 +2,7 @@ package com.example.carousal
 
 import android.app.Application
 import android.content.Context
-import com.appversal.appstorys.AppStorysAPI
+import com.appversal.appstorys.AppStorys
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
@@ -20,11 +20,11 @@ class App : Application() {
 
         val userId = getOrCreateUserId()
 
-        val appStorysApi = AppStorysAPI.getInstance()
-
         // Initialize CampaignManager with userId and appId
-        appStorysApi.initialize(
+        AppStorys.initialize(
             context = this,
+//            appId = "9e1b21a2-350a-4592-918c-2a19a73f249a",
+//            accountId = "4350bf8e-0c9a-46bd-b953-abb65ab21d11",
             appId = "",
             accountId = "",
 //            userId = userId,
@@ -36,7 +36,7 @@ class App : Application() {
             }
         )
 
-        appStorys = appStorysApi
+        appStorys = AppStorys
     }
 
     private fun getOrCreateUserId(): String {
@@ -65,7 +65,7 @@ class App : Application() {
     }
 
     companion object {
-        lateinit var appStorys: AppStorysAPI
+        lateinit var appStorys: AppStorys
             private set
     }
 }

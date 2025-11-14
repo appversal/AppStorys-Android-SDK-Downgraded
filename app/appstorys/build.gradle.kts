@@ -1,7 +1,6 @@
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
-    alias(libs.plugins.kotlin.compose)
     id("maven-publish")
     id("kotlin-parcelize")
 }
@@ -39,6 +38,9 @@ android {
     buildFeatures {
         compose = true
     }
+    composeOptions {
+        kotlinCompilerExtensionVersion = libs.versions.composeCompiler.get()
+    }
 }
 
 dependencies {
@@ -53,8 +55,8 @@ dependencies {
     implementation("com.google.accompanist:accompanist-coil:0.15.0")
     implementation("androidx.compose.ui:ui-text-google-fonts")
     implementation ("com.airbnb.android:lottie-compose:6.0.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+    implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.kotlinx.coroutines.android)
 
     implementation ("androidx.lifecycle:lifecycle-process:2.8.7")
 

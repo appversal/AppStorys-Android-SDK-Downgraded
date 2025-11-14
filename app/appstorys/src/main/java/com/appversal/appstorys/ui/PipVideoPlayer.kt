@@ -1,5 +1,3 @@
-@file:OptIn(ExperimentalMaterial3Api::class)
-
 package com.appversal.appstorys.ui
 
 import androidx.annotation.OptIn

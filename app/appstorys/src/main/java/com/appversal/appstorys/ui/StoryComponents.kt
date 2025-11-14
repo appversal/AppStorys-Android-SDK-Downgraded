@@ -1,5 +1,3 @@
-@file:OptIn(ExperimentalMaterial3Api::class)
-
 package com.appversal.appstorys.ui
 
 import android.content.Context
@@ -7,7 +5,6 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.widget.FrameLayout
-import androidx.annotation.OptIn
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -481,7 +478,6 @@ internal fun StoryScreen(
                                         .height(4.dp),
                                     color = Color.White,
                                     trackColor = Color.Gray.copy(alpha = 0.5f),
-                                    drawStopIndicator = {}
                                 )
                             }
                         }
@@ -533,12 +529,12 @@ internal fun StoryScreen(
                                         )
                                         .clickable {
                                             isMuted = !isMuted
-                                            if (isMuted){
+                                            if (isMuted) {
                                                 player.volume = 0f
-                                            }else{
+                                            } else {
                                                 player.volume = 1f
                                             }
-                                                   },
+                                        },
                                     contentAlignment = Alignment.Center,
                                     content = {
                                         Icon(

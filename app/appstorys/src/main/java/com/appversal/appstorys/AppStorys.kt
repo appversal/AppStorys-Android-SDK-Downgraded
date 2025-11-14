@@ -11,7 +11,7 @@ import android.util.Log
 import android.util.Patterns
 import android.view.View
 import androidx.activity.compose.BackHandler
-import androidx.annotation.RequiresApi
+import androidx.annotation.OptIn
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
@@ -56,6 +56,7 @@ import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.media3.common.util.UnstableApi
 import com.appversal.appstorys.api.ApiRepository
 import com.appversal.appstorys.api.ApiResult
 import com.appversal.appstorys.api.BannerDetails
@@ -75,7 +76,6 @@ import com.appversal.appstorys.api.SurveyDetails
 import com.appversal.appstorys.api.Tooltip
 import com.appversal.appstorys.api.TooltipsDetails
 import com.appversal.appstorys.api.TrackActionStories
-import com.appversal.appstorys.api.TrackActionTooltips
 import com.appversal.appstorys.api.TrackUserWebSocketRequest
 import com.appversal.appstorys.api.WidgetDetails
 import com.appversal.appstorys.api.WidgetImage
@@ -116,100 +116,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 
-interface AppStorysAPI {
-    fun initialize(
-        context: Application,
-        appId: String,
-        accountId: String,
-        userId: String,
-        attributes: Map<String, Any>? = null,
-        navigateToScreen: (String) -> Unit
-    )
-
-    fun getScreenCampaigns(
-        screenName: String,
-        positionList: List<String>,
-    )
-
-    fun trackEvents(
-        campaign_id: String? = null,
-        event: String,
-        metadata: Map<String, Any>? = null
-    )
-
-    fun setUserProperties(attributes: Map<String, Any>)
-
-    @Composable
-    fun overlayElements(
-        bottomPadding: Dp,
-        topPadding: Dp,
-    )
-
-    @Composable
-    fun CSAT(bottomPadding: Dp)
-
-    @Composable
-    fun Floater(
-        modifier: Modifier = Modifier,
-        bottomPadding: Dp
-    )
-
-    @Composable
-    fun Pip(
-        modifier: Modifier? = Modifier,
-        bottomPadding: Dp,
-        topPadding: Dp,
-    )
-
-    @Composable
-    fun PinnedBanner(
-        modifier: Modifier? = Modifier,
-        placeHolder: Drawable? = null,
-        placeholderContent: (@Composable () -> Unit)? = null,
-        bottomPadding: Dp,
-    )
-
-    @Composable
-    fun Widget(
-        modifier: Modifier = Modifier,
-        placeholder: Drawable? = null,
-        position: String? = null,
-    )
-
-    @Composable
-    fun Stories()
-
-    @Composable
-    fun Reels(modifier: Modifier = Modifier)
-
-    @Composable
-    fun BottomSheet()
-
-    @Composable
-    fun Survey()
-
-    @Composable
-    fun Modals()
-
-    @Composable
-    fun TestUserButton(
-        modifier: Modifier = Modifier,
-        screenName: String? = null
-    )
-
-    @Composable
-    fun getBannerHeight(): Dp
-
-    @Composable
-    fun getUserId(): String
-
-    companion object {
-        @JvmStatic
-        fun getInstance(): AppStorysAPI = AppStorys
-    }
-}
-
-internal object AppStorys : AppStorysAPI {
+object AppStorys {
     private lateinit var context: Application
 
     private lateinit var appId: String
@@ -226,7 +133,7 @@ internal object AppStorys : AppStorysAPI {
 
     private val webSocketService = RetrofitClient.webSocketApiService
 
-    lateinit var repository: ApiRepository
+    internal lateinit var repository: ApiRepository
 
     private val campaigns = MutableStateFlow<List<Campaign>>(emptyList())
 
@@ -277,7 +184,7 @@ internal object AppStorys : AppStorysAPI {
      */
     var isVisible by mutableStateOf(true)
 
-    override fun initialize(
+    fun initialize(
         context: Application,
         appId: String,
         accountId: String,
@@ -349,9 +256,9 @@ internal object AppStorys : AppStorysAPI {
         }
     }
 
-    override fun getScreenCampaigns(
+    fun getScreenCampaigns(
         screenName: String,
-        positionList: List<String>
+        positionList: List<String> = emptyList()
     ) {
         campaignsJob?.cancel()
         campaignsJob = coroutineScope.launch {
@@ -400,10 +307,10 @@ internal object AppStorys : AppStorysAPI {
         }
     }
 
-    override fun trackEvents(
-        campaign_id: String?,
+    fun trackEvents(
+        campaign_id: String? = null,
         event: String,
-        metadata: Map<String, Any>?
+        metadata: Map<String, Any>? = null
     ) {
         coroutineScope.launch {
             if (accessToken.isNotEmpty()) {
@@ -440,7 +347,7 @@ internal object AppStorys : AppStorysAPI {
         }
     }
 
-    override fun setUserProperties(attributes: Map<String, Any>) {
+    fun setUserProperties(attributes: Map<String, Any>) {
         coroutineScope.launch {
             if (userId.isBlank() || !checkIfInitialized()) {
                 Log.e("AppStorys", "Credentials not available")
@@ -469,9 +376,9 @@ internal object AppStorys : AppStorysAPI {
     }
 
     @Composable
-    override fun overlayElements(
-        bottomPadding: Dp,
-        topPadding: Dp,
+    fun overlayElements(
+        bottomPadding: Dp = 0.dp,
+        topPadding: Dp = 0.dp,
     ) {
         OverlayContainer.Content(
             bottomPadding = bottomPadding,
@@ -492,10 +399,10 @@ internal object AppStorys : AppStorysAPI {
         )
     }
 
-    @RequiresApi(Build.VERSION_CODES.N)
+
     @Composable
-    override fun CSAT(
-        bottomPadding: Dp
+    fun CSAT(
+        bottomPadding: Dp = 0.dp
     ) {
         if (!showCsat) {
             val campaignsData = campaigns.collectAsStateWithLifecycle()
@@ -507,7 +414,7 @@ internal object AppStorys : AppStorysAPI {
             }
 
             val shouldShowCSAT = campaign?.triggerEvent.isNullOrEmpty() ||
-                    trackedEventNames.contains(campaign.triggerEvent)
+                    trackedEventNames.contains(campaign?.triggerEvent)
 
             if (csatDetails != null && shouldShowCSAT) {
                 val style = csatDetails.styling
@@ -524,11 +431,8 @@ internal object AppStorys : AppStorysAPI {
                     isVisibleState = true
                 }
 
-                val bottomPaddingValue = when (val padding = style?.csatBottomPadding) {
-                    is Number -> padding.toFloat().dp
-                    is String -> padding.trim().toFloatOrNull()?.dp ?: bottomPadding
-                    else -> bottomPadding
-                }
+                val bottomPaddingValue =
+                    style?.csatBottomPadding?.trim()?.toFloatOrNull()?.dp ?: bottomPadding
 
                 Box(
                     modifier = Modifier
@@ -584,11 +488,10 @@ internal object AppStorys : AppStorysAPI {
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.N)
     @Composable
-    override fun Floater(
-        modifier: Modifier,
-        bottomPadding: Dp
+    fun Floater(
+        modifier: Modifier = Modifier,
+        bottomPadding: Dp = 0.dp
     ) {
         val campaignsData = campaigns.collectAsStateWithLifecycle()
 
@@ -601,7 +504,7 @@ internal object AppStorys : AppStorysAPI {
         }
 
         val shouldShowFloater = campaign?.triggerEvent.isNullOrEmpty() ||
-                trackedEventNames.contains(campaign.triggerEvent)
+                trackedEventNames.contains(campaign?.triggerEvent)
 
         if (floaterDetails != null && !floaterDetails.image.isNullOrEmpty() && shouldShowFloater) {
             LaunchedEffect(Unit) {
@@ -652,12 +555,12 @@ internal object AppStorys : AppStorysAPI {
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.N)
+
     @Composable
-    override fun Pip(
-        modifier: Modifier?,
-        bottomPadding: Dp,
-        topPadding: Dp,
+    fun Pip(
+        modifier: Modifier = Modifier,
+        bottomPadding: Dp = 0.dp,
+        topPadding: Dp = 0.dp,
     ) {
         val campaignsData = campaigns.collectAsStateWithLifecycle()
 
@@ -670,7 +573,7 @@ internal object AppStorys : AppStorysAPI {
         }
 
         val shouldShowPip = campaign?.triggerEvent.isNullOrEmpty() ||
-                trackedEventNames.contains(campaign.triggerEvent)
+                trackedEventNames.contains(campaign?.triggerEvent)
 
         if (pipDetails != null && !pipDetails.small_video.isNullOrEmpty() && shouldShowPip) {
             key(
@@ -739,7 +642,7 @@ internal object AppStorys : AppStorysAPI {
                 val tooltipsDetails = campaign?.details as? TooltipsDetails
 
                 val shouldShowTooltip = campaign?.triggerEvent.isNullOrEmpty() ||
-                        trackedEventNames.contains(campaign.triggerEvent)
+                        trackedEventNames.contains(campaign?.triggerEvent)
                 if (tooltipsDetails != null) {
                     for (tooltip in tooltipsDetails.tooltips?.sortedBy { it.order }
                         ?: emptyList()) {
@@ -759,16 +662,15 @@ internal object AppStorys : AppStorysAPI {
         }
     }
 
-
-    @RequiresApi(Build.VERSION_CODES.N)
+    @OptIn(UnstableApi::class)
     @Composable
-    override fun Stories() {
+    fun Stories() {
         val campaignsData = campaigns.collectAsStateWithLifecycle()
         val campaign = campaignsData.value.firstOrNull { it.campaignType == "STR" }
         val storiesDetails = (campaign?.details as? List<*>)?.filterIsInstance<StoryGroup>()
 
         val shouldShowStories = campaign?.triggerEvent.isNullOrEmpty() ||
-                trackedEventNames.contains(campaign.triggerEvent)
+                trackedEventNames.contains(campaign?.triggerEvent)
 
         if (!storiesDetails.isNullOrEmpty() && shouldShowStories) {
             StoryAppMain(
@@ -793,9 +695,8 @@ internal object AppStorys : AppStorysAPI {
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.N)
     @Composable
-    override fun Reels(modifier: Modifier) {
+    fun Reels(modifier: Modifier = Modifier) {
         val campaignsData = campaigns.collectAsStateWithLifecycle()
         val campaign =
             campaignsData.value.firstOrNull { it.campaignType == "REL" && it.details is ReelsDetails }
@@ -804,7 +705,7 @@ internal object AppStorys : AppStorysAPI {
         val visibility by reelFullScreenVisible.collectAsStateWithLifecycle()
 
         val shouldShowReels = campaign?.triggerEvent.isNullOrEmpty() ||
-                trackedEventNames.contains(campaign.triggerEvent)
+                trackedEventNames.contains(campaign?.triggerEvent)
 
         if (reelsDetails?.reels != null && reelsDetails.reels.isNotEmpty() && shouldShowReels) {
             Box(modifier = Modifier.fillMaxSize()) {
@@ -839,7 +740,6 @@ internal object AppStorys : AppStorysAPI {
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.N)
     @Composable
     private fun ReelFullScreen(
         campaignId: String?,
@@ -972,7 +872,7 @@ internal object AppStorys : AppStorysAPI {
     }
 
     @Composable
-    override fun getBannerHeight(): Dp {
+    fun getBannerHeight(): Dp {
         val campaignsData = campaigns.collectAsStateWithLifecycle()
         val defaultHeight = 100.dp
 
@@ -984,17 +884,17 @@ internal object AppStorys : AppStorysAPI {
     }
 
     @Composable
-    override fun getUserId(): String {
+    fun getUserId(): String {
         return userId
     }
 
-    @RequiresApi(Build.VERSION_CODES.N)
+
     @Composable
-    override fun PinnedBanner(
-        modifier: Modifier?,
-        placeholder: Drawable?,
-        placeholderContent: (@Composable () -> Unit)?,
-        bottomPadding: Dp,
+    fun PinnedBanner(
+        modifier: Modifier = Modifier,
+        placeholder: Drawable? = null,
+        placeholderContent: (@Composable () -> Unit)? = null,
+        bottomPadding: Dp = 0.dp,
     ) {
         val campaignsData = campaigns.collectAsStateWithLifecycle()
         val disabledCampaigns = disabledCampaigns.collectAsStateWithLifecycle()
@@ -1007,7 +907,7 @@ internal object AppStorys : AppStorysAPI {
         }
 
         val shouldShowBanner = campaign?.triggerEvent.isNullOrEmpty() ||
-                trackedEventNames.contains(campaign.triggerEvent)
+                trackedEventNames.contains(campaign?.triggerEvent)
         val bannerDetails = campaign?.details as? BannerDetails
         if (bannerDetails != null && !disabledCampaigns.value.contains(campaign.id) && shouldShowBanner) {
             val style = bannerDetails.styling
@@ -1039,7 +939,7 @@ internal object AppStorys : AppStorysAPI {
                     .padding(bottom = bottomPadding)
             ) {
                 com.appversal.appstorys.ui.PinnedBanner(
-                    modifier = (modifier ?: Modifier)
+                    modifier = modifier
                         .align(Alignment.BottomCenter)
                         .clickable {
                             campaign.id?.let {
@@ -1079,10 +979,10 @@ internal object AppStorys : AppStorysAPI {
     }
 
     @Composable
-    override fun Widget(
-        modifier: Modifier,
-        placeholder: Drawable?,
-        position: String?
+    fun Widget(
+        modifier: Modifier = Modifier,
+        placeholder: Drawable? = null,
+        position: String? = null
     ) {
         val campaignsData = campaigns.collectAsStateWithLifecycle()
         val campaign =
@@ -1097,7 +997,7 @@ internal object AppStorys : AppStorysAPI {
         val widgetDetails = campaign?.details as? WidgetDetails
 
         val shouldShowWidget = campaign?.triggerEvent.isNullOrEmpty() ||
-                trackedEventNames.contains(campaign.triggerEvent)
+                trackedEventNames.contains(campaign?.triggerEvent)
 
         if (widgetDetails != null && shouldShowWidget) {
 
@@ -1122,7 +1022,7 @@ internal object AppStorys : AppStorysAPI {
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.N)
+
     @Composable
     private fun FullWidget(
         modifier: Modifier = Modifier,
@@ -1163,7 +1063,8 @@ internal object AppStorys : AppStorysAPI {
                         widgetDetails.styling?.rightMargin?.toFloatOrNull()?.dp ?: 0.dp
 
                     val actualWidth = (staticWidth ?: screenWidth) - marginLeft - marginRight
-                    (actualWidth.value.minus(32
+                    (actualWidth.value.minus(
+                        32
                         // for the new widget
 //                            +26
                     ) * aspectRatio).dp
@@ -1244,7 +1145,7 @@ internal object AppStorys : AppStorysAPI {
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.N)
+
     @Composable
     private fun DoubleWidget(
         modifier: Modifier = Modifier,
@@ -1417,9 +1318,8 @@ internal object AppStorys : AppStorysAPI {
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.N)
     @Composable
-    override fun BottomSheet() {
+    fun BottomSheet() {
 
         val campaignsData = campaigns.collectAsStateWithLifecycle()
 
@@ -1432,7 +1332,7 @@ internal object AppStorys : AppStorysAPI {
         }
 
         val shouldShowBottomSheet = campaign?.triggerEvent.isNullOrEmpty() ||
-                trackedEventNames.contains(campaign.triggerEvent)
+                trackedEventNames.contains(campaign?.triggerEvent)
 
         if (bottomSheetDetails != null && showBottomSheet && shouldShowBottomSheet) {
 
@@ -1459,9 +1359,8 @@ internal object AppStorys : AppStorysAPI {
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.N)
     @Composable
-    override fun Survey() {
+    fun Survey() {
         var showSurvey by remember { mutableStateOf(true) }
 
         val campaignsData = campaigns.collectAsStateWithLifecycle()
@@ -1475,7 +1374,7 @@ internal object AppStorys : AppStorysAPI {
         }
 
         val shouldShowSurvey = campaign?.triggerEvent.isNullOrEmpty() ||
-                trackedEventNames.contains(campaign.triggerEvent)
+                trackedEventNames.contains(campaign?.triggerEvent)
 
         if (surveyDetails != null && showSurvey && shouldShowSurvey) {
 
@@ -1506,9 +1405,8 @@ internal object AppStorys : AppStorysAPI {
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.N)
     @Composable
-    override fun Modals() {
+    fun Modals() {
         val campaignsData = campaigns.collectAsStateWithLifecycle()
 
         val campaign =
@@ -1520,7 +1418,7 @@ internal object AppStorys : AppStorysAPI {
         }
 
         val shouldShowModals = campaign?.triggerEvent.isNullOrEmpty() ||
-                trackedEventNames.contains(campaign.triggerEvent)
+                trackedEventNames.contains(campaign?.triggerEvent)
 
         if (modalDetails != null && showModal && shouldShowModals) {
 
@@ -1554,9 +1452,9 @@ internal object AppStorys : AppStorysAPI {
 
 
     @Composable
-    override fun TestUserButton(
-        modifier: Modifier,
-        screenName: String?
+    fun TestUserButton(
+        modifier: Modifier = Modifier,
+        screenName: String? = null
     ) {
         val context = LocalContext.current
         var shouldAnalyze by remember { mutableStateOf(false) }
@@ -1624,7 +1522,7 @@ internal object AppStorys : AppStorysAPI {
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.N)
+
     internal fun handleTooltipAction(tooltip: Tooltip, isClick: Boolean = false) {
         coroutineScope.launch {
             val campaign = campaigns.value.firstOrNull { campaign ->
@@ -1776,4 +1674,7 @@ internal object AppStorys : AppStorysAPI {
         } catch (_: Exception) {
         }
     }
+
+    @JvmStatic
+    fun getInstance() = this
 }

@@ -30,9 +30,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
+import com.appversal.appstorys.AppStorys
 import com.appversal.appstorys.AppStorys.dismissTooltip
 import com.appversal.appstorys.AppStorys.tooltipTargetView
-import com.appversal.appstorys.AppStorysAPI
 import com.appversal.appstorys.api.Tooltip
 import com.appversal.appstorys.utils.AppStorysCoordinates
 
@@ -99,8 +99,6 @@ object OverlayContainer {
         pipBottomPadding: Dp = 0.dp,
         csatBottomPadding: Dp = 0.dp,
     ) {
-        val campaignManager = AppStorysAPI.getInstance()
-
         // Collects the target view for tooltips and updates the tooltip list.
         LaunchedEffect(Unit) {
             tooltipTargetView.collect { target ->
@@ -117,28 +115,28 @@ object OverlayContainer {
                 .navigationBarsPadding()
                 .statusBarsPadding(),
             content = {
-                campaignManager.PinnedBanner(
+                AppStorys.PinnedBanner(
                     bottomPadding = bottomPadding + bannerBottomPadding,
                 )
 
-                campaignManager.Floater(
+                AppStorys.Floater(
                     bottomPadding = bottomPadding + floaterBottomPadding,
                 )
 
-                campaignManager.Pip(
+                AppStorys.Pip(
                     topPadding = topPadding + pipTopPadding,
                     bottomPadding = bottomPadding + pipBottomPadding,
                 )
 
-                campaignManager.CSAT(
+                AppStorys.CSAT(
                     bottomPadding = bottomPadding + csatBottomPadding,
                 )
 
-                campaignManager.BottomSheet()
+                AppStorys.BottomSheet()
 
-                campaignManager.TestUserButton()
+                AppStorys.TestUserButton()
 
-                campaignManager.Survey()
+                AppStorys.Survey()
 
                 val visibleTooltips by remember {
                     derivedStateOf {
@@ -187,7 +185,7 @@ object OverlayContainer {
                     }
                 }
 
-                campaignManager.Modals()
+                AppStorys.Modals()
             }
         )
     }

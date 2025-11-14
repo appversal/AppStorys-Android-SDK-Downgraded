@@ -101,7 +101,7 @@ internal fun BottomSheetComponent(
 
                     val hasOverlayButton = imageElement?.overlayButton == true
 
-                    if (hasOverlayButton) {
+                    if (imageElement != null && hasOverlayButton) {
                         ImageElement(imageElement, onClick = onClick, onState = onImageState)
                     }
 
