@@ -1,22 +1,35 @@
 package com.appversal.appstorys.api
-import androidx.annotation.Keep
-import com.google.gson.annotations.SerializedName
 
-@Keep data class ValidateAccountRequest(
+import androidx.annotation.Keep
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
+
+@Serializable
+sealed class CampaignDetails
+
+@Keep
+@Serializable
+data class ValidateAccountRequest(
     val app_id: String?,
     val account_id: String?
 )
 
-@Keep data class IdentifyPositionsRequest(
+@Keep
+@Serializable
+data class IdentifyPositionsRequest(
     val screen_name: String?,
     val position_list: List<String>?
 )
 
-@Keep data class ValidateAccountResponse(
+@Keep
+@Serializable
+data class ValidateAccountResponse(
     val access_token: String?
 )
 
 @Keep
+@Serializable
 data class WebSocketConnectionResponse(
     val ws: WebSocketConfig,
     val userID: String,
@@ -24,6 +37,7 @@ data class WebSocketConnectionResponse(
 )
 
 @Keep
+@Serializable
 data class WebSocketConfig(
     val expires: Int,
     val sessionID: String,
@@ -32,56 +46,77 @@ data class WebSocketConfig(
 )
 
 @Keep
+@Serializable
 data class TrackUserWebSocketRequest(
     val user_id: String,
-    val attributes: Map<String, Any>,
+    val attributes: Map<String, JsonElement>,
     val screenName: String? = null,
     val silentUpdate: Boolean? = null,
 )
 
-@Keep data class CampaignResponse(
+@Keep
+@Serializable(with = CampaignResponseDeserializer::class)
+data class CampaignResponse(
     val userId: String?,
-    @SerializedName("message_id") val messageId: String?,
+    @SerialName("message_id") val messageId: String?,
     val campaigns: List<Campaign>?
 )
 
-@Keep data class Campaign(
+@Keep
+@Serializable(with = CampaignDeserializer::class)
+data class Campaign(
     val id: String?,
-    @SerializedName("campaign_type") val campaignType: String?,
-    val details: Any?,
+    @SerialName("campaign_type") val campaignType: String?,
+    val details: CampaignDetails?,
     val position: String?,
     val screen: String?,
-    @SerializedName("trigger_event") val triggerEvent: String?,
+    @SerialName("trigger_event") val triggerEvent: String?,
 )
 
-@Keep data class ReelStatusRequest(
+@Keep
+@Serializable
+data class ReelStatusRequest(
     val user_id: String?,
     val action: String?,
     val reel: String?
 )
 
-@Keep data class TrackActionStories(
+@Keep
+@Serializable
+data class TrackActionStories(
     val campaign_id: String?,
     val user_id: String?,
     val event_type: String?,
     val story_slide: String?
 )
 
-@Keep data class TrackActionTooltips(
+@Keep
+@Serializable
+data class TrackActionTooltips(
     val campaign_id: String?,
     val user_id: String?,
     val event_type: String?,
     val tooltip_id: String?
 )
 
-@Keep data class ReelActionRequest(
+@Keep
+@Serializable
+data class ReelActionRequest(
     val user_id: String?,
     val event_type: String?,
     val reel_id: String?,
     val campaign_id: String?,
 )
 
-@Keep data class StoryGroup(
+@Keep
+@Serializable
+data class StoriesDetails(
+    val groups: List<StoryGroup>?
+) : CampaignDetails()
+
+@Keep
+@Serializable
+data class StoryGroup(
     val id: String?,
     val name: String?,
     val thumbnail: String?,
@@ -91,27 +126,33 @@ data class TrackUserWebSocketRequest(
     val slides: List<StorySlide>?
 )
 
-@Keep data class StorySlide(
+@Keep
+@Serializable
+data class StorySlide(
     val id: String?,
     val parent: String?,
     val image: String?,
     val video: String?,
     val link: String?,
-    @SerializedName("button_text") val buttonText: String?,
+    @SerialName("button_text") val buttonText: String?,
     val order: Int?
 )
 
-@Keep data class BannerDetails(
+@Keep
+@Serializable
+data class BannerDetails(
     val id: String?,
     val image: String?,
     val width: Int?,
     val height: Int?,
-    val link: Any?,
+    val link: JsonElement?,
     val styling: BannerStyling?,
     val lottie_data: String?
-)
+) : CampaignDetails()
 
-@Keep data class BannerStyling(
+@Keep
+@Serializable
+data class BannerStyling(
     val enableCloseButton: Boolean?,
     val marginLeft: Int?,
     val marginRight: Int?,
@@ -122,19 +163,22 @@ data class TrackUserWebSocketRequest(
     val bottomRightRadius: Int?
 )
 
-
-@Keep data class WidgetDetails(
+@Keep
+@Serializable
+data class WidgetDetails(
     val id: String?,
     val type: String?,
     val width: Int?,
     val height: Int?,
-    @SerializedName("widget_images") val widgetImages: List<WidgetImage>?,
+    @SerialName("widget_images") val widgetImages: List<WidgetImage>?,
     val campaign: String?,
     val screen: String?,
     val styling: WidgetStyling?
-)
+) : CampaignDetails()
 
-@Keep data class WidgetStyling(
+@Keep
+@Serializable
+data class WidgetStyling(
     val topMargin: String?,
     val leftMargin: String?,
     val rightMargin: String?,
@@ -145,15 +189,19 @@ data class TrackUserWebSocketRequest(
     val bottomRightRadius: String?,
 )
 
-@Keep data class WidgetImage(
+@Keep
+@Serializable
+data class WidgetImage(
     val id: String?,
     val image: String?,
-    val link: Any?,
+    val link: JsonElement?,
     val order: Int?,
     val lottie_data: String?,
 )
 
-@Keep data class CSATDetails(
+@Keep
+@Serializable
+data class CSATDetails(
     val id: String?,
     val title: String?,
     val height: Int?,
@@ -164,13 +212,15 @@ data class TrackUserWebSocketRequest(
     val thankyouDescription: String?,
     val highStarText: String?,
     val lowStarText: String?,
-    @SerializedName("description_text") val descriptionText: String?,
-    @SerializedName("feedback_option") val feedbackOption: FeedbackOption?,
+    @SerialName("description_text") val descriptionText: String?,
+    @SerialName("feedback_option") val feedbackOption: FeedbackOption?,
     val campaign: String?,
     val link: String?
-)
+) : CampaignDetails()
 
-@Keep data class FloaterDetails(
+@Keep
+@Serializable
+data class FloaterDetails(
     val id: String?,
     val image: String?,
     val width: Int?,
@@ -180,9 +230,11 @@ data class TrackUserWebSocketRequest(
     val campaign: String?,
     val styling: FloaterStyling?,
     val lottie_data: String?,
-)
+) : CampaignDetails()
 
-@Keep data class FloaterStyling(
+@Keep
+@Serializable
+data class FloaterStyling(
     val topLeftRadius: String?,
     val topRightRadius: String?,
     val bottomLeftRadius: String?,
@@ -192,7 +244,9 @@ data class TrackUserWebSocketRequest(
     val floaterLeftPadding: String?,
 )
 
-@Keep data class FeedbackOption(
+@Keep
+@Serializable
+data class FeedbackOption(
     val option1: String?,
     val option2: String?,
     val option3: String?,
@@ -218,7 +272,9 @@ data class TrackUserWebSocketRequest(
         ).filter { it.isNotBlank() }
 }
 
-@Keep data class CSATStyling(
+@Keep
+@Serializable
+data class CSATStyling(
     val delayDisplay: Int?,
     val displayDelay: String?,
     val csatTitleColor: String?,
@@ -280,6 +336,7 @@ data class TrackUserWebSocketRequest(
 )
 
 @Keep
+@Serializable
 data class Margin(
     val top: Int?,
     val bottom: Int?,
@@ -288,12 +345,15 @@ data class Margin(
 )
 
 @Keep
+@Serializable
 data class Dimensions(
     val height: Int?,
     val width: Int?
 )
 
-@Keep data class CsatFeedbackPostRequest(
+@Keep
+@Serializable
+data class CsatFeedbackPostRequest(
     val csat: String?,
     val user_id: String?,
     val rating: Int?,
@@ -301,24 +361,30 @@ data class Dimensions(
     val additional_comments: String = ""
 )
 
-@Keep data class ReelsDetails(
+@Keep
+@Serializable
+data class ReelsDetails(
     val id: String?,
     val reels: List<Reel>?,
     val styling: ReelStyling?
-)
+) : CampaignDetails()
 
-@Keep data class Reel(
+@Keep
+@Serializable
+data class Reel(
     val id: String?,
-    @SerializedName("button_text") val buttonText: String?,
+    @SerialName("button_text") val buttonText: String?,
     val order: Int?,
-    @SerializedName("description_text") val descriptionText: String?,
+    @SerialName("description_text") val descriptionText: String?,
     val video: String?,
     val likes: Int?,
     val thumbnail: String?,
     val link: String?
 )
 
-@Keep data class ReelStyling(
+@Keep
+@Serializable
+data class ReelStyling(
     val ctaBoxColor: String?,
     val cornerRadius: String?,
     val ctaTextColor: String?,
@@ -328,15 +394,19 @@ data class Dimensions(
     val descriptionTextColor: String?
 )
 
-@Keep data class TooltipsDetails(
-    @SerializedName("_id") val id: String?,
+@Keep
+@Serializable
+data class TooltipsDetails(
+    @SerialName("_id") val id: String?,
     val campaign: String?,
     val name: String?,
     val tooltips: List<Tooltip>?,
-    @SerializedName("created_at") val createdAt: String?
-)
+    @SerialName("created_at") val createdAt: String?
+) : CampaignDetails()
 
-@Keep data class Tooltip(
+@Keep
+@Serializable
+data class Tooltip(
     val type: String?,
     val url: String?,
     val clickAction: String?,
@@ -344,10 +414,12 @@ data class Dimensions(
     val target: String?,
     val order: Int?,
     val styling: TooltipStyling?,
-    @SerializedName("_id") val id: String?
+    @SerialName("_id") val id: String?
 )
 
-@Keep data class TooltipStyling(
+@Keep
+@Serializable
+data class TooltipStyling(
     val tooltipDimensions: TooltipDimensions?,
     val highlightRadius: String?,
     val highlightPadding: String?,
@@ -358,29 +430,39 @@ data class Dimensions(
     val closeButton: Boolean?
 )
 
-@Keep data class TooltipDimensions(
+@Keep
+@Serializable
+data class TooltipDimensions(
     val height: String?,
     val width: String?,
     val cornerRadius: String?
 )
 
-@Keep data class TooltipArrow(
+@Keep
+@Serializable
+data class TooltipArrow(
     val arrowHeight: String?,
     val arrowWidth: String?
 )
 
-@Keep data class TooltipSpacing(
+@Keep
+@Serializable
+data class TooltipSpacing(
     val padding: TooltipPadding?
 )
 
-@Keep data class TooltipPadding(
+@Keep
+@Serializable
+data class TooltipPadding(
     val paddingTop: Int?,
     val paddingRight: Int?,
     val paddingBottom: Int?,
     val paddingLeft: Int?
 )
 
-@Keep data class PipDetails(
+@Keep
+@Serializable
+data class PipDetails(
     val id: String?,
     val position: String?,
     val small_video: String?,
@@ -391,9 +473,11 @@ data class Dimensions(
     val link: String?,
     val campaign: String?,
     val button_text: String?
-)
+) : CampaignDetails()
 
-@Keep data class PipStyling(
+@Keep
+@Serializable
+data class PipStyling(
     val ctaWidth: String?,
     val fontSize: String?,
     val ctaHeight: String?,
@@ -412,8 +496,10 @@ data class Dimensions(
     val pipBottomPadding: String?,
 )
 
-@Keep data class BottomSheetDetails(
-    @SerializedName("_id") val id: String?,
+@Keep
+@Serializable
+data class BottomSheetDetails(
+    @SerialName("_id") val id: String?,
     val campaign: String?,
     val name: String?,
     val elements: List<BottomSheetElement>?,
@@ -421,9 +507,11 @@ data class Dimensions(
     val enableCrossButton: String?,
     val triggerType: String?,
     val selectedEvent: String?,
-)
+) : CampaignDetails()
 
-@Keep data class BottomSheetElement(
+@Keep
+@Serializable
+data class BottomSheetElement(
     val type: String?,
     val alignment: String?,
     val order: Int?,
@@ -470,6 +558,7 @@ data class Dimensions(
 )
 
 @Keep
+@Serializable
 data class SurveyDetails(
     val id: String?,
     val name: String?,
@@ -478,9 +567,10 @@ data class SurveyDetails(
     val surveyOptions: Map<String, String>?,
     val campaign: String?,
     val hasOthers: Boolean?
-)
+) : CampaignDetails()
 
 @Keep
+@Serializable
 data class SurveyStyling(
     val optionColor: String?,
     val displayDelay: String?,
@@ -496,32 +586,40 @@ data class SurveyStyling(
     val selectedOptionTextColor: String?
 )
 
-@Keep data class SurveyFeedbackPostRequest(
+@Keep
+@Serializable
+data class SurveyFeedbackPostRequest(
     val user_id: String?,
     val survey: String?,
     val responseOptions: List<String>? = null,
     val comment: String? = ""
 )
 
-@Keep data class FontStyle(
+@Keep
+@Serializable
+data class FontStyle(
     val fontFamily: String?,
     val colour: String?,
     val decoration: List<String>?
 )
 
-@Keep data class ModalDetails(
-    @SerializedName("_id") val id: String?,
+@Keep
+@Serializable
+data class ModalDetails(
+    @SerialName("_id") val id: String?,
     val campaign: String?,
     val modals: List<Modal>?,
-)
+) : CampaignDetails()
 
-@Keep data class Modal(
-    @SerializedName("media_type") val mediaType: String?,
+@Keep
+@Serializable
+data class Modal(
+    @SerialName("media_type") val mediaType: String?,
     val size: String?,
     val link: String?,
     val borderRadius: String?,
     val backgroundOpacity: Double? = null,
     val name: String?,
     val url: String?,
-    @SerializedName("_id") val id: String?,
+    @SerialName("_id") val id: String?,
 )

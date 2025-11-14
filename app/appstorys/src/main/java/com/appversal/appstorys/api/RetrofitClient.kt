@@ -1,19 +1,23 @@
 package com.appversal.appstorys.api
 
-import com.google.gson.Gson
-import com.google.gson.GsonBuilder
+import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
+import kotlinx.serialization.json.Json
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
-import retrofit2.converter.gson.GsonConverterFactory
 
+@OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
 internal object RetrofitClient {
     private const val BASE_URL = "https://backend.appstorys.com/"
     private const val WEBSOCKET_BASE_URL = "https://users.appstorys.com/"
 
-    private val gson: Gson = GsonBuilder()
-        .registerTypeAdapter(CampaignResponse::class.java, CampaignResponseDeserializer())
-        .create()
+    private val json = Json {
+        ignoreUnknownKeys = true
+        isLenient = true
+        coerceInputValues = true
+        explicitNulls = false
+    }
 
     private val client by lazy {
         OkHttpClient.Builder()
@@ -28,7 +32,7 @@ internal object RetrofitClient {
     val apiService: ApiService by lazy {
         Retrofit.Builder()
             .baseUrl(BASE_URL)
-            .addConverterFactory(GsonConverterFactory.create(gson))
+            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .client(client)
             .build()
             .create(ApiService::class.java)
@@ -37,7 +41,7 @@ internal object RetrofitClient {
     val webSocketApiService: ApiService by lazy {
         Retrofit.Builder()
             .baseUrl(WEBSOCKET_BASE_URL)
-            .addConverterFactory(GsonConverterFactory.create(gson))
+            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .client(client)
             .build()
             .create(ApiService::class.java)

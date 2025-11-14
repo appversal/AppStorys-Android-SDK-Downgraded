@@ -71,7 +71,7 @@ import com.appversal.appstorys.api.ReelActionRequest
 import com.appversal.appstorys.api.ReelStatusRequest
 import com.appversal.appstorys.api.ReelsDetails
 import com.appversal.appstorys.api.RetrofitClient
-import com.appversal.appstorys.api.StoryGroup
+import com.appversal.appstorys.api.StoriesDetails
 import com.appversal.appstorys.api.SurveyDetails
 import com.appversal.appstorys.api.Tooltip
 import com.appversal.appstorys.api.TooltipsDetails
@@ -98,6 +98,7 @@ import com.appversal.appstorys.ui.getLikedReels
 import com.appversal.appstorys.ui.saveLikedReels
 import com.appversal.appstorys.utils.AppStorysSdkState
 import com.appversal.appstorys.utils.ViewTreeAnalyzer
+import com.appversal.appstorys.utils.toJsonElementMap
 import com.appversal.appstorys.utils.toMap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -358,7 +359,7 @@ object AppStorys {
                     token = "Bearer $accessToken",
                     request = TrackUserWebSocketRequest(
                         user_id = userId,
-                        attributes = attributes,
+                        attributes = attributes.toJsonElementMap(),
                         silentUpdate = true
                     )
                 )
@@ -667,7 +668,7 @@ object AppStorys {
     fun Stories() {
         val campaignsData = campaigns.collectAsStateWithLifecycle()
         val campaign = campaignsData.value.firstOrNull { it.campaignType == "STR" }
-        val storiesDetails = (campaign?.details as? List<*>)?.filterIsInstance<StoryGroup>()
+        val storiesDetails = (campaign?.details as? StoriesDetails)?.groups
 
         val shouldShowStories = campaign?.triggerEvent.isNullOrEmpty() ||
                 trackedEventNames.contains(campaign?.triggerEvent)

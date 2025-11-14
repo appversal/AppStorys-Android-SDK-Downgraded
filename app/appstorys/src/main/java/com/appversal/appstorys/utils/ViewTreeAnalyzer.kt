@@ -21,10 +21,12 @@ import androidx.compose.ui.semantics.SemanticsPropertyKey
 import androidx.compose.ui.semantics.SemanticsPropertyReceiver
 import androidx.compose.ui.semantics.getOrNull
 import com.appversal.appstorys.AppStorys.repository
-import com.google.gson.GsonBuilder
-import com.google.gson.JsonArray
-import com.google.gson.JsonObject
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import java.io.File
 import java.io.FileOutputStream
 import java.lang.reflect.Field
@@ -72,20 +74,21 @@ internal object ViewTreeAnalyzer {
         accessToken: String,
         activity: Activity,
         context: Context
-    ): JsonObject {
-        val resultJson = JsonObject().apply {
-            addProperty("name", screenName)
-            val children = JsonArray()
+    ): kotlinx.serialization.json.JsonObject {
+        val children = buildJsonArray {
             analyzeViewElement(
                 root,
-                onElementAnalyzed = { children.add(it) },
+                onElementAnalyzed = { add(it) },
                 activity = activity
             )
-            add("children", children)
         }
 
-        val gson = GsonBuilder().setPrettyPrinting().create()
-        val formattedJson = gson.toJson(resultJson.getAsJsonArray("children"))
+        val resultJson = buildJsonObject {
+            put("name", screenName)
+            put("children", children)
+        }
+
+        val formattedJson = SdkJson.encodeToString(children)
         Log.e(
             "ViewTreeAnalyzer",
             formattedJson
@@ -204,7 +207,7 @@ internal object ViewTreeAnalyzer {
      */
     private fun analyzeViewElement(
         view: View,
-        onElementAnalyzed: (JsonObject) -> Unit,
+        onElementAnalyzed: (JsonElement) -> Unit,
         activity: Activity
     ) {
         // Skip views with no ID
@@ -227,19 +230,16 @@ internal object ViewTreeAnalyzer {
 
             val (screenWidth, screenHeight) = getScreenSize(activity)
 
-            val elementJson = JsonObject().apply {
-                addProperty("id", viewId)
-                add(
-                    "frame",
-                    JsonObject().apply {
-                        addProperty("x", xInWindow)
-                        addProperty("y", yInWindow)
-                        addProperty("width", view.width)
-                        addProperty("height", view.height)
-                        addProperty("screenWidth", screenWidth)
-                        addProperty("screenHeight", screenHeight)
-                    }
-                )
+            val elementJson = buildJsonObject {
+                put("id", viewId)
+                put("frame", buildJsonObject {
+                    put("x", xInWindow)
+                    put("y", yInWindow)
+                    put("width", view.width)
+                    put("height", view.height)
+                    put("screenWidth", screenWidth)
+                    put("screenHeight", screenHeight)
+                })
             }
 
             onElementAnalyzed(elementJson)
@@ -264,11 +264,11 @@ internal object ViewTreeAnalyzer {
      * Reports coordinates relative to the application window.
      *
      * @param view The AndroidComposeView to analyze.
-     * @param onElementAnalyzed Callback to receive the JsonObject for the analyzed element.
+     * @param onElementAnalyzed Callback to receive the JsonElement for the analyzed element.
      */
     private fun analyzeComposeView(
         view: View,
-        onElementAnalyzed: (JsonObject) -> Unit
+        onElementAnalyzed: (kotlinx.serialization.json.JsonElement) -> Unit
     ) {
         @Suppress("TooGenericExceptionCaught")
         try {
@@ -366,7 +366,7 @@ internal object ViewTreeAnalyzer {
     private fun analyzeSemanticsNode(
         semanticsNode: SemanticsNode,
         context: Context,
-        onElementAnalyzed: (JsonObject) -> Unit,
+        onElementAnalyzed: (kotlinx.serialization.json.JsonElement) -> Unit,
         path: MutableList<Int>
     ) {
         val explicitId = semanticsNode.config.getOrNull(AppstorysViewTagKey)
@@ -381,15 +381,13 @@ internal object ViewTreeAnalyzer {
             val widthPx = semanticsNode.size.width
             val heightPx = semanticsNode.size.height
 
-            val elementJson = JsonObject().apply {
-                addProperty("id", nodeId)
-
-                // Position and size
-                add("frame", JsonObject().apply {
-                    addProperty("x", xInWindow)
-                    addProperty("y", yInWindow)
-                    addProperty("width", widthPx)
-                    addProperty("height", heightPx)
+            val elementJson = buildJsonObject {
+                put("id", nodeId)
+                put("frame", buildJsonObject {
+                    put("x", xInWindow)
+                    put("y", yInWindow)
+                    put("width", widthPx)
+                    put("height", heightPx)
                 })
             }
 

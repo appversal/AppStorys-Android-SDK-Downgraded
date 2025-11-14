@@ -4,7 +4,8 @@ import android.content.Context
 import android.util.Log
 import androidx.core.content.edit
 import com.appversal.appstorys.api.RetrofitClient.webSocketApiService
-import com.google.gson.GsonBuilder
+import com.appversal.appstorys.utils.SdkJson
+import com.appversal.appstorys.utils.toJsonElementMap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -41,13 +42,7 @@ internal class ApiRepository(
         CoroutineScope(Dispatchers.IO).launch {
             webSocketClient?.message?.collect { message ->
                 try {
-                    val gson = GsonBuilder()
-                        .registerTypeAdapter(
-                            CampaignResponse::class.java,
-                            CampaignResponseDeserializer()
-                        )
-                        .create()
-                    val campaignResponse = gson.fromJson(message, CampaignResponse::class.java)
+                    val campaignResponse = SdkJson.decodeFromString<CampaignResponse>(message)
 
                     if (campaignResponse.messageId == lastProcessedMessageId) {
                         Log.d(
@@ -74,7 +69,7 @@ internal class ApiRepository(
                         Log.d("ApiRepository", "Campaign skipped: $campaignId")
                     }
                 } catch (e: Exception) {
-                    Log.e("ApiRepository", "Error parsing WebSocket message: ${e.message}")
+                    Log.e("ApiRepository", "Error parsing WebSocket message: ${e.message}", e)
                     campaignResponseChannel.send(null)
                 }
             }
@@ -136,7 +131,7 @@ internal class ApiRepository(
                         request = TrackUserWebSocketRequest(
                             screenName = screenName,
                             user_id = userId,
-                            attributes = attributes ?: emptyMap()
+                            attributes = (attributes ?: emptyMap()).toJsonElementMap()
                         )
                     )
                 }) {
@@ -190,7 +185,7 @@ internal class ApiRepository(
                     request = TrackUserWebSocketRequest(
                         screenName = screenName,
                         user_id = userId,
-                        attributes = attributes ?: emptyMap()
+                        attributes = (attributes ?: emptyMap()).toJsonElementMap()
                     )
                 )
             }) {
