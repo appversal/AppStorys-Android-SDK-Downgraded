@@ -222,7 +222,7 @@ fun HomeScreen(
 
     LaunchedEffect(Unit) {
         val screenName  = "Home Screen"
-        val positions = listOf("widget_one", "widget_two", "widget_three", "widget_four", "widget_fifty")
+        val positions = listOf("widget_one", "widget_two", "widget_three", "widget_four", "widget_prem")
         campaignManager.getScreenCampaigns(
             screenName,
             positions,

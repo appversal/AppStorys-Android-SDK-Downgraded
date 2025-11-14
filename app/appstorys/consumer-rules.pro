@@ -11,8 +11,8 @@
 # This prevents the app from removing classes and methods
 # that developers need to call directly.
 # -------------------------------------------------------
--keep class com.appversal.appstorys.AppStorysAPI { *; }
--keep class com.appversal.appstorys.AppStorysAPI$* { *; }
+-keep class com.appversal.appstorys.AppStorys { *; }
+-keep class com.appversal.appstorys.AppStorys$* { *; }
 
 # Keep utility classes that are meant to be public.
 # Remove this if the utils package is not part of the public API.
