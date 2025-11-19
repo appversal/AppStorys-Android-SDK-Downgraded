@@ -26,7 +26,7 @@
 # -------------------------------------------------------
 # Assume side effects for Android Log to remove logging calls
 # from the release build of your SDK.
--assumenosideeffects class android.util.Log { *; }
+#-assumenosideeffects class android.util.Log { *; }
 
 
 
