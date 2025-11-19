@@ -393,7 +393,7 @@ object AppStorys {
         root: View, screenName: String, activity: Activity
     ) = runCatching {
         val TAG = "AnalyzeViewRoot"
-        Log.d(TAG, "Calling ViewTreeAnalyzer.analyzeViewRoot()")
+        Log.i(TAG, "Calling ViewTreeAnalyzer.analyzeViewRoot()")
 
         ViewTreeAnalyzer.analyzeViewRoot(
             root = root,
@@ -403,12 +403,12 @@ object AppStorys {
             activity = activity,
             context = context
         ).also {
-            Log.d(TAG, "ViewTreeAnalyzer.analyzeViewRoot() completed successfully")
+            Log.i(TAG, "ViewTreeAnalyzer.analyzeViewRoot() completed successfully")
         }
     }.onFailure { error ->
-        Log.e("AnalyzeViewRoot", "Error analyzing view root", error)
+        Log.i("AnalyzeViewRoot", "Error analyzing view root", error)
     }.onSuccess {
-        Log.d("AnalyzeViewRoot", "analyzeViewRoot() finished with success result: $it")
+        Log.i("AnalyzeViewRoot", "analyzeViewRoot() finished with success result: $it")
     }
 
     @Composable
@@ -1518,27 +1518,27 @@ object AppStorys {
         val coroutineScope = rememberCoroutineScope()
 
         LaunchedEffect(shouldAnalyze) {
-            Log.d(TAG, "LaunchedEffect triggered. shouldAnalyze = $shouldAnalyze")
+            Log.i(TAG, "LaunchedEffect triggered. shouldAnalyze = $shouldAnalyze")
 
             if (shouldAnalyze) {
-                Log.d(TAG, "Starting screen capture flow")
+                Log.i(TAG, "Starting screen capture flow")
                 isCapturing = true
-                Log.d(TAG, "isCapturing = true")
+                Log.i(TAG, "isCapturing = true")
                 delay(500)
                 val activity = context as? Activity
-                Log.d(TAG, "Activity reference: $activity")
+                Log.i(TAG, "Activity reference: $activity")
                 val rootView = activity?.window?.decorView?.rootView
-                Log.d(TAG, "Root view acquired: $rootView")
+                Log.i(TAG, "Root view acquired: $rootView")
                 rootView?.let {
                     val screenToAnalyze = screenName ?: currentScreen
-                    Log.d(TAG, "Screen to analyze: $screenToAnalyze")
+                    Log.i(TAG, "Screen to analyze: $screenToAnalyze")
 
-                    Log.d(TAG, "Calling analyzeViewRoot()")
+                    Log.i(TAG, "Calling analyzeViewRoot()")
                     analyzeViewRoot(it, screenToAnalyze, activity)
-                    Log.d(TAG, "analyzeViewRoot() completed")
+                    Log.i(TAG, "analyzeViewRoot() completed")
 
                     coroutineScope.launch {
-                        Log.d(TAG, "Showing snackbar")
+                        Log.i(TAG, "Showing snackbar")
                         snackbarHostState.showSnackbar("Screen captured successfully!")
                     }
                 }
@@ -1546,9 +1546,9 @@ object AppStorys {
                 isCapturing = false
 
                 if(widgetPositionList.isNotEmpty() && widgetPositionList[0].isNotEmpty()){
-                    Log.d(TAG, "widgetPositionList is valid")
+                    Log.i(TAG, "widgetPositionList is valid")
                     coroutineScope.launch {
-                        Log.d(TAG, "Calling repository.sendWidgetPositions()")
+                        Log.i(TAG, "Calling repository.sendWidgetPositions()")
                         repository.sendWidgetPositions(
                             accessToken = accessToken,
                             screenName = currentScreen,
@@ -1568,10 +1568,10 @@ object AppStorys {
             ) {
                 FloatingActionButton(
                     onClick = {
-                        Log.d(TAG, "Capture button clicked")
+                        Log.i(TAG, "Capture button clicked")
                         shouldAnalyze = true
 
-                        Log.d(TAG, "shouldAnalyze = true")
+                        Log.i(TAG, "shouldAnalyze = true")
                     },
                     modifier = modifier
                         .padding(bottom = 86.dp, end = 16.dp)

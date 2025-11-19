@@ -75,20 +75,20 @@ internal object ViewTreeAnalyzer {
         activity: Activity,
         context: Context
     ): kotlinx.serialization.json.JsonObject {
-        Log.d("ViewTreeAnalyzer", "===== analyzeViewRoot() START =====")
+        Log.i("ViewTreeAnalyzer", "===== analyzeViewRoot() START =====")
         val children = buildJsonArray {
-            Log.d("ViewTreeAnalyzer", "Starting view tree analysis...")
+            Log.i("ViewTreeAnalyzer", "Starting view tree analysis...")
             analyzeViewElement(
                 root,
                 onElementAnalyzed = {
-                    Log.d("ViewTreeAnalyzer", "Element analyzed: $it")
+                    Log.i("ViewTreeAnalyzer", "Element analyzed: $it")
                     add(it)
                     },
                 activity = activity
             )
         }
 
-        Log.d("ViewTreeAnalyzer", "View tree analysis complete. Total elements: ${children.size}")
+        Log.i("ViewTreeAnalyzer", "View tree analysis complete. Total elements: ${children.size}")
 
         val resultJson = buildJsonObject {
             put("name", screenName)
@@ -101,7 +101,7 @@ internal object ViewTreeAnalyzer {
             formattedJson
         )
 
-        Log.d("ViewTreeAnalyzer", "Capturing screenshot...")
+        Log.i("ViewTreeAnalyzer", "Capturing screenshot...")
 
         val screenshot = captureScreenshot(
             view = root,
@@ -109,7 +109,7 @@ internal object ViewTreeAnalyzer {
         )
 
         if (screenshot != null) {
-            Log.d("ViewTreeAnalyzer", "Screenshot captured. Sending to server...")
+            Log.i("ViewTreeAnalyzer", "Screenshot captured. Sending to server...")
 
             try {
                 repository.tooltipIdentify(
@@ -119,7 +119,7 @@ internal object ViewTreeAnalyzer {
                     childrenJson = formattedJson,
                     screenshotFile = screenshot
                 )
-                Log.d("ViewTreeAnalyzer", "tooltipIdentify() sent successfully.")
+                Log.i("ViewTreeAnalyzer", "tooltipIdentify() sent successfully.")
             } catch (e: Exception) {
                 Log.e("ViewTreeAnalyzer", "tooltipIdentify() failed", e)
             }
@@ -134,7 +134,7 @@ internal object ViewTreeAnalyzer {
      * @param view The view to capture.
      */
     private suspend fun captureScreenshot(activity: Activity, view: View): File? {
-        Log.d("ViewTreeAnalyzer", "captureScreenshot() called")
+        Log.i("ViewTreeAnalyzer", "captureScreenshot() called")
         return try {
             if (view.width <= 0 || view.height <= 0) {
                 Log.e("ViewTreeAnalyzer", "Cannot capture screenshot: View has invalid dimensions")
@@ -189,7 +189,7 @@ internal object ViewTreeAnalyzer {
                     bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
                 }
                 screenBitmap = bitmap
-                Log.d("ViewTreeAnalyzer", "Screenshot captured successfully (fallback)")
+                Log.i("ViewTreeAnalyzer", "Screenshot captured successfully (fallback)")
                 file
             }
         } catch (e: Exception) {
