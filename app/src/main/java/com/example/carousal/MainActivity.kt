@@ -173,18 +173,8 @@ fun MyApp() {
             bottomPadding = 70.dp,
         )
 
-        CardScratch(
-            isPresented = isPresented,
-            onDismiss = { isPresented = false },
-            onConfettiTrigger = {
-                confettiTrigger++
-                // Trigger your confetti animation here
-            },
-            wasFullyScratched = wasFullyScratched,
-            onWasFullyScratched = { wasFullyScratched = it },
-            gpayImageUrl = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTSdypvQ11Iokxt6bwt3y1Gsy3gZLDfgUBtS3qF2lZV5q6B70kNYgD1cMtX8IunRAvYpK8&usqp=CAU",
-            bannerImageUrl = "https://techlingo.co/wp-content/uploads/2020/12/GPay-SG-Scratchcard-Christmas-Win-201211.png"
-        )    }
+        campaignManager.ScratchCard()
+    }
 }
 
 @Composable
@@ -221,8 +211,8 @@ fun HomeScreen(
     var eventInput3 by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
-        val screenName  = "Home Screen"
-        val positions = listOf("widget_one", "widget_two", "widget_three", "widget_four", "widget_prem")
+        val screenName  = "Premssss Screen"
+        val positions = listOf("widget_one")
         campaignManager.getScreenCampaigns(
             screenName,
             positions,

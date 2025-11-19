@@ -110,7 +110,7 @@ internal class ApiRepository(
                 }
 
                 is ApiResult.Error -> {
-                    Log.e("ApiRepository", "Error getting access token: ${result.message}")
+                    Log.e("ApiRepository", "Error sending widget positions: ${result.message}")
                     null
                 }
             }

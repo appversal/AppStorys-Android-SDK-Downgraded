@@ -4,6 +4,7 @@ import androidx.annotation.Keep
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 
 @Serializable
 sealed class CampaignDetails
@@ -623,3 +624,11 @@ data class Modal(
     val url: String?,
     @SerialName("_id") val id: String?,
 )
+
+@Keep
+@Serializable
+data class ScratchCardDetails(
+    val id: String?,
+    val styling: JsonObject? = null,
+    val content: JsonObject? = null
+) : CampaignDetails()

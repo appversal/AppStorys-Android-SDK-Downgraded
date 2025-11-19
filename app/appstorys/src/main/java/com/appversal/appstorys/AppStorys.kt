@@ -71,6 +71,7 @@ import com.appversal.appstorys.api.ReelActionRequest
 import com.appversal.appstorys.api.ReelStatusRequest
 import com.appversal.appstorys.api.ReelsDetails
 import com.appversal.appstorys.api.RetrofitClient
+import com.appversal.appstorys.api.ScratchCardDetails
 import com.appversal.appstorys.api.StoriesDetails
 import com.appversal.appstorys.api.SurveyDetails
 import com.appversal.appstorys.api.Tooltip
@@ -82,6 +83,7 @@ import com.appversal.appstorys.api.WidgetImage
 import com.appversal.appstorys.api.safeApiCall
 import com.appversal.appstorys.ui.AutoSlidingCarousel
 import com.appversal.appstorys.ui.BottomSheetComponent
+import com.appversal.appstorys.ui.CardScratch
 import com.appversal.appstorys.ui.CarousalImage
 import com.appversal.appstorys.ui.CsatDialog
 import com.appversal.appstorys.ui.DoubleWidgets
@@ -390,6 +392,9 @@ object AppStorys {
     suspend fun analyzeViewRoot(
         root: View, screenName: String, activity: Activity
     ) = runCatching {
+        val TAG = "AnalyzeViewRoot"
+        Log.d(TAG, "Calling ViewTreeAnalyzer.analyzeViewRoot()")
+
         ViewTreeAnalyzer.analyzeViewRoot(
             root = root,
             screenName = screenName,
@@ -397,9 +402,14 @@ object AppStorys {
             accessToken = accessToken,
             activity = activity,
             context = context
-        )
+        ).also {
+            Log.d(TAG, "ViewTreeAnalyzer.analyzeViewRoot() completed successfully")
+        }
+    }.onFailure { error ->
+        Log.e("AnalyzeViewRoot", "Error analyzing view root", error)
+    }.onSuccess {
+        Log.d("AnalyzeViewRoot", "analyzeViewRoot() finished with success result: $it")
     }
-
 
     @Composable
     fun CSAT(
@@ -1451,12 +1461,55 @@ object AppStorys {
         }
     }
 
+    @Composable
+    fun ScratchCard() {
+
+        var confettiTrigger by remember { mutableStateOf(0) }
+        var wasFullyScratched by remember { mutableStateOf(false) }
+        var isPresented by remember { mutableStateOf(true) }
+
+        val campaignsData = campaigns.collectAsStateWithLifecycle()
+
+        val campaign =
+            campaignsData.value.firstOrNull { it.campaignType == "SCRT" && it.details is ScratchCardDetails }
+
+        val scratchCardDetails = when (val details = campaign?.details) {
+            is ScratchCardDetails -> details
+            else -> null
+        }
+
+        val shouldShowScratchCard = campaign?.triggerEvent.isNullOrEmpty() ||
+                trackedEventNames.contains(campaign?.triggerEvent)
+
+        if (scratchCardDetails != null && shouldShowScratchCard) {
+
+            LaunchedEffect(Unit) {
+                campaign?.id?.let {
+                    trackEvents(it, "viewed")
+                }
+            }
+
+            CardScratch(
+                isPresented = isPresented,
+                onDismiss = { isPresented = false },
+                onConfettiTrigger = {
+                    confettiTrigger++
+                    // Trigger your confetti animation here
+                },
+                wasFullyScratched = wasFullyScratched,
+                onWasFullyScratched = { wasFullyScratched = it },
+                scratchCardDetails = scratchCardDetails
+            )
+        }
+    }
+
 
     @Composable
     fun TestUserButton(
         modifier: Modifier = Modifier,
         screenName: String? = null
     ) {
+        val TAG = "TestUserButton"
         val context = LocalContext.current
         var shouldAnalyze by remember { mutableStateOf(false) }
         var isCapturing by remember { mutableStateOf(false) }
@@ -1465,21 +1518,44 @@ object AppStorys {
         val coroutineScope = rememberCoroutineScope()
 
         LaunchedEffect(shouldAnalyze) {
+            Log.d(TAG, "LaunchedEffect triggered. shouldAnalyze = $shouldAnalyze")
+
             if (shouldAnalyze) {
+                Log.d(TAG, "Starting screen capture flow")
                 isCapturing = true
+                Log.d(TAG, "isCapturing = true")
                 delay(500)
                 val activity = context as? Activity
+                Log.d(TAG, "Activity reference: $activity")
                 val rootView = activity?.window?.decorView?.rootView
+                Log.d(TAG, "Root view acquired: $rootView")
                 rootView?.let {
                     val screenToAnalyze = screenName ?: currentScreen
+                    Log.d(TAG, "Screen to analyze: $screenToAnalyze")
+
+                    Log.d(TAG, "Calling analyzeViewRoot()")
                     analyzeViewRoot(it, screenToAnalyze, activity)
+                    Log.d(TAG, "analyzeViewRoot() completed")
 
                     coroutineScope.launch {
+                        Log.d(TAG, "Showing snackbar")
                         snackbarHostState.showSnackbar("Screen captured successfully!")
                     }
                 }
                 shouldAnalyze = false
                 isCapturing = false
+
+                if(widgetPositionList.isNotEmpty() && widgetPositionList[0].isNotEmpty()){
+                    Log.d(TAG, "widgetPositionList is valid")
+                    coroutineScope.launch {
+                        Log.d(TAG, "Calling repository.sendWidgetPositions()")
+                        repository.sendWidgetPositions(
+                            accessToken = accessToken,
+                            screenName = currentScreen,
+                            positionList = widgetPositionList
+                        )
+                    }
+                }
             }
         }
 
@@ -1492,15 +1568,10 @@ object AppStorys {
             ) {
                 FloatingActionButton(
                     onClick = {
+                        Log.d(TAG, "Capture button clicked")
                         shouldAnalyze = true
 
-                        coroutineScope.launch {
-                            repository.sendWidgetPositions(
-                                accessToken = accessToken,
-                                screenName = currentScreen,
-                                positionList = widgetPositionList
-                            )
-                        }
+                        Log.d(TAG, "shouldAnalyze = true")
                     },
                     modifier = modifier
                         .padding(bottom = 86.dp, end = 16.dp)

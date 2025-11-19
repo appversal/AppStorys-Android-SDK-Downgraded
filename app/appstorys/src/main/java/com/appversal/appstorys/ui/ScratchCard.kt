@@ -1,5 +1,7 @@
 package com.appversal.appstorys.ui
 
+import android.graphics.Bitmap
+import android.graphics.drawable.BitmapDrawable
 import android.os.Build.VERSION.SDK_INT
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -29,6 +31,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.ImageLoader
@@ -38,6 +42,12 @@ import coil.decode.GifDecoder
 import coil.decode.ImageDecoderDecoder
 import coil.request.CachePolicy
 import coil.request.ImageRequest
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlin.math.min
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -48,9 +58,122 @@ fun CardScratch(
     onConfettiTrigger: () -> Unit,
     wasFullyScratched: Boolean,
     onWasFullyScratched: (Boolean) -> Unit,
-    gpayImageUrl: String = "", // Network URL for overlay
-    bannerImageUrl: String = "" // Network URL for banner
+    scratchCardDetails: com.appversal.appstorys.api.ScratchCardDetails,
+    onCtaClick: () -> Unit = {}
 ) {
+    // Extract data from campaign details
+    val details = scratchCardDetails.content
+
+// -------- card_size --------
+    val cardSizeData = details
+        ?.get("card_size")
+        ?.jsonObject
+
+// -------- overlay_image --------
+    val overlayImage = details
+        ?.get("overlay_image")
+        ?.jsonPrimitive
+        ?.contentOrNull ?: ""
+
+// -------- reward_content --------
+    val rewardContent = details
+        ?.get("reward_content")
+        ?.jsonObject
+
+    val bannerImage = rewardContent
+        ?.get("banner_image")
+        ?.jsonPrimitive
+        ?.contentOrNull ?: ""
+
+    val brandName = rewardContent
+        ?.get("brand_name")
+        ?.jsonPrimitive
+        ?.contentOrNull ?: "AppStorys"
+
+    val offerTitle = rewardContent
+        ?.get("offer_title")
+        ?.jsonPrimitive
+        ?.contentOrNull ?: "Cashback on mobile and recharge"
+
+// -------- coupon --------
+    val coupon = details
+        ?.get("coupon")
+        ?.jsonObject
+
+    val couponCode = coupon
+        ?.get("code")
+        ?.jsonPrimitive
+        ?.contentOrNull ?: ""
+
+    val couponBgColor = coupon
+        ?.get("background_color")
+        ?.jsonPrimitive
+        ?.contentOrNull ?: "#1F1F1F"
+
+    val couponBorderColor = coupon
+        ?.get("border_color")
+        ?.jsonPrimitive
+        ?.contentOrNull ?: "#FFD700"
+
+// -------- cta --------
+    val cta = details
+        ?.get("cta")
+        ?.jsonObject
+
+    val ctaHeight = cta
+        ?.get("height")
+        ?.jsonPrimitive
+        ?.intOrNull
+        ?.dp ?: 44.dp
+
+    val ctaBorderRadius = cta
+        ?.get("border_radius")
+        ?.jsonPrimitive
+        ?.intOrNull
+        ?.dp ?: 16.dp
+
+    val ctaText = cta
+        ?.get("button_text")
+        ?.jsonPrimitive
+        ?.contentOrNull ?: "Claim offer now"
+
+    val ctaColor = cta
+        ?.get("button_color")
+        ?.jsonPrimitive
+        ?.contentOrNull ?: "#2196F3"
+
+    val ctaTextColor = cta
+        ?.get("cta_text_color")
+        ?.jsonPrimitive
+        ?.contentOrNull ?: "#FFFFFF"
+
+// -------- interactions --------
+    val interactions = details
+        ?.get("interactions")
+        ?.jsonObject
+
+    val animation = interactions
+        ?.get("animation")
+        ?.jsonPrimitive
+        ?.contentOrNull ?: ""
+
+    val sound = interactions
+        ?.get("sound")
+        ?.jsonPrimitive
+        ?.contentOrNull ?: ""
+
+    val haptics = interactions
+        ?.get("haptics")
+        ?.jsonPrimitive
+        ?.contentOrNull ?: false
+
+// -------- terms_and_conditions --------
+    val termsAndConditions = details
+        ?.get("terms_and_conditions")
+        ?.jsonArray
+        ?.map { it.jsonObject } ?: emptyList()
+
+
     var points by remember { mutableStateOf(listOf<Offset>()) }
     var touchedCells by remember { mutableStateOf(setOf<Int>()) }
     var isRevealed by remember { mutableStateOf(wasFullyScratched) }
@@ -61,9 +184,23 @@ fun CardScratch(
     val gridRows = 20
     val revealThreshold = 0.1f
 
-    // Card size (adaptive, capped)
+    // Card size (from campaign data or adaptive fallback)
     val screenWidth = LocalConfiguration.current.screenWidthDp.dp
-    val cardSize = min(screenWidth.value * 0.9f, 260f).dp
+    val configuredCardSize = cardSizeData
+        ?.get("width")
+        ?.jsonPrimitive
+        ?.intOrNull
+        ?.dp ?: min(screenWidth.value * 0.9f, 260f).dp
+    val cardSize = if (configuredCardSize.value > screenWidth.value * 0.9f) {
+        min(screenWidth.value * 0.9f, 260f).dp
+    } else {
+        configuredCardSize
+    }
+    val cornerRadius = cardSizeData
+        ?.get("corner_radius")
+        ?.jsonPrimitive
+        ?.intOrNull
+        ?.dp ?: 32.dp
 
     LaunchedEffect(wasFullyScratched) {
         if (wasFullyScratched) {
@@ -119,14 +256,19 @@ fun CardScratch(
                 Box(
                     modifier = Modifier
                         .size(cardSize)
-                        .clip(RoundedCornerShape(32.dp))
+                        .clip(RoundedCornerShape(cornerRadius))
                 ) {
                     ScratchableCard(
                         cardSize = cardSize,
                         points = points,
                         isRevealed = isRevealed,
-                        gpayImageUrl = gpayImageUrl,
-                        bannerImageUrl = bannerImageUrl,
+                        gpayImageUrl = overlayImage,
+                        bannerImageUrl = bannerImage,
+                        brandName = brandName,
+                        offerTitle = offerTitle,
+                        couponCode = couponCode.toString(),
+                        couponBgColor = couponBgColor,
+                        couponBorderColor = couponBorderColor,
                         onPointsChanged = { newPoints ->
                             if (!isRevealed) {
                                 points = newPoints
@@ -166,31 +308,31 @@ fun CardScratch(
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Button(
-                                onClick = { /* Claim action */ },
+                                onClick = { onCtaClick() },
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(44.dp),
-                                shape = RoundedCornerShape(16.dp),
+                                    .height(ctaHeight),
+                                shape = RoundedCornerShape(ctaBorderRadius),
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(0xFF2196F3)
+                                    containerColor = Color(android.graphics.Color.parseColor(ctaColor))
                                 )
                             ) {
                                 Text(
-                                    text = "Claim offer now",
+                                    text = ctaText,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color.White
+                                    color = Color(android.graphics.Color.parseColor(ctaTextColor))
                                 )
                             }
 
-                                Text(
-                                    text = "Terms & Conditions*",
-                                    color = Color.White,
-                                    fontSize = 12.sp,
-                                    modifier = Modifier
-                                        .clickable {
-                                            showTerms = true
-                                        }
-                                )
+                            Text(
+                                text = "Terms & Conditions*",
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                modifier = Modifier
+                                    .clickable {
+                                        showTerms = true
+                                    }
+                            )
                         }
                     }
                 }
@@ -207,7 +349,10 @@ fun CardScratch(
                 shape = RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp),
                 dragHandle = null,
             ) {
-                TermsAndConditionsView(onDismiss = { showTerms = false })
+                TermsAndConditionsView(
+                    onDismiss = { showTerms = false },
+                    termsAndConditions = termsAndConditions
+                )
             }
         }
     }
@@ -215,146 +360,138 @@ fun CardScratch(
 
 @Composable
 fun ScratchableCard(
-    cardSize: androidx.compose.ui.unit.Dp,
+    cardSize: Dp,
     points: List<Offset>,
     isRevealed: Boolean,
     gpayImageUrl: String,
     bannerImageUrl: String,
+    brandName: String,
+    offerTitle: String,
+    couponCode: String,
+    couponBgColor: String,
+    couponBorderColor: String,
     onPointsChanged: (List<Offset>) -> Unit,
     onCellTouched: (Int) -> Unit,
     gridCols: Int,
     gridRows: Int
 ) {
-    val cardSizePx = with(LocalDensity.current) { cardSize.toPx() }
     val context = LocalContext.current
+    val cardSizePx = with(LocalDensity.current) { cardSize.toPx() }.toInt()
+
+    // Offscreen buffer (scratch surface)
+    val scratchBitmap = remember {
+        Bitmap.createBitmap(cardSizePx, cardSizePx, Bitmap.Config.ARGB_8888)
+            .apply { eraseColor(Color.Gray.toArgb()) } // fallback gray
+    }
+
+    val scratchCanvas = remember { android.graphics.Canvas(scratchBitmap) }
+    val eraserPaint = remember {
+        android.graphics.Paint().apply {
+            isAntiAlias = true
+            isDither = true
+            color = android.graphics.Color.TRANSPARENT
+            xfermode = android.graphics.PorterDuffXfermode(
+                android.graphics.PorterDuff.Mode.CLEAR
+            )
+            strokeWidth = 120f
+            strokeCap = android.graphics.Paint.Cap.ROUND
+            style = android.graphics.Paint.Style.STROKE
+        }
+    }
+
+    // Overlay image (to draw into scratch surface)
+    var overlayBitmap by remember { mutableStateOf<Bitmap?>(null) }
+
+    LaunchedEffect(gpayImageUrl) {
+        if (gpayImageUrl.isNotEmpty()) {
+            val loader = ImageLoader(context)
+            val request = ImageRequest.Builder(context)
+                .data(gpayImageUrl)
+                .allowHardware(false) // REQUIRED
+                .build()
+
+            val result = loader.execute(request)
+            val bmp = (result.drawable as? BitmapDrawable)?.bitmap
+
+            bmp?.let {
+                overlayBitmap = Bitmap.createScaledBitmap(
+                    it,
+                    cardSizePx,
+                    cardSizePx,
+                    true
+                )
+
+                // Draw overlay into scratch surface
+                scratchCanvas.drawBitmap(overlayBitmap!!, 0f, 0f, null)
+            }
+        }
+    }
 
     Box(modifier = Modifier.size(cardSize)) {
-        // Background content (revealed)
+
+        // Bottom content
         CashBackInfoView(
             modifier = Modifier.size(cardSize),
-            bannerImageUrl = bannerImageUrl
+            bannerImageUrl = bannerImageUrl,
+            brandName = brandName,
+            offerTitle = offerTitle,
+            couponCode = couponCode,
+            couponBgColor = couponBgColor,
+            couponBorderColor = couponBorderColor
         )
 
-        // Scratch overlay
+        // SCRATCH LAYER
         if (!isRevealed) {
-            Box(
+            Canvas(
                 modifier = Modifier
                     .size(cardSize)
                     .pointerInput(Unit) {
                         detectDragGestures(
                             onDragStart = { offset ->
-                                val clampedOffset = Offset(
-                                    offset.x.coerceIn(0f, cardSizePx),
-                                    offset.y.coerceIn(0f, cardSizePx)
+                                onPointsChanged(points + offset)
+                                onCellTouched(
+                                    cellIndexFor(offset, cardSizePx.toFloat(), gridCols, gridRows)
                                 )
-                                onPointsChanged(points + clampedOffset)
-                                val cellIndex = cellIndexFor(
-                                    clampedOffset,
-                                    cardSizePx,
-                                    gridCols,
-                                    gridRows
-                                )
-                                onCellTouched(cellIndex)
                             },
                             onDrag = { change, _ ->
                                 change.consume()
-                                val clampedOffset = Offset(
-                                    change.position.x.coerceIn(0f, cardSizePx),
-                                    change.position.y.coerceIn(0f, cardSizePx)
+                                onPointsChanged(points + change.position)
+                                onCellTouched(
+                                    cellIndexFor(change.position, cardSizePx.toFloat(), gridCols, gridRows)
                                 )
-                                onPointsChanged(points + clampedOffset)
-                                val cellIndex = cellIndexFor(
-                                    clampedOffset,
-                                    cardSizePx,
-                                    gridCols,
-                                    gridRows
-                                )
-                                onCellTouched(cellIndex)
                             }
                         )
                     }
             ) {
-                // Overlay image (gpay) with scratch effect
-                if (gpayImageUrl.isNotEmpty()) {
-
-                        SubcomposeAsyncImage(
-                            model = gpayImageUrl,
-                            contentDescription = "Scratch overlay",
-                            contentScale = ContentScale.Fit,
-                            modifier = Modifier
-                                .size(cardSize)
-                                .graphicsLayer {
-                                    compositingStrategy = CompositingStrategy.Offscreen
-                                }
-                                .drawWithContent {
-                                    drawContent()
-
-                                    // Create scratch path
-                                    if (points.isNotEmpty()) {
-                                        val path = Path().apply {
-                                            moveTo(points.first().x, points.first().y)
-                                            points.forEach { point ->
-                                                lineTo(point.x, point.y)
-                                            }
-                                        }
-
-                                        drawPath(
-                                            path = path,
-                                            color = Color.Black,
-                                            style = Stroke(
-                                                width = 50f,
-                                                cap = StrokeCap.Round,
-                                                join = StrokeJoin.Round
-                                            ),
-                                            blendMode = BlendMode.Clear
-                                        )
-                                    }
-                                }
-
-                        )
-                } else {
-                    // Fallback colored overlay if no image provided
-                    Canvas(
-                        modifier = Modifier
-                            .size(cardSize)
-                            .graphicsLayer {
-                                compositingStrategy = CompositingStrategy.Offscreen
-                            }
-                    ) {
-                        // Draw the scratch overlay background
-                        drawRect(Color(0xFF282828))
-
-                        // Create scratch path
-                        if (points.isNotEmpty()) {
-                            val path = Path().apply {
-                                moveTo(points.first().x, points.first().y)
-                                points.forEach { point ->
-                                    lineTo(point.x, point.y)
-                                }
-                            }
-
-                            drawPath(
-                                path = path,
-                                color = Color.Black,
-                                style = Stroke(
-                                    width = 50f,
-                                    cap = StrokeCap.Round,
-                                    join = StrokeJoin.Round
-                                ),
-                                blendMode = BlendMode.Clear
-                            )
-                        }
+                // Apply erase to bitmap (true erase)
+                if (points.isNotEmpty()) {
+                    val path = android.graphics.Path().apply {
+                        moveTo(points.first().x, points.first().y)
+                        points.forEach { lineTo(it.x, it.y) }
                     }
+                    scratchCanvas.drawPath(path, eraserPaint)
                 }
+
+                // Draw the updated scratch bitmap on screen
+                drawImage(
+                    image = scratchBitmap.asImageBitmap(),
+                    dstSize = IntSize(size.width.toInt(), size.height.toInt())
+                )
             }
         }
     }
 }
 
+
 @Composable
 fun CashBackInfoView(
     modifier: Modifier = Modifier,
-    bannerImageUrl: String
+    bannerImageUrl: String,
+    brandName: String,
+    offerTitle: String,
+    couponCode: String,
+    couponBgColor: String,
+    couponBorderColor: String
 ) {
     val context = LocalContext.current
 
@@ -421,24 +558,63 @@ fun CashBackInfoView(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
-                    text = "Offer from AppStorys",
+                    text = "Offer from $brandName",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = Color.White
                 )
                 Text(
-                    text = "Cashback on mobile and recharge",
+                    text = offerTitle,
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color.White.copy(alpha = 0.7f),
                     textAlign = TextAlign.Center
                 )
+
+                // Coupon code display
+                if (couponCode.isNotEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .padding(top = 8.dp)
+                            .background(
+                                color = Color(android.graphics.Color.parseColor(couponBgColor)),
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .then(
+                                if (couponBorderColor.isNotEmpty()) {
+                                    Modifier.drawWithContent {
+                                        drawContent()
+                                        drawRoundRect(
+                                            color = Color(android.graphics.Color.parseColor(couponBorderColor)),
+                                            style = Stroke(width = 2.dp.toPx()),
+                                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(8.dp.toPx())
+                                        )
+                                    }
+                                } else {
+                                    Modifier
+                                }
+                            )
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = couponCode,
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            letterSpacing = 2.sp
+                        )
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-fun TermsAndConditionsView(onDismiss: () -> Unit) {
+fun TermsAndConditionsView(
+    onDismiss: () -> Unit,
+    termsAndConditions: List<JsonObject>
+) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -450,30 +626,23 @@ fun TermsAndConditionsView(onDismiss: () -> Unit) {
                 .padding(bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            TermSection(
-                title = "Eligibility:",
-                content = "Only genuine users who meet the campaign criteria (as defined by the brand/platform) are eligible to participate in the Scratch CRC program."
-            )
+            termsAndConditions.forEach { termObj ->
 
-            TermSection(
-                title = "Non-Transferable & One-Time Use:",
-                content = "Each scratch code/reward is unique, valid for a single use, and cannot be transferred, exchanged, or redeemed for cash unless explicitly stated."
-            )
+                val title = termObj["title"]
+                    ?.jsonPrimitive
+                    ?.contentOrNull
+                    ?: ""
 
-            TermSection(
-                title = "Fraud Prevention:",
-                content = "Any misuse, duplication, unauthorized distribution, or suspicious activity related to the scratch code will result in immediate disqualification and potential blocking of the user/account."
-            )
+                val content = termObj["content"]
+                    ?.jsonPrimitive
+                    ?.contentOrNull
+                    ?: ""
 
-            TermSection(
-                title = "Validity & Expiry:",
-                content = "All scratch cards/codes must be redeemed within the specified validity period. Expired or tampered codes will not be accepted under any circumstances."
-            )
-
-            TermSection(
-                title = "Brand's Final Authority:",
-                content = "The company reserves the right to modify, suspend, or terminate the scratch campaign at any time. All decisions made by the company regarding rewards, eligibility, and disputes will be final and binding."
-            )
+                TermSection(
+                    title = title,
+                    content = content
+                )
+            }
         }
 
         // Close button
@@ -493,6 +662,7 @@ fun TermsAndConditionsView(onDismiss: () -> Unit) {
         }
     }
 }
+
 
 @Composable
 fun TermSection(title: String, content: String) {

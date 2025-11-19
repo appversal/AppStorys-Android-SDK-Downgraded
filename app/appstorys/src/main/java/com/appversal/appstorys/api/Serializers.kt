@@ -80,6 +80,11 @@ object CampaignDetailsSerializer : KSerializer<CampaignDetails?> {
                 serializer<List<StoryGroup>>(),
                 value.groups.orEmpty()
             )
+
+            is ScratchCardDetails -> jsonEncoder.json.encodeToJsonElement(
+                ScratchCardDetails.serializer(),
+                value
+            )
         }
         jsonEncoder.encodeJsonElement(element)
     }
@@ -188,6 +193,11 @@ object CampaignDeserializer : KSerializer<Campaign> {
                             serializer<List<StoryGroup>>(),
                             detailsElement
                         )
+                    )
+
+                    "SCRT" -> jsonDecoder.json.decodeFromJsonElement(
+                        serializer<ScratchCardDetails>(),
+                        detailsElement
                     )
 
                     else -> {

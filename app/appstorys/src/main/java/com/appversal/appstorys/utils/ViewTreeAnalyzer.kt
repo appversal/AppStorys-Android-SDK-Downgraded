@@ -75,13 +75,20 @@ internal object ViewTreeAnalyzer {
         activity: Activity,
         context: Context
     ): kotlinx.serialization.json.JsonObject {
+        Log.d("ViewTreeAnalyzer", "===== analyzeViewRoot() START =====")
         val children = buildJsonArray {
+            Log.d("ViewTreeAnalyzer", "Starting view tree analysis...")
             analyzeViewElement(
                 root,
-                onElementAnalyzed = { add(it) },
+                onElementAnalyzed = {
+                    Log.d("ViewTreeAnalyzer", "Element analyzed: $it")
+                    add(it)
+                    },
                 activity = activity
             )
         }
+
+        Log.d("ViewTreeAnalyzer", "View tree analysis complete. Total elements: ${children.size}")
 
         val resultJson = buildJsonObject {
             put("name", screenName)
@@ -94,19 +101,28 @@ internal object ViewTreeAnalyzer {
             formattedJson
         )
 
+        Log.d("ViewTreeAnalyzer", "Capturing screenshot...")
+
         val screenshot = captureScreenshot(
             view = root,
             activity = activity
         )
 
         if (screenshot != null) {
-            repository.tooltipIdentify(
-                accessToken = accessToken,
-                user_id = user_id,
-                screenName = screenName,
-                childrenJson = formattedJson,
-                screenshotFile = screenshot
-            )
+            Log.d("ViewTreeAnalyzer", "Screenshot captured. Sending to server...")
+
+            try {
+                repository.tooltipIdentify(
+                    accessToken = accessToken,
+                    user_id = user_id,
+                    screenName = screenName,
+                    childrenJson = formattedJson,
+                    screenshotFile = screenshot
+                )
+                Log.d("ViewTreeAnalyzer", "tooltipIdentify() sent successfully.")
+            } catch (e: Exception) {
+                Log.e("ViewTreeAnalyzer", "tooltipIdentify() failed", e)
+            }
         }
 
         return resultJson
@@ -118,6 +134,7 @@ internal object ViewTreeAnalyzer {
      * @param view The view to capture.
      */
     private suspend fun captureScreenshot(activity: Activity, view: View): File? {
+        Log.d("ViewTreeAnalyzer", "captureScreenshot() called")
         return try {
             if (view.width <= 0 || view.height <= 0) {
                 Log.e("ViewTreeAnalyzer", "Cannot capture screenshot: View has invalid dimensions")
@@ -302,60 +319,6 @@ internal object ViewTreeAnalyzer {
     }
 
     /**
-     * Generates a consistent ID for a SemanticsNode based on its properties and position in the tree.
-     *
-     * @param semanticsNode The SemanticsNode to generate an ID for.
-     * @param path The path from root to this node (list of child indices).
-     * @return A consistent string ID for this node.
-     */
-//    private fun generateConsistentId(semanticsNode: SemanticsNode, path: List<Int>): String {
-//        // Collect identifying properties
-//        val properties = mutableListOf<String>()
-//
-//        // Add path information (most reliable for consistency)
-//        properties.add("path:${path.joinToString("_")}")
-//
-//        // Add semantic properties that are likely to be stable
-//        semanticsNode.config.getOrNull(SemanticsProperties.Text)?.let { textList ->
-//            if (textList.isNotEmpty()) {
-//                properties.add("text:${textList.first().text}")
-//            }
-//        }
-//
-//        semanticsNode.config.getOrNull(SemanticsProperties.ContentDescription)?.let { contentDescList ->
-//            if (contentDescList.isNotEmpty()) {
-//                properties.add("desc:${contentDescList.first()}")
-//            }
-//        }
-//
-//        semanticsNode.config.getOrNull(SemanticsProperties.TestTag)?.let { testTag ->
-//            properties.add("tag:$testTag")
-//        }
-//
-//        // Add role information if available
-//        semanticsNode.config.getOrNull(SemanticsProperties.Role)?.let { role ->
-//            properties.add("role:$role")
-//        }
-//
-//        // Add size and position as fallback (less reliable but helps with uniqueness)
-//        val bounds = "${semanticsNode.size.width}x${semanticsNode.size.height}"
-//        val position = "${semanticsNode.positionInWindow.x.roundToInt()},${semanticsNode.positionInWindow.y.roundToInt()}"
-//        properties.add("bounds:$bounds")
-//        properties.add("pos:$position")
-//
-//        // Combine all properties
-//        val combinedProperties = properties.joinToString("|")
-//
-//        // Generate a hash for a shorter, consistent ID
-//        val hash = MessageDigest.getInstance("MD5")
-//            .digest(combinedProperties.toByteArray())
-//            .joinToString("") { "%02x".format(it) }
-//            .take(8) // Take first 8 characters for readability
-//
-//        return "compose_auto_$hash"
-//    }
-
-    /**
      * Recursively analyzes a SemanticsNode and its children.
      * Reports coordinates relative to the application window.
      *
@@ -372,7 +335,6 @@ internal object ViewTreeAnalyzer {
         val explicitId = semanticsNode.config.getOrNull(AppstorysViewTagKey)
         // Attempt to extract a valid ID from the Semantics config
         val nodeId = explicitId
-//            ?: generateConsistentId(semanticsNode, path)
 
         // Skip nodes that do not have a valid ID
         if (nodeId != null) {
