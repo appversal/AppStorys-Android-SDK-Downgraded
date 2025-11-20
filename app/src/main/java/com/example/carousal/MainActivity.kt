@@ -1,6 +1,7 @@
 @file:OptIn(ExperimentalMaterial3Api::class)
 
 package com.example.carousal
+import android.app.Activity
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -92,7 +93,6 @@ fun MyApp() {
     val screenName by app.screenNameNavigation.collectAsState()
     var currentScreen by remember { mutableStateOf("HomeScreen") }
 
-
     var selectedTab by remember { mutableStateOf(0) } // Track selected tab index
 
     var confettiTrigger by remember { mutableStateOf(0) }
@@ -171,6 +171,7 @@ fun MyApp() {
         App.appStorys.overlayElements(
             topPadding = 70.dp,
             bottomPadding = 70.dp,
+            activity = LocalContext.current as Activity
         )
 
         campaignManager.ScratchCard()
@@ -211,7 +212,7 @@ fun HomeScreen(
     var eventInput3 by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
-        val screenName  = "Premssss Screen"
+        val screenName  = "Home Screen"
         val positions = listOf("widget_one")
         campaignManager.getScreenCampaigns(
             screenName,

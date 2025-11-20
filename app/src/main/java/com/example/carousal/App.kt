@@ -22,12 +22,12 @@ class App : Application() {
         // Initialize CampaignManager with userId and appId
         AppStorys.initialize(
             context = this,
-            appId = "c2f8cc49-2c90-4086-9b9c-b64db3ca93f2",
-            accountId = "0d29cb83-bd10-44df-987d-a59521f13bf7",
+            appId = "9e1b21a2-350a-4592-918c-2a19a73f249a",
+            accountId = "4350bf8e-0c9a-46bd-b953-abb65ab21d11",
 //            appId = "",
 //            accountId = "",
 //            userId = userId,
-            userId = "08eef7e4-aa86-48ec-9255-b3762a4ab091",
+            userId = "anitest",
             attributes = attributes,
             navigateToScreen = { screen ->
                 println("Navigating to $screen")

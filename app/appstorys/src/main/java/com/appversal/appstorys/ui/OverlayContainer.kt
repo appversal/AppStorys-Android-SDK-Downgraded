@@ -1,5 +1,7 @@
 package com.appversal.appstorys.ui
 
+import android.app.Activity
+import android.content.Context
 import android.graphics.Rect
 import android.util.Log
 import android.view.View
@@ -98,6 +100,7 @@ object OverlayContainer {
         pipTopPadding: Dp = 0.dp,
         pipBottomPadding: Dp = 0.dp,
         csatBottomPadding: Dp = 0.dp,
+        activity: Activity? = null
     ) {
         // Collects the target view for tooltips and updates the tooltip list.
         LaunchedEffect(Unit) {
@@ -134,7 +137,9 @@ object OverlayContainer {
 
                 AppStorys.BottomSheet()
 
-                AppStorys.TestUserButton()
+                AppStorys.TestUserButton(
+                    activity = activity
+                )
 
                 AppStorys.Survey()
 

@@ -382,10 +382,12 @@ object AppStorys {
     fun overlayElements(
         bottomPadding: Dp = 0.dp,
         topPadding: Dp = 0.dp,
+        activity: Activity? = null
     ) {
         OverlayContainer.Content(
             bottomPadding = bottomPadding,
             topPadding = topPadding,
+            activity = activity
         )
     }
 
@@ -1507,10 +1509,13 @@ object AppStorys {
     @Composable
     fun TestUserButton(
         modifier: Modifier = Modifier,
-        screenName: String? = null
+        screenName: String? = null,
+        activity: Activity? = null
     ) {
         val TAG = "TestUserButton"
-        val context = LocalContext.current
+
+        val activityRef = activity ?: LocalContext.current as? Activity
+
         var shouldAnalyze by remember { mutableStateOf(false) }
         var isCapturing by remember { mutableStateOf(false) }
 
@@ -1525,7 +1530,7 @@ object AppStorys {
                 isCapturing = true
                 Log.i(TAG, "isCapturing = true")
                 delay(500)
-                val activity = context as? Activity
+                val activity = activityRef
                 Log.i(TAG, "Activity reference: $activity")
                 val rootView = activity?.window?.decorView?.rootView
                 Log.i(TAG, "Root view acquired: $rootView")
