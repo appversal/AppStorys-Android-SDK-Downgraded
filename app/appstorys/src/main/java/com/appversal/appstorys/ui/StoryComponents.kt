@@ -315,8 +315,7 @@ internal fun StoryScreen(
 
     ModalBottomSheet(
         modifier = Modifier
-            .fillMaxSize()
-            .statusBarsPadding(),
+            .fillMaxSize(),
         shape = RectangleShape,
         onDismissRequest = onDismiss,
         sheetState = sheetState,
@@ -327,6 +326,7 @@ internal fun StoryScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
+                    .statusBarsPadding()
                     .pointerInput("story_gestures") {
                         var startPosition: Offset? = null
                         var startTime = 0L

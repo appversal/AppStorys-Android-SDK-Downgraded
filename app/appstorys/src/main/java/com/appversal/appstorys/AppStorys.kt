@@ -16,6 +16,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -953,13 +954,7 @@ object AppStorys {
             ) {
                 com.appversal.appstorys.ui.PinnedBanner(
                     modifier = modifier
-                        .align(Alignment.BottomCenter)
-                        .clickable {
-                            campaign.id?.let {
-                                clickEvent(link = bannerDetails.link, campaignId = it)
-                                trackEvents(it, "clicked")
-                            }
-                        },
+                        .align(Alignment.BottomCenter),
                     imageUrl = bannerUrl ?: "",
                     lottieUrl = bannerDetails.lottie_data,
                     width = bannerDetails.width?.dp ?: screenWidth,
@@ -985,7 +980,13 @@ object AppStorys {
                     contentScale = ContentScale.Fit,
                     height = calculatedHeight,
                     placeHolder = placeholder,
-                    placeholderContent = placeholderContent
+                    placeholderContent = placeholderContent,
+                    onClick = {
+                        campaign.id?.let {
+                            clickEvent(link = bannerDetails.link.toString().trim().removeSurrounding("\""), campaignId = it)
+                            trackEvents(it, "clicked")
+                        }
+                    }
                 )
             }
         }
@@ -1131,9 +1132,12 @@ object AppStorys {
                 itemContent = { index ->
                     widgetDetails.widgetImages[index].image?.let {
                         CarousalImage(
-                            modifier = modifier.clickable {
+                            modifier = modifier.clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                            ) {
                                 clickEvent(
-                                    link = widgetDetails.widgetImages[index].link,
+                                    link = widgetDetails.widgetImages[index].link.toString().trim().removeSurrounding("\""),
                                     campaignId = campaign.id,
                                     widgetImageId = widgetDetails.widgetImages[index].id
                                 )
@@ -1748,7 +1752,8 @@ object AppStorys {
             val intent = Intent(Intent.ACTION_VIEW, url.toUri())
             intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
             context.startActivity(intent)
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.i("Click", "Link has $e")
         }
     }
 

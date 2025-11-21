@@ -77,9 +77,9 @@ internal fun OverlayFloater(
                 LottieAnimation(
                     composition = composition,
                     iterations = LottieConstants.IterateForever,
-                    modifier = Modifier
-                        .height(height ?: Dp.Unspecified)
-                        .width(width ?: Dp.Unspecified)
+                    modifier  = Modifier
+                        .fillMaxSize()
+                        .clip(borderRadiusValues)
                 )
             }
 
