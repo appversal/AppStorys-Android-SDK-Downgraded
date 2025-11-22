@@ -300,7 +300,8 @@ fun HomeScreen(
                     Button(
                         onClick = {
                             campaignManager.trackEvents(
-                                event = "Login"
+//                                event = "Login"
+                                event = "NewEventTest"
                             )
                         },
                         modifier = Modifier.appstorys("anuridhtest")

@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import coil.ImageLoader
 import coil.compose.SubcomposeAsyncImage
 import coil.compose.rememberAsyncImagePainter
@@ -64,38 +65,54 @@ fun CardScratch(
     // Extract data from campaign details
     val details = scratchCardDetails.content
 
-// -------- card_size --------
+    // -------- card_size --------
     val cardSizeData = details
         ?.get("card_size")
         ?.jsonObject
 
-// -------- overlay_image --------
-    val overlayImage = details
-        ?.get("overlay_image")
-        ?.jsonPrimitive
-        ?.contentOrNull ?: ""
+    // -------- overlay_image (coverImage at root level) --------
+    val overlayImage = scratchCardDetails.coverImage ?: ""
 
-// -------- reward_content --------
+    // -------- reward_content --------
     val rewardContent = details
         ?.get("reward_content")
         ?.jsonObject
 
-    val bannerImage = rewardContent
-        ?.get("banner_image")
-        ?.jsonPrimitive
-        ?.contentOrNull ?: ""
-
-    val brandName = rewardContent
-        ?.get("brand_name")
-        ?.jsonPrimitive
-        ?.contentOrNull ?: "AppStorys"
+    // bannerImage at root level
+    val bannerImage = scratchCardDetails.bannerImage ?: ""
 
     val offerTitle = rewardContent
         ?.get("offer_title")
         ?.jsonPrimitive
-        ?.contentOrNull ?: "Cashback on mobile and recharge"
+        ?.contentOrNull ?: ""
 
-// -------- coupon --------
+    val offerSubtitle = rewardContent
+        ?.get("offer_subtitle")
+        ?.jsonPrimitive
+        ?.contentOrNull ?: ""
+
+    val onlyImage = rewardContent
+        ?.get("onlyImage")
+        ?.jsonPrimitive
+        ?.contentOrNull
+        ?.toBoolean() ?: false
+
+    val rewardBgColor = rewardContent
+        ?.get("background_color")
+        ?.jsonPrimitive
+        ?.contentOrNull ?: "#141414"
+
+    val offerTitleColor = rewardContent
+        ?.get("offerTitleTextColor")
+        ?.jsonPrimitive
+        ?.contentOrNull ?: "#FFFFFF"
+
+    val offerSubtitleColor = rewardContent
+        ?.get("offerSubtitleTextColor")
+        ?.jsonPrimitive
+        ?.contentOrNull ?: "#B3B3B3"
+
+    // -------- coupon --------
     val coupon = details
         ?.get("coupon")
         ?.jsonObject
@@ -113,9 +130,14 @@ fun CardScratch(
     val couponBorderColor = coupon
         ?.get("border_color")
         ?.jsonPrimitive
-        ?.contentOrNull ?: "#FFD700"
+        ?.contentOrNull ?: "#0066FF"
 
-// -------- cta --------
+    val couponTextColor = coupon
+        ?.get("codeTextColor")
+        ?.jsonPrimitive
+        ?.contentOrNull ?: "#FFFFFF"
+
+    // -------- cta --------
     val cta = details
         ?.get("cta")
         ?.jsonObject
@@ -124,13 +146,13 @@ fun CardScratch(
         ?.get("height")
         ?.jsonPrimitive
         ?.intOrNull
-        ?.dp ?: 44.dp
+        ?.dp ?: 48.dp
 
     val ctaBorderRadius = cta
         ?.get("border_radius")
         ?.jsonPrimitive
         ?.intOrNull
-        ?.dp ?: 16.dp
+        ?.dp ?: 12.dp
 
     val ctaText = cta
         ?.get("button_text")
@@ -140,38 +162,57 @@ fun CardScratch(
     val ctaColor = cta
         ?.get("button_color")
         ?.jsonPrimitive
-        ?.contentOrNull ?: "#2196F3"
+        ?.contentOrNull ?: "#0066FF"
 
     val ctaTextColor = cta
         ?.get("cta_text_color")
         ?.jsonPrimitive
-        ?.contentOrNull ?: "#FFFFFF"
+        ?.contentOrNull ?: "#383838"
 
-// -------- interactions --------
-    val interactions = details
-        ?.get("interactions")
+    val ctaUrl = cta
+        ?.get("url")
+        ?.jsonPrimitive
+        ?.contentOrNull ?: ""
+
+    val ctaFullWidth = cta
+        ?.get("enable_full_width")
+        ?.jsonPrimitive
+        ?.contentOrNull
+        ?.toBoolean() ?: false
+
+    val ctaPadding = cta
+        ?.get("padding")
         ?.jsonObject
 
-    val animation = interactions
-        ?.get("animation")
+    val ctaPaddingTop = ctaPadding
+        ?.get("top")
         ?.jsonPrimitive
-        ?.contentOrNull ?: ""
+        ?.intOrNull
+        ?.dp ?: 12.dp
 
-    val sound = interactions
-        ?.get("sound")
+    val ctaPaddingBottom = ctaPadding
+        ?.get("bottom")
         ?.jsonPrimitive
-        ?.contentOrNull ?: ""
+        ?.intOrNull
+        ?.dp ?: 12.dp
 
-    val haptics = interactions
-        ?.get("haptics")
+    val ctaPaddingLeft = ctaPadding
+        ?.get("left")
         ?.jsonPrimitive
-        ?.contentOrNull ?: false
+        ?.intOrNull
+        ?.dp ?: 20.dp
 
-// -------- terms_and_conditions --------
-    val termsAndConditions = details
+    val ctaPaddingRight = ctaPadding
+        ?.get("right")
+        ?.jsonPrimitive
+        ?.intOrNull
+        ?.dp ?: 20.dp
+
+    // -------- terms_and_conditions (HTML string) --------
+    val termsAndConditionsHtml = details
         ?.get("terms_and_conditions")
-        ?.jsonArray
-        ?.map { it.jsonObject } ?: emptyList()
+        ?.jsonPrimitive
+        ?.contentOrNull ?: ""
 
 
     var points by remember { mutableStateOf(listOf<Offset>()) }
@@ -262,13 +303,18 @@ fun CardScratch(
                         cardSize = cardSize,
                         points = points,
                         isRevealed = isRevealed,
-                        gpayImageUrl = overlayImage,
+                        overlayImageUrl = overlayImage,
                         bannerImageUrl = bannerImage,
-                        brandName = brandName,
                         offerTitle = offerTitle,
-                        couponCode = couponCode.toString(),
+                        offerSubtitle = offerSubtitle,
+                        couponCode = couponCode,
                         couponBgColor = couponBgColor,
                         couponBorderColor = couponBorderColor,
+                        couponTextColor = couponTextColor,
+                        rewardBgColor = rewardBgColor,
+                        offerTitleColor = offerTitleColor,
+                        offerSubtitleColor = offerSubtitleColor,
+                        onlyImage = onlyImage,
                         onPointsChanged = { newPoints ->
                             if (!isRevealed) {
                                 points = newPoints
@@ -310,29 +356,40 @@ fun CardScratch(
                             Button(
                                 onClick = { onCtaClick() },
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(ctaHeight),
+                                    .then(
+                                        if (ctaFullWidth) Modifier.fillMaxWidth()
+                                        else Modifier.wrapContentWidth()
+                                    )
+                                    .height(ctaHeight)
+                                    .padding(
+                                        top = ctaPaddingTop,
+                                        bottom = ctaPaddingBottom,
+                                        start = ctaPaddingLeft,
+                                        end = ctaPaddingRight
+                                    ),
                                 shape = RoundedCornerShape(ctaBorderRadius),
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(android.graphics.Color.parseColor(ctaColor))
+                                    containerColor = parseColorSafe(ctaColor, Color(0xFF0066FF))
                                 )
                             ) {
                                 Text(
                                     text = ctaText,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(android.graphics.Color.parseColor(ctaTextColor))
+                                    color = parseColorSafe(ctaTextColor, Color(0xFF383838))
                                 )
                             }
 
-                            Text(
-                                text = "Terms & Conditions*",
-                                color = Color.White,
-                                fontSize = 12.sp,
-                                modifier = Modifier
-                                    .clickable {
-                                        showTerms = true
-                                    }
-                            )
+                            if (termsAndConditionsHtml.isNotEmpty()) {
+                                Text(
+                                    text = "Terms & Conditions*",
+                                    color = Color.White,
+                                    fontSize = 12.sp,
+                                    modifier = Modifier
+                                        .clickable {
+                                            showTerms = true
+                                        }
+                                )
+                            }
                         }
                     }
                 }
@@ -351,7 +408,7 @@ fun CardScratch(
             ) {
                 TermsAndConditionsView(
                     onDismiss = { showTerms = false },
-                    termsAndConditions = termsAndConditions
+                    termsHtml = termsAndConditionsHtml
                 )
             }
         }
@@ -363,13 +420,18 @@ fun ScratchableCard(
     cardSize: Dp,
     points: List<Offset>,
     isRevealed: Boolean,
-    gpayImageUrl: String,
+    overlayImageUrl: String,
     bannerImageUrl: String,
-    brandName: String,
     offerTitle: String,
+    offerSubtitle: String,
     couponCode: String,
     couponBgColor: String,
     couponBorderColor: String,
+    couponTextColor: String,
+    rewardBgColor: String,
+    offerTitleColor: String,
+    offerSubtitleColor: String,
+    onlyImage: Boolean,
     onPointsChanged: (List<Offset>) -> Unit,
     onCellTouched: (Int) -> Unit,
     gridCols: Int,
@@ -402,11 +464,11 @@ fun ScratchableCard(
     // Overlay image (to draw into scratch surface)
     var overlayBitmap by remember { mutableStateOf<Bitmap?>(null) }
 
-    LaunchedEffect(gpayImageUrl) {
-        if (gpayImageUrl.isNotEmpty()) {
+    LaunchedEffect(overlayImageUrl) {
+        if (overlayImageUrl.isNotEmpty()) {
             val loader = ImageLoader(context)
             val request = ImageRequest.Builder(context)
-                .data(gpayImageUrl)
+                .data(overlayImageUrl)
                 .allowHardware(false) // REQUIRED
                 .build()
 
@@ -430,15 +492,28 @@ fun ScratchableCard(
     Box(modifier = Modifier.size(cardSize)) {
 
         // Bottom content
-        CashBackInfoView(
-            modifier = Modifier.size(cardSize),
-            bannerImageUrl = bannerImageUrl,
-            brandName = brandName,
-            offerTitle = offerTitle,
-            couponCode = couponCode,
-            couponBgColor = couponBgColor,
-            couponBorderColor = couponBorderColor
-        )
+        if (onlyImage) {
+            // Only show banner image when onlyImage is true
+            OnlyImageView(
+                modifier = Modifier.size(cardSize),
+                bannerImageUrl = bannerImageUrl
+            )
+        } else {
+            // Show full content
+            CashBackInfoView(
+                modifier = Modifier.size(cardSize),
+                bannerImageUrl = bannerImageUrl,
+                offerTitle = offerTitle,
+                offerSubtitle = offerSubtitle,
+                couponCode = couponCode,
+                couponBgColor = couponBgColor,
+                couponBorderColor = couponBorderColor,
+                couponTextColor = couponTextColor,
+                rewardBgColor = rewardBgColor,
+                offerTitleColor = offerTitleColor,
+                offerSubtitleColor = offerSubtitleColor
+            )
+        }
 
         // SCRATCH LAYER
         if (!isRevealed) {
@@ -484,20 +559,91 @@ fun ScratchableCard(
 
 
 @Composable
+fun OnlyImageView(
+    modifier: Modifier = Modifier,
+    bannerImageUrl: String
+) {
+    val context = LocalContext.current
+
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.Center
+    ) {
+        if (bannerImageUrl.isNotEmpty()) {
+            if (isGifUrl(bannerImageUrl)) {
+                val imageLoader = ImageLoader.Builder(context)
+                    .components {
+                        if (SDK_INT >= 28) {
+                            add(ImageDecoderDecoder.Factory())
+                        } else {
+                            add(GifDecoder.Factory())
+                        }
+                    }
+                    .build()
+
+                val painter = rememberAsyncImagePainter(
+                    ImageRequest.Builder(context)
+                        .data(bannerImageUrl)
+                        .memoryCacheKey(bannerImageUrl)
+                        .diskCacheKey(bannerImageUrl)
+                        .diskCachePolicy(CachePolicy.ENABLED)
+                        .memoryCachePolicy(CachePolicy.ENABLED)
+                        .crossfade(true)
+                        .apply { size(coil.size.Size.ORIGINAL) }
+                        .build(),
+                    imageLoader = imageLoader
+                )
+
+                Image(
+                    painter = painter,
+                    contentDescription = "Banner",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                SubcomposeAsyncImage(
+                    model = bannerImageUrl,
+                    contentDescription = "Banner",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+        }
+    }
+}
+
+// Helper function to safely parse color strings
+private fun parseColorSafe(colorString: String, defaultColor: Color = Color.White): Color {
+    return try {
+        if (colorString.isNotEmpty()) {
+            Color(android.graphics.Color.parseColor(colorString))
+        } else {
+            defaultColor
+        }
+    } catch (e: Exception) {
+        defaultColor
+    }
+}
+
+@Composable
 fun CashBackInfoView(
     modifier: Modifier = Modifier,
     bannerImageUrl: String,
-    brandName: String,
     offerTitle: String,
+    offerSubtitle: String,
     couponCode: String,
     couponBgColor: String,
-    couponBorderColor: String
+    couponBorderColor: String,
+    couponTextColor: String,
+    rewardBgColor: String,
+    offerTitleColor: String,
+    offerSubtitleColor: String
 ) {
     val context = LocalContext.current
 
     Box(
         modifier = modifier
-            .background(Color(0xFF141414))
+            .background(parseColorSafe(rewardBgColor, Color(0xFF141414)))
             .padding(16.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -505,7 +651,7 @@ fun CashBackInfoView(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Network image for banner - Using same pattern as PinnedBanner
+            // Network image for banner
             if (bannerImageUrl.isNotEmpty()) {
                 if (isGifUrl(bannerImageUrl)) {
                     val imageLoader = ImageLoader.Builder(context)
@@ -557,18 +703,24 @@ fun CashBackInfoView(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(
-                    text = "Offer from $brandName",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-                Text(
-                    text = offerTitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color.White.copy(alpha = 0.7f),
-                    textAlign = TextAlign.Center
-                )
+                if (offerTitle.isNotEmpty()) {
+                    Text(
+                        text = offerTitle,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = parseColorSafe(offerTitleColor, Color.White),
+                        textAlign = TextAlign.Center
+                    )
+                }
+
+                if (offerSubtitle.isNotEmpty()) {
+                    Text(
+                        text = offerSubtitle,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = parseColorSafe(offerSubtitleColor, Color.White.copy(alpha = 0.7f)),
+                        textAlign = TextAlign.Center
+                    )
+                }
 
                 // Coupon code display
                 if (couponCode.isNotEmpty()) {
@@ -576,7 +728,7 @@ fun CashBackInfoView(
                         modifier = Modifier
                             .padding(top = 8.dp)
                             .background(
-                                color = Color(android.graphics.Color.parseColor(couponBgColor)),
+                                color = parseColorSafe(couponBgColor, Color(0xFF1F1F1F)),
                                 shape = RoundedCornerShape(8.dp)
                             )
                             .then(
@@ -584,7 +736,7 @@ fun CashBackInfoView(
                                     Modifier.drawWithContent {
                                         drawContent()
                                         drawRoundRect(
-                                            color = Color(android.graphics.Color.parseColor(couponBorderColor)),
+                                            color = parseColorSafe(couponBorderColor, Color(0xFF0066FF)),
                                             style = Stroke(width = 2.dp.toPx()),
                                             cornerRadius = androidx.compose.ui.geometry.CornerRadius(8.dp.toPx())
                                         )
@@ -600,7 +752,7 @@ fun CashBackInfoView(
                             text = couponCode,
                             style = MaterialTheme.typography.bodyLarge,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White,
+                            color = parseColorSafe(couponTextColor, Color.White),
                             letterSpacing = 2.sp
                         )
                     }
@@ -613,7 +765,7 @@ fun CashBackInfoView(
 @Composable
 fun TermsAndConditionsView(
     onDismiss: () -> Unit,
-    termsAndConditions: List<JsonObject>
+    termsHtml: String
 ) {
     Box(
         modifier = Modifier
@@ -624,25 +776,51 @@ fun TermsAndConditionsView(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            termsAndConditions.forEach { termObj ->
+            // Title
+            Text(
+                text = "Terms & Conditions",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
 
-                val title = termObj["title"]
-                    ?.jsonPrimitive
-                    ?.contentOrNull
-                    ?: ""
+            // HTML content
+            androidx.compose.ui.viewinterop.AndroidView(
+                factory = { context ->
+                    android.widget.TextView(context).apply {
+                        // Set text appearance
+                        setTextAppearance(android.R.style.TextAppearance_Material_Body1)
 
-                val content = termObj["content"]
-                    ?.jsonPrimitive
-                    ?.contentOrNull
-                    ?: ""
+                        // Parse HTML
+                        text = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                            android.text.Html.fromHtml(termsHtml, android.text.Html.FROM_HTML_MODE_COMPACT)
+                        } else {
+                            @Suppress("DEPRECATION")
+                            android.text.Html.fromHtml(termsHtml)
+                        }
 
-                TermSection(
-                    title = title,
-                    content = content
-                )
-            }
+                        // Make links clickable
+                        movementMethod = android.text.method.LinkMovementMethod.getInstance()
+
+                        // Set text size
+                        textSize = 14f
+
+                        // Set padding
+                        setPadding(0, 0, 0, 0)
+                    }
+                },
+                update = { textView ->
+                    textView.text = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                        android.text.Html.fromHtml(termsHtml, android.text.Html.FROM_HTML_MODE_COMPACT)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        android.text.Html.fromHtml(termsHtml)
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
         }
 
         // Close button
@@ -663,24 +841,6 @@ fun TermsAndConditionsView(
     }
 }
 
-
-@Composable
-fun TermSection(title: String, content: String) {
-    Column(
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold
-        )
-        Text(
-            text = content,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-        )
-    }
-}
 
 // Helper function to map point to grid cell index
 private fun cellIndexFor(

@@ -629,6 +629,11 @@ data class Modal(
 @Serializable
 data class ScratchCardDetails(
     val id: String?,
-    val styling: JsonObject? = null,
-    val content: JsonObject? = null
+    val bannerImage: String?,
+    val coverImage: String?,
+    val height: Int?,
+    val width: Int?,
+    val soundFile: String?,
+    val content: JsonObject? = null,
+    val styling: JsonObject? = null
 ) : CampaignDetails()

@@ -119,6 +119,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
+import kotlin.toString
 
 object AppStorys {
     private lateinit var context: Application
@@ -520,7 +521,7 @@ object AppStorys {
         val shouldShowFloater = campaign?.triggerEvent.isNullOrEmpty() ||
                 trackedEventNames.contains(campaign?.triggerEvent)
 
-        if (floaterDetails != null && !floaterDetails.image.isNullOrEmpty() && shouldShowFloater) {
+        if (floaterDetails != null && (!floaterDetails.image.isNullOrEmpty() || !floaterDetails.lottie_data.isNullOrEmpty()) && shouldShowFloater) {
             LaunchedEffect(Unit) {
                 campaign?.id?.let {
                     trackEvents(it, "viewed")
@@ -553,8 +554,8 @@ object AppStorys {
                                 trackEvents(campaign.id, "clicked")
                             }
                         },
-                        image = floaterDetails.image,
-                        lottieUrl = floaterDetails.lottie_data,
+                        image = floaterDetails.image ?: "",
+                        lottieUrl = floaterDetails.lottie_data ?: "",
                         height = floaterDetails.height?.dp ?: 60.dp,
                         width = floaterDetails.width?.dp ?: 60.dp,
                         borderRadiusValues = RoundedCornerShape(
@@ -1130,7 +1131,11 @@ object AppStorys {
                 itemsCount = widgetDetails.widgetImages.count(),
                 width = staticWidth,
                 itemContent = { index ->
-                    widgetDetails.widgetImages[index].image?.let {
+
+                    widgetDetails.widgetImages[index].takeIf {
+                        it.image != null || it.lottie_data != null
+                    }?.let {
+
                         CarousalImage(
                             modifier = modifier.clickable(
                                 interactionSource = remember { MutableInteractionSource() },
@@ -1159,6 +1164,7 @@ object AppStorys {
                     }
                 }
             )
+
         }
     }
 
@@ -1276,14 +1282,17 @@ object AppStorys {
                             .fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        if (leftImage.image != null) {
+                        if (leftImage.image != null || leftImage.lottie_data != null) {
                             ImageCard(
                                 modifier = Modifier
                                     .weight(1f)
-                                    .clickable {
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null,
+                                    ) {
                                         if (leftImage.link != null) {
                                             clickEvent(
-                                                link = leftImage.link,
+                                                link = leftImage.link.toString().trim().removeSurrounding("\""),
                                                 campaignId = campaign.id,
                                                 widgetImageId = leftImage.id
                                             )
@@ -1296,21 +1305,25 @@ object AppStorys {
                                         }
 
                                     },
-                                imageUrl = leftImage.image,
+                                imageUrl = leftImage.image ?: "",
+                                lottieUrl = leftImage.lottie_data ?: "",
                                 widgetDetails = widgetDetails,
                                 height = calculatedHeight,
                                 placeHolder = placeHolder,
                                 placeholderContent = placeholderContent
                             )
                         }
-                        if (rightImage.image != null) {
+                        if (rightImage.image != null || rightImage.lottie_data != null) {
                             ImageCard(
                                 modifier = Modifier
                                     .weight(1f)
-                                    .clickable {
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null,
+                                    ) {
                                         if (rightImage.link != null) {
                                             clickEvent(
-                                                link = rightImage.link,
+                                                link = rightImage.link.toString().trim().removeSurrounding("\""),
                                                 campaignId = campaign.id,
                                                 widgetImageId = rightImage.id
                                             )
@@ -1322,7 +1335,8 @@ object AppStorys {
                                             )
                                         }
                                     },
-                                imageUrl = rightImage.image,
+                                imageUrl = rightImage.image ?: "",
+                                lottieUrl = rightImage.lottie_data ?: "",
                                 widgetDetails = widgetDetails,
                                 height = calculatedHeight,
                                 placeHolder = placeHolder,
