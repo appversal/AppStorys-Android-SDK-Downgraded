@@ -173,8 +173,6 @@ fun MyApp() {
             bottomPadding = 70.dp,
             activity = LocalContext.current as Activity
         )
-
-        campaignManager.ScratchCard()
     }
 }
 
@@ -276,7 +274,9 @@ fun HomeScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Button(
-                        onClick = { onIsPresentedChange(true) },
+                        onClick = {
+                            campaignManager.trackEvents(event =  "triggerScratchCard")
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFF6200EE)

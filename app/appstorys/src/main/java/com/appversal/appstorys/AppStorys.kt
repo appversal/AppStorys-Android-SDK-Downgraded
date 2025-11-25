@@ -98,7 +98,9 @@ import com.appversal.appstorys.ui.ReelsRow
 import com.appversal.appstorys.ui.StoryAppMain
 import com.appversal.appstorys.ui.SurveyBottomSheet
 import com.appversal.appstorys.ui.getLikedReels
+import com.appversal.appstorys.ui.getScratchedCampaigns
 import com.appversal.appstorys.ui.saveLikedReels
+import com.appversal.appstorys.ui.saveScratchedCampaigns
 import com.appversal.appstorys.utils.AppStorysSdkState
 import com.appversal.appstorys.utils.ViewTreeAnalyzer
 import com.appversal.appstorys.utils.toJsonElementMap
@@ -114,6 +116,9 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -156,6 +161,8 @@ object AppStorys {
     private val selectedReelIndex = MutableStateFlow(0)
 
     private val reelFullScreenVisible = MutableStateFlow(false)
+
+    private val scratchedCampaigns = MutableStateFlow<List<String>>(emptyList())
 
     private var accessToken = ""
 
@@ -249,6 +256,10 @@ object AppStorys {
                 if (!accessToken.isNullOrBlank()) {
                     this@AppStorys.accessToken = accessToken
                     sdkState = AppStorysSdkState.Initialized
+                    val savedScratchedCampaigns = getScratchedCampaigns(
+                        context.getSharedPreferences("AppStory", Context.MODE_PRIVATE)
+                    )
+                    scratchedCampaigns.emit(savedScratchedCampaigns)
                     if (campaignsJob?.isActive != true) {
                         getScreenCampaigns("Home Screen", emptyList())
                     }
@@ -1485,10 +1496,9 @@ object AppStorys {
     fun ScratchCard() {
 
         var confettiTrigger by remember { mutableStateOf(0) }
-        var wasFullyScratched by remember { mutableStateOf(false) }
-        var isPresented by remember { mutableStateOf(true) }
-
         val campaignsData = campaigns.collectAsStateWithLifecycle()
+
+        val scratchedCampaignsData = scratchedCampaigns.collectAsStateWithLifecycle()
 
         val campaign =
             campaignsData.value.firstOrNull { it.campaignType == "SCRT" && it.details is ScratchCardDetails }
@@ -1501,6 +1511,16 @@ object AppStorys {
         val shouldShowScratchCard = campaign?.triggerEvent.isNullOrEmpty() ||
                 trackedEventNames.contains(campaign?.triggerEvent)
 
+        val isAlreadyScratched = campaign?.id?.let {
+            scratchedCampaignsData.value.contains(it)
+        } ?: false
+
+        var wasFullyScratched by remember(campaign?.id, isAlreadyScratched) {
+            mutableStateOf(isAlreadyScratched)
+        }
+
+        var isPresented by remember { mutableStateOf(true) }
+
         if (scratchCardDetails != null && shouldShowScratchCard) {
 
             LaunchedEffect(Unit) {
@@ -1509,20 +1529,47 @@ object AppStorys {
                 }
             }
 
+            LaunchedEffect(wasFullyScratched) {
+                if (wasFullyScratched && campaign?.id != null && !isAlreadyScratched) {
+                    trackEvents(campaign.id, "scratched")
+
+                    val currentScratchedCampaigns = ArrayList(scratchedCampaigns.value)
+                    currentScratchedCampaigns.add(campaign.id)
+                    scratchedCampaigns.emit(currentScratchedCampaigns.distinct())
+
+                    saveScratchedCampaigns(
+                        campaignIds = currentScratchedCampaigns.distinct(),
+                        sharedPreferences = context.getSharedPreferences(
+                            "AppStory",
+                            Context.MODE_PRIVATE
+                        )
+                    )
+                }
+            }
+
+            val ctaUrl = scratchCardDetails.content?.get("cta")
+                ?.jsonObject?.get("url")
+                ?.jsonPrimitive
+                ?.contentOrNull ?: ""
+
             CardScratch(
                 isPresented = isPresented,
                 onDismiss = { isPresented = false },
                 onConfettiTrigger = {
                     confettiTrigger++
-                    // Trigger your confetti animation here
                 },
                 wasFullyScratched = wasFullyScratched,
                 onWasFullyScratched = { wasFullyScratched = it },
-                scratchCardDetails = scratchCardDetails
+                scratchCardDetails = scratchCardDetails,
+                onCtaClick = {
+                    campaign?.id?.let {
+                        clickEvent(link = ctaUrl, campaignId = it)
+                        trackEvents(it, "clicked")
+                    }
+                }
             )
         }
     }
-
 
     @Composable
     fun TestUserButton(

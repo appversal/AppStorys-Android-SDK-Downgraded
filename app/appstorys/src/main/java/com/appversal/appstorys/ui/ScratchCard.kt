@@ -1,20 +1,34 @@
 package com.appversal.appstorys.ui
 
+import android.content.Context
+import android.content.SharedPreferences
 import android.graphics.Bitmap
 import android.graphics.drawable.BitmapDrawable
+import android.media.MediaPlayer
+import android.os.Build
 import android.os.Build.VERSION.SDK_INT
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
+import android.util.Log
+import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,6 +40,7 @@ import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -43,6 +58,9 @@ import coil.decode.GifDecoder
 import coil.decode.ImageDecoderDecoder
 import coil.request.CachePolicy
 import coil.request.ImageRequest
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
@@ -50,6 +68,10 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.math.min
+import kotlin.math.sqrt
+import androidx.compose.ui.text.AnnotatedString
+import com.appversal.appstorys.ui.xml.toDp
+import kotlinx.serialization.json.booleanOrNull
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -62,7 +84,6 @@ fun CardScratch(
     scratchCardDetails: com.appversal.appstorys.api.ScratchCardDetails,
     onCtaClick: () -> Unit = {}
 ) {
-    // Extract data from campaign details
     val details = scratchCardDetails.content
 
     // -------- card_size --------
@@ -70,8 +91,23 @@ fun CardScratch(
         ?.get("card_size")
         ?.jsonObject
 
+    val cardHeight = cardSizeData
+        ?.get("width")
+        ?.jsonPrimitive
+        ?.intOrNull
+
     // -------- overlay_image (coverImage at root level) --------
     val overlayImage = scratchCardDetails.coverImage ?: ""
+
+    // -------- interactions --------
+    val interactions = details
+        ?.get("interactions")
+        ?.jsonObject
+
+    val haptics = interactions
+        ?.get("haptics")
+        ?.jsonPrimitive
+        ?.booleanOrNull
 
     // -------- reward_content --------
     val rewardContent = details
@@ -86,10 +122,20 @@ fun CardScratch(
         ?.jsonPrimitive
         ?.contentOrNull ?: ""
 
+    val titleFontSize = rewardContent
+        ?.get("titleFontSize")
+        ?.jsonPrimitive
+        ?.intOrNull ?: 18
+
     val offerSubtitle = rewardContent
         ?.get("offer_subtitle")
         ?.jsonPrimitive
         ?.contentOrNull ?: ""
+
+    val subtitleFontSize = rewardContent
+        ?.get("subtitleFontSize")
+        ?.jsonPrimitive
+        ?.intOrNull ?: 16
 
     val onlyImage = rewardContent
         ?.get("onlyImage")
@@ -159,6 +205,11 @@ fun CardScratch(
         ?.jsonPrimitive
         ?.contentOrNull ?: "Claim offer now"
 
+    val ctaFontSize = cta
+        ?.get("ctaFontSize")
+        ?.jsonPrimitive
+        ?.intOrNull ?: 16
+
     val ctaColor = cta
         ?.get("button_color")
         ?.jsonPrimitive
@@ -168,11 +219,6 @@ fun CardScratch(
         ?.get("cta_text_color")
         ?.jsonPrimitive
         ?.contentOrNull ?: "#383838"
-
-    val ctaUrl = cta
-        ?.get("url")
-        ?.jsonPrimitive
-        ?.contentOrNull ?: ""
 
     val ctaFullWidth = cta
         ?.get("enable_full_width")
@@ -253,7 +299,13 @@ fun CardScratch(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.7f))
+                .background(Color.Black.copy(alpha = 0.85f))
+                .clickable(
+                    enabled = true,
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() }
+                ) {
+                }
         ) {
             Column(
                 modifier = Modifier.fillMaxSize(),
@@ -278,7 +330,7 @@ fun CardScratch(
                             modifier = Modifier
                                 .size(40.dp)
                                 .background(
-                                    Color.White.copy(alpha = 0.2f),
+                                    Color.White.copy(alpha = 0.4f),
                                     CircleShape
                                 )
                         ) {
@@ -315,6 +367,7 @@ fun CardScratch(
                         offerTitleColor = offerTitleColor,
                         offerSubtitleColor = offerSubtitleColor,
                         onlyImage = onlyImage,
+                        soundFileUrl = scratchCardDetails.soundFile ?: "",
                         onPointsChanged = { newPoints ->
                             if (!isRevealed) {
                                 points = newPoints
@@ -333,15 +386,18 @@ fun CardScratch(
                             }
                         },
                         gridCols = gridCols,
-                        gridRows = gridRows
+                        gridRows = gridRows,
+                        haptics = haptics ?: false,
+                        cardHeight = cardHeight ?: 200,
+                        titleFontSize = titleFontSize,
+                        subtitleFontSize = subtitleFontSize
                     )
                 }
 
                 // Action buttons
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 96.dp, vertical = 24.dp),
+                        .fillMaxWidth(),
                     contentAlignment = Alignment.Center
                 ) {
                     this@Column.AnimatedVisibility(
@@ -351,32 +407,36 @@ fun CardScratch(
                     ) {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Button(
-                                onClick = { onCtaClick() },
+                            Box(
                                 modifier = Modifier
-                                    .then(
-                                        if (ctaFullWidth) Modifier.fillMaxWidth()
-                                        else Modifier.wrapContentWidth()
-                                    )
-                                    .height(ctaHeight)
                                     .padding(
                                         top = ctaPaddingTop,
                                         bottom = ctaPaddingBottom,
                                         start = ctaPaddingLeft,
                                         end = ctaPaddingRight
-                                    ),
-                                shape = RoundedCornerShape(ctaBorderRadius),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = parseColorSafe(ctaColor, Color(0xFF0066FF))
-                                )
+                                    )
                             ) {
-                                Text(
-                                    text = ctaText,
-                                    fontWeight = FontWeight.Bold,
-                                    color = parseColorSafe(ctaTextColor, Color(0xFF383838))
-                                )
+                                Button(
+                                    onClick = { onCtaClick() },
+                                    modifier = Modifier
+                                        .then(
+                                            if (ctaFullWidth) Modifier.fillMaxWidth()
+                                            else Modifier.wrapContentWidth()
+                                        )
+                                        .height(ctaHeight),
+                                    shape = RoundedCornerShape(ctaBorderRadius),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = parseColorSafe(ctaColor, Color(0xFF0066FF))
+                                    )
+                                ) {
+                                    Text(
+                                        text = ctaText,
+                                        fontSize = ctaFontSize.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = parseColorSafe(ctaTextColor, Color(0xFF383838))
+                                    )
+                                }
                             }
 
                             if (termsAndConditionsHtml.isNotEmpty()) {
@@ -401,9 +461,10 @@ fun CardScratch(
         // Terms and conditions bottom sheet
         if (showTerms) {
             ModalBottomSheet(
+                modifier = Modifier.statusBarsPadding(),
                 onDismissRequest = { showTerms = false },
-                containerColor = MaterialTheme.colorScheme.surface,
-                shape = RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp),
+                containerColor = Color.White,
+                shape = RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp),
                 dragHandle = null,
             ) {
                 TermsAndConditionsView(
@@ -432,21 +493,130 @@ fun ScratchableCard(
     offerTitleColor: String,
     offerSubtitleColor: String,
     onlyImage: Boolean,
+    soundFileUrl: String,
     onPointsChanged: (List<Offset>) -> Unit,
     onCellTouched: (Int) -> Unit,
     gridCols: Int,
-    gridRows: Int
+    gridRows: Int,
+    haptics: Boolean,
+    cardHeight: Int,
+    titleFontSize: Int,
+    subtitleFontSize: Int
 ) {
     val context = LocalContext.current
     val cardSizePx = with(LocalDensity.current) { cardSize.toPx() }.toInt()
+    val coroutineScope = rememberCoroutineScope()
+
+    // Media player for sound
+    val mediaPlayer = remember {
+        MediaPlayer().apply {
+            setOnPreparedListener {
+                // Ready to play
+            }
+            setOnErrorListener { _, what, extra ->
+                Log.e("ScratchCard", "MediaPlayer error: what=$what, extra=$extra")
+                true
+            }
+        }
+    }
+
+    // Vibrator for haptic feedback
+    val vibrator = remember {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
+                vibratorManager?.defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+            }
+        } catch (e: SecurityException) {
+            Log.e("ScratchCard", "Vibrator permission not granted: ${e.message}")
+            null
+        }
+    }
+
+    // Track if sound has been loaded and played
+    var soundLoaded by remember { mutableStateOf(false) }
+    var hasPlayedEffects by remember { mutableStateOf(false) }
+
+    // Load sound file
+    LaunchedEffect(soundFileUrl) {
+        if (soundFileUrl.isNotEmpty() && !soundLoaded) {
+            try {
+                withContext(Dispatchers.IO) {
+                    mediaPlayer.reset()
+                    mediaPlayer.setDataSource(soundFileUrl)
+                    mediaPlayer.prepareAsync()
+                }
+                soundLoaded = true
+            } catch (e: Exception) {
+                Log.e("ScratchCard", "Error loading sound: ${e.message}")
+            }
+        }
+    }
+
+    // Play sound and vibrate when scratching is complete
+    LaunchedEffect(isRevealed) {
+        if (isRevealed && !hasPlayedEffects) {
+            hasPlayedEffects = true
+
+            // Play sound
+            coroutineScope.launch {
+                try {
+                    if (soundLoaded && !mediaPlayer.isPlaying) {
+                        mediaPlayer.start()
+                    }
+                } catch (e: Exception) {
+                    Log.e("ScratchCard", "Error playing sound: ${e.message}")
+                }
+            }
+
+            // Vibrate once
+            if(haptics){
+                try {
+                    vibrator?.let {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            it.vibrate(
+                                VibrationEffect.createOneShot(
+                                    200,
+                                    VibrationEffect.DEFAULT_AMPLITUDE
+                                )
+                            )
+                        } else {
+                            @Suppress("DEPRECATION")
+                            it.vibrate(200)
+                        }
+                    }
+                } catch (e: SecurityException) {
+                    Log.e("ScratchCard", "Vibration permission error: ${e.message}")
+                } catch (e: Exception) {
+                    Log.e("ScratchCard", "Error vibrating: ${e.message}")
+                }
+            }
+        }
+    }
+
+    // Cleanup
+    DisposableEffect(Unit) {
+        onDispose {
+            try {
+                mediaPlayer.release()
+            } catch (e: Exception) {
+                Log.e("ScratchCard", "Error releasing media player: ${e.message}")
+            }
+        }
+    }
 
     // Offscreen buffer (scratch surface)
     val scratchBitmap = remember {
         Bitmap.createBitmap(cardSizePx, cardSizePx, Bitmap.Config.ARGB_8888)
-            .apply { eraseColor(Color.Gray.toArgb()) } // fallback gray
+            .apply { eraseColor(Color.Gray.toArgb()) }
     }
 
     val scratchCanvas = remember { android.graphics.Canvas(scratchBitmap) }
+
+    // Improved eraser paint with larger stroke for smoother scratching
     val eraserPaint = remember {
         android.graphics.Paint().apply {
             isAntiAlias = true
@@ -457,11 +627,25 @@ fun ScratchableCard(
             )
             strokeWidth = 120f
             strokeCap = android.graphics.Paint.Cap.ROUND
+            strokeJoin = android.graphics.Paint.Join.ROUND
             style = android.graphics.Paint.Style.STROKE
         }
     }
 
-    // Overlay image (to draw into scratch surface)
+    // Circle paint for filling gaps
+    val circlePaint = remember {
+        android.graphics.Paint().apply {
+            isAntiAlias = true
+            isDither = true
+            color = android.graphics.Color.TRANSPARENT
+            xfermode = android.graphics.PorterDuffXfermode(
+                android.graphics.PorterDuff.Mode.CLEAR
+            )
+            style = android.graphics.Paint.Style.FILL
+        }
+    }
+
+    // Overlay image
     var overlayBitmap by remember { mutableStateOf<Bitmap?>(null) }
 
     LaunchedEffect(overlayImageUrl) {
@@ -469,7 +653,7 @@ fun ScratchableCard(
             val loader = ImageLoader(context)
             val request = ImageRequest.Builder(context)
                 .data(overlayImageUrl)
-                .allowHardware(false) // REQUIRED
+                .allowHardware(false)
                 .build()
 
             val result = loader.execute(request)
@@ -482,8 +666,6 @@ fun ScratchableCard(
                     cardSizePx,
                     true
                 )
-
-                // Draw overlay into scratch surface
                 scratchCanvas.drawBitmap(overlayBitmap!!, 0f, 0f, null)
             }
         }
@@ -493,13 +675,11 @@ fun ScratchableCard(
 
         // Bottom content
         if (onlyImage) {
-            // Only show banner image when onlyImage is true
             OnlyImageView(
                 modifier = Modifier.size(cardSize),
                 bannerImageUrl = bannerImageUrl
             )
         } else {
-            // Show full content
             CashBackInfoView(
                 modifier = Modifier.size(cardSize),
                 bannerImageUrl = bannerImageUrl,
@@ -511,18 +691,24 @@ fun ScratchableCard(
                 couponTextColor = couponTextColor,
                 rewardBgColor = rewardBgColor,
                 offerTitleColor = offerTitleColor,
-                offerSubtitleColor = offerSubtitleColor
+                offerSubtitleColor = offerSubtitleColor,
+                cardHeight = cardHeight,
+                titleFontSize = titleFontSize,
+                subtitleFontSize = subtitleFontSize
             )
         }
 
         // SCRATCH LAYER
         if (!isRevealed) {
+            var lastPoint by remember { mutableStateOf<Offset?>(null) }
+
             Canvas(
                 modifier = Modifier
                     .size(cardSize)
                     .pointerInput(Unit) {
                         detectDragGestures(
                             onDragStart = { offset ->
+                                lastPoint = offset
                                 onPointsChanged(points + offset)
                                 onCellTouched(
                                     cellIndexFor(offset, cardSizePx.toFloat(), gridCols, gridRows)
@@ -530,20 +716,75 @@ fun ScratchableCard(
                             },
                             onDrag = { change, _ ->
                                 change.consume()
-                                onPointsChanged(points + change.position)
+
+                                val newPoint = change.position
+                                onPointsChanged(points + newPoint)
                                 onCellTouched(
-                                    cellIndexFor(change.position, cardSizePx.toFloat(), gridCols, gridRows)
+                                    cellIndexFor(newPoint, cardSizePx.toFloat(), gridCols, gridRows)
                                 )
+
+                                // Draw continuous stroke with interpolation
+                                lastPoint?.let { last ->
+                                    // Calculate distance between points
+                                    val dx = newPoint.x - last.x
+                                    val dy = newPoint.y - last.y
+                                    val distance = sqrt(dx * dx + dy * dy)
+
+                                    // If points are far apart, interpolate
+                                    if (distance > 5f) {
+                                        val steps = (distance / 5f).toInt()
+                                        for (i in 0..steps) {
+                                            val t = i.toFloat() / steps
+                                            val interpolatedX = last.x + dx * t
+                                            val interpolatedY = last.y + dy * t
+
+                                            // Draw circle at each interpolated point
+                                            scratchCanvas.drawCircle(
+                                                interpolatedX,
+                                                interpolatedY,
+                                                40f,
+                                                circlePaint
+                                            )
+                                        }
+                                    }
+                                }
+
+                                lastPoint = newPoint
+                            },
+                            onDragEnd = {
+                                lastPoint = null
                             }
                         )
                     }
             ) {
-                // Apply erase to bitmap (true erase)
-                if (points.isNotEmpty()) {
-                    val path = android.graphics.Path().apply {
-                        moveTo(points.first().x, points.first().y)
-                        points.forEach { lineTo(it.x, it.y) }
+                // Apply smooth erase to bitmap
+                if (points.size >= 2) {
+                    // Draw path
+                    val path = android.graphics.Path()
+                    path.moveTo(points.first().x, points.first().y)
+
+                    for (i in 1 until points.size) {
+                        val prev = points[i - 1]
+                        val curr = points[i]
+
+                        // Draw circles along the path to fill gaps
+                        val dx = curr.x - prev.x
+                        val dy = curr.y - prev.y
+                        val distance = sqrt(dx * dx + dy * dy)
+
+                        if (distance > 10f) {
+                            val steps = (distance / 10f).toInt()
+                            for (j in 0..steps) {
+                                val t = j.toFloat() / steps
+                                val x = prev.x + dx * t
+                                val y = prev.y + dy * t
+                                scratchCanvas.drawCircle(x, y, 40f, circlePaint)
+                            }
+                        }
+
+                        path.lineTo(curr.x, curr.y)
                     }
+
                     scratchCanvas.drawPath(path, eraserPaint)
                 }
 
@@ -597,14 +838,14 @@ fun OnlyImageView(
                 Image(
                     painter = painter,
                     contentDescription = "Banner",
-                    contentScale = ContentScale.Fit,
+                    contentScale = ContentScale.FillBounds,
                     modifier = Modifier.fillMaxSize()
                 )
             } else {
                 SubcomposeAsyncImage(
                     model = bannerImageUrl,
                     contentDescription = "Banner",
-                    contentScale = ContentScale.Fit,
+                    contentScale = ContentScale.FillBounds,
                     modifier = Modifier.fillMaxSize()
                 )
             }
@@ -637,71 +878,81 @@ fun CashBackInfoView(
     couponTextColor: String,
     rewardBgColor: String,
     offerTitleColor: String,
-    offerSubtitleColor: String
+    offerSubtitleColor: String,
+    cardHeight: Int,
+    titleFontSize: Int,
+    subtitleFontSize: Int,
 ) {
     val context = LocalContext.current
 
     Box(
         modifier = modifier
             .background(parseColorSafe(rewardBgColor, Color(0xFF141414)))
-            .padding(16.dp),
+            .padding(horizontal = 16.dp),
         contentAlignment = Alignment.Center
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Network image for banner
-            if (bannerImageUrl.isNotEmpty()) {
-                if (isGifUrl(bannerImageUrl)) {
-                    val imageLoader = ImageLoader.Builder(context)
-                        .components {
-                            if (SDK_INT >= 28) {
-                                add(ImageDecoderDecoder.Factory())
-                            } else {
-                                add(GifDecoder.Factory())
+            Spacer(modifier = Modifier.weight(1f))
+                if (bannerImageUrl.isNotEmpty()) {
+
+                    val maxSize = (cardHeight * 0.3f).dp
+
+                    if (isGifUrl(bannerImageUrl)) {
+                        val imageLoader = ImageLoader.Builder(context)
+                            .components {
+                                if (SDK_INT >= 28) {
+                                    add(ImageDecoderDecoder.Factory())
+                                } else {
+                                    add(GifDecoder.Factory())
+                                }
                             }
-                        }
-                        .build()
+                            .build()
 
-                    val painter = rememberAsyncImagePainter(
-                        ImageRequest.Builder(context)
-                            .data(bannerImageUrl)
-                            .memoryCacheKey(bannerImageUrl)
-                            .diskCacheKey(bannerImageUrl)
-                            .diskCachePolicy(CachePolicy.ENABLED)
-                            .memoryCachePolicy(CachePolicy.ENABLED)
-                            .crossfade(true)
-                            .apply { size(coil.size.Size.ORIGINAL) }
-                            .build(),
-                        imageLoader = imageLoader
-                    )
+                        val painter = rememberAsyncImagePainter(
+                            ImageRequest.Builder(context)
+                                .data(bannerImageUrl)
+                                .memoryCacheKey(bannerImageUrl)
+                                .diskCacheKey(bannerImageUrl)
+                                .diskCachePolicy(CachePolicy.ENABLED)
+                                .memoryCachePolicy(CachePolicy.ENABLED)
+                                .crossfade(true)
+                                .apply { size(coil.size.Size.ORIGINAL) }
+                                .build(),
+                            imageLoader = imageLoader
+                        )
 
-                    Image(
-                        painter = painter,
-                        contentDescription = "Banner",
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier
-                            .size(120.dp)
-                            .clip(CircleShape)
-                            .padding(24.dp)
-                    )
-                } else {
-                    SubcomposeAsyncImage(
-                        model = bannerImageUrl,
-                        contentDescription = "Banner",
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier
-                            .size(120.dp)
-                            .clip(shape = CircleShape)
-                            .padding(18.dp)
-                    )
+                        Image(
+                            painter = painter,
+                            contentDescription = "Banner",
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier
+                                .sizeIn(
+                                    maxWidth = maxSize,
+                                    maxHeight = maxSize
+                                )
+                                .clip(CircleShape)
+                        )
+                    } else {
+                        SubcomposeAsyncImage(
+                            model = bannerImageUrl,
+                            contentDescription = "Banner",
+                            contentScale = ContentScale.FillBounds,
+                            modifier = Modifier
+                                .sizeIn(
+                                    maxWidth = maxSize,
+                                    maxHeight = maxSize
+                                )
+                                .clip(CircleShape)
+                        )
+                    }
                 }
-            }
+
+            Spacer(modifier = Modifier.weight(1f))
 
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 if (offerTitle.isNotEmpty()) {
                     Text(
@@ -709,24 +960,31 @@ fun CashBackInfoView(
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = parseColorSafe(offerTitleColor, Color.White),
-                        textAlign = TextAlign.Center
+                        textAlign = TextAlign.Center,
+                        fontSize = titleFontSize.sp
                     )
                 }
+
+                Spacer(Modifier.height((cardHeight * 0.06).toDp()))
 
                 if (offerSubtitle.isNotEmpty()) {
                     Text(
                         text = offerSubtitle,
                         style = MaterialTheme.typography.bodyMedium,
                         color = parseColorSafe(offerSubtitleColor, Color.White.copy(alpha = 0.7f)),
-                        textAlign = TextAlign.Center
+                        textAlign = TextAlign.Center,
+                        fontSize = subtitleFontSize.sp,
+                        letterSpacing = 0.1.sp
                     )
                 }
 
+                Spacer(Modifier.height((cardHeight * 0.2).toDp()))
+
                 // Coupon code display
                 if (couponCode.isNotEmpty()) {
+                    val clipboardManager = LocalClipboardManager.current
                     Box(
                         modifier = Modifier
-                            .padding(top = 8.dp)
                             .background(
                                 color = parseColorSafe(couponBgColor, Color(0xFF1F1F1F)),
                                 shape = RoundedCornerShape(8.dp)
@@ -737,7 +995,7 @@ fun CashBackInfoView(
                                         drawContent()
                                         drawRoundRect(
                                             color = parseColorSafe(couponBorderColor, Color(0xFF0066FF)),
-                                            style = Stroke(width = 2.dp.toPx()),
+                                            style = Stroke(width = 1.dp.toPx()),
                                             cornerRadius = androidx.compose.ui.geometry.CornerRadius(8.dp.toPx())
                                         )
                                     }
@@ -745,19 +1003,41 @@ fun CashBackInfoView(
                                     Modifier
                                 }
                             )
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                            .clickable {
+                                clipboardManager.setText(AnnotatedString(couponCode))   // ← FIXED
+                                Toast.makeText(context, "Copied to clipboard", Toast.LENGTH_SHORT).show()
+                            }
+                            .padding(start = 16.dp, top = (cardHeight * 0.05).toDp(), bottom = (cardHeight * 0.05).toDp(), end = 8.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = couponCode,
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = parseColorSafe(couponTextColor, Color.White),
-                            letterSpacing = 2.sp
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+
+                            // Coupon Text
+                            Text(
+                                text = couponCode,
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Normal,
+                                color = parseColorSafe(couponTextColor, Color.White),
+                                letterSpacing = 0.2.sp
+                            )
+
+                            Spacer(modifier = Modifier.width(8.dp))
+
+                            // Copy Icon
+                            Icon(
+                                imageVector = Icons.Default.Share,
+                                contentDescription = "Copy Coupon",
+                                tint = parseColorSafe(couponTextColor, Color.White), // same color as text
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
                 }
             }
+            Spacer(modifier = Modifier.weight(1f))
         }
     }
 }
@@ -775,17 +1055,10 @@ fun TermsAndConditionsView(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Title
-            Text(
-                text = "Terms & Conditions",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-
             // HTML content
             androidx.compose.ui.viewinterop.AndroidView(
                 factory = { context ->
@@ -822,25 +1095,8 @@ fun TermsAndConditionsView(
                 modifier = Modifier.fillMaxWidth()
             )
         }
-
-        // Close button
-        IconButton(
-            onClick = onDismiss,
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .offset(y = (-60).dp)
-                .size(40.dp)
-                .background(Color.White.copy(alpha = 0.2f), CircleShape)
-        ) {
-            Icon(
-                imageVector = Icons.Default.Close,
-                contentDescription = "Close",
-                tint = Color.White
-            )
-        }
     }
 }
-
 
 // Helper function to map point to grid cell index
 private fun cellIndexFor(
@@ -861,4 +1117,23 @@ private fun cellIndexFor(
 // Helper function to check if URL is a GIF
 private fun isGifUrl(url: String): Boolean {
     return url.lowercase().endsWith(".gif")
+}
+
+fun saveScratchedCampaigns(
+    campaignIds: List<String>,
+    sharedPreferences: SharedPreferences
+) {
+    val editor = sharedPreferences.edit()
+    val idsString = campaignIds.joinToString(",")
+    editor.putString("scratched_campaigns", idsString)
+    editor.apply()
+}
+
+fun getScratchedCampaigns(sharedPreferences: SharedPreferences): List<String> {
+    val idsString = sharedPreferences.getString("scratched_campaigns", "") ?: ""
+    return if (idsString.isNotEmpty()) {
+        idsString.split(",").filter { it.isNotEmpty() }
+    } else {
+        emptyList()
+    }
 }

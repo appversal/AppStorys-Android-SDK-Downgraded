@@ -135,6 +135,8 @@ object OverlayContainer {
                     bottomPadding = bottomPadding + csatBottomPadding,
                 )
 
+                AppStorys.ScratchCard()
+
                 AppStorys.BottomSheet()
 
                 AppStorys.TestUserButton(
