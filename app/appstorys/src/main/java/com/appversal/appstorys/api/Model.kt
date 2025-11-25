@@ -202,19 +202,22 @@ data class WidgetImage(
 
 @Keep
 @Serializable
-data class CSATDetails(
+data class CsatDetails(
     val id: String?,
     val title: String?,
     val height: Int?,
     val width: Int?,
-    val styling: CSATStyling?,
-    val thankyouImage: String?,
-    val thankyouText: String?,
-    val thankyouDescription: String?,
+    val styling: CsatStyling?,
+    @SerialName("thankyouImage")
+    val thankYouImage: String?,
+    @SerialName("thankyouText")
+    val thankYouText: String?,
+    @SerialName("thankyouDescription")
+    val thankYouDescription: String?,
     val highStarText: String?,
     val lowStarText: String?,
     @SerialName("description_text") val descriptionText: String?,
-    @SerialName("feedback_option") val feedbackOption: FeedbackOption?,
+    @SerialName("feedback_option") val feedbackOptions: JsonObject?,
     val campaign: String?,
     val link: String?
 ) : CampaignDetails()
@@ -247,35 +250,7 @@ data class FloaterStyling(
 
 @Keep
 @Serializable
-data class FeedbackOption(
-    val option1: String?,
-    val option2: String?,
-    val option3: String?,
-    val option4: String?,
-    val option5: String?,
-    val option6: String?,
-    val option7: String?,
-    val option8: String?,
-    val option9: String?,
-    val option10: String?,
-    ) {
-    fun toList(): List<String> = listOf(
-        option1 ?: "",
-        option2 ?: "",
-        option3 ?: "",
-        option4 ?: "",
-        option5 ?: "",
-        option6 ?: "",
-        option7 ?: "",
-        option8 ?: "",
-        option9 ?: "",
-        option10 ?: "",
-        ).filter { it.isNotBlank() }
-}
-
-@Keep
-@Serializable
-data class CSATStyling(
+data class CsatStyling(
     val delayDisplay: Int?,
     val displayDelay: String?,
     val csatTitleColor: String?,
@@ -466,14 +441,17 @@ data class TooltipPadding(
 data class PipDetails(
     val id: String?,
     val position: String?,
-    val small_video: String?,
-    val large_video: String?,
+    @SerialName("small_video")
+    val smallVideo: String?,
+    @SerialName("large_video")
+    val largeVideo: String?,
     val height: Int?,
     val width: Int?,
     val styling: PipStyling?,
     val link: String?,
     val campaign: String?,
-    val button_text: String?
+    @SerialName("button_text")
+    val buttonText: String?
 ) : CampaignDetails()
 
 @Keep

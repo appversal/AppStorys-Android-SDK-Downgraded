@@ -1,4 +1,4 @@
-package com.appversal.appstorys.utils
+package com.appversal.appstorys.domain.model
 
 enum class AppStorysSdkState {
     Uninitialized,

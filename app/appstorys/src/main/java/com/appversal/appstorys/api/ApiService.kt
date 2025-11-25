@@ -1,20 +1,29 @@
 package com.appversal.appstorys.api
 
 import androidx.annotation.Nullable
+import com.appversal.appstorys.utils.SdkJson
+import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
+import kotlinx.serialization.json.JsonObject
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
+import okhttp3.OkHttpClient
 import okhttp3.RequestBody
+import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.HttpException
+import retrofit2.Retrofit
 import retrofit2.http.Body
 import retrofit2.http.Header
 import retrofit2.http.Multipart
 import retrofit2.http.POST
 import retrofit2.http.Part
+import retrofit2.http.Url
 import java.io.IOException
 
 internal interface ApiService {
 
-    @POST("validate-account")
+    @POST
     suspend fun validateAccount(
+        @Url url: String = "https://users.appstorys.com/validate-account",
         @Body request: ValidateAccountRequest
     ): ValidateAccountResponse
 
@@ -24,14 +33,15 @@ internal interface ApiService {
         @Body request: IdentifyPositionsRequest
     ): Nullable
 
-    @POST("track-user")
+    @POST
     suspend fun getWebSocketConnectionDetails(
+        @Url url: String = "https://users.appstorys.com/track-user",
         @Header("Authorization") token: String,
         @Body request: TrackUserWebSocketRequest
     ): WebSocketConnectionResponse
 
     @POST("api/v1/campaigns/capture-csat-response/")
-    suspend fun sendCSATResponse(
+    suspend fun sendCsatResponse(
         @Header("Authorization") token: String,
         @Body request: CsatFeedbackPostRequest
     )
@@ -49,32 +59,53 @@ internal interface ApiService {
     )
 
     @POST("api/v1/users/track-action/")
-    suspend fun trackReelAction(
+    suspend fun trackUserAction(
         @Header("Authorization") token: String,
-        @Body request: ReelActionRequest
-    )
-
-    @POST("api/v1/users/track-action/")
-    suspend fun trackStoriesAction(
-        @Header("Authorization") token: String,
-        @Body request: TrackActionStories
-    )
-
-    @POST("api/v1/users/track-action/")
-    suspend fun trackTooltipsAction(
-        @Header("Authorization") token: String,
-        @Body request: TrackActionTooltips
+        @Body request: JsonObject
     )
 
     @Multipart
     @POST("api/v1/appinfo/identify-elements/")
-    suspend fun identifyTooltips(
+    suspend fun identifyElements(
         @Header("Authorization") token: String,
         @Part("screenName") screenName: RequestBody,
-        @Part("user_id") user_id: RequestBody,
+        @Part("user_id") userId: RequestBody,
         @Part("children") children: RequestBody,
         @Part screenshot: MultipartBody.Part
     )
+
+    companion object {
+        @Volatile
+        private var client: OkHttpClient? = null
+
+        @Volatile
+        private var instance: ApiService? = null
+
+        fun getClient(): OkHttpClient {
+            return client ?: synchronized(this) {
+                client = OkHttpClient.Builder()
+                    .addInterceptor(
+                        HttpLoggingInterceptor().apply {
+                            level = HttpLoggingInterceptor.Level.BODY
+                        }
+                    )
+                    .build()
+                client!!
+            }
+        }
+
+        fun getInstance(): ApiService {
+            return instance ?: synchronized(this) {
+                instance = Retrofit.Builder()
+                    .baseUrl("https://backend.appstorys.com/")
+                    .addConverterFactory(SdkJson.asConverterFactory("application/json".toMediaType()))
+                    .client(getClient())
+                    .build()
+                    .create(ApiService::class.java)
+                instance!!
+            }
+        }
+    }
 }
 
 internal sealed class ApiResult<out T> {

@@ -4,6 +4,10 @@
     <attr name="bottomPadding" format="dimension" />
     <attr name="placeholder" format="reference" />
 
+    <declare-styleable name="BannerView">
+        <attr name="bottomPadding" />
+        <attr name="placeholder" />
+    </declare-styleable>
     <declare-styleable name="BottomSheetView">
         <attr name="open" format="boolean" />
     </declare-styleable>
@@ -22,16 +26,9 @@
         <attr name="pipBottomPadding" format="dimension" />
         <attr name="csatBottomPadding" format="dimension" />
     </declare-styleable>
-    <declare-styleable name="PinnedBannerView">
-        <attr name="bottomPadding" />
-        <attr name="placeholder" />
-    </declare-styleable>
     <declare-styleable name="PipView">
         <attr name="topPadding" />
         <attr name="bottomPadding" />
-    </declare-styleable>
-    <declare-styleable name="TestUserButtonView">
-        <attr name="screenName" format="string" />
     </declare-styleable>
     <declare-styleable name="TooltipWrapperView">
         <attr name="targetKey" format="string" />

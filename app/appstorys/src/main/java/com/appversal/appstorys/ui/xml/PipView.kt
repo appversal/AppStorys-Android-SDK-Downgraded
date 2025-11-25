@@ -5,10 +5,9 @@ import android.util.AttributeSet
 import android.widget.FrameLayout
 import androidx.annotation.Keep
 import androidx.compose.ui.platform.ComposeView
-import androidx.compose.ui.unit.dp
 import androidx.core.content.withStyledAttributes
-import com.appversal.appstorys.AppStorys
 import com.appversal.appstorys.R
+import com.appversal.appstorys.presentation.Pip
 
 @Keep class PipView @JvmOverloads constructor(
     context: Context,
@@ -31,7 +30,7 @@ import com.appversal.appstorys.R
         addView(
             ComposeView(context).apply {
                 setContent {
-                    AppStorys.Pip(
+                    Pip(
                         topPadding = topPadding.toDp(),
                         bottomPadding = bottomPadding.toDp(),
                     )

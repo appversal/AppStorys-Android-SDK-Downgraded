@@ -1,8 +1,8 @@
-package com.appversal.appstorys.utils
+package com.appversal.appstorys.domain.model
 
 import androidx.compose.ui.geometry.Rect
 
-data class AppStorysCoordinates(
+internal data class AppStorysCoordinates(
     val x: Float,
     val y: Float,
     val width: Int,

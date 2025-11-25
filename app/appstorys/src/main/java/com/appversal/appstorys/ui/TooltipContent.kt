@@ -37,7 +37,7 @@ import coil.request.ImageRequest
 import com.appversal.appstorys.AppStorys.dismissTooltip
 import com.appversal.appstorys.AppStorys.handleTooltipAction
 import com.appversal.appstorys.api.Tooltip
-import com.appversal.appstorys.utils.AppStorysCoordinates
+import com.appversal.appstorys.domain.model.AppStorysCoordinates
 import kotlin.math.roundToInt
 
 @SuppressLint("UnusedBoxWithConstraintsScope")
@@ -81,7 +81,9 @@ internal fun TooltipContent(
     val arrowWidthPx = (tooltip.styling?.tooltipArrow?.arrowWidth?.toIntOrNull() ?: 16) * density
 
     BoxWithConstraints(
-        modifier = Modifier.fillMaxSize().clickable(onClick = { dismissTooltip() }),
+        modifier = Modifier
+            .fillMaxSize()
+            .clickable(onClick = { dismissTooltip() }),
         content = {
             // Position the arrow centered on the target element
             Box(
@@ -124,12 +126,14 @@ internal fun TooltipContent(
 
             // Position the tooltip content
             Content(
-                modifier = Modifier.offset {
-                    IntOffset(
-                        tooltipX.roundToInt(),
-                        tooltipYAdjusted.roundToInt()
-                    )
-                }.size(tooltipWidth, tooltipHeight),
+                modifier = Modifier
+                    .offset {
+                        IntOffset(
+                            tooltipX.roundToInt(),
+                            tooltipYAdjusted.roundToInt()
+                        )
+                    }
+                    .size(tooltipWidth, tooltipHeight),
                 tooltip = tooltip
             )
         }
@@ -173,9 +177,12 @@ private fun Content(tooltip: Tooltip, modifier: Modifier = Modifier) {
                 model = imageRequest,
                 contentDescription = null,
                 contentScale = ContentScale.Fit,
-                modifier = Modifier.fillMaxSize().clip(
-                    if (cornerRadius != null) RoundedCornerShape(cornerRadius.dp) else MaterialTheme.shapes.medium
-                ).clickable(onClick = { handleTooltipAction(tooltip, true) })
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(
+                        if (cornerRadius != null) RoundedCornerShape(cornerRadius.dp) else MaterialTheme.shapes.medium
+                    )
+                    .clickable(onClick = { handleTooltipAction(tooltip, true) })
             )
             if (tooltip.styling?.closeButton == true) {
                 Icon(

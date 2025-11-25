@@ -5,7 +5,7 @@ import android.util.AttributeSet
 import android.widget.FrameLayout
 import androidx.annotation.Keep
 import androidx.compose.ui.platform.ComposeView
-import com.appversal.appstorys.AppStorys
+import com.appversal.appstorys.presentation.Stories
 
 
 @Keep class StoriesView  @JvmOverloads constructor(
@@ -18,7 +18,7 @@ import com.appversal.appstorys.AppStorys
         addView(
             ComposeView(context).apply {
                 setContent {
-                    AppStorys.Stories()
+                    Stories()
                 }
             }
         )

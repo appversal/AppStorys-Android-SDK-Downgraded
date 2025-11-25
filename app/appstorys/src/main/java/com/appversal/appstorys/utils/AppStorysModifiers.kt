@@ -4,6 +4,7 @@ import androidx.compose.runtime.Stable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.semantics.semantics
+import com.appversal.appstorys.domain.usecase.appstorysViewTagProperty
 import com.appversal.appstorys.ui.OverlayContainer
 
 @Stable

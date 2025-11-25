@@ -1,6 +1,5 @@
 package com.appversal.appstorys.ui
 
-import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.tween
@@ -25,7 +24,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.appversal.appstorys.utils.AppStorysCoordinates
+import com.appversal.appstorys.domain.model.AppStorysCoordinates
 
 internal class ShowcaseDuration(val enterMillis: Int, val exitMillis: Int) {
     companion object {

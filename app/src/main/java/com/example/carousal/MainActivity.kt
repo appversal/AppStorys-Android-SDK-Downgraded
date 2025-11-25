@@ -2,12 +2,13 @@
 
 package com.example.carousal
 import android.os.Bundle
-import android.util.Log
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -33,9 +35,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -54,20 +56,13 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.appversal.appstorys.ui.OverlayContainer
 import com.appversal.appstorys.utils.appstorys
 import com.example.carousal.ui.theme.CarousalTheme
 import kotlinx.coroutines.launch
-import androidx.compose.foundation.clickable
-import androidx.compose.ui.text.AnnotatedString
-import android.widget.Toast
-import androidx.compose.foundation.layout.width
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import com.appversal.appstorys.ui.CardScratch
 
 
 class MainActivity : ComponentActivity() {
@@ -120,7 +115,9 @@ fun MyApp() {
 
     var edgeToEdgePadding by remember { mutableStateOf(PaddingValues()) }
 
-    Box(modifier = Modifier.fillMaxSize().background(Color.White)) {
+    Box(modifier = Modifier
+        .fillMaxSize()
+        .background(Color.White)) {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             containerColor = Color(0xFFFAF8F9),
@@ -256,20 +253,25 @@ fun HomeScreen(
                 )
 
                 campaignManager.Widget(
-                    modifier = Modifier.fillMaxWidth().appstorys("tooltip_home_prem_test"),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .appstorys("tooltip_home_prem_test"),
                     placeholder = context.getDrawable(R.drawable.ic_launcher_foreground),
                     position = "widget_one",
                 )
 
                 campaignManager.Widget(
-                    modifier = Modifier.fillMaxWidth().appstorys("tooltip_home_prem_test"),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .appstorys("tooltip_home_prem_test"),
                     placeholder = context.getDrawable(R.drawable.ic_launcher_foreground),
                     position = "widget_two",
                 )
 
                 // NEW: Scratch Card Button
                 Box(
-                    modifier = Modifier.padding(top = 12.dp, start = 16.dp, end = 16.dp)
+                    modifier = Modifier
+                        .padding(top = 12.dp, start = 16.dp, end = 16.dp)
                         .fillMaxWidth(),
 //                        .padding(top = 12.dp, horizontal = 16.dp),
                     contentAlignment = Alignment.Center
@@ -298,7 +300,7 @@ fun HomeScreen(
                 ) {
                     Button(
                         onClick = {
-                            campaignManager.trackEvents(
+                            campaignManager.trackEvent(
                                 event = "Login"
                             )
                         },
@@ -352,7 +354,7 @@ fun HomeScreen(
 
                     Button(
                         onClick = {
-                            campaignManager.trackEvents(
+                            campaignManager.trackEvent(
                                 event = "Login",
                                 metadata = mapOf(
                                     "name" to eventInput1,
@@ -369,7 +371,7 @@ fun HomeScreen(
 
                 Button(
                     onClick = {
-                        campaignManager.trackEvents(
+                        campaignManager.trackEvent(
                             event = "Added to cart"
                         )
                     },
@@ -380,7 +382,7 @@ fun HomeScreen(
 
                 Button(
                     onClick = {
-                        campaignManager.trackEvents(
+                        campaignManager.trackEvent(
                             event = "Purchased"
                         )
                     },
@@ -391,7 +393,7 @@ fun HomeScreen(
 
                 Button(
                     onClick = {
-                        campaignManager.trackEvents(
+                        campaignManager.trackEvent(
                             event = "Logout",
                         )
                     },
@@ -402,7 +404,7 @@ fun HomeScreen(
 
                 Button(
                     onClick = {
-                        campaignManager.trackEvents(
+                        campaignManager.trackEvent(
                             event = "AppStorys Success"
                         )
                     },
@@ -493,7 +495,8 @@ fun HomeScreen(
                     painter = painterResource(id = R.drawable.home_two),
                     contentDescription = "App Logo",
                     modifier = Modifier
-                        .fillMaxWidth().appstorys("app_logo"),
+                        .fillMaxWidth()
+                        .appstorys("app_logo"),
                     contentScale = ContentScale.Fit
                 )
 
@@ -705,7 +708,9 @@ fun PayScreenPage(
 fun BottomNavigationBar(selectedTab: Int, onTabSelected: (Int) -> Unit) {
     NavigationBar(
         containerColor = Color.White, // Add this line to set the background color to white
-        modifier = Modifier.fillMaxWidth().height(70.dp)
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(70.dp)
 
     ) {
         val items = listOf("Parties", "More")

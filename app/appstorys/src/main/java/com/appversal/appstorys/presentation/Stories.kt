@@ -1,10 +1,9 @@
-package com.appversal.appstorys.ui
+package com.appversal.appstorys.presentation
 
-import android.content.Context
 import android.content.Intent
-import android.content.SharedPreferences
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.widget.FrameLayout
+import androidx.annotation.OptIn
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -68,79 +67,174 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.edit
 import androidx.core.net.toUri
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.MediaItem
-import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
 import coil.compose.rememberAsyncImagePainter
-import com.appversal.appstorys.AppStorys
 import com.appversal.appstorys.R
+import com.appversal.appstorys.api.StoriesDetails
 import com.appversal.appstorys.api.StoryGroup
 import com.appversal.appstorys.api.StorySlide
-import com.appversal.appstorys.utils.VideoCache
+import com.appversal.appstorys.domain.State
+import com.appversal.appstorys.domain.rememberCampaign
+import com.appversal.appstorys.domain.usecase.ActionType
+import com.appversal.appstorys.domain.usecase.trackEvent
+import com.appversal.appstorys.domain.usecase.trackUserAction
+import com.appversal.appstorys.utils.rememberPlayer
+import com.appversal.appstorys.utils.rememberSharedPreferences
+import com.appversal.appstorys.utils.toColor
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import org.json.JSONArray
 
+@OptIn(UnstableApi::class)
 @Composable
-internal fun StoryCircles(
-    storyGroups: List<StoryGroup>,
-    onStoryClick: (StoryGroup) -> Unit,
-    viewedStories: List<String>
+internal fun Stories(
+    modifier: Modifier = Modifier,
 ) {
+    val campaign = rememberCampaign<StoriesDetails>("STR")
+    val stories = campaign?.details?.groups
 
-    val sortedStoryGroups = remember(storyGroups, viewedStories) {
-        storyGroups.sortedWith(
-            compareByDescending<StoryGroup> { it.id !in viewedStories }
-                .thenBy { it.order }
-        )
-    }
+    if (!stories.isNullOrEmpty()) {
+        val scope = rememberCoroutineScope()
+        val context = LocalContext.current
 
-    LazyRow(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        items(sortedStoryGroups.size) { index ->
-            val storyGroup = sortedStoryGroups[index]
-            if (storyGroup.thumbnail != null) {
-                StoryItem(
-                    isStoryGroupViewed = viewedStories.contains(storyGroup.id),
-                    imageUrl = storyGroup.thumbnail,
-                    username = storyGroup.name ?: "",
-                    ringColor = Color(android.graphics.Color.parseColor(storyGroup.ringColor)),
-                    nameColor = Color(android.graphics.Color.parseColor(storyGroup.nameColor)),
-                    onClick = { onStoryClick(storyGroup) }
-                )
+        Content(
+            modifier = modifier,
+            groups = stories,
+            sendEvent = {
+                scope.launch {
+                    ActionType.entries.find { type -> type.name == it.second }?.let { type ->
+                        trackUserAction(campaign.id, type, it.first.id)
+                    }
+                    trackEvent(
+                        context,
+                        "viewed",
+                        campaign.id,
+                        mapOf("story_slide" to it.first.id!!)
+                    )
+                }
+            },
+            sendClickEvent = {
+                scope.launch {
+                    trackEvent(
+                        context,
+                        it.second,
+                        campaign.id,
+                        mapOf("story_slide" to it.first.id!!)
+                    )
+                }
             }
-        }
+        )
     }
 }
 
+@UnstableApi
 @Composable
-internal fun StoryItem(
-    isStoryGroupViewed: Boolean,
-    imageUrl: String,
-    username: String,
-    ringColor: Color,
-    nameColor: Color,
-    onClick: () -> Unit
+private fun Content(
+    groups: List<StoryGroup>,
+    modifier: Modifier = Modifier,
+    sendEvent: (Pair<StorySlide, String>) -> Unit,
+    sendClickEvent: (Pair<StorySlide, String>) -> Unit
+) {
+    val prefs = rememberSharedPreferences()
+
+    val viewed = remember(prefs) {
+        val data = prefs.getStringSet("viewed_stories", emptySet())?.toList() ?: emptyList()
+        mutableStateListOf(*data.toTypedArray())
+    }
+    val groups = remember(groups, viewed) {
+        groups
+            .filter { !it.thumbnail.isNullOrBlank() }
+            .sortedWith(compareByDescending<StoryGroup> { it.id !in viewed }.thenBy { it.order })
+    }
+    var selectedGroup by remember { mutableStateOf<StoryGroup?>(null) }
+
+    val handleStoryViewed = remember(prefs, viewed) {
+        { group: StoryGroup ->
+            selectedGroup = group
+            if (!viewed.contains(group.id) && group.id != null) {
+                viewed += group.id
+                prefs.edit { putStringSet("viewed_stories", viewed.toSet()) }
+            }
+        }
+    }
+
+    Box(
+        modifier = modifier.fillMaxSize(),
+        content = {
+            Circles(
+                viewed = viewed,
+                groups = groups,
+                onStoryClick = handleStoryViewed
+            )
+
+            val group = selectedGroup
+            if (group != null && !group.slides.isNullOrEmpty()) {
+                Screen(
+                    storyGroup = group,
+                    slides = group.slides,
+                    onDismiss = { selectedGroup = null },
+                    onStoryGroupEnd = {
+                        val currentIndex = groups.indexOf(group)
+                        if (currentIndex < groups.lastIndex) {
+                            handleStoryViewed(groups[currentIndex + 1])
+                        } else {
+                            selectedGroup = null
+                        }
+                    },
+                    sendEvent = sendEvent,
+                    sendClickEvent = sendClickEvent
+                )
+            }
+        }
+    )
+}
+
+@Composable
+private fun Circles(
+    groups: List<StoryGroup>,
+    viewed: List<String>,
+    modifier: Modifier = Modifier,
+    onStoryClick: (StoryGroup) -> Unit,
+) {
+    LazyRow(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        content = {
+            items(
+                groups.size,
+                key = { index -> groups[index].id ?: index.toString() },
+                itemContent = { index ->
+                    val group = groups[index]
+                    Item(
+                        group = group,
+                        isViewed = viewed.contains(group.id),
+                        onClick = { onStoryClick(group) }
+                    )
+                }
+            )
+        }
+    )
+}
+
+@Composable
+private fun Item(
+    group: StoryGroup,
+    isViewed: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
 ) {
     Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
+        modifier = modifier
             .padding(4.dp)
             .clickable(
                 onClick = onClick,
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
             ),
+        horizontalAlignment = Alignment.CenterHorizontally,
         content = {
             Box(
                 contentAlignment = Alignment.Center,
@@ -150,14 +244,14 @@ internal fun StoryItem(
                         modifier = Modifier.size(80.dp),
                         onDraw = {
                             drawCircle(
-                                color = if (isStoryGroupViewed) Color.Gray else ringColor,
+                                color = if (isViewed) Color.Gray else group.ringColor.toColor(),
                                 style = Stroke(width = 5f),
                                 radius = size.minDimension / 2
                             )
                         }
                     )
                     Image(
-                        painter = rememberAsyncImagePainter(imageUrl),
+                        painter = rememberAsyncImagePainter(group.thumbnail),
                         contentDescription = null,
                         modifier = Modifier
                             .size(65.dp)
@@ -172,10 +266,10 @@ internal fun StoryItem(
                 modifier = Modifier
                     .width(60.dp)
                     .align(Alignment.CenterHorizontally),
-                text = username,
+                text = group.name.orEmpty(),
                 maxLines = 2,
                 fontSize = 12.sp,
-                color = nameColor,
+                color = group.nameColor.toColor(),
                 textAlign = TextAlign.Center,
                 lineHeight = 15.sp
             )
@@ -183,10 +277,11 @@ internal fun StoryItem(
     )
 }
 
+
 @UnstableApi
 @kotlin.OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun StoryScreen(
+private fun Screen(
     storyGroup: StoryGroup,
     onDismiss: () -> Unit,
     slides: List<StorySlide>,
@@ -196,7 +291,6 @@ internal fun StoryScreen(
 ) {
     val uriHandler = LocalUriHandler.current
     val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
 
     var isHolding by remember { mutableStateOf(false) }
     var isMuted by remember { mutableStateOf(false) }
@@ -213,33 +307,10 @@ internal fun StoryScreen(
     val isImage = currentSlide.image != null
     val storyDuration = if (isImage) 5000 else 0
 
-    val player = remember(context) {
-        ExoPlayer
-            .Builder(context)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(VideoCache.getFactory(context)))
-            .build().apply {
-                repeatMode = Player.REPEAT_MODE_OFF
-                playWhenReady = true
-            }
-    }
-
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            when (event) {
-                Lifecycle.Event.ON_RESUME -> player.play()
-
-                Lifecycle.Event.ON_PAUSE, Lifecycle.Event.ON_STOP -> player.pause()
-
-                else -> {}
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-            player.release()
-        }
-    }
+    val player = rememberPlayer(
+        videoUri = currentSlide.video,
+        muted = isMuted,
+    )
 
     LaunchedEffect(currentSlideIndex) {
         progress = 0f
@@ -306,10 +377,10 @@ internal fun StoryScreen(
     }
 
     DisposableEffect(Unit) {
-        AppStorys.isVisible = false
+        State.isVisible = false
 
         onDispose {
-            AppStorys.isVisible = true
+            State.isVisible = true
         }
     }
 
@@ -418,7 +489,7 @@ internal fun StoryScreen(
                                 )
                             }
 
-                            if (currentSlide.video != null) {
+                            if (!currentSlide.video.isNullOrBlank()) {
                                 AndroidView(
                                     factory = { ctx ->
                                         PlayerView(ctx).apply {
@@ -432,7 +503,7 @@ internal fun StoryScreen(
                                 )
                             }
 
-                            if (currentSlide.link?.isNotEmpty() == true && currentSlide.buttonText?.isNotEmpty() == true) {
+                            if (currentSlide.link?.isNotBlank() == true && currentSlide.buttonText?.isNotBlank() == true) {
                                 Button(
                                     onClick = {
                                         uriHandler.openUri(currentSlide.link)
@@ -611,121 +682,4 @@ internal fun StoryScreen(
             )
         }
     )
-}
-
-@UnstableApi
-@Composable
-internal fun StoriesApp(
-    storyGroups: List<StoryGroup>,
-    sendEvent: (Pair<StorySlide, String>) -> Unit,
-    viewedStories: List<String>,
-    storyViewed: (String) -> Unit,
-    sendClickEvent: (Pair<StorySlide, String>) -> Unit
-) {
-    var selectedStoryGroup by remember { mutableStateOf<StoryGroup?>(null) }
-
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        content = {
-            StoryCircles(
-                viewedStories = viewedStories,
-                storyGroups = storyGroups,
-                onStoryClick = { storyGroup ->
-                    selectedStoryGroup = storyGroup
-                    selectedStoryGroup?.id?.let {
-                        storyViewed(it)
-                    }
-                }
-            )
-
-            val storyGroup = selectedStoryGroup
-            if (storyGroup != null && !storyGroup.slides.isNullOrEmpty()) {
-                StoryScreen(
-                    storyGroup = storyGroup,
-                    slides = storyGroup.slides,
-                    onDismiss = { selectedStoryGroup = null },
-                    onStoryGroupEnd = {
-                        val currentIndex = storyGroups.indexOf(storyGroup)
-                        if (currentIndex < storyGroups.lastIndex) {
-                            selectedStoryGroup = storyGroups[currentIndex + 1]
-                            selectedStoryGroup?.id?.let {
-                                storyViewed(it)
-                            }
-                        } else {
-                            selectedStoryGroup = null
-                        }
-                    },
-                    sendEvent = sendEvent,
-                    sendClickEvent = sendClickEvent
-                )
-            }
-        }
-    )
-}
-
-@UnstableApi
-@Composable
-internal fun StoryAppMain(
-    apiStoryGroups: List<StoryGroup>,
-    sendEvent: (Pair<StorySlide, String>) -> Unit,
-    sendClickEvent: (Pair<StorySlide, String>) -> Unit
-) {
-
-    val context = LocalContext.current
-    var viewedStories by remember {
-        mutableStateOf(
-            getViewedStories(
-                context.getSharedPreferences(
-                    "AppStory",
-                    Context.MODE_PRIVATE
-                )
-            )
-        )
-    }
-    var storyGroups by remember {
-        mutableStateOf(
-            apiStoryGroups.sortedWith(
-                compareByDescending<StoryGroup> { it.id !in viewedStories }
-                    .thenBy { it.order })
-        )
-    }
-
-    LaunchedEffect(viewedStories) {
-        storyGroups = storyGroups.sortedWith(
-            compareByDescending<StoryGroup> { it.id !in viewedStories }
-                .thenBy { it.order }
-        )
-    }
-
-    StoriesApp(
-        storyGroups = storyGroups,
-        sendEvent = sendEvent,
-        viewedStories = viewedStories,
-        storyViewed = {
-            if (!viewedStories.contains(it)) {
-                val list = ArrayList(viewedStories)
-                list.add(it)
-                viewedStories = list
-                saveViewedStories(
-                    idList = list,
-                    sharedPreferences = context.getSharedPreferences(
-                        "AppStory",
-                        Context.MODE_PRIVATE
-                    )
-                )
-            }
-        },
-        sendClickEvent = sendClickEvent
-    )
-}
-
-internal fun saveViewedStories(idList: List<String>, sharedPreferences: SharedPreferences) {
-    val jsonArray = JSONArray(idList)
-    sharedPreferences.edit { putString("VIEWED_STORIES", jsonArray.toString()) }
-}
-
-internal fun getViewedStories(sharedPreferences: SharedPreferences): List<String> {
-    val jsonString = sharedPreferences.getString("VIEWED_STORIES", "[]") ?: "[]"
-    val jsonArray = JSONArray(jsonString)
-    return List(jsonArray.length()) { jsonArray.getString(it) }
 }

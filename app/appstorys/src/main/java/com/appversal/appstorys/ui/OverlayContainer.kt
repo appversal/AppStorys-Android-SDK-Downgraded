@@ -34,7 +34,7 @@ import com.appversal.appstorys.AppStorys
 import com.appversal.appstorys.AppStorys.dismissTooltip
 import com.appversal.appstorys.AppStorys.tooltipTargetView
 import com.appversal.appstorys.api.Tooltip
-import com.appversal.appstorys.utils.AppStorysCoordinates
+import com.appversal.appstorys.domain.model.AppStorysCoordinates
 
 /**
  * `OverlayContainer` is responsible for managing and rendering overlays such as tooltips
@@ -128,7 +128,7 @@ object OverlayContainer {
                     bottomPadding = bottomPadding + pipBottomPadding,
                 )
 
-                AppStorys.CSAT(
+                AppStorys.Csat(
                     bottomPadding = bottomPadding + csatBottomPadding,
                 )
 

@@ -214,7 +214,7 @@ internal class ApiRepository(
     suspend fun captureCSATResponse(accessToken: String, actions: CsatFeedbackPostRequest) {
         withContext(Dispatchers.IO) {
             when (val result = safeApiCall {
-                apiService.sendCSATResponse(
+                apiService.sendCsatResponse(
                     token = "Bearer $accessToken",
                     request = actions
                 )
@@ -306,9 +306,9 @@ internal class ApiRepository(
                 )
 
                 val result = safeApiCall {
-                    apiService.identifyTooltips(
+                    apiService.identifyElements(
                         token = "Bearer $accessToken",
-                        user_id = userIdPart,
+                        userId = userIdPart,
                         screenName = screenNamePart,
                         children = childrenPart,
                         screenshot = screenshotPart

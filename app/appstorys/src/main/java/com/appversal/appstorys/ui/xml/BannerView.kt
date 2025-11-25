@@ -6,12 +6,13 @@ import android.util.AttributeSet
 import android.widget.FrameLayout
 import androidx.annotation.Keep
 import androidx.compose.ui.platform.ComposeView
-import androidx.compose.ui.unit.dp
 import androidx.core.content.withStyledAttributes
-import com.appversal.appstorys.AppStorys
 import com.appversal.appstorys.R
+import com.appversal.appstorys.presentation.Banner
+import com.appversal.appstorys.presentation.Placeholder
 
-@Keep class PinnedBannerView @JvmOverloads constructor(
+@Keep
+class BannerView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
     defStyleAttr: Int = 0
@@ -22,9 +23,9 @@ import com.appversal.appstorys.R
 
     init {
         attrs?.let {
-            context.withStyledAttributes(it, R.styleable.PinnedBannerView) {
-                placeholder = getDrawable(R.styleable.PinnedBannerView_placeholder)
-                bottomPadding = getDimensionPixelSize(R.styleable.PinnedBannerView_bottomPadding, 0)
+            context.withStyledAttributes(it, R.styleable.BannerView) {
+                placeholder = getDrawable(R.styleable.BannerView_placeholder)
+                bottomPadding = getDimensionPixelSize(R.styleable.BannerView_bottomPadding, 0)
             }
         }
     }
@@ -38,9 +39,12 @@ import com.appversal.appstorys.R
             addView(
                 ComposeView(context).apply {
                     setContent {
-                        AppStorys.PinnedBanner(
-                            placeholder = placeholder,
-                            placeholderContent = content,
+                        Banner(
+                            placeholder = when {
+                                placeholder != null -> Placeholder.Drawable(placeholder!!)
+                                content != null -> Placeholder.Composable(content)
+                                else -> null
+                            },
                             bottomPadding = bottomPadding.toDp()
                         )
                     }

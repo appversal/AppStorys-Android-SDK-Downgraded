@@ -39,7 +39,7 @@ object CampaignDetailsSerializer : KSerializer<CampaignDetails?> {
                 value
             )
 
-            is CSATDetails -> jsonEncoder.json.encodeToJsonElement(CSATDetails.serializer(), value)
+            is CsatDetails -> jsonEncoder.json.encodeToJsonElement(CsatDetails.serializer(), value)
             is WidgetDetails -> jsonEncoder.json.encodeToJsonElement(
                 WidgetDetails.serializer(),
                 value
@@ -144,7 +144,7 @@ object CampaignDeserializer : KSerializer<Campaign> {
                     )
 
                     "CSAT" -> jsonDecoder.json.decodeFromJsonElement(
-                        serializer<CSATDetails>(),
+                        serializer<CsatDetails>(),
                         detailsElement
                     )
 
