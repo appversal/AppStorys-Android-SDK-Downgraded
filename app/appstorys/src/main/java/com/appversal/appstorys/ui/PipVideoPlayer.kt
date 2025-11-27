@@ -79,6 +79,9 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
 import com.appversal.appstorys.AppStorys
+import com.appversal.appstorys.AppStorys.isValidUrl
+import com.appversal.appstorys.AppStorys.navigateToScreen
+import com.appversal.appstorys.AppStorys.openUrl
 import com.appversal.appstorys.R
 import com.appversal.appstorys.api.PipStyling
 import com.appversal.appstorys.utils.VideoCache
@@ -457,14 +460,20 @@ fun FullScreenVideoDialog(
 
                         Button(
                             onClick = {
-                                uriHandler.openUri(link);
+                                    if (link.isNotEmpty()) {
+                                        if (!isValidUrl(link)) {
+                                            navigateToScreen(link)
+                                        } else {
+                                            openUrl(link)
+                                        }
+                                    }
                                 onButtonClick()
                             },
                             modifier = Modifier
                                 .align(Alignment.BottomCenter)
                                 .padding(
 //                                top = paddingTop ?: 0.dp,
-                                    bottom = paddingBottom ?: 0.dp,
+                                    bottom = (paddingBottom ?: 0.dp) + 10.dp,
                                     start = paddingLeft ?: 0.dp,
                                     end = paddingRight ?: 0.dp
                                 )

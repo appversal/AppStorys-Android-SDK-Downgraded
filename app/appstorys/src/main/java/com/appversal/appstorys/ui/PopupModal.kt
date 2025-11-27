@@ -73,7 +73,10 @@ internal fun PopupModal(
                     modifier = Modifier
                         .wrapContentSize()
                         .padding(8.dp)
-                        .clickable { onModalClick() }
+                        .clickable(
+                            indication = null,
+                            interactionSource = remember { MutableInteractionSource() }
+                        ) { onModalClick() }
                 ) {
                     when (mediaType) {
                         "gif" -> {

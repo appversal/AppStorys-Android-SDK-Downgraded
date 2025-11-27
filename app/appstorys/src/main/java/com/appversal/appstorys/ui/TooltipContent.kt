@@ -80,15 +80,22 @@ internal fun TooltipContent(
         (tooltip.styling?.tooltipArrow?.arrowHeight?.toIntOrNull() ?: 8) * density
     val arrowWidthPx = (tooltip.styling?.tooltipArrow?.arrowWidth?.toIntOrNull() ?: 16) * density
 
+    // Small gap between target element and arrow
+    val elementArrowGap = 5 * density
+
     BoxWithConstraints(
         modifier = Modifier.fillMaxSize().clickable(onClick = { dismissTooltip() }),
         content = {
-            // Position the arrow centered on the target element
+            // Position the arrow centered on the target element with small gap
+            // Subtract half the arrow width to center it horizontally
             Box(
                 modifier = Modifier.offset {
                     IntOffset(
-                        targetBounds.center.x.roundToInt(),
-                        (tooltipY + arrowHeightPx).roundToInt()
+                        (targetBounds.center.x - (arrowWidthPx + (arrowWidthPx/3))).roundToInt(),
+                        when (showBelow) {
+                            true -> (targetBounds.bottom + elementArrowGap).roundToInt()
+                            else -> (targetBounds.top - arrowHeightPx - elementArrowGap).roundToInt()
+                        }
                     )
                 },
                 content = {
@@ -115,11 +122,11 @@ internal fun TooltipContent(
                 else -> targetBounds.center.x - tooltipWidthPx / 2
             }
 
-            // Calculate final tooltip content Y position with proper spacing from arrow
-            // The multiplier of 3 provides reasonable visual spacing without hiding the arrow
+            // Calculate final tooltip content Y position directly adjacent to arrow
+            // Arrow touches content, gap is between element and arrow
             val tooltipYAdjusted = when (showBelow) {
-                true -> tooltipY + arrowHeightPx * 3  // Content below arrow when tooltip is below target
-                else -> tooltipY - arrowHeightPx * 3  // Content above arrow when tooltip is above target
+                true -> targetBounds.bottom + elementArrowGap + arrowHeightPx  // Content directly below arrow
+                else -> targetBounds.top - arrowHeightPx - tooltipHeightPx - elementArrowGap  // Content directly above arrow
             }
 
             // Position the tooltip content

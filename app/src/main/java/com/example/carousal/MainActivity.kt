@@ -267,29 +267,29 @@ fun HomeScreen(
                 )
 
                 // NEW: Scratch Card Button
-                Box(
-                    modifier = Modifier.padding(top = 12.dp, start = 16.dp, end = 16.dp)
-                        .fillMaxWidth(),
-//                        .padding(top = 12.dp, horizontal = 16.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Button(
-                        onClick = {
-                            campaignManager.trackEvents(event =  "triggerScratchCard")
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF6200EE)
-                        )
-                    ) {
-                        Icon(
-                            painter = painterResource(id = android.R.drawable.ic_dialog_info),
-                            contentDescription = "Scratch Card",
-                            modifier = Modifier.padding(end = 8.dp)
-                        )
-                        Text("Open Scratch Card")
-                    }
-                }
+//                Box(
+//                    modifier = Modifier.padding(top = 12.dp, start = 16.dp, end = 16.dp)
+//                        .fillMaxWidth(),
+////                        .padding(top = 12.dp, horizontal = 16.dp),
+//                    contentAlignment = Alignment.Center
+//                ) {
+//                    Button(
+//                        onClick = {
+//                            campaignManager.trackEvents(event =  "triggerScratchCard")
+//                        },
+//                        modifier = Modifier.fillMaxWidth(),
+//                        colors = ButtonDefaults.buttonColors(
+//                            containerColor = Color(0xFF6200EE)
+//                        )
+//                    ) {
+//                        Icon(
+//                            painter = painterResource(id = android.R.drawable.ic_dialog_info),
+//                            contentDescription = "Scratch Card",
+//                            modifier = Modifier.padding(end = 8.dp)
+//                        )
+//                        Text("Open Scratch Card")
+//                    }
+//                }
 
                 Box(
                     modifier = Modifier

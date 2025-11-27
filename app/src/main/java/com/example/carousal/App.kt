@@ -27,7 +27,7 @@ class App : Application() {
 //            appId = "",
 //            accountId = "",
 //            userId = userId,
-            userId = "anitesta",
+            userId = "test-user",
             attributes = attributes,
             navigateToScreen = { screen ->
                 println("Navigating to $screen")

@@ -137,7 +137,7 @@ object AppStorys {
 
     private var attributes: Map<String, Any>? = null
 
-    private lateinit var navigateToScreen: (String) -> Unit
+    internal lateinit var navigateToScreen: (String) -> Unit
 
     private val apiService = RetrofitClient.apiService
 
@@ -261,7 +261,7 @@ object AppStorys {
                     )
                     scratchedCampaigns.emit(savedScratchedCampaigns)
                     if (campaignsJob?.isActive != true) {
-                        getScreenCampaigns("Home Screen", emptyList())
+                        getScreenCampaigns("", emptyList())
                     }
                 }
             } catch (exception: Exception) {
@@ -278,47 +278,49 @@ object AppStorys {
     ) {
         campaignsJob?.cancel()
         campaignsJob = coroutineScope.launch {
-            if (!checkIfInitialized()) {
-                return@launch
-            }
-            ensureActive()
-            try {
-                if (currentScreen != screenName) {
-                    disabledCampaigns.emit(emptyList())
-                    impressions.emit(emptyList())
-                    campaigns.emit(emptyList())
-                    currentScreen = screenName
-
-                    delay(100)
+            if(screenName.isNotEmpty()){
+                if (!checkIfInitialized()) {
+                    return@launch
                 }
-
                 ensureActive()
+                try {
+                    if (currentScreen != screenName) {
+                        disabledCampaigns.emit(emptyList())
+                        impressions.emit(emptyList())
+                        campaigns.emit(emptyList())
+                        currentScreen = screenName
 
-                widgetPositionList = positionList
+                        delay(100)
+                    }
 
-                val deviceInfo = getDeviceInfo(context)
+                    ensureActive()
 
-                val mergedAttributes = (attributes ?: emptyMap()) + deviceInfo
+                    widgetPositionList = positionList
 
-                ensureActive()
+                    val deviceInfo = getDeviceInfo(context)
 
-                val (campaignResponse, webSocketResponse) = repository.triggerScreenData(
-                    accessToken = accessToken,
-                    screenName = currentScreen,
-                    userId = userId,
-                    attributes = mergedAttributes
-                )
+                    val mergedAttributes = (attributes ?: emptyMap()) + deviceInfo
 
-                ensureActive()
+                    ensureActive()
 
-                webSocketResponse?.let { response ->
-                    isScreenCaptureEnabled = response.screen_capture_enabled ?: false
+                    val (campaignResponse, webSocketResponse) = repository.triggerScreenData(
+                        accessToken = accessToken,
+                        screenName = currentScreen,
+                        userId = userId,
+                        attributes = mergedAttributes
+                    )
+
+                    ensureActive()
+
+                    webSocketResponse?.let { response ->
+                        isScreenCaptureEnabled = response.screen_capture_enabled ?: false
+                    }
+
+                    campaignResponse?.campaigns?.let { campaigns.emit(it) }
+                    Log.e("AppStorys", "Campaign: ${campaigns.value}")
+                } catch (exception: Exception) {
+                    Log.e("AppStorys", "Error getting campaigns for $screenName", exception)
                 }
-
-                campaignResponse?.campaigns?.let { campaigns.emit(it) }
-                Log.e("AppStorys", "Campaign: ${campaigns.value}")
-            } catch (exception: Exception) {
-                Log.e("AppStorys", "Error getting campaigns for $screenName", exception)
             }
         }
     }
@@ -360,6 +362,14 @@ object AppStorys {
                     e.printStackTrace()
                 }
             }
+        }
+    }
+
+    fun viaAppStorys(
+        event: String,
+    ) {
+        coroutineScope.launch {
+            trackedEventNames.add(event)
         }
     }
 
@@ -439,8 +449,15 @@ object AppStorys {
                 else -> null
             }
 
-            val shouldShowCSAT = campaign?.triggerEvent.isNullOrEmpty() ||
-                    trackedEventNames.contains(campaign?.triggerEvent)
+            val triggerEventValue = when (val event = campaign?.triggerEvent) {
+                "viaAppStorys" -> "viaAppStorys${campaign?.id}"
+                null, "" -> null
+                else -> event
+            }
+
+            val shouldShowCSAT = remember(triggerEventValue, trackedEventNames.size) {
+                triggerEventValue.isNullOrEmpty() || trackedEventNames.contains(triggerEventValue)
+            }
 
             if (csatDetails != null && shouldShowCSAT) {
                 val style = csatDetails.styling
@@ -529,8 +546,15 @@ object AppStorys {
             else -> null
         }
 
-        val shouldShowFloater = campaign?.triggerEvent.isNullOrEmpty() ||
-                trackedEventNames.contains(campaign?.triggerEvent)
+        val triggerEventValue = when (val event = campaign?.triggerEvent) {
+            "viaAppStorys" -> "viaAppStorys${campaign?.id}"
+            null, "" -> null
+            else -> event
+        }
+
+        val shouldShowFloater = remember(triggerEventValue, trackedEventNames.size) {
+            triggerEventValue.isNullOrEmpty() || trackedEventNames.contains(triggerEventValue)
+        }
 
         if (floaterDetails != null && (!floaterDetails.image.isNullOrEmpty() || !floaterDetails.lottie_data.isNullOrEmpty()) && shouldShowFloater) {
             LaunchedEffect(Unit) {
@@ -598,8 +622,15 @@ object AppStorys {
             else -> null
         }
 
-        val shouldShowPip = campaign?.triggerEvent.isNullOrEmpty() ||
-                trackedEventNames.contains(campaign?.triggerEvent)
+        val triggerEventValue = when (val event = campaign?.triggerEvent) {
+            "viaAppStorys" -> "viaAppStorys${campaign?.id}"
+            null, "" -> null
+            else -> event
+        }
+
+        val shouldShowPip = remember(triggerEventValue, trackedEventNames.size) {
+            triggerEventValue.isNullOrEmpty() || trackedEventNames.contains(triggerEventValue)
+        }
 
         if (pipDetails != null && !pipDetails.small_video.isNullOrEmpty() && shouldShowPip) {
             key(
@@ -638,11 +669,6 @@ object AppStorys {
                             onButtonClick = {
                                 campaign?.id?.let { campaignId ->
                                     trackEvents(campaignId, "clicked")
-                                }
-                                if (!isValidUrl(pipDetails.link)) {
-                                    navigateToScreen(pipDetails.link.toString())
-                                } else {
-                                    openUrl(pipDetails.link.toString())
                                 }
                             },
                             onExpandClick = {
@@ -695,8 +721,15 @@ object AppStorys {
         val campaign = campaignsData.value.firstOrNull { it.campaignType == "STR" }
         val storiesDetails = (campaign?.details as? StoriesDetails)?.groups
 
-        val shouldShowStories = campaign?.triggerEvent.isNullOrEmpty() ||
-                trackedEventNames.contains(campaign?.triggerEvent)
+        val triggerEventValue = when (val event = campaign?.triggerEvent) {
+            "viaAppStorys" -> "viaAppStorys${campaign?.id}"
+            null, "" -> null
+            else -> event
+        }
+
+        val shouldShowStories = remember(triggerEventValue, trackedEventNames.size) {
+            triggerEventValue.isNullOrEmpty() || trackedEventNames.contains(triggerEventValue)
+        }
 
         if (!storiesDetails.isNullOrEmpty() && shouldShowStories) {
             StoryAppMain(
@@ -730,8 +763,15 @@ object AppStorys {
         val selectedReelIndex by selectedReelIndex.collectAsStateWithLifecycle()
         val visibility by reelFullScreenVisible.collectAsStateWithLifecycle()
 
-        val shouldShowReels = campaign?.triggerEvent.isNullOrEmpty() ||
-                trackedEventNames.contains(campaign?.triggerEvent)
+        val triggerEventValue = when (val event = campaign?.triggerEvent) {
+            "viaAppStorys" -> "viaAppStorys${campaign?.id}"
+            null, "" -> null
+            else -> event
+        }
+
+        val shouldShowReels = remember(triggerEventValue, trackedEventNames.size) {
+            triggerEventValue.isNullOrEmpty() || trackedEventNames.contains(triggerEventValue)
+        }
 
         if (reelsDetails?.reels != null && reelsDetails.reels.isNotEmpty() && shouldShowReels) {
             Box(modifier = Modifier.fillMaxSize()) {
@@ -932,9 +972,18 @@ object AppStorys {
             it.campaignType == "BAN" && it.details is BannerDetails
         }
 
-        val shouldShowBanner = campaign?.triggerEvent.isNullOrEmpty() ||
-                trackedEventNames.contains(campaign?.triggerEvent)
+        val triggerEventValue = when (val event = campaign?.triggerEvent) {
+            "viaAppStorys" -> "viaAppStorys${campaign?.id}"
+            null, "" -> null
+            else -> event
+        }
+
+        val shouldShowBanner = remember(triggerEventValue, trackedEventNames.size) {
+            triggerEventValue.isNullOrEmpty() || trackedEventNames.contains(triggerEventValue)
+        }
+
         val bannerDetails = campaign?.details as? BannerDetails
+
         if (bannerDetails != null && !disabledCampaigns.value.contains(campaign.id) && shouldShowBanner) {
             val style = bannerDetails.styling
             val bannerUrl = bannerDetails.image
@@ -1022,8 +1071,15 @@ object AppStorys {
                 }
         val widgetDetails = campaign?.details as? WidgetDetails
 
-        val shouldShowWidget = campaign?.triggerEvent.isNullOrEmpty() ||
-                trackedEventNames.contains(campaign?.triggerEvent)
+        val triggerEventValue = when (val event = campaign?.triggerEvent) {
+            "viaAppStorys" -> "viaAppStorys${campaign?.id}"
+            null, "" -> null
+            else -> event
+        }
+
+        val shouldShowWidget = remember(triggerEventValue, trackedEventNames.size) {
+            triggerEventValue.isNullOrEmpty() || trackedEventNames.contains(triggerEventValue)
+        }
 
         if (widgetDetails != null && shouldShowWidget) {
 
@@ -1303,7 +1359,8 @@ object AppStorys {
                                     ) {
                                         if (leftImage.link != null) {
                                             clickEvent(
-                                                link = leftImage.link.toString().trim().removeSurrounding("\""),
+                                                link = leftImage.link.toString().trim()
+                                                    .removeSurrounding("\""),
                                                 campaignId = campaign.id,
                                                 widgetImageId = leftImage.id
                                             )
@@ -1334,7 +1391,8 @@ object AppStorys {
                                     ) {
                                         if (rightImage.link != null) {
                                             clickEvent(
-                                                link = rightImage.link.toString().trim().removeSurrounding("\""),
+                                                link = rightImage.link.toString().trim()
+                                                    .removeSurrounding("\""),
                                                 campaignId = campaign.id,
                                                 widgetImageId = rightImage.id
                                             )
@@ -1373,8 +1431,15 @@ object AppStorys {
             else -> null
         }
 
-        val shouldShowBottomSheet = campaign?.triggerEvent.isNullOrEmpty() ||
-                trackedEventNames.contains(campaign?.triggerEvent)
+        val triggerEventValue = when (val event = campaign?.triggerEvent) {
+            "viaAppStorys" -> "viaAppStorys${campaign?.id}"
+            null, "" -> null
+            else -> event
+        }
+
+        val shouldShowBottomSheet = remember(triggerEventValue, trackedEventNames.size) {
+            triggerEventValue.isNullOrEmpty() || trackedEventNames.contains(triggerEventValue)
+        }
 
         if (bottomSheetDetails != null && showBottomSheet && shouldShowBottomSheet) {
 
@@ -1415,8 +1480,15 @@ object AppStorys {
             else -> null
         }
 
-        val shouldShowSurvey = campaign?.triggerEvent.isNullOrEmpty() ||
-                trackedEventNames.contains(campaign?.triggerEvent)
+        val triggerEventValue = when (val event = campaign?.triggerEvent) {
+            "viaAppStorys" -> "viaAppStorys${campaign?.id}"
+            null, "" -> null
+            else -> event
+        }
+
+        val shouldShowSurvey = remember(triggerEventValue, trackedEventNames.size) {
+            triggerEventValue.isNullOrEmpty() || trackedEventNames.contains(triggerEventValue)
+        }
 
         if (surveyDetails != null && showSurvey && shouldShowSurvey) {
 
@@ -1459,8 +1531,15 @@ object AppStorys {
             else -> null
         }
 
-        val shouldShowModals = campaign?.triggerEvent.isNullOrEmpty() ||
-                trackedEventNames.contains(campaign?.triggerEvent)
+        val triggerEventValue = when (val event = campaign?.triggerEvent) {
+            "viaAppStorys" -> "viaAppStorys${campaign?.id}"
+            null, "" -> null
+            else -> event
+        }
+
+        val shouldShowModals = remember(triggerEventValue, trackedEventNames.size) {
+            triggerEventValue.isNullOrEmpty() || trackedEventNames.contains(triggerEventValue)
+        }
 
         if (modalDetails != null && showModal && shouldShowModals) {
 
@@ -1476,17 +1555,13 @@ object AppStorys {
                 },
                 modalDetails = modalDetails,
                 onModalClick = {
+                    val link = modalDetails.modals?.getOrNull(0)?.link
                     campaign?.id?.let { campaignId ->
                         trackEvents(campaignId, "clicked")
-                    }
-                    val link = modalDetails.modals?.getOrNull(0)?.link
-                    if (!isValidUrl(link)) {
-                        link?.let { navigateToScreen(it) }
-                    } else {
-                        link?.let { openUrl(it) }
+                        clickEvent(link = link, campaignId = campaignId)
                     }
 
-                    showModal = false
+//                    showModal = false
                 },
             )
         }
@@ -1508,8 +1583,15 @@ object AppStorys {
             else -> null
         }
 
-        val shouldShowScratchCard = campaign?.triggerEvent.isNullOrEmpty() ||
-                trackedEventNames.contains(campaign?.triggerEvent)
+        val triggerEventValue = when (val event = campaign?.triggerEvent) {
+            "viaAppStorys" -> "viaAppStorys${campaign?.id}"
+            null, "" -> null
+            else -> event
+        }
+
+        val shouldShowScratchCard = remember(triggerEventValue, trackedEventNames.size) {
+            triggerEventValue.isNullOrEmpty() || trackedEventNames.contains(triggerEventValue)
+        }
 
         val isAlreadyScratched = campaign?.id?.let {
             scratchedCampaignsData.value.contains(it)
@@ -1519,9 +1601,15 @@ object AppStorys {
             mutableStateOf(isAlreadyScratched)
         }
 
-        var isPresented by remember { mutableStateOf(true) }
+        var isPresented by remember(campaign?.id) { mutableStateOf(true) }
 
-        if (scratchCardDetails != null && shouldShowScratchCard) {
+        LaunchedEffect(shouldShowScratchCard) {
+            if (shouldShowScratchCard && !isPresented) {
+                isPresented = true
+            }
+        }
+
+        if (scratchCardDetails != null && shouldShowScratchCard && isPresented) {
 
             LaunchedEffect(Unit) {
                 campaign?.id?.let {
@@ -1554,7 +1642,9 @@ object AppStorys {
 
             CardScratch(
                 isPresented = isPresented,
-                onDismiss = { isPresented = false },
+                onDismiss = { isPresented = false
+                    triggerEventValue?.let { trackedEventNames.remove(it) }
+                            },
                 onConfettiTrigger = {
                     confettiTrigger++
                 },
@@ -1717,6 +1807,8 @@ object AppStorys {
 
     private fun clickEvent(link: Any?, campaignId: String, widgetImageId: String? = null) {
 
+        viaAppStorys(event = "viaAppStorys${link}")
+
         if (link != null && link is String) {
             if (link.isNotEmpty()) {
                 if (!isValidUrl(link)) {
@@ -1804,11 +1896,11 @@ object AppStorys {
         return !(sdkState != AppStorysSdkState.Initialized || accessToken.isBlank())
     }
 
-    private fun isValidUrl(url: String?): Boolean {
+    internal fun isValidUrl(url: String?): Boolean {
         return !url.isNullOrEmpty() && Patterns.WEB_URL.matcher(url).matches()
     }
 
-    private fun openUrl(url: String) {
+    internal fun openUrl(url: String) {
         try {
             val intent = Intent(Intent.ACTION_VIEW, url.toUri())
             intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
