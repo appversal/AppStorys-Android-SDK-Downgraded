@@ -4,6 +4,7 @@ import androidx.annotation.Nullable
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
 import retrofit2.HttpException
+import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.Header
 import retrofit2.http.Multipart
@@ -29,6 +30,12 @@ internal interface ApiService {
         @Header("Authorization") token: String,
         @Body request: TrackUserWebSocketRequest
     ): WebSocketConnectionResponse
+
+    @POST("update-user-atr")
+    suspend fun updateUserProperties(
+        @Header("Authorization") token: String,
+        @Body request: UpdateUserPropertiesRequest
+    ): Response<Unit>
 
     @POST("api/v1/campaigns/capture-csat-response/")
     suspend fun sendCSATResponse(

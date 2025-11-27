@@ -50,9 +50,15 @@ data class WebSocketConfig(
 @Serializable
 data class TrackUserWebSocketRequest(
     val user_id: String,
-    val attributes: Map<String, JsonElement>,
     val screenName: String? = null,
     val silentUpdate: Boolean? = null,
+)
+
+@Keep
+@Serializable
+data class UpdateUserPropertiesRequest(
+    val user_id: String,
+    val attributes: Map<String, JsonElement>
 )
 
 @Keep

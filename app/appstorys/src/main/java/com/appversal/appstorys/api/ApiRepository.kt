@@ -120,8 +120,7 @@ internal class ApiRepository(
     suspend fun initializeWebSocketConnection(
         accessToken: String,
         screenName: String,
-        userId: String,
-        attributes: Map<String, Any>?
+        userId: String
     ): Boolean {
         return withContext(Dispatchers.IO) {
             try {
@@ -130,8 +129,7 @@ internal class ApiRepository(
                         token = "Bearer $accessToken",
                         request = TrackUserWebSocketRequest(
                             screenName = screenName,
-                            user_id = userId,
-                            attributes = (attributes ?: emptyMap()).toJsonElementMap()
+                            user_id = userId
                         )
                     )
                 }) {
@@ -159,7 +157,6 @@ internal class ApiRepository(
         accessToken: String,
         screenName: String,
         userId: String,
-        attributes: Map<String, Any>?,
         timeoutMs: Long = 20000
     ): Pair<CampaignResponse?, WebSocketConnectionResponse?> {
         return withContext(Dispatchers.IO) {
@@ -172,7 +169,7 @@ internal class ApiRepository(
 
             if (!webSocketClient!!.isConnected()) {
                 val reconnected =
-                    initializeWebSocketConnection(accessToken, screenName, userId, attributes)
+                    initializeWebSocketConnection(accessToken, screenName, userId)
                 if (!reconnected) {
                     Log.e("ApiRepository", "Failed to reconnect WebSocket")
                     return@withContext Pair(null, null)
@@ -184,8 +181,7 @@ internal class ApiRepository(
                     token = "Bearer $accessToken",
                     request = TrackUserWebSocketRequest(
                         screenName = screenName,
-                        user_id = userId,
-                        attributes = (attributes ?: emptyMap()).toJsonElementMap()
+                        user_id = userId
                     )
                 )
             }) {

@@ -79,6 +79,7 @@ import com.appversal.appstorys.api.Tooltip
 import com.appversal.appstorys.api.TooltipsDetails
 import com.appversal.appstorys.api.TrackActionStories
 import com.appversal.appstorys.api.TrackUserWebSocketRequest
+import com.appversal.appstorys.api.UpdateUserPropertiesRequest
 import com.appversal.appstorys.api.WidgetDetails
 import com.appversal.appstorys.api.WidgetImage
 import com.appversal.appstorys.api.safeApiCall
@@ -134,8 +135,6 @@ object AppStorys {
     private lateinit var accountId: String
 
     private lateinit var userId: String
-
-    private var attributes: Map<String, Any>? = null
 
     internal lateinit var navigateToScreen: (String) -> Unit
 
@@ -201,7 +200,6 @@ object AppStorys {
         appId: String,
         accountId: String,
         userId: String,
-        attributes: Map<String, Any>?,
         navigateToScreen: (String) -> Unit
     ) {
         if (::context.isInitialized) {
@@ -213,7 +211,6 @@ object AppStorys {
         this.appId = appId
         this.accountId = accountId
         this.userId = userId
-        this.attributes = attributes
         this.navigateToScreen = navigateToScreen
 
         this.repository = ApiRepository(context, apiService) {
@@ -261,7 +258,7 @@ object AppStorys {
                     )
                     scratchedCampaigns.emit(savedScratchedCampaigns)
                     if (campaignsJob?.isActive != true) {
-                        getScreenCampaigns("", emptyList())
+                        getScreenCampaigns("Home Screen", emptyList())
                     }
                 }
             } catch (exception: Exception) {
@@ -278,7 +275,6 @@ object AppStorys {
     ) {
         campaignsJob?.cancel()
         campaignsJob = coroutineScope.launch {
-            if(screenName.isNotEmpty()){
                 if (!checkIfInitialized()) {
                     return@launch
                 }
@@ -297,17 +293,12 @@ object AppStorys {
 
                     widgetPositionList = positionList
 
-                    val deviceInfo = getDeviceInfo(context)
-
-                    val mergedAttributes = (attributes ?: emptyMap()) + deviceInfo
-
                     ensureActive()
 
                     val (campaignResponse, webSocketResponse) = repository.triggerScreenData(
                         accessToken = accessToken,
                         screenName = currentScreen,
-                        userId = userId,
-                        attributes = mergedAttributes
+                        userId = userId
                     )
 
                     ensureActive()
@@ -321,7 +312,6 @@ object AppStorys {
                 } catch (exception: Exception) {
                     Log.e("AppStorys", "Error getting campaigns for $screenName", exception)
                 }
-            }
         }
     }
 
@@ -380,12 +370,11 @@ object AppStorys {
                 return@launch
             }
             val result = safeApiCall {
-                webSocketService.getWebSocketConnectionDetails(
+                webSocketService.updateUserProperties(
                     token = "Bearer $accessToken",
-                    request = TrackUserWebSocketRequest(
+                    request = UpdateUserPropertiesRequest(
                         user_id = userId,
-                        attributes = attributes.toJsonElementMap(),
-                        silentUpdate = true
+                        attributes = attributes.toJsonElementMap()
                     )
                 )
             }
@@ -634,7 +623,7 @@ object AppStorys {
 
         if (pipDetails != null && !pipDetails.small_video.isNullOrEmpty() && shouldShowPip) {
             key(
-                campaign?.id, campaign?.triggerEvent, trackedEventNames.size
+                campaign?.id, campaign?.triggerEvent
             ) {
 
                 var showPip by remember { mutableStateOf(true) }
@@ -655,7 +644,7 @@ object AppStorys {
                             },
                             onClose = {
                                 showPip = false
-                                trackedEventNames.remove(campaign?.triggerEvent)
+                                triggerEventValue?.let { trackedEventNames.remove(it) }
                             },
                             height = pipDetails.height?.dp ?: 180.dp,
                             width = pipDetails.width?.dp ?: 120.dp,
@@ -1452,6 +1441,7 @@ object AppStorys {
             BottomSheetComponent(
                 onDismissRequest = {
                     showBottomSheet = false
+                    triggerEventValue?.let { trackedEventNames.remove(it) }
                 },
                 bottomSheetDetails = bottomSheetDetails,
                 onClick = { ctaLink ->
