@@ -42,7 +42,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -56,25 +55,22 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.edit
 import coil.compose.rememberAsyncImagePainter
-import com.appversal.appstorys.AppStorys.trackEvent
 import com.appversal.appstorys.api.ApiService
 import com.appversal.appstorys.api.ReelStatusRequest
 import com.appversal.appstorys.api.ReelsDetails
 import com.appversal.appstorys.domain.State
-import com.appversal.appstorys.domain.State.getAccessToken
-import com.appversal.appstorys.domain.State.impressions
-import com.appversal.appstorys.domain.State.userId
 import com.appversal.appstorys.domain.model.TypedCampaign
 import com.appversal.appstorys.domain.rememberCampaign
 import com.appversal.appstorys.domain.usecase.ActionType
 import com.appversal.appstorys.domain.usecase.ClickEvent
+import com.appversal.appstorys.domain.usecase.launchTask
+import com.appversal.appstorys.domain.usecase.trackEvent
 import com.appversal.appstorys.domain.usecase.trackUserAction
 import com.appversal.appstorys.utils.View
 import com.appversal.appstorys.utils.rememberPlayer
 import com.appversal.appstorys.utils.rememberSharedPreferences
 import com.appversal.appstorys.utils.toColor
 import com.appversal.appstorys.utils.toDp
-import kotlinx.coroutines.launch
 
 
 @Composable
@@ -153,14 +149,13 @@ private fun Screen(
     modifier: Modifier = Modifier,
     onDismiss: () -> Unit
 ) {
+    val context = LocalContext.current
+
     val reels = remember(details.reels) {
         details.reels?.filter { !it.id.isNullOrBlank() } ?: emptyList()
     }
     val styling = details.styling
 
-    val context = LocalContext.current
-
-    val scope = rememberCoroutineScope()
     val prefs = rememberSharedPreferences()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val pagerState = rememberPagerState(initialPage = selectedIndex, pageCount = { reels.size })
@@ -180,7 +175,7 @@ private fun Screen(
         map
     }
 
-    val toggleLike = remember(prefs, scope, likes) {
+    val toggleLike = remember(prefs, likes) {
         { id: String ->
             val isLike = !likes.contains(id)
             likes[id] = when {
@@ -192,22 +187,17 @@ private fun Screen(
                 putStringSet("liked_reels", likes.filter { it.value > 0 }.keys)
             }
 
-            scope.launch {
+            launchTask {
                 try {
-                    val token = getAccessToken()
-                    if (!token.isNullOrBlank()) {
-                        ApiService.getInstance().sendReelLikeStatus(
-                            token,
-                            ReelStatusRequest(
-                                user_id = userId.value,
-                                action = when {
-                                    isLike -> "like"
-                                    else -> "unlike"
-                                },
-                                reel = id
-                            )
+                    ApiService.getInstance().sendReelLikeStatus(
+                        ReelStatusRequest(
+                            action = when {
+                                isLike -> "like"
+                                else -> "unlike"
+                            },
+                            reel = id
                         )
-                    }
+                    )
                 } catch (_: Exception) {
 
                 }
@@ -232,8 +222,8 @@ private fun Screen(
 
     val clickLink = remember(context) {
         { link: String, id: String? ->
-            ClickEvent(link)
-            scope.launch {
+            ClickEvent(context, link)
+            launchTask {
                 trackUserAction(campaignId, ActionType.CLK, reelId = id)
             }
         }
@@ -262,19 +252,17 @@ private fun Screen(
         content = {
             LaunchedEffect(pagerState.currentPage) {
                 val id = reels[pagerState.currentPage].id ?: return@LaunchedEffect
-                if (!impressions.value.contains(id)) {
-                    State.addImpression(id)
-                    trackUserAction(
-                        campaignId,
-                        ActionType.IMP,
-                        reelId = id
-                    )
-                    trackEvent(
-                        campaignId,
-                        "viewed",
-                        mapOf("reel_id" to id)
-                    )
-                }
+                trackUserAction(
+                    campaignId,
+                    ActionType.IMP,
+                    reelId = id
+                )
+                trackEvent(
+                    context,
+                    "viewed",
+                    campaignId,
+                    mapOf("reel_id" to id)
+                )
             }
 
             Box(

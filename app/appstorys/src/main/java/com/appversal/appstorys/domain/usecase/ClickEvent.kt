@@ -1,29 +1,31 @@
 package com.appversal.appstorys.domain.usecase
 
-import android.app.Application
+import android.content.Context
 import android.content.Intent
 import android.webkit.URLUtil.isValidUrl
 import androidx.core.net.toUri
-import com.appversal.appstorys.AppStorys
 import org.json.JSONObject
 import timber.log.Timber
 
 internal object ClickEvent {
-    private var application: Application? = null
     private var navigate: ((String) -> Unit)? = null
 
-    fun initialize(application: Application, navigator: (String) -> Unit) {
-        this.application = application
+    fun initialize(navigator: (String) -> Unit) {
         this.navigate = navigator
     }
 
-    operator fun invoke(link: Any?, campaignId: String? = null, widgetImageId: String? = null) {
+    operator fun invoke(
+        context: Context,
+        link: Any?,
+        campaignId: String? = null,
+        widgetImageId: String? = null
+    ): Boolean {
         val handled = when {
             link != null && link is String && link.isNotBlank() -> {
                 if (!isValidUrl(link)) {
                     navigate?.invoke(link)
                 } else {
-                    openUrl(link)
+                    openUrl(context, link)
                 }
                 true
             }
@@ -42,19 +44,24 @@ internal object ClickEvent {
         }
 
         if (handled && campaignId != null) {
-            AppStorys.trackEvent(
-                campaignId,
-                "clicked",
-                widgetImageId?.let { mapOf("widget_image_id" to it) }
-            )
+            launchTask {
+                trackEvent(
+                    context,
+                    "clicked",
+                    campaignId,
+                    widgetImageId?.let { mapOf("widget_image_id" to it) }
+                )
+            }
         }
+
+        return handled
     }
 
-    private fun openUrl(url: String) {
+    private fun openUrl(context: Context, url: String) {
         try {
             val intent = Intent(Intent.ACTION_VIEW, url.toUri())
             intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            application?.startActivity(intent)
+            context.startActivity(intent)
         } catch (_: Exception) {
         }
     }

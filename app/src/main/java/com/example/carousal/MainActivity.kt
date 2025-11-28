@@ -1,6 +1,7 @@
 @file:OptIn(ExperimentalMaterial3Api::class)
 
 package com.example.carousal
+
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -8,7 +9,6 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -56,10 +56,12 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.appversal.appstorys.AppStorys
+import com.appversal.appstorys.domain.model.ScreenOptions
+import com.appversal.appstorys.presentation.Placeholder
 import com.appversal.appstorys.utils.appstorys
 import com.example.carousal.ui.theme.CarousalTheme
 import kotlinx.coroutines.launch
@@ -81,8 +83,7 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MyApp() {
-    val context = LocalContext.current
-    val campaignManager = App.appStorys
+    LocalContext.current
     val app = LocalContext.current.applicationContext as App
     val screenName by app.screenNameNavigation.collectAsState()
     var currentScreen by remember { mutableStateOf("HomeScreen") }
@@ -90,8 +91,6 @@ fun MyApp() {
 
     var selectedTab by remember { mutableStateOf(0) } // Track selected tab index
 
-    var confettiTrigger by remember { mutableStateOf(0) }
-    var wasFullyScratched by remember { mutableStateOf(false) }
     var isPresented by remember { mutableStateOf(false) }
 
     LaunchedEffect(screenName) {
@@ -101,10 +100,12 @@ fun MyApp() {
                     selectedTab = 1 // Set to PayScreen tab
                     currentScreen = "HomeScreen" // Keep normal navigation
                 }
+
                 "HomeScreen" -> {
                     selectedTab = 0
                     currentScreen = "HomeScreen"
                 }
+
                 else -> {
                     currentScreen = screenName // For other screens
                 }
@@ -115,9 +116,11 @@ fun MyApp() {
 
     var edgeToEdgePadding by remember { mutableStateOf(PaddingValues()) }
 
-    Box(modifier = Modifier
-        .fillMaxSize()
-        .background(Color.White)) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.White)
+    ) {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             containerColor = Color(0xFFFAF8F9),
@@ -154,40 +157,32 @@ fun MyApp() {
 //            if (currentScreen == "PayScreen") {
 //                PayScreen(innerPadding)
 //            } else {
-                when (selectedTab) {
-                    0 -> HomeScreen(
-                        innerPadding,
-                        isPresented = isPresented,
-                        onIsPresentedChange = { isPresented = it }
-                    )
-                    1 -> PayScreen(innerPadding)
-                }
+            when (selectedTab) {
+                0 -> HomeScreen(
+                    innerPadding,
+                    isPresented = isPresented,
+                    onIsPresentedChange = { isPresented = it }
+                )
+
+                1 -> PayScreen(innerPadding)
+            }
 //            }
         }
-
-        App.appStorys.overlayElements(
-            topPadding = 70.dp,
-            bottomPadding = 70.dp,
-        )
-
-        campaignManager.ScratchCard()
     }
 }
 
 @Composable
 fun CopyUserIdText() {
-    val campaignManager = App.appStorys
-    val clipboardManager = LocalClipboardManager.current
-    val context = LocalContext.current
-    val userId = campaignManager.getUserId()
+    LocalClipboardManager.current
+    LocalContext.current
 
-    Text(
-        text = userId,
-        modifier = androidx.compose.ui.Modifier.clickable {
-            clipboardManager.setText(AnnotatedString(userId))
-            Toast.makeText(context, "User ID copied to clipboard", Toast.LENGTH_SHORT).show()
-        }
-    )
+//    Text(
+//        text = userId,
+//        modifier = androidx.compose.ui.Modifier.clickable {
+//            clipboardManager.setText(AnnotatedString(userId))
+//            Toast.makeText(context, "User ID copied to clipboard", Toast.LENGTH_SHORT).show()
+//        }
+//    )
 }
 
 @Composable
@@ -195,9 +190,8 @@ fun HomeScreen(
     padding: PaddingValues,
     isPresented: Boolean,
     onIsPresentedChange: (Boolean) -> Unit
-    ) {
+) {
     val context = LocalContext.current
-    val campaignManager = App.appStorys
 
     // State variables for input fields
     var input1 by remember { mutableStateOf("") }
@@ -205,23 +199,19 @@ fun HomeScreen(
 
     var eventInput1 by remember { mutableStateOf("") }
     var eventInput2 by remember { mutableStateOf("") }
-    var eventInput3 by remember { mutableStateOf("") }
 
-    LaunchedEffect(Unit) {
-        val screenName  = "Premssss Screen"
-        val positions = listOf("widget_one")
-        campaignManager.getScreenCampaigns(
-            screenName,
-            positions,
-        )
-    }
-
-    Box(
+    AppStorys.Screen(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFf1f2f4))
+            .background(Color(0xFFf1f2f4)),
+        name = "Home Screen",
+        options = ScreenOptions(
+            positionList = listOf("widget_one"),
+            padding = PaddingValues(
+                bottom = 70.dp
+            )
+        )
     ) {
-        val coroutineScope = rememberCoroutineScope()
         // Scrollable Column using LazyColumn
         LazyColumn(
             modifier = Modifier
@@ -243,30 +233,34 @@ fun HomeScreen(
                     contentScale = ContentScale.Fit
                 )
 
-                campaignManager.Stories()
-
                 CopyUserIdText()
 
-                campaignManager.Widget(
+                Text("Widgets Start")
+
+                AppStorys.Widget(
                     modifier = Modifier.appstorys("tooltip_home"),
 //                    position = null
                 )
 
-                campaignManager.Widget(
+                AppStorys.Widget(
                     modifier = Modifier
                         .fillMaxWidth()
                         .appstorys("tooltip_home_prem_test"),
-                    placeholder = context.getDrawable(R.drawable.ic_launcher_foreground),
+                    placeholder = context.getDrawable(R.drawable.ic_launcher_foreground)
+                        ?.let { Placeholder.Drawable(it) },
                     position = "widget_one",
                 )
 
-                campaignManager.Widget(
+                AppStorys.Widget(
                     modifier = Modifier
                         .fillMaxWidth()
                         .appstorys("tooltip_home_prem_test"),
-                    placeholder = context.getDrawable(R.drawable.ic_launcher_foreground),
+                    placeholder = context.getDrawable(R.drawable.ic_launcher_foreground)
+                        ?.let { Placeholder.Drawable(it) },
                     position = "widget_two",
                 )
+
+                Text("Widgets End")
 
                 // NEW: Scratch Card Button
                 Box(
@@ -292,22 +286,32 @@ fun HomeScreen(
                     }
                 }
 
-                Box(
+                Button(
+                    onClick = {
+                        AppStorys.trackEvent(
+                            context = context,
+                            event = "Login"
+                        )
+                    },
                     modifier = Modifier
-                        .fillMaxSize()
-                        .padding(top = 12.dp),
-                    contentAlignment = Alignment.BottomCenter
+                        .padding(top = 12.dp)
+                        .appstorys("anuridhtest")
                 ) {
-                    Button(
-                        onClick = {
-                            campaignManager.trackEvent(
-                                event = "Login"
-                            )
-                        },
-                        modifier = Modifier.appstorys("anuridhtest")
-                    ) {
-                        Text("Open Bottom Sheet")
-                    }
+                    Text("Open Bottom Sheet")
+                }
+
+                Button(
+                    onClick = {
+                        AppStorys.trackEvent(
+                            context = context,
+                            event = "Home_page_click"
+                        )
+                    },
+                    modifier = Modifier
+                        .padding(top = 12.dp)
+                        .appstorys("anotherone")
+                ) {
+                    Text("Open Banner")
                 }
 
                 Row(
@@ -354,7 +358,8 @@ fun HomeScreen(
 
                     Button(
                         onClick = {
-                            campaignManager.trackEvent(
+                            AppStorys.trackEvent(
+                                context = context,
                                 event = "Login",
                                 metadata = mapOf(
                                     "name" to eventInput1,
@@ -371,7 +376,8 @@ fun HomeScreen(
 
                 Button(
                     onClick = {
-                        campaignManager.trackEvent(
+                        AppStorys.trackEvent(
+                            context = context,
                             event = "Added to cart"
                         )
                     },
@@ -382,7 +388,8 @@ fun HomeScreen(
 
                 Button(
                     onClick = {
-                        campaignManager.trackEvent(
+                        AppStorys.trackEvent(
+                            context,
                             event = "Purchased"
                         )
                     },
@@ -393,7 +400,8 @@ fun HomeScreen(
 
                 Button(
                     onClick = {
-                        campaignManager.trackEvent(
+                        AppStorys.trackEvent(
+                            context = context,
                             event = "Logout",
                         )
                     },
@@ -404,7 +412,8 @@ fun HomeScreen(
 
                 Button(
                     onClick = {
-                        campaignManager.trackEvent(
+                        AppStorys.trackEvent(
+                            context,
                             event = "AppStorys Success"
                         )
                     },
@@ -441,10 +450,15 @@ fun HomeScreen(
 
                     Button(
                         onClick = {
-                            campaignManager.setUserProperties(
+                            AppStorys.setUserProperties(
+                                context,
                                 mapOf("key_one" to input1)
                             )
-                            Toast.makeText(context, "User property set: key_one = $input1", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(
+                                context,
+                                "User property set: key_one = $input1",
+                                Toast.LENGTH_SHORT
+                            ).show()
                         },
                         modifier = Modifier
                     ) {
@@ -476,10 +490,15 @@ fun HomeScreen(
 
                     Button(
                         onClick = {
-                            campaignManager.setUserProperties(
+                            AppStorys.setUserProperties(
+                                context,
                                 mapOf("key_two" to input2)
                             )
-                            Toast.makeText(context, "User property set: key_two = $input2", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(
+                                context,
+                                "User property set: key_two = $input2",
+                                Toast.LENGTH_SHORT
+                            ).show()
                         },
                         modifier = Modifier
                     ) {
@@ -489,7 +508,7 @@ fun HomeScreen(
 
 
 
-                campaignManager.Reels()
+                AppStorys.Reels()
 
                 Image(
                     painter = painterResource(id = R.drawable.home_two),
@@ -638,21 +657,13 @@ fun PayScreenPage(
     buttonText: String,
     screenType: String
 ) {
-    val campaignManager = App.appStorys
-    val imageTags = topImages.map { it.second }
+    topImages.map { it.second }
 
-    LaunchedEffect(buttonText) {
-        campaignManager.getScreenCampaigns(
-            buttonText,
-            listOf()
-        )
-    }
-
-    Box(
+    AppStorys.Screen(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp),
-        contentAlignment = Alignment.TopCenter
+        name = buttonText,
     ) {
         Column(
             modifier = Modifier.fillMaxWidth()

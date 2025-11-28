@@ -1,4 +1,4 @@
-package com.appversal.appstorys.ui.xml
+package com.appversal.appstorys.presentation.xml
 
 import android.content.Context
 import android.graphics.drawable.Drawable
@@ -7,8 +7,8 @@ import android.widget.FrameLayout
 import androidx.annotation.Keep
 import androidx.compose.ui.platform.ComposeView
 import androidx.core.content.withStyledAttributes
+import com.appversal.appstorys.AppStorys
 import com.appversal.appstorys.R
-import com.appversal.appstorys.presentation.Banner
 import com.appversal.appstorys.presentation.Placeholder
 
 @Keep
@@ -39,7 +39,7 @@ class BannerView @JvmOverloads constructor(
             addView(
                 ComposeView(context).apply {
                     setContent {
-                        Banner(
+                        AppStorys.Banner(
                             placeholder = when {
                                 placeholder != null -> Placeholder.Drawable(placeholder!!)
                                 content != null -> Placeholder.Composable(content)

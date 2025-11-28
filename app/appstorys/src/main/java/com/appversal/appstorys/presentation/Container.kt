@@ -1,5 +1,6 @@
 package com.appversal.appstorys.presentation
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -38,6 +39,14 @@ internal fun Container(
             name = screenName ?: "Unknown",
             options = options
         ),
-        content = content
+        content = {
+            Box(
+                modifier = modifier,
+                content = {
+                    content()
+                    Overlay()
+                }
+            )
+        }
     )
 }

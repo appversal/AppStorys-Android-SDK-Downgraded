@@ -1,4 +1,4 @@
-package com.appversal.appstorys.ui
+package com.appversal.appstorys.presentation
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.MutableTransitionState
@@ -37,13 +37,13 @@ internal sealed interface ShowcaseDisplayState {
     data object Disappeared : ShowcaseDisplayState
 }
 
-class HighlightProperties internal constructor(
+internal class HighlightProperties internal constructor(
     val drawHighlight: DrawScope.(AppStorysCoordinates) -> Unit,
     val highlightBounds: Rect
 )
 
 @Composable
-internal fun ShowcaseView(
+internal fun Showcase(
     visible: Boolean,
     targetCoordinates: AppStorysCoordinates,
     duration: ShowcaseDuration = ShowcaseDuration.Default,
@@ -110,7 +110,7 @@ private fun ShowcaseBackground(
 }
 
 
-sealed interface ShowcaseHighlight {
+internal sealed interface ShowcaseHighlight {
     @Composable
     fun create(targetCoordinates: AppStorysCoordinates): HighlightProperties
 

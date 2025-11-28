@@ -77,36 +77,8 @@ data class Campaign(
 @Keep
 @Serializable
 data class ReelStatusRequest(
-    val user_id: String?,
     val action: String?,
     val reel: String?
-)
-
-@Keep
-@Serializable
-data class TrackActionStories(
-    val campaign_id: String?,
-    val user_id: String?,
-    val event_type: String?,
-    val story_slide: String?
-)
-
-@Keep
-@Serializable
-data class TrackActionTooltips(
-    val campaign_id: String?,
-    val user_id: String?,
-    val event_type: String?,
-    val tooltip_id: String?
-)
-
-@Keep
-@Serializable
-data class ReelActionRequest(
-    val user_id: String?,
-    val event_type: String?,
-    val reel_id: String?,
-    val campaign_id: String?,
 )
 
 @Keep
@@ -171,7 +143,7 @@ data class WidgetDetails(
     val type: String?,
     val width: Int?,
     val height: Int?,
-    @SerialName("widget_images") val widgetImages: List<WidgetImage>?,
+    @SerialName("widget_images") val images: List<WidgetImage>?,
     val campaign: String?,
     val screen: String?,
     val styling: WidgetStyling?
@@ -331,7 +303,6 @@ data class Dimensions(
 @Serializable
 data class CsatFeedbackPostRequest(
     val csat: String?,
-    val user_id: String?,
     val rating: Int?,
     val feedback_option: String? = null,
     val additional_comments: String = ""
@@ -542,8 +513,10 @@ data class SurveyDetails(
     val id: String?,
     val name: String?,
     val styling: SurveyStyling?,
-    val surveyQuestion: String?,
-    val surveyOptions: Map<String, String>?,
+    @SerialName("surveyQuestion")
+    val question: String?,
+    @SerialName("surveyOptions")
+    val options: Map<String, String>?,
     val campaign: String?,
     val hasOthers: Boolean?
 ) : CampaignDetails()
@@ -568,7 +541,6 @@ data class SurveyStyling(
 @Keep
 @Serializable
 data class SurveyFeedbackPostRequest(
-    val user_id: String?,
     val survey: String?,
     val responseOptions: List<String>? = null,
     val comment: String? = ""

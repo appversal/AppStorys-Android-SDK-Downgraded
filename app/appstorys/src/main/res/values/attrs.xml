@@ -30,9 +30,8 @@
         <attr name="topPadding" />
         <attr name="bottomPadding" />
     </declare-styleable>
-    <declare-styleable name="TooltipWrapperView">
-        <attr name="targetKey" format="string" />
-        <attr name="isNavigationBarItem" format="boolean" />
+    <declare-styleable name="InternalOverlayView">
+        <attr name="screenName" format="string" />
     </declare-styleable>
     <declare-styleable name="WidgetView">
         <attr name="placeholder" />

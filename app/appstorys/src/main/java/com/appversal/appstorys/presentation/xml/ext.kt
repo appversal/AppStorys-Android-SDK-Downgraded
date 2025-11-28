@@ -1,4 +1,4 @@
-package com.appversal.appstorys.ui.xml
+package com.appversal.appstorys.presentation.xml
 
 import android.view.View
 import android.view.ViewGroup

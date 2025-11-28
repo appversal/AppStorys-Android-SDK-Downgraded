@@ -4,7 +4,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.ui.unit.Dp
 
 data class ScreenOptions(
-    val positionList: List<String>,
+    val positionList: List<String> = emptyList(),
     val padding: PaddingValues? = null,
     val pipPadding: PaddingValues? = null,
     val floaterPadding: Dp? = null,

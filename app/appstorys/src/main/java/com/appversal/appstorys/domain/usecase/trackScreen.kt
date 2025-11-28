@@ -1,9 +1,8 @@
 package com.appversal.appstorys.domain.usecase
 
 import com.appversal.appstorys.api.ApiService
+import com.appversal.appstorys.api.Campaign
 import com.appversal.appstorys.domain.State
-import com.appversal.appstorys.domain.State.getAccessToken
-import com.appversal.appstorys.domain.State.userId
 import com.appversal.appstorys.utils.SdkJson
 import com.appversal.appstorys.utils.toJsonObject
 import kotlinx.coroutines.Dispatchers
@@ -12,10 +11,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
@@ -50,16 +50,9 @@ private fun disconnect() {
 internal suspend fun trackScreen(
     screenName: String,
     emitTrackEvent: Boolean
-): JsonObject? = withContext(Dispatchers.IO) {
+): List<Campaign>? = withContext(Dispatchers.IO) {
     suspendCancellableCoroutine { continuation ->
         try {
-            val accessToken = getAccessToken()
-            if (accessToken.isNullOrBlank()) {
-                Timber.e("Access token not found")
-                continuation.resume(null)
-                return@suspendCancellableCoroutine
-            }
-
             if (emitTrackEvent) {
                 launch {
                     screenTracked.emit(screenName)
@@ -70,7 +63,6 @@ internal suspend fun trackScreen(
 
             val requestBody = SdkJson.encodeToString(
                 mapOf(
-                    "user_id" to userId.value,
                     "screenName" to screenName,
                     "attributes" to emptyMap<String, String>()
                 ).toJsonObject()
@@ -80,7 +72,6 @@ internal suspend fun trackScreen(
                 .url("https://users.appstorys.com/track-user")
                 .post(requestBody.toRequestBody("application/json".toMediaTypeOrNull()))
                 .addHeader("Content-Type", "application/json")
-                .addHeader("Authorization", accessToken)
                 .build()
 
             val responseBody = ApiService.getClient().newCall(getConfigRequest).execute().use {
@@ -100,7 +91,7 @@ internal suspend fun trackScreen(
                 body
             }
 
-            val data = Json.decodeFromString<JsonObject>(responseBody)
+            val data = SdkJson.decodeFromString<JsonObject>(responseBody)
             State.setIsCapturingEnabled(
                 screenName,
                 data["screen_capture_enabled"]?.jsonPrimitive?.booleanOrNull == true
@@ -138,13 +129,26 @@ internal suspend fun trackScreen(
                         try {
                             disconnect()
 
-                            val data = Json.decodeFromString<JsonObject>(text)
+                            val data = SdkJson.decodeFromString<JsonObject>(text)
+
                             State.setIsCapturingEnabled(
                                 screenName,
-                                data["metadata"]?.jsonObject["screen_capture_enabled"]?.jsonPrimitive?.booleanOrNull == true
+                                data["metadata"]?.jsonObject?.get("screen_capture_enabled")?.jsonPrimitive?.booleanOrNull == true
                             )
 
-                            continuation.resume(data)
+                            val campaigns = data["campaigns"]?.jsonArray?.let {
+                                SdkJson.decodeFromJsonElement<List<Campaign>>(it)
+                            }
+
+                            if (campaigns == null) {
+                                log.e("No campaigns found in message for $screenName")
+                                continuation.resume(null)
+                                return
+                            }
+
+                            State.saveCampaigns(campaigns)
+
+                            continuation.resume(campaigns)
                         } catch (error: Exception) {
                             log.e(error, "Error parsing message for $screenName")
                             continuation.resume(null)

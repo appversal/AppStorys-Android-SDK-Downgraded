@@ -21,10 +21,8 @@ import androidx.compose.ui.semantics.SemanticsPropertyReceiver
 import androidx.compose.ui.semantics.getOrNull
 import androidx.core.graphics.createBitmap
 import com.appversal.appstorys.api.ApiService
-import com.appversal.appstorys.domain.State.getAccessToken
 import com.appversal.appstorys.domain.State.isCapturing
 import com.appversal.appstorys.domain.State.setIsCapturing
-import com.appversal.appstorys.domain.State.userId
 import com.appversal.appstorys.utils.SdkJson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -47,6 +45,8 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.math.roundToInt
 
+
+private val AppstorysViewTagKey = SemanticsPropertyKey<String>("AppstorysViewTagKey")
 internal var SemanticsPropertyReceiver.appstorysViewTagProperty by AppstorysViewTagKey
 
 /**
@@ -65,12 +65,6 @@ internal suspend fun captureScreen(
         try {
             if (activity.isFinishing || activity.isDestroyed) {
                 return@withContext "Activity is not in a valid state for capturing screen."
-            }
-
-            val accessToken = getAccessToken()
-            val userId = userId.value
-            if (accessToken.isNullOrBlank() || userId.isBlank()) {
-                return@withContext "Error in capture screen. Access token or user ID not found"
             }
 
             if (screenName.isBlank()) {
@@ -105,8 +99,6 @@ internal suspend fun captureScreen(
 
             // Send to server for element identification
             ApiService.getInstance().identifyElements(
-                token = "Bearer $accessToken",
-                userId = userId.toRequestBody(mediaType),
                 screenName = screenName.toRequestBody(mediaType),
                 children = SdkJson.encodeToString(elements).toRequestBody(
                     "application/json".toMediaTypeOrNull()
@@ -374,8 +366,6 @@ private val log: Timber.Tree
 
 private const val ANDROID_COMPOSE_VIEW_CLASS_NAME =
     "androidx.compose.ui.platform.AndroidComposeView"
-
-private val AppstorysViewTagKey = SemanticsPropertyKey<String>("AppstorysViewTagKey")
 
 private val semanticsOwnerField: Field? by lazy {
     try {

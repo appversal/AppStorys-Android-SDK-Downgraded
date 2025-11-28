@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -46,6 +47,7 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
@@ -58,13 +60,15 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import com.appversal.appstorys.AppStorys.trackEvent
 import com.appversal.appstorys.R
 import com.appversal.appstorys.api.PipDetails
 import com.appversal.appstorys.domain.State
 import com.appversal.appstorys.domain.model.TypedCampaign
 import com.appversal.appstorys.domain.rememberCampaign
+import com.appversal.appstorys.domain.rememberPadding
 import com.appversal.appstorys.domain.usecase.ClickEvent
+import com.appversal.appstorys.domain.usecase.launchTask
+import com.appversal.appstorys.domain.usecase.trackEvent
 import com.appversal.appstorys.utils.View
 import com.appversal.appstorys.utils.googleFontProvider
 import com.appversal.appstorys.utils.rememberPlayer
@@ -81,12 +85,16 @@ internal fun Pip(
     topPadding: Dp = 0.dp,
 ) {
     val campaign = rememberCampaign<PipDetails>("PIP")
-    if (!campaign?.details?.smallVideo.isNullOrBlank()) {
+    if (campaign != null && !campaign.details.smallVideo.isNullOrBlank()) {
+        val padding = rememberPadding(
+            "BAN",
+            PaddingValues(top = topPadding, bottom = bottomPadding)
+        )
         Content(
             campaign = campaign,
             modifier = modifier,
-            bottomPadding = bottomPadding,
-            topPadding = topPadding,
+            topPadding = padding.calculateTopPadding(),
+            bottomPadding = padding.calculateTopPadding(),
         )
     }
 }
@@ -98,6 +106,7 @@ private fun Content(
     bottomPadding: Dp = 0.dp,
     topPadding: Dp = 0.dp,
 ) {
+    val context = LocalContext.current
     var showPip by remember { mutableStateOf(true) }
     var isFullScreen by remember { mutableStateOf(false) }
 
@@ -111,7 +120,7 @@ private fun Content(
     }
 
     LaunchedEffect(campaign.id) {
-        trackEvent(campaign.id, "viewed")
+        trackEvent(context, "viewed", campaign.id)
     }
 
     when {
@@ -131,7 +140,10 @@ private fun Content(
             onDismiss = onDismiss,
             onExpand = {
                 isFullScreen = true
-                trackEvent(campaign.id, "clicked")
+                launchTask {
+
+                    trackEvent(context, "clicked", campaign.id)
+                }
             }
         )
     }
@@ -306,7 +318,7 @@ private fun SmallPlayer(
 }
 
 
-@kotlin.OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FullPlayer(
     details: PipDetails,
@@ -314,6 +326,7 @@ fun FullPlayer(
     onDismiss: () -> Unit,
     onClose: () -> Unit,
 ) {
+    val context = LocalContext.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
     val styling = details.styling
@@ -443,7 +456,7 @@ fun FullPlayer(
                                 containerColor = styling?.ctaButtonBackgroundColor.toColor()
                             ),
                             onClick = {
-                                ClickEvent(details.link)
+                                ClickEvent(context, details.link)
                             },
                             content = {
                                 Text(

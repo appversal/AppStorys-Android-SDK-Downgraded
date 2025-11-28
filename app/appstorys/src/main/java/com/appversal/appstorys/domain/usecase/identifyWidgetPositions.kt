@@ -2,7 +2,6 @@ package com.appversal.appstorys.domain.usecase
 
 import com.appversal.appstorys.api.ApiService
 import com.appversal.appstorys.api.IdentifyPositionsRequest
-import com.appversal.appstorys.domain.State.getAccessToken
 import timber.log.Timber
 
 /**
@@ -19,15 +18,8 @@ internal suspend fun identifyWidgetPositions(
         return
     }
 
-    val accessToken = getAccessToken()
-    if (accessToken.isNullOrBlank()) {
-        log.e("Error in identify widget position. Access token not found")
-        return
-    }
-
     try {
         ApiService.getInstance().identifyPositions(
-            accessToken,
             IdentifyPositionsRequest(screenName, positionList)
         )
         log.d("Successfully identified positions for screen: $screenName")

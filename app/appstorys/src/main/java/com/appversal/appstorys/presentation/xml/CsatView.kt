@@ -1,4 +1,4 @@
-package com.appversal.appstorys.ui.xml
+package com.appversal.appstorys.presentation.xml
 
 import android.content.Context
 import android.util.AttributeSet
@@ -6,23 +6,21 @@ import android.widget.FrameLayout
 import androidx.annotation.Keep
 import androidx.compose.ui.platform.ComposeView
 import androidx.core.content.withStyledAttributes
+import com.appversal.appstorys.AppStorys
 import com.appversal.appstorys.R
-import com.appversal.appstorys.presentation.Floater
 
-@Keep
-class FloaterView @JvmOverloads constructor(
+@Keep class CsatView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
     defStyleAttr: Int = 0
 ) : FrameLayout(context, attrs, defStyleAttr) {
-
     private var bottomPadding = 0
 
     init {
         attrs?.let {
-            context.withStyledAttributes(it, R.styleable.FloaterView) {
+            context.withStyledAttributes(it, R.styleable.CsatView) {
                 bottomPadding = getDimensionPixelSize(
-                    R.styleable.FloaterView_bottomPadding,
+                    R.styleable.CsatView_bottomPadding,
                     0
                 )
             }
@@ -30,7 +28,7 @@ class FloaterView @JvmOverloads constructor(
         addView(
             ComposeView(context).apply {
                 setContent {
-                    Floater(
+                    AppStorys.Csat(
                         bottomPadding = bottomPadding.toDp()
                     )
                 }

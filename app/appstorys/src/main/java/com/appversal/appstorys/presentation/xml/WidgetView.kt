@@ -1,4 +1,4 @@
-package com.appversal.appstorys.ui.xml
+package com.appversal.appstorys.presentation.xml
 
 import android.content.Context
 import android.graphics.drawable.Drawable
@@ -9,6 +9,7 @@ import androidx.compose.ui.platform.ComposeView
 import androidx.core.content.withStyledAttributes
 import com.appversal.appstorys.AppStorys
 import com.appversal.appstorys.R
+import com.appversal.appstorys.presentation.Placeholder
 
 @Keep
 class WidgetView @JvmOverloads constructor(
@@ -19,11 +20,9 @@ class WidgetView @JvmOverloads constructor(
 
     private var position: String? = null
     private var placeholder: Drawable? = null
-
     private var composed = false
 
     init {
-
         attrs?.let {
             context.withStyledAttributes(it, R.styleable.WidgetView) {
                 placeholder = getDrawable(R.styleable.WidgetView_placeholder)
@@ -37,12 +36,17 @@ class WidgetView @JvmOverloads constructor(
         if (composed) {
             return
         }
-        placeholderContent {
+
+        placeholderContent { content ->
             addView(
                 ComposeView(context).apply {
                     setContent {
                         AppStorys.Widget(
-                            placeholder = placeholder,
+                            placeholder = when {
+                                placeholder != null -> Placeholder.Drawable(placeholder!!)
+                                content != null -> Placeholder.Composable(content)
+                                else -> null
+                            },
                             position = position
                         )
                     }

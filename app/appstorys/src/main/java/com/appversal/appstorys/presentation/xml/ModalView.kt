@@ -1,14 +1,14 @@
-package com.appversal.appstorys.ui.xml
+package com.appversal.appstorys.presentation.xml
 
 import android.content.Context
 import android.util.AttributeSet
 import android.widget.FrameLayout
 import androidx.annotation.Keep
 import androidx.compose.ui.platform.ComposeView
-import com.appversal.appstorys.presentation.Stories
+import com.appversal.appstorys.AppStorys
 
 
-@Keep class StoriesView  @JvmOverloads constructor(
+@Keep class ModalView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
     defStyleAttr: Int = 0
@@ -18,7 +18,7 @@ import com.appversal.appstorys.presentation.Stories
         addView(
             ComposeView(context).apply {
                 setContent {
-                    Stories()
+                    AppStorys.Modal()
                 }
             }
         )

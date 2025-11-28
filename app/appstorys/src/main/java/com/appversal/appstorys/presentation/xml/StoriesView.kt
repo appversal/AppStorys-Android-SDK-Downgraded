@@ -1,4 +1,4 @@
-package com.appversal.appstorys.ui.xml
+package com.appversal.appstorys.presentation.xml
 
 import android.content.Context
 import android.util.AttributeSet
@@ -8,7 +8,7 @@ import androidx.compose.ui.platform.ComposeView
 import com.appversal.appstorys.AppStorys
 
 
-@Keep class BottomSheetView @JvmOverloads constructor(
+@Keep class StoriesView  @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
     defStyleAttr: Int = 0
@@ -18,7 +18,7 @@ import com.appversal.appstorys.AppStorys
         addView(
             ComposeView(context).apply {
                 setContent {
-                        AppStorys.BottomSheet()
+                    AppStorys.Stories()
                 }
             }
         )

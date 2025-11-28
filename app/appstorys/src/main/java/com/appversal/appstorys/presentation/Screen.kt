@@ -1,9 +1,11 @@
 package com.appversal.appstorys.presentation
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
+import com.appversal.appstorys.AppStorys
 import com.appversal.appstorys.domain.LocalScreenContext
 import com.appversal.appstorys.domain.model.ScreenContext
 import com.appversal.appstorys.domain.model.ScreenOptions
@@ -16,7 +18,7 @@ internal fun Screen(
     content: @Composable () -> Unit
 ) {
     LaunchedEffect(Unit) {
-        // TODO: Track screen
+        AppStorys.trackScreen(name, false)
     }
 
     CompositionLocalProvider(
@@ -24,6 +26,14 @@ internal fun Screen(
             name = name,
             options = options
         ),
-        content = content
+        content = {
+            Box(
+                modifier = modifier,
+                content = {
+                    content()
+                    Overlay()
+                }
+            )
+        }
     )
 }

@@ -33,72 +33,77 @@ internal fun CaptureScreenButton(
     modifier: Modifier = Modifier,
     activity: Activity? = null,
 ) {
-    val screenName = LocalScreenContext.current.name
+    val screenContext = LocalScreenContext.current
+    val screenName = screenContext?.name
+    val options = screenContext?.options
 
-    val isEnabled by State.isCapturingEnabled.map {
-        it[screenName] ?: false
-    }.collectAsStateWithLifecycle(false)
-    val isCapturing by State.isCapturing.map {
-        it[screenName] ?: false
-    }.collectAsStateWithLifecycle(false)
+    if (!screenName.isNullOrBlank()) {
+        val isEnabled by State.isCapturingEnabled.map {
+            it[screenName] ?: false
+        }.collectAsStateWithLifecycle(false)
+        val isCapturing by State.isCapturing.map {
+            it[screenName] ?: false
+        }.collectAsStateWithLifecycle(false)
 
-    val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
+        val snackbarHostState = remember { SnackbarHostState() }
+        val scope = rememberCoroutineScope()
 
-    val activity = activity ?: LocalContext.current.findActivity()
+        val activity = activity ?: LocalContext.current.findActivity()
 
-    if (isEnabled) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            content = {
-                FloatingActionButton(
-                    onClick = {
-                        if (activity != null) {
-                            scope.launch {
-                                captureScreen(
-                                    activity = activity,
-                                    screenName = screenName
-                                )?.let { error ->
-                                    snackbarHostState.showSnackbar(message = error)
+        if (isEnabled) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                content = {
+                    FloatingActionButton(
+                        onClick = {
+                            if (activity != null) {
+                                scope.launch {
+                                    captureScreen(
+                                        activity = activity,
+                                        screenName = screenName,
+                                        positionList = options?.positionList
+                                    )?.let { error ->
+                                        snackbarHostState.showSnackbar(message = error)
+                                    }
                                 }
                             }
+                        },
+                        modifier = modifier
+                            .padding(bottom = 86.dp, end = 16.dp)
+                            .align(Alignment.BottomEnd),
+                        containerColor = Color.White,
+                        content = {
+                            AnimatedVisibility(
+                                visible = isCapturing,
+                                content = {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier
+                                            .padding(4.dp)
+                                            .size(20.dp),
+                                        color = Color.Black,
+                                        strokeWidth = 2.dp,
+                                    )
+                                }
+                            )
+                            Text(
+                                modifier = Modifier.padding(horizontal = 12.dp),
+                                text = when {
+                                    activity == null -> "No Activity"
+                                    isCapturing -> "Capturing..."
+                                    else -> "Capture Screen"
+                                }
+                            )
                         }
-                    },
-                    modifier = modifier
-                        .padding(bottom = 86.dp, end = 16.dp)
-                        .align(Alignment.BottomEnd),
-                    containerColor = Color.White,
-                    content = {
-                        AnimatedVisibility(
-                            visible = isCapturing,
-                            content = {
-                                CircularProgressIndicator(
-                                    modifier = Modifier
-                                        .padding(4.dp)
-                                        .size(20.dp),
-                                    color = Color.Black,
-                                    strokeWidth = 2.dp,
-                                )
-                            }
-                        )
-                        Text(
-                            modifier = Modifier.padding(horizontal = 12.dp),
-                            text = when {
-                                activity == null -> "No Activity"
-                                isCapturing -> "Capturing..."
-                                else -> "Capture Screen"
-                            }
-                        )
-                    }
-                )
+                    )
 
-                SnackbarHost(
-                    hostState = snackbarHostState,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 80.dp)
-                )
-            }
-        )
+                    SnackbarHost(
+                        hostState = snackbarHostState,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 80.dp)
+                    )
+                }
+            )
+        }
     }
 }

@@ -1,7 +1,9 @@
 package com.appversal.appstorys.domain.usecase
 
 import com.appversal.appstorys.api.ApiService
-import com.appversal.appstorys.domain.State.getAccessToken
+import com.appversal.appstorys.domain.State
+import com.appversal.appstorys.domain.State.impressions
+import com.appversal.appstorys.domain.model.Impression
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonPrimitive
@@ -21,14 +23,17 @@ internal suspend fun trackUserAction(
 ) = withContext(Dispatchers.IO) {
     val log = Timber.tag("TrackUserAction")
     try {
-        val accessToken = getAccessToken()
-        if (accessToken.isNullOrBlank()) {
-            log.e("Access token not found")
+        val impression = Impression(
+            campaign = campaignId,
+            event = type.name
+        )
+        if (impressions.value.contains(impression)) {
+            log.d("Action already tracked: $impression")
             return@withContext
         }
+        State.addImpression(impression)
 
         ApiService.getInstance().trackUserAction(
-            accessToken,
             request = buildJsonObject {
                 put("campaign_id", JsonPrimitive(campaignId))
                 put("event_type", JsonPrimitive(type.name))

@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<com.appversal.appstorys.ui.xml.OverlayLayoutView xmlns:android="http://schemas.android.com/apk/res/android"
+<com.appversal.appstorys.presentation.xml.ScreenView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:id="@+id/activity_home"
     android:background="#f1f2f4"
     app:pipBottomPadding="70dp"
     app:topPadding="70dp">
@@ -26,12 +27,12 @@
         <!--                    android:layout_width="match_parent"-->
         <!--                    android:layout_height="20dp" />-->
 
-        <com.appversal.appstorys.ui.xml.WidgetView
+        <com.appversal.appstorys.presentation.xml.WidgetView
             android:id="@+id/tooltip_home"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content" />
 
-        <com.appversal.appstorys.ui.xml.WidgetView
+        <com.appversal.appstorys.presentation.xml.WidgetView
             android:id="@+id/tooltip_home_prem_test"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -69,4 +70,4 @@
         android:background="?android:attr/windowBackground"
         app:menu="@menu/bottom_nav_menu" />
 
-</com.appversal.appstorys.ui.xml.OverlayLayoutView>
+</com.appversal.appstorys.presentation.xml.ScreenView>

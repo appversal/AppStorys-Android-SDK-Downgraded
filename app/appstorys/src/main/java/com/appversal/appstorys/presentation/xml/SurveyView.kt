@@ -1,14 +1,15 @@
-package com.appversal.appstorys.ui.xml
+package com.appversal.appstorys.presentation.xml
 
 import android.content.Context
 import android.util.AttributeSet
 import android.widget.FrameLayout
 import androidx.annotation.Keep
 import androidx.compose.ui.platform.ComposeView
-import com.appversal.appstorys.presentation.Reels
+import com.appversal.appstorys.AppStorys
 
 
-@Keep class ReelsView @JvmOverloads constructor(
+@Keep
+class SurveyView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
     defStyleAttr: Int = 0
@@ -18,7 +19,7 @@ import com.appversal.appstorys.presentation.Reels
         addView(
             ComposeView(context).apply {
                 setContent {
-                    Reels()
+                    AppStorys.Survey()
                 }
             }
         )

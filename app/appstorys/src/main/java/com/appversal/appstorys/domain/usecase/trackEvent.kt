@@ -1,10 +1,13 @@
 package com.appversal.appstorys.domain.usecase
 
 import android.content.Context
+import com.appversal.appstorys.domain.State
 import com.appversal.appstorys.domain.State.getAccessToken
+import com.appversal.appstorys.domain.State.impressions
 import com.appversal.appstorys.domain.State.setTrackedEvents
 import com.appversal.appstorys.domain.State.trackedEvents
 import com.appversal.appstorys.domain.State.userId
+import com.appversal.appstorys.domain.model.Impression
 import com.appversal.appstorys.domain.model.QueuedRequest
 import com.appversal.appstorys.utils.SdkJson
 import com.appversal.appstorys.utils.toJsonElement
@@ -35,6 +38,16 @@ internal suspend fun trackEvent(
             log.e("Event name is required")
             return@withContext
         }
+
+        val impression = Impression(
+            campaign = campaignId.orEmpty(),
+            event = event
+        )
+        if (impressions.value.contains(impression)) {
+            log.d("Event already tracked: $impression")
+            return@withContext
+        }
+        State.addImpression(impression)
 
         val accessToken = getAccessToken()
         if (accessToken == null) {

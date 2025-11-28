@@ -1,7 +1,6 @@
 package com.appversal.appstorys.presentation
 
-import android.content.Intent
-import android.widget.Toast
+import android.content.Context
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -51,19 +50,17 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.net.toUri
 import coil.compose.AsyncImage
-import com.appversal.appstorys.AppStorys.trackEvent
 import com.appversal.appstorys.api.ApiService
 import com.appversal.appstorys.api.CsatDetails
 import com.appversal.appstorys.api.CsatFeedbackPostRequest
 import com.appversal.appstorys.api.CsatStyling
 import com.appversal.appstorys.domain.State
-import com.appversal.appstorys.domain.State.getAccessToken
-import com.appversal.appstorys.domain.State.userId
 import com.appversal.appstorys.domain.model.TypedCampaign
 import com.appversal.appstorys.domain.rememberCampaign
 import com.appversal.appstorys.domain.rememberPadding
+import com.appversal.appstorys.domain.usecase.ClickEvent
+import com.appversal.appstorys.domain.usecase.launchTask
 import com.appversal.appstorys.domain.usecase.trackEvent
 import com.appversal.appstorys.utils.toColor
 import kotlinx.coroutines.Dispatchers
@@ -201,9 +198,9 @@ private fun MainContent(
     setSelectedStars: (Int) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val context = LocalContext.current
     val details = campaign.details
     val styling = details.styling
-    val scope = rememberCoroutineScope()
 
     var selectedOption by remember { mutableStateOf<String?>(null) }
     var additionalComments by remember { mutableStateOf("") }
@@ -218,15 +215,14 @@ private fun MainContent(
     }
 
     val handleSubmitFeedback: () -> Unit = {
-        scope.launch {
-            submitFeedback(
-                campaign,
-                selectedStars,
-                selectedOption,
-                additionalComments,
-                onDismiss
-            )
-        }
+        submitFeedback(
+            context,
+            campaign,
+            selectedStars,
+            selectedOption,
+            additionalComments,
+            onDismiss
+        )
     }
 
     Column(
@@ -452,17 +448,7 @@ private fun ThankYouContent(
                     if (details.link.isNullOrEmpty() || selectedStars < 4) {
                         onDone()
                     } else {
-                        try {
-                            trackEvent(details.campaign, "clicked")
-                            val uri = details.link.toUri()
-                            context.startActivity(Intent(Intent.ACTION_VIEW, uri))
-                        } catch (_: Exception) {
-                            Toast.makeText(
-                                context,
-                                "Could not open link",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
+                        ClickEvent(context, link = details.link, campaignId = campaign.id)
                     }
                 },
                 colors = ButtonDefaults.buttonColors(
@@ -485,23 +471,21 @@ private fun ThankYouContent(
 private val CsatStyling?.titleColor: Color
     get() = this?.csatTitleColor.toColor()
 
-private suspend fun submitFeedback(
+private fun submitFeedback(
+    context: Context,
     campaign: TypedCampaign<CsatDetails>,
     selectedStars: Int,
     selectedOption: String?,
     additionalComments: String,
     onDismiss: () -> Unit
-) = withContext(Dispatchers.IO) {
-    val token = getAccessToken()
-    if (!token.isNullOrBlank()) {
+) = launchTask {
+    withContext(Dispatchers.IO) {
         launch {
             delay(1000)
             onDismiss()
         }
         ApiService.getInstance().sendCsatResponse(
-            token,
             CsatFeedbackPostRequest(
-                user_id = userId.value,
                 csat = campaign.details.id,
                 rating = selectedStars,
                 additional_comments = additionalComments,
@@ -509,8 +493,9 @@ private suspend fun submitFeedback(
             )
         )
         trackEvent(
-            campaignId = campaign.id,
+            context = context,
             event = "csat captured",
+            campaignId = campaign.id,
             metadata = mapOf(
                 "starCount" to selectedStars,
                 "selectedOption" to selectedOption.orEmpty(),

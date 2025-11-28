@@ -15,7 +15,7 @@ internal inline fun <reified T : CampaignDetails> rememberCampaign(
     type: String,
     position: String? = null,
 ): TypedCampaign<T>? {
-    val screenName = LocalScreenContext.current.name
+    val screenName = LocalScreenContext.current?.name
     val campaigns by campaigns.collectAsStateWithLifecycle()
     val trackedEvents by trackedEvents.collectAsStateWithLifecycle()
     val disabledCampaigns by disabledCampaigns.collectAsStateWithLifecycle()
