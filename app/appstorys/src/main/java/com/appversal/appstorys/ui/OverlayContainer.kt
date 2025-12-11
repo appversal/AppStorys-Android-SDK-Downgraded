@@ -122,6 +122,11 @@ object OverlayContainer {
                     bottomPadding = bottomPadding + bannerBottomPadding,
                 )
 
+                AppStorys.Milestone(
+                    topPadding = topPadding,
+                    bottomPadding = bottomPadding
+                )
+
                 AppStorys.Floater(
                     bottomPadding = bottomPadding + floaterBottomPadding,
                 )

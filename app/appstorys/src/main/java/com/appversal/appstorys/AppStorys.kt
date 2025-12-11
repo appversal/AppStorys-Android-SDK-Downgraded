@@ -15,6 +15,7 @@ import androidx.annotation.OptIn
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -23,9 +24,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -41,6 +47,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.LayoutCoordinates
@@ -66,6 +73,8 @@ import com.appversal.appstorys.api.CSATDetails
 import com.appversal.appstorys.api.Campaign
 import com.appversal.appstorys.api.CsatFeedbackPostRequest
 import com.appversal.appstorys.api.FloaterDetails
+import com.appversal.appstorys.api.MilestoneDetails
+import com.appversal.appstorys.api.MilestoneStyling
 import com.appversal.appstorys.api.ModalDetails
 import com.appversal.appstorys.api.PipDetails
 import com.appversal.appstorys.api.ReelActionRequest
@@ -74,6 +83,9 @@ import com.appversal.appstorys.api.ReelsDetails
 import com.appversal.appstorys.api.RetrofitClient
 import com.appversal.appstorys.api.ScratchCardDetails
 import com.appversal.appstorys.api.StoriesDetails
+import com.appversal.appstorys.api.StreaksDetails
+import com.appversal.appstorys.api.StreaksImage
+import com.appversal.appstorys.api.StreaksStyling
 import com.appversal.appstorys.api.SurveyDetails
 import com.appversal.appstorys.api.Tooltip
 import com.appversal.appstorys.api.TooltipsDetails
@@ -91,12 +103,14 @@ import com.appversal.appstorys.ui.CsatDialog
 import com.appversal.appstorys.ui.DoubleWidgets
 import com.appversal.appstorys.ui.FullScreenVideoScreen
 import com.appversal.appstorys.ui.ImageCard
+import com.appversal.appstorys.ui.MilestoneProgressBar
 import com.appversal.appstorys.ui.OverlayContainer
 import com.appversal.appstorys.ui.OverlayFloater
 import com.appversal.appstorys.ui.PipVideo
 import com.appversal.appstorys.ui.PopupModal
 import com.appversal.appstorys.ui.ReelsRow
 import com.appversal.appstorys.ui.StoryAppMain
+import com.appversal.appstorys.ui.StreaksWidget
 import com.appversal.appstorys.ui.SurveyBottomSheet
 import com.appversal.appstorys.ui.getLikedReels
 import com.appversal.appstorys.ui.getScratchedCampaigns
@@ -336,7 +350,7 @@ object AppStorys {
                     }
                     val client = OkHttpClient()
                     val request = Request.Builder()
-                        .url("https://tracking.appstorys.com/capture-event")
+                        .url("https://tracking.appstorys.co/capture-event")
                         .post(
                             requestBody.toString()
                                 .toRequestBody("application/json".toMediaTypeOrNull())
@@ -1554,6 +1568,182 @@ object AppStorys {
 //                    showModal = false
                 },
             )
+        }
+    }
+
+    @Composable
+    fun Streaks(
+        modifier: Modifier = Modifier,
+        placeholder: Drawable? = null
+    ) {
+        val campaignsData = campaigns.collectAsStateWithLifecycle()
+        val campaign =
+            campaignsData.value.firstOrNull {
+                it.campaignType == "MIL" && it.details is StreaksDetails
+            }
+//        val streaksDetails = campaign?.details as? StreaksDetails
+
+        val streaksDetails = StreaksDetails(
+            id = "streaks_001",
+            width = 200,
+            height = 200,
+            streaksImages = listOf(
+                StreaksImage(
+                    id = "img_1",
+                    image = "https://picsum.photos/200/200?random=1",
+                    link = kotlinx.serialization.json.JsonPrimitive("https://example.com"),
+                    order = 0,
+                    lottie_data = null,
+                    eventTrigger = null // Default image
+                ),
+                StreaksImage(
+                    id = "img_2",
+                    image = "https://picsum.photos/200/200?random=2",
+                    link = kotlinx.serialization.json.JsonPrimitive("https://example.com/event1"),
+                    order = 1,
+                    lottie_data = null,
+                    eventTrigger = "Login"
+                ),
+                StreaksImage(
+                    id = "img_3",
+                    image = "https://picsum.photos/200/200?random=3",
+                    link = kotlinx.serialization.json.JsonPrimitive("https://example.com/event2"),
+                    order = 2,
+                    lottie_data = null,
+                    eventTrigger = "Purchased"
+                )
+            ),
+            campaign = "test_campaign",
+            styling = StreaksStyling(
+                topMargin = "16",
+                leftMargin = "16",
+                rightMargin = "16",
+                bottomMargin = "16",
+                topLeftRadius = "12",
+                topRightRadius = "12",
+                bottomLeftRadius = "12",
+                bottomRightRadius = "12"
+            )
+        )
+
+        val triggerEventValue = when (val event = campaign?.triggerEvent) {
+            "viaAppStorys" -> "viaAppStorys${campaign?.id}"
+            null, "" -> null
+            else -> event
+        }
+
+        val shouldShowStreaks = remember(triggerEventValue, trackedEventNames.size) {
+            triggerEventValue.isNullOrEmpty() || trackedEventNames.contains(triggerEventValue)
+        }
+
+        // Track viewed event when streaks is shown
+        LaunchedEffect(streaksDetails, shouldShowStreaks) {
+            if (streaksDetails != null && shouldShowStreaks) {
+                campaign?.id?.let { campaignId ->
+                    trackEvents(campaignId, "viewed")
+                }
+            }
+        }
+
+        if (streaksDetails != null && shouldShowStreaks) {
+            StreaksWidget(
+                modifier = modifier,
+                streaksDetails = streaksDetails,
+                triggeredEvents = trackedEventNames.toSet(),
+                placeholder = placeholder,
+                onImageClick = { clickedImage ->
+                    // Handle image click
+                    campaign?.id?.let { campaignId ->
+                        trackEvents(campaignId, "clicked")
+                        clickEvent(link = clickedImage.link, campaignId = campaignId)
+                    }
+                }
+            )
+        }
+    }
+
+    @Composable
+    fun Milestone(
+        modifier: Modifier = Modifier,
+        topPadding: Dp = 0.dp,
+        bottomPadding: Dp = 0.dp
+    ) {
+        val campaignsData = campaigns.collectAsStateWithLifecycle()
+
+//        val campaign =
+//            campaignsData.value.firstOrNull { it.campaignType == "MIL" && it.details is MilestoneDetails }
+//
+//        val milestoneDetails = when (val details = campaign?.details) {
+//            is MilestoneDetails -> details
+//            else -> null
+//        }
+
+        val milestoneDetails = MilestoneDetails(
+            id = "milestone_001",
+            currentStep = 2,
+            totalSteps = 4,
+            milestoneValues = listOf(100.0, 200.0, 300.0, 500.0),
+            stepLabels = listOf("Bronze", "Silver", "Gold", "Platinum"),
+            styling = MilestoneStyling(
+                position = "bottom",
+                backgroundColor = "#FFFFFF",
+                progressColor = "#4CAF50",
+                trackColor = "#E0E0E0",
+                textColor = "#222222",
+                iconColors = listOf("#FFD700", "#C0C0C0", "#CD7F32", "#4CAF50"),
+                icons = listOf(
+                    "https://cdn.test.com/icons/bronze.png",
+                    "https://cdn.test.com/icons/silver.png",
+                    "https://cdn.test.com/icons/gold.png",
+                    "https://cdn.test.com/icons/platinum.png"
+                ),
+                marginTop = "8",
+                marginBottom = "8",
+                marginLeft = "16",
+                marginRight = "16",
+                showCurrency = true,
+                currencySymbol = "₹",
+                animationDuration = "1000"
+            ),
+            campaign = "Test Milestone Campaign"
+        )
+
+
+//        val triggerEventValue = when (val event = campaign?.triggerEvent) {
+//            "viaAppStorys" -> "viaAppStorys${campaign?.id}"
+//            null, "" -> null
+//            else -> event
+//        }
+
+//        val shouldShowMilestone = remember(triggerEventValue, trackedEventNames.size) {
+//            triggerEventValue.isNullOrEmpty() || trackedEventNames.contains(triggerEventValue)
+//        }
+
+        if (milestoneDetails != null) {
+            val position = milestoneDetails.styling?.position ?: "bottom"
+//            LaunchedEffect(Unit) {
+//                campaign?.id?.let {
+//                    trackEvents(it, "viewed")
+//                }
+//            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(
+                        bottom = bottomPadding + 16.dp
+                    ),
+                contentAlignment = Alignment.BottomCenter
+            ) {
+                MilestoneProgressBar(
+                    modifier = modifier.padding(horizontal = 16.dp),
+                    milestoneDetails = milestoneDetails,
+                    onDismiss = {
+                        // Handle dismiss if needed
+//                        triggerEventValue?.let { trackedEventNames.remove(it) }
+                    }
+                )
+            }
         }
     }
 

@@ -266,6 +266,8 @@ fun HomeScreen(
                     position = "widget_two",
                 )
 
+//                campaignManager.Streaks()
+
                 // NEW: Scratch Card Button
 //                Box(
 //                    modifier = Modifier.padding(top = 12.dp, start = 16.dp, end = 16.dp)

@@ -85,6 +85,16 @@ object CampaignDetailsSerializer : KSerializer<CampaignDetails?> {
                 ScratchCardDetails.serializer(),
                 value
             )
+
+            is MilestoneDetails -> jsonEncoder.json.encodeToJsonElement(
+                MilestoneDetails.serializer(),
+                value
+            )
+
+            is StreaksDetails -> jsonEncoder.json.encodeToJsonElement(
+                StreaksDetails.serializer(),
+                value
+            )
         }
         jsonEncoder.encodeJsonElement(element)
     }
@@ -197,6 +207,11 @@ object CampaignDeserializer : KSerializer<Campaign> {
 
                     "SCRT" -> jsonDecoder.json.decodeFromJsonElement(
                         serializer<ScratchCardDetails>(),
+                        detailsElement
+                    )
+
+                    "MIL" -> jsonDecoder.json.decodeFromJsonElement(
+                        serializer<MilestoneDetails>(),
                         detailsElement
                     )
 

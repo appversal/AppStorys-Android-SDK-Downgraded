@@ -300,6 +300,8 @@ data class CSATStyling(
     val csatSelectedOptionStrokeColor: String?,
     val csatSelectedOptionBackgroundColor: String?,
 
+    val fontSize: Int? = null,
+
     val csatTitleFontSize: Int?,
     val csatTitleFontDecoration: List<String>?,
     val csatTitleAlignment: String?,
@@ -643,3 +645,75 @@ data class ScratchCardDetails(
     val content: JsonObject? = null,
     val styling: JsonObject? = null
 ) : CampaignDetails()
+
+@Keep
+@Serializable
+data class MilestoneDetails(
+    val id: String?,
+    val currentStep: Int?,
+    val totalSteps: Int?,
+    val milestoneValues: List<Double>?,
+    val stepLabels: List<String>?,
+    val styling: MilestoneStyling?,
+    val campaign: String?
+) : CampaignDetails()
+
+@Keep
+@Serializable
+data class MilestoneStyling(
+    val position: String?, // "top" or "bottom"
+    val backgroundColor: String?,
+    val progressColor: String?,
+    val trackColor: String?,
+    val textColor: String?,
+    val iconColors: List<String>?,
+    val icons: List<String>?,
+    val marginTop: String?,
+    val marginBottom: String?,
+    val marginLeft: String?,
+    val marginRight: String?,
+    val showCurrency: Boolean?,
+    val currencySymbol: String?,
+    val animationDuration: String?
+)
+
+@Keep
+@Serializable
+data class StreaksDetails(
+    val id: String?,
+    val width: Int?,
+    val height: Int?,
+    @SerialName("streaks_images") val streaksImages: List<StreaksImage>?,
+    val campaign: String?,
+    val styling: StreaksStyling?
+) : CampaignDetails()
+
+// ============================================
+// NEW: StreaksImage Data Class
+// ============================================
+@Keep
+@Serializable
+data class StreaksImage(
+    val id: String?,
+    val image: String?,
+    val link: JsonElement?,
+    val order: Int?,
+    val lottie_data: String?,
+    @SerialName("event_trigger") val eventTrigger: String? = null
+)
+
+// ============================================
+// NEW: StreaksStyling Data Class
+// ============================================
+@Keep
+@Serializable
+data class StreaksStyling(
+    val topMargin: String?,
+    val leftMargin: String?,
+    val rightMargin: String?,
+    val bottomMargin: String?,
+    val topLeftRadius: String?,
+    val topRightRadius: String?,
+    val bottomLeftRadius: String?,
+    val bottomRightRadius: String?,
+)

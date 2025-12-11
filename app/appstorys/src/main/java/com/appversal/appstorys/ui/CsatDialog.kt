@@ -2,6 +2,7 @@ package com.appversal.appstorys.ui
 
 import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
@@ -32,6 +33,7 @@ import com.appversal.appstorys.utils.toColor
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import java.nio.file.WatchEvent
 
 data class CsatFeedback(
     val rating: Int,
@@ -96,19 +98,26 @@ internal fun CsatDialog(
             .padding(16.dp),
         shape = RoundedCornerShape(24.dp),
         color = styling["csatBackgroundColor"]!!,
-        shadowElevation = 8.dp
+//        shadowElevation = 8.dp
     ) {
-        Box {
-            IconButton(
-                onClick = onDismiss,
+        Box(
+            modifier = Modifier.animateContentSize()
+        ) {
+            Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(8.dp)
+                    .padding(12.dp)
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(Color.Gray.copy(alpha = 0.2f))
+                    .clickable { onDismiss() },
+                contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Default.Close,
-                    contentDescription = "Close",
-                    tint = styling["csatTitleColor"]!!
+                    imageVector = Icons.Filled.Close,
+                    contentDescription = null,
+                    tint = Color.Gray,
+                    modifier = Modifier.size(16.dp)
                 )
             }
 
@@ -149,7 +158,8 @@ internal fun CsatDialog(
                             )
                         )
                         showThanks = true
-                    }
+                    },
+                    csatDetails = csatDetails
                 )
             }
 
@@ -185,15 +195,17 @@ private fun MainContent(
     onStarSelected: (Int) -> Unit,
     onOptionSelected: (String) -> Unit,
     onCommentsChanged: (String) -> Unit,
-    onSubmit: () -> Unit
+    onSubmit: () -> Unit,
+    csatDetails: CSATDetails
 ) {
     Column(
         modifier = Modifier
             .padding(24.dp)
     ) {
         Text(
+            modifier = Modifier.padding(end = 18.dp),
             text = localContent["title"]!!,
-            fontSize = 22.sp,
+            fontSize = ((csatDetails.styling?.fontSize ?: 16) + 6).sp,
             fontWeight = FontWeight.Bold,
             color = styling["csatTitleColor"]!!
         )
@@ -202,10 +214,11 @@ private fun MainContent(
 
         Text(
             text = localContent["description"]!!,
+            fontSize = (csatDetails.styling?.fontSize ?: 16).sp,
             color = styling["csatDescriptionTextColor"]!!
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -241,7 +254,8 @@ private fun MainContent(
                 additionalComments = additionalComments,
                 onOptionSelected = onOptionSelected,
                 onCommentsChanged = onCommentsChanged,
-                onSubmit = onSubmit
+                onSubmit = onSubmit,
+                csatDetails = csatDetails
             )
         }
     }
@@ -256,7 +270,8 @@ private fun FeedbackContent(
     additionalComments: String,
     onOptionSelected: (String) -> Unit,
     onCommentsChanged: (String) -> Unit,
-    onSubmit: () -> Unit
+    onSubmit: () -> Unit,
+    csatDetails: CSATDetails
 ) {
     Column(
         modifier = Modifier.padding(top = 16.dp)
@@ -264,12 +279,13 @@ private fun FeedbackContent(
         localContent["feedbackPrompt"]?.let { feedbackPrompt ->
             Text(
                 text = feedbackPrompt,
+                fontSize = (csatDetails.styling?.fontSize ?: 16).sp,
                 color = styling["csatTitleColor"]!!
             )
         }
-        if (feedbackOptions?.toList()?.isNotEmpty() == true) {
-            Spacer(modifier = Modifier.height(12.dp))
-        }
+//        if (feedbackOptions?.toList()?.isNotEmpty() == true) {
+//            Spacer(modifier = Modifier.height(4.dp))
+//        }
 
         feedbackOptions?.forEach { option ->
             val isSelected = option == selectedOption
@@ -293,7 +309,8 @@ private fun FeedbackContent(
             ) {
                 Text(
                     text = option,
-                    modifier = Modifier.padding(12.dp),
+                    fontSize = (csatDetails.styling?.fontSize ?: 16).sp,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
                     color = if (isSelected) styling["csatSelectedOptionTextColor"]!!
                     else styling["csatOptionTextColor"]!!
                 )
@@ -304,30 +321,61 @@ private fun FeedbackContent(
             Spacer(modifier = Modifier.height(12.dp))
         }
 
-        TextField(
-            value = additionalComments,
-            onValueChange = onCommentsChanged,
-            modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("Enter comments", color = Color.Gray) },
-            colors = TextFieldDefaults.colors(
-                focusedTextColor = styling["csatAdditionalTextColor"]!!,
-                unfocusedTextColor = Color.Black,
-                unfocusedContainerColor = Color.Transparent,
-                focusedContainerColor = Color.Transparent
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(92.dp) // <-- Set your desired height
+                .background(
+                    color = styling["csatOptionBoxColour"]!!,
+                    shape = RoundedCornerShape(18.dp)
+                )
+                .border(
+                    width = 1.dp,
+                    color = styling["csatOptionStrokeColor"]!!,
+                    shape = RoundedCornerShape(18.dp)
+                )
+        ) {
+            TextField(
+                value = additionalComments,
+                onValueChange = onCommentsChanged,
+                modifier = Modifier
+                    .fillMaxSize(),
+                placeholder = {
+                    Text(
+                        "Enter comments",
+                        color = Color.Gray,
+                        modifier = Modifier.align(Alignment.TopStart)
+                    )
+                },
+                maxLines = Int.MAX_VALUE,
+                singleLine = false,
+                colors = TextFieldDefaults.colors(
+                    focusedTextColor = styling["csatAdditionalTextColor"]!!,
+                    unfocusedTextColor = Color.Black,
+                    unfocusedContainerColor = Color.Transparent,
+                    focusedContainerColor = Color.Transparent,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent
+                )
             )
-        )
+        }
+
 
         Spacer(modifier = Modifier.height(18.dp))
 
         Button(
             onClick = onSubmit,
-            modifier = Modifier.align(Alignment.CenterHorizontally),
+            modifier = Modifier
+                .align(Alignment.CenterHorizontally)
+                .fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(
                 containerColor = styling["csatCtaBackgroundColor"]!!
             )
         ) {
             Text(
+                modifier = Modifier.padding(vertical = 4.dp),
                 text = "Submit",
+                fontSize = ((csatDetails.styling?.fontSize ?: 16) + 2).sp,
                 color = styling["csatCtaTextColor"]!!
             )
         }
@@ -361,7 +409,7 @@ private fun ThankYouContent(
 
         Text(
             text = localContent["thankyouText"]!!,
-            fontSize = 20.sp,
+            fontSize = ((csatDetails.styling?.fontSize ?: 16) + 6).sp,
             fontWeight = FontWeight.Bold,
             color = styling["csatTitleColor"]!!
         )
@@ -370,6 +418,7 @@ private fun ThankYouContent(
 
         Text(
             text = localContent["thankyouDescription"]!!,
+            fontSize = (csatDetails.styling?.fontSize ?: 16).sp,
             color = styling["csatDescriptionTextColor"]!!,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )
@@ -377,6 +426,9 @@ private fun ThankYouContent(
         Spacer(modifier = Modifier.height(16.dp))
 
         Button(
+            modifier = Modifier
+                .align(Alignment.CenterHorizontally)
+                .fillMaxWidth(),
             onClick = {
                 if(csatDetails.link.isNullOrEmpty() || selectedStars < 4){
                     onDone()
@@ -400,6 +452,8 @@ private fun ThankYouContent(
             )
         ) {
             Text(
+                modifier = Modifier.padding(vertical = 4.dp),
+                fontSize = ((csatDetails.styling?.fontSize ?: 16) + 2).sp,
                 text = (if (selectedStars < 4) csatDetails.lowStarText else csatDetails.highStarText).toString(),
                 color = styling["csatCtaTextColor"]!!
             )
