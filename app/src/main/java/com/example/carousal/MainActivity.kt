@@ -210,7 +210,7 @@ fun HomeScreen(
     var eventInput3 by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
-        val screenName  = "Home Screen"
+        val screenName  = "More Screen"
         val positions = listOf("widget_one")
         campaignManager.getScreenCampaigns(
             screenName,
@@ -248,6 +248,8 @@ fun HomeScreen(
                 campaignManager.Stories()
 
                 CopyUserIdText()
+
+                campaignManager.Milestone()
 
                 campaignManager.Widget(
                     modifier = Modifier.appstorys("tooltip_home"),
@@ -374,7 +376,7 @@ fun HomeScreen(
                 Button(
                     onClick = {
                         campaignManager.trackEvents(
-                            event = "Added to cart"
+                            event = "accounts"
                         )
                     },
                     modifier = Modifier.appstorys("toolbar")

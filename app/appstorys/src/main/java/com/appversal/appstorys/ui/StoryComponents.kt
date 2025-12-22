@@ -670,7 +670,6 @@ internal fun StoryAppMain(
     sendEvent: (Pair<StorySlide, String>) -> Unit,
     sendClickEvent: (Pair<StorySlide, String>) -> Unit
 ) {
-
     val context = LocalContext.current
     var viewedStories by remember {
         mutableStateOf(

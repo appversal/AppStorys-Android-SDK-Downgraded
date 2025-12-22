@@ -55,24 +55,6 @@ internal interface ApiService {
         @Body request: ReelStatusRequest
     )
 
-    @POST("api/v1/users/track-action/")
-    suspend fun trackReelAction(
-        @Header("Authorization") token: String,
-        @Body request: ReelActionRequest
-    )
-
-    @POST("api/v1/users/track-action/")
-    suspend fun trackStoriesAction(
-        @Header("Authorization") token: String,
-        @Body request: TrackActionStories
-    )
-
-    @POST("api/v1/users/track-action/")
-    suspend fun trackTooltipsAction(
-        @Header("Authorization") token: String,
-        @Body request: TrackActionTooltips
-    )
-
     @Multipart
     @POST("api/v1/appinfo/identify-elements/")
     suspend fun identifyTooltips(

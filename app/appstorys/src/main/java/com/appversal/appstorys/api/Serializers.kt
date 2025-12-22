@@ -91,10 +91,6 @@ object CampaignDetailsSerializer : KSerializer<CampaignDetails?> {
                 value
             )
 
-            is StreaksDetails -> jsonEncoder.json.encodeToJsonElement(
-                StreaksDetails.serializer(),
-                value
-            )
         }
         jsonEncoder.encodeJsonElement(element)
     }

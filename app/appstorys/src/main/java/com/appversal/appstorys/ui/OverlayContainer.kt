@@ -122,10 +122,10 @@ object OverlayContainer {
                     bottomPadding = bottomPadding + bannerBottomPadding,
                 )
 
-                AppStorys.Milestone(
-                    topPadding = topPadding,
-                    bottomPadding = bottomPadding
-                )
+//                AppStorys.Milestone(
+//                    topPadding = topPadding,
+//                    bottomPadding = bottomPadding
+//                )
 
                 AppStorys.Floater(
                     bottomPadding = bottomPadding + floaterBottomPadding,
@@ -138,6 +138,12 @@ object OverlayContainer {
 
                 AppStorys.CSAT(
                     bottomPadding = bottomPadding + csatBottomPadding,
+                )
+
+                AppStorys.Milestone(
+                    topPadding = topPadding,
+                    bottomPadding = bottomPadding,
+                    isWidgets = false
                 )
 
                 AppStorys.ScratchCard()

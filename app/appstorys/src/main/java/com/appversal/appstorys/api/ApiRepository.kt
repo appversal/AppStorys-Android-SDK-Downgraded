@@ -221,52 +221,10 @@ internal class ApiRepository(
         }
     }
 
-    suspend fun trackReelActions(accessToken: String, actions: ReelActionRequest) {
-        withContext(Dispatchers.IO) {
-            when (val result = safeApiCall {
-                apiService.trackReelAction(
-                    token = "Bearer $accessToken",
-                    request = actions
-                )
-            }) {
-                is ApiResult.Error -> println("Error tracking actions: ${result.message}")
-                else -> Unit
-            }
-        }
-    }
-
     suspend fun sendReelLikeStatus(accessToken: String, actions: ReelStatusRequest) {
         withContext(Dispatchers.IO) {
             when (val result = safeApiCall {
                 apiService.sendReelLikeStatus(
-                    token = "Bearer $accessToken",
-                    request = actions
-                )
-            }) {
-                is ApiResult.Error -> println("Error tracking actions: ${result.message}")
-                else -> Unit
-            }
-        }
-    }
-
-    suspend fun trackStoriesActions(accessToken: String, actions: TrackActionStories) {
-        withContext(Dispatchers.IO) {
-            when (val result = safeApiCall {
-                apiService.trackStoriesAction(
-                    token = "Bearer $accessToken",
-                    request = actions
-                )
-            }) {
-                is ApiResult.Error -> println("Error tracking actions: ${result.message}")
-                else -> Unit
-            }
-        }
-    }
-
-    suspend fun trackTooltipsActions(accessToken: String, actions: TrackActionTooltips) {
-        withContext(Dispatchers.IO) {
-            when (val result = safeApiCall {
-                apiService.trackTooltipsAction(
                     token = "Bearer $accessToken",
                     request = actions
                 )

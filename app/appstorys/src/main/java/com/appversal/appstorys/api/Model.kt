@@ -650,70 +650,48 @@ data class ScratchCardDetails(
 @Serializable
 data class MilestoneDetails(
     val id: String?,
-    val currentStep: Int?,
-    val totalSteps: Int?,
-    val milestoneValues: List<Double>?,
-    val stepLabels: List<String>?,
-    val styling: MilestoneStyling?,
-    val campaign: String?
+    val content: MilestoneContent?,
+    @SerialName("milestone_items") val milestoneItems: List<MilestoneItem>?,
+    val styling: MilestoneStyling?
 ) : CampaignDetails()
+
+@Keep
+@Serializable
+data class MilestoneContent(
+    val showStreaksAs: String?, // "banner" or "modals"
+    val totalStepCount: Int?
+)
+
+@Keep
+@Serializable
+data class MilestoneItem(
+    val id: String?,
+    val image: String?,
+    val order: Int?,
+    val triggerEvents: List<MilestoneTriggerEvent>?
+)
+
+@Keep
+@Serializable
+data class MilestoneTriggerEvent(
+    val eventName: String?
+)
 
 @Keep
 @Serializable
 data class MilestoneStyling(
-    val position: String?, // "top" or "bottom"
-    val backgroundColor: String?,
-    val progressColor: String?,
-    val trackColor: String?,
-    val textColor: String?,
-    val iconColors: List<String>?,
-    val icons: List<String>?,
+    val banner: MilestoneBannerStyling?
+)
+
+@Keep
+@Serializable
+data class MilestoneBannerStyling(
     val marginTop: String?,
     val marginBottom: String?,
     val marginLeft: String?,
     val marginRight: String?,
-    val showCurrency: Boolean?,
-    val currencySymbol: String?,
-    val animationDuration: String?
-)
-
-@Keep
-@Serializable
-data class StreaksDetails(
-    val id: String?,
-    val width: Int?,
-    val height: Int?,
-    @SerialName("streaks_images") val streaksImages: List<StreaksImage>?,
-    val campaign: String?,
-    val styling: StreaksStyling?
-) : CampaignDetails()
-
-// ============================================
-// NEW: StreaksImage Data Class
-// ============================================
-@Keep
-@Serializable
-data class StreaksImage(
-    val id: String?,
-    val image: String?,
-    val link: JsonElement?,
-    val order: Int?,
-    val lottie_data: String?,
-    @SerialName("event_trigger") val eventTrigger: String? = null
-)
-
-// ============================================
-// NEW: StreaksStyling Data Class
-// ============================================
-@Keep
-@Serializable
-data class StreaksStyling(
-    val topMargin: String?,
-    val leftMargin: String?,
-    val rightMargin: String?,
-    val bottomMargin: String?,
-    val topLeftRadius: String?,
-    val topRightRadius: String?,
-    val bottomLeftRadius: String?,
-    val bottomRightRadius: String?,
+    val borderRadiusTopLeft: String?,
+    val borderRadiusTopRight: String?,
+    val borderRadiusBottomLeft: String?,
+    val borderRadiusBottomRight: String?
 )
