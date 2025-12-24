@@ -19,7 +19,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.toColorInt
-import com.appversal.appstorys.api.TooltipPadding
 
 /**
  * Configuration for the cross button styling.
@@ -35,19 +34,20 @@ data class CrossButtonConfig(
     val imageUrl: String? = null
 )
 
-
 @Composable
 internal fun CrossButton(
-    size: Dp = 18.dp,
     modifier: Modifier = Modifier,
+    size: Dp = 18.dp,
+    boundaryPadding: Dp? = null,
     config: CrossButtonConfig = CrossButtonConfig(),
     onClose: () -> Unit
 ) {
+    val safePadding = boundaryPadding ?: 0.dp
     Box(
         modifier = modifier
             .padding(
-                top = config.marginTop,
-                end = config.marginEnd
+                top = config.marginTop + safePadding ,
+                end = config.marginEnd + safePadding
             )
             .size(size)
             .clip(CircleShape)
@@ -79,10 +79,26 @@ internal fun CrossButton(
     }
 }
 
-/**
- * Helper function to create CrossButtonConfig from raw color strings and margins.
- * Useful when receiving styling from API responses.
- */
+fun parseColorString(colorString: String?): Color? {
+    return try {
+        colorString?.let {
+            when (it.trim().lowercase()) {
+                "white" -> Color.White
+                "black" -> Color.Black
+                "red" -> Color.Red
+                "green" -> Color.Green
+                "blue" -> Color.Blue
+                "yellow" -> Color.Yellow
+                "gray", "grey" -> Color.Gray
+                "transparent" -> Color.Transparent
+                else -> Color(it.toColorInt())
+            }
+        }
+    } catch (_: Exception) {
+        null
+    }
+}
+
 fun createCrossButtonConfig(
     fillColorString: String? = null,
     crossColorString: String? = null,
@@ -91,24 +107,9 @@ fun createCrossButtonConfig(
     marginEnd: Int? = null,
     imageUrl: String? = null
 ): CrossButtonConfig {
-    val fillColor = try {
-        fillColorString?.let { Color(it.toColorInt()) }
-    } catch (_: Exception) {
-        null
-    } ?: Color.Transparent
-
-    val crossColor = try {
-        crossColorString?.let { Color(it.toColorInt()) }
-    } catch (_: Exception) {
-        null
-    } ?: Color.White
-
-    val strokeColor = try {
-        strokeColorString?.let { Color(it.toColorInt()) }
-    } catch (_: Exception) {
-        null
-    } ?: Color.Transparent
-
+    val fillColor = parseColorString(fillColorString) ?: Color.Transparent
+    val crossColor = parseColorString(crossColorString) ?: Color.White
+    val strokeColor = parseColorString(strokeColorString) ?: Color.Transparent
     return CrossButtonConfig(
         fillColor = fillColor,
         crossColor = crossColor,

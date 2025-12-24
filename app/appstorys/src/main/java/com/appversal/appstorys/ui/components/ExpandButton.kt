@@ -41,6 +41,7 @@ internal fun ExpandButton(
     maximiseImageUrl: String? = null,
     minimiseImageUrl: String? = null,
     applyMargins: Boolean = true,  // Set to false to ignore backend margins (for maximized view)
+    boundaryPadding: Dp? = null,
     onToggle: () -> Unit
 ) {
     // Get the appropriate config based on current state
@@ -48,6 +49,8 @@ internal fun ExpandButton(
     // When maximized (isMaximized = true), show minimize button
     val maximiseConfig = expandControls?.maximise
     val minimiseConfig = expandControls?.minimise
+    val safePadding = boundaryPadding ?: 0.dp
+
 
     val fillColor = if (isMaximized) {
         try {
@@ -163,10 +166,10 @@ internal fun ExpandButton(
     Box(
         modifier = modifier
             .padding(
-                top = topMargin,
-                end = endMargin,
-                bottom = bottomMargin,
-                start = startMargin
+                top = topMargin + safePadding,
+                end = endMargin + safePadding,
+                bottom = bottomMargin + safePadding,
+                start = startMargin + safePadding
             )
             .size(size)
             .clip(CircleShape)
@@ -203,7 +206,7 @@ internal fun ExpandButton(
                     painter = if (isMaximized) painterResource(R.drawable.minimize) else painterResource(R.drawable.expand),
                     contentDescription = if (isMaximized) "Minimize" else "Maximize",
                     tint = iconColor,
-                    modifier = Modifier.padding(4.dp)
+                    modifier = Modifier.padding(6.dp)
                 )
             }
         }

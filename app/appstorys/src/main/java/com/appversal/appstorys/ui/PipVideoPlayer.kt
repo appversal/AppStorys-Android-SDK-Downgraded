@@ -203,6 +203,7 @@ internal fun PipVideo(
 
                                     CrossButton(
                                         size = 18.dp,
+                                        boundaryPadding = 5.dp,
                                         modifier = Modifier.align(Alignment.TopEnd),
                                         config = crossButtonConfig,
                                         onClose = onClose
@@ -210,25 +211,27 @@ internal fun PipVideo(
 
 
                                     MuteUnmuteButton(
-                                        size = 18.dp,
+                                        size = 20.dp,
                                         modifier = Modifier.align(Alignment.TopStart),
                                         isMuted = isMuted,
                                         soundToggle = pipStyling?.soundToggle,
                                         muteButtonImageUrl = muteButtonImageUrl,
                                         unmuteButtonImageUrl = unmuteButtonImageUrl,
+                                        boundaryPadding = 5.dp,
                                         onToggleMute = { isMuted = !isMuted }
                                     )
 
 
                                     if (!fullScreenVideoUri.isNullOrEmpty()) {
                                         ExpandButton(
-                                            size = 18.dp,
+                                            size = 20.dp,
                                             modifier = Modifier
                                                 .align(Alignment.BottomEnd),
                                             isMaximized = false,
                                             expandControls = pipStyling?.expandControls,
                                             maximiseImageUrl = maximiseImageUrl,
                                             minimiseImageUrl = minimiseImageUrl,
+                                            boundaryPadding = 5.dp,
                                             onToggle = {
                                                 onExpandClick()
                                                 isFullScreen = true

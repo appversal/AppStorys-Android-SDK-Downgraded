@@ -30,11 +30,13 @@ internal fun MuteUnmuteButton(
     muteButtonImageUrl: String?,
     unmuteButtonImageUrl: String?,
     applyMargins: Boolean = true,  // Set to false to ignore backend margins (for maximized view)
+    boundaryPadding: Dp? = null,
     onToggleMute: () -> Unit
 ) {
     // Get the appropriate config based on mute state
     val muteConfig = soundToggle?.mute
     val unmuteConfig = soundToggle?.unmute
+    val safePadding = boundaryPadding ?: 0.dp
 
     val fillColor = if (isMuted) {
         try {
@@ -114,8 +116,9 @@ internal fun MuteUnmuteButton(
     Box(
         modifier = modifier
             .padding(
-                top = topMargin,
-                start = leftMargin
+                top = topMargin + safePadding,
+                start = leftMargin  + safePadding,
+
             )
             .size(size)
             .clip(CircleShape)
