@@ -154,7 +154,8 @@ data class BannerDetails(
     val height: Int?,
     val link: JsonElement?,
     val styling: BannerStyling?,
-    val lottie_data: String?
+    val lottie_data: String?,
+    val crossButtonImage: String? // Banner image
 ) : CampaignDetails()
 
 @Keep
@@ -164,10 +165,37 @@ data class BannerStyling(
     val marginLeft: Int?,
     val marginRight: Int?,
     val marginBottom: Int?,
-    val topLeftRadius: Int?,
-    val topRightRadius: Int?,
-    val bottomLeftRadius: Int?,
-    val bottomRightRadius: Int?
+    val topLeftRadius: String?,
+    val topRightRadius: String?,
+    val bottomLeftRadius: String?,
+    val bottomRightRadius: String?,
+    val crossButton: BannerStyleConfig?,
+)
+
+@Keep
+@Serializable
+data class BannerStyleConfig(
+    val colors: BannerColors?,
+    val margin: BannerMargin?,
+    val option: String? = null,
+    val selectedStyle: String? = null
+)
+
+@Keep
+@Serializable
+data class BannerColors(
+    val cross: String?,
+    val fill: String?,
+    val stroke: String?
+)
+
+@Keep
+@Serializable
+data class BannerMargin(
+    val top: Int?,
+    val right: Int?,
+    val bottom: Int?,
+    val left: Int?
 )
 
 @Keep
@@ -481,7 +509,14 @@ data class PipDetails(
     val styling: PipStyling?,
     val link: String?,
     val campaign: String?,
-    val button_text: String?
+    val button_text: String?,
+
+    val crossButtonImage: String?,
+    val muteImage: String?,
+    val unmuteImage: String?,
+    val maximiseImage: String?,
+    val minimiseImage: String?,
+
 ) : CampaignDetails()
 
 @Keep
@@ -503,6 +538,11 @@ data class PipStyling(
     val ctaButtonBackgroundColor: String?,
     val pipTopPadding: String?,
     val pipBottomPadding: String?,
+    val expandablePip: String?,
+    val videoSelection: String?,
+    val soundToggle: SoundToggle?,
+    val crossButton: BannerStyleConfig?,
+    val expandControls: ExpandControls?
 )
 
 @Keep
@@ -695,3 +735,57 @@ data class MilestoneBannerStyling(
     val borderRadiusBottomLeft: String?,
     val borderRadiusBottomRight: String?
 )
+
+@Keep
+@Serializable
+data class SoundToggle(
+    val defaultSound: String?,
+    val enabled: Boolean?,
+    val option: String?,
+    val mute: MuteButtonConfig?,
+    val unmute: UnmuteButtonConfig?
+)
+
+@Keep
+@Serializable
+data class MuteButtonConfig(
+    val colors: BannerColors?,
+    val margin: MuteUnmuteMargin?,
+    val selectedStyle: String?
+)
+
+@Keep
+@Serializable
+data class UnmuteButtonConfig(
+    val colors: BannerColors?,
+    val margin: MuteUnmuteMargin?,
+    val selectedStyle: String?
+)
+
+@Keep
+@Serializable
+data class MuteUnmuteMargin(
+    val top: String?,
+    val right: String?,
+    val bottom: String?,
+    val left: String?
+)
+
+@Keep
+@Serializable
+data class ExpandControls(
+    val option: String?,
+    val enabled: Boolean?,
+    val maximise: ExpandButtonStyleConfig?,
+    val minimise: ExpandButtonStyleConfig?
+)
+
+@Keep
+@Serializable
+data class ExpandButtonStyleConfig(
+    val colors: BannerColors?,
+    val margin: MuteUnmuteMargin?,
+    val selectedStyle: String?
+)
+
+

@@ -210,7 +210,7 @@ fun HomeScreen(
     var eventInput3 by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
-        val screenName  = "More Screen"
+        val screenName  = "Home Screen Kotlin"
         val positions = listOf("widget_one")
         campaignManager.getScreenCampaigns(
             screenName,

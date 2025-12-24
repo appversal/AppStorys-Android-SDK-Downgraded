@@ -115,6 +115,7 @@ import com.appversal.appstorys.ui.PopupModal
 import com.appversal.appstorys.ui.ReelsRow
 import com.appversal.appstorys.ui.StoryAppMain
 import com.appversal.appstorys.ui.SurveyBottomSheet
+import com.appversal.appstorys.ui.components.createCrossButtonConfig
 import com.appversal.appstorys.ui.getLikedReels
 import com.appversal.appstorys.ui.getScratchedCampaigns
 import com.appversal.appstorys.ui.saveLikedReels
@@ -673,8 +674,18 @@ object AppStorys {
                             position = pipDetails.position.toString(),
                             bottomPadding = bottomPadding,
                             topPadding = topPadding,
-                            isMovable = pipDetails.styling?.isMovable!!,
+                            isMovable = pipDetails.styling?.isMovable ?: false,
                             pipStyling = pipDetails.styling,
+                            crossButtonConfig = createCrossButtonConfig(
+                                fillColorString = pipDetails.styling?.crossButton?.colors?.fill,
+                                crossColorString = pipDetails.styling?.crossButton?.colors?.cross,
+                                strokeColorString = pipDetails.styling?.crossButton?.colors?.stroke,
+                                marginTop = pipDetails.styling?.crossButton?.margin?.top,
+                                marginEnd = pipDetails.styling?.crossButton?.margin?.right,
+                                imageUrl = pipDetails.crossButtonImage
+                            ),
+                            muteButtonImageUrl = pipDetails.muteImage,
+                            unmuteButtonImageUrl = pipDetails.unmuteImage,
                             onButtonClick = {
                                 campaign?.id?.let { campaignId ->
                                     trackEvents(campaignId, "clicked")
@@ -1013,10 +1024,10 @@ object AppStorys {
                         }
                     },
                     shape = RoundedCornerShape(
-                        topStart = style?.topLeftRadius?.dp ?: 0.dp,
-                        topEnd = style?.topRightRadius?.dp ?: 0.dp,
-                        bottomEnd = style?.bottomRightRadius?.dp ?: 0.dp,
-                        bottomStart = style?.bottomLeftRadius?.dp ?: 0.dp
+                        topStart = style?.topLeftRadius?.toIntOrNull()?.dp ?: 0.dp,
+                        topEnd = style?.topRightRadius?.toIntOrNull()?.dp ?: 0.dp,
+                        bottomEnd = style?.bottomRightRadius?.toIntOrNull()?.dp ?: 0.dp,
+                        bottomStart = style?.bottomLeftRadius?.toIntOrNull()?.dp ?: 0.dp
                     ),
                     bottomMargin = style?.marginBottom?.dp ?: 0.dp,
                     leftMargin = style?.marginLeft?.dp ?: 0.dp,
@@ -1025,6 +1036,16 @@ object AppStorys {
                     height = calculatedHeight,
                     placeHolder = placeholder,
                     placeholderContent = placeholderContent,
+                    crossButtonConfig = createCrossButtonConfig(
+                        fillColorString = style?.crossButton?.colors?.fill,
+                        crossColorString = style?.crossButton?.colors?.cross,
+                        strokeColorString = style?.crossButton?.colors?.stroke,
+                        marginTop = style?.crossButton?.margin?.top,
+                        marginEnd = style?.crossButton?.margin?.right,
+                        imageUrl = bannerDetails.crossButtonImage?.let {
+                            "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/$it"
+                        }
+                    ),
                     onClick = {
                         campaign.id?.let {
                             clickEvent(link = bannerDetails.link.toString().trim().removeSurrounding("\""), campaignId = it)
