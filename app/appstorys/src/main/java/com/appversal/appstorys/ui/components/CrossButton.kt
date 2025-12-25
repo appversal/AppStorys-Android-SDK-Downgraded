@@ -20,11 +20,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.toColorInt
 
-/**
- * Configuration for the cross button styling.
- * This is a generalized model that can be used across different campaign types
- * (banners, PIP video, modals, etc.)
- */
 data class CrossButtonConfig(
     val fillColor: Color = Color.Transparent,
     val crossColor: Color = Color.White,
@@ -62,7 +57,7 @@ internal fun CrossButton(
             .clickable { onClose() },
         contentAlignment = Alignment.Center
     ) {
-        if (!config.imageUrl.isNullOrBlank()) {
+        if (!config.imageUrl.isNullOrBlank() && config.imageUrl.startsWith("http"))  {
             AsyncImage(
                 model = config.imageUrl,
                 contentDescription = "Close",

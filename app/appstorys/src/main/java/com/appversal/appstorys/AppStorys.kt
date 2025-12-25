@@ -1042,9 +1042,7 @@ object AppStorys {
                         strokeColorString = style?.crossButton?.colors?.stroke,
                         marginTop = style?.crossButton?.margin?.top,
                         marginEnd = style?.crossButton?.margin?.right,
-                        imageUrl = bannerDetails.crossButtonImage?.let {
-                            "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/$it"
-                        }
+                        imageUrl = bannerDetails.crossButtonImage?.takeIf { it.isNotBlank() }
                     ),
                     onClick = {
                         campaign.id?.let {
@@ -1523,6 +1521,8 @@ object AppStorys {
             )
         }
     }
+
+
 
     @Composable
     fun Modals() {

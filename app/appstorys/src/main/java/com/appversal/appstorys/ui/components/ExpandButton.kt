@@ -64,7 +64,7 @@ internal fun ExpandButton(
         } catch (_: Exception) {
             null
         }
-    } ?: Color.Black.copy(alpha = 0.5f)
+    } ?: Color.Transparent
 
     val iconColor = if (isMaximized) {
         try {
@@ -92,7 +92,7 @@ internal fun ExpandButton(
         } catch (_: Exception) {
             null
         }
-    }
+    } ?: Color.Transparent
 
     // Extract margins - only apply if applyMargins is true
     val topMargin = if (applyMargins) {
@@ -206,7 +206,7 @@ internal fun ExpandButton(
                     painter = if (isMaximized) painterResource(R.drawable.minimize) else painterResource(R.drawable.expand),
                     contentDescription = if (isMaximized) "Minimize" else "Maximize",
                     tint = iconColor,
-                    modifier = Modifier.padding(6.dp)
+                    modifier = Modifier.padding(9.dp)
                 )
             }
         }

@@ -50,7 +50,7 @@ internal fun MuteUnmuteButton(
         } catch (_: Exception) {
             null
         }
-    } ?: Color.Black.copy(alpha = 0.7f)
+    } ?: Color.Transparent
 
     val iconColor = if (isMuted) {
         try {
@@ -78,7 +78,7 @@ internal fun MuteUnmuteButton(
         } catch (_: Exception) {
             null
         }
-    }
+    } ?: Color.Transparent
 
     // Extract margins - only apply if applyMargins is true
     val topMargin = if (applyMargins) {

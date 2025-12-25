@@ -660,6 +660,66 @@ data class ModalDetails(
     val modals: List<Modal>?,
 ) : CampaignDetails()
 
+
+//@Keep
+//@Serializable
+//data class Modal(
+//    @SerialName("_id") val id: String?,
+//    @SerialName("modal_type") val modalType: String?, // "modal-with-cta"
+//    val content: ModalContent? = null,
+//    val styling: ModalStyling? = null
+//)
+
+@Serializable
+data class ModalContent(
+    val chooseMediaType: ModalMedia?,
+    val titleText: String?,
+    val subtitleText: String?,
+    val primaryCtaText: String?,
+    val primaryCtaRedirection: ModalRedirection?,
+    val secondaryCtaText: String?,
+    val secondaryCtaRedirection: ModalRedirection?
+)
+
+@Serializable
+data class ModalMedia(
+    val type: String?, // image | gif | lottie
+    val url: String?
+)
+
+@Serializable
+data class ModalRedirection(
+    val type: String?, // url | deeplink
+    val url: String?,
+    val value: String?
+)
+
+@Serializable
+data class ModalStyling(
+    val appearance: ModalAppearance?
+)
+
+@Serializable
+data class ModalAppearance(
+    val dimension: ModalDimension?,
+    val cornerRadius: ModalCornerRadius?
+)
+
+@Serializable
+data class ModalDimension(
+    val height: String?
+)
+
+@Serializable
+data class ModalCornerRadius(
+    val topLeft: String?,
+    val topRight: String?,
+    val bottomLeft: String?,
+    val bottomRight: String?
+)
+
+
+
 @Keep
 @Serializable
 data class Modal(

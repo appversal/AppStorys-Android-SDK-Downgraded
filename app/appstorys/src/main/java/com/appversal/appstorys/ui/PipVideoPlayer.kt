@@ -77,6 +77,7 @@ import com.appversal.appstorys.ui.components.CrossButton
 import com.appversal.appstorys.ui.components.CrossButtonConfig
 import com.appversal.appstorys.ui.components.ExpandButton
 import com.appversal.appstorys.ui.components.MuteUnmuteButton
+import com.appversal.appstorys.ui.components.pipControlSize
 import com.appversal.appstorys.utils.VideoCache
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -149,6 +150,11 @@ internal fun PipVideo(
                 (pipStyling?.pipTopPadding?.toFloatOrNull()?.dp ?: topPadding).toPx()
             }
 
+            val controlSize = pipControlSize(
+                pipWidth = width,
+                pipHeight = height
+            )
+
             Box(
                 modifier = Modifier.fillMaxSize(),
                 content = {
@@ -202,16 +208,15 @@ internal fun PipVideo(
                                     )
 
                                     CrossButton(
-                                        size = 18.dp,
+                                        size = controlSize,
                                         boundaryPadding = 5.dp,
                                         modifier = Modifier.align(Alignment.TopEnd),
                                         config = crossButtonConfig,
                                         onClose = onClose
                                     )
 
-
                                     MuteUnmuteButton(
-                                        size = 20.dp,
+                                        size = controlSize,
                                         modifier = Modifier.align(Alignment.TopStart),
                                         isMuted = isMuted,
                                         soundToggle = pipStyling?.soundToggle,
@@ -221,12 +226,10 @@ internal fun PipVideo(
                                         onToggleMute = { isMuted = !isMuted }
                                     )
 
-
                                     if (!fullScreenVideoUri.isNullOrEmpty()) {
                                         ExpandButton(
-                                            size = 20.dp,
-                                            modifier = Modifier
-                                                .align(Alignment.BottomEnd),
+                                            size = controlSize,
+                                            modifier = Modifier.align(Alignment.BottomEnd),
                                             isMaximized = false,
                                             expandControls = pipStyling?.expandControls,
                                             maximiseImageUrl = maximiseImageUrl,
