@@ -1560,13 +1560,29 @@ object AppStorys {
                 },
                 modalDetails = modalDetails,
                 onModalClick = {
-                    val link = modalDetails.modals?.getOrNull(0)?.link
+                    val link = modalDetails.modals?.getOrNull(0)?.content?.primaryCtaRedirection?.url
+                        ?: modalDetails.modals?.getOrNull(0)?.content?.primaryCtaRedirection?.value
                     campaign?.id?.let { campaignId ->
                         trackEvents(campaignId, "clicked")
                         clickEvent(link = link, campaignId = campaignId)
                     }
 
 //                    showModal = false
+                },
+                onPrimaryCta = { link ->
+                    // primary CTA receives resolved URL string
+                    campaign?.id?.let { campaignId ->
+                        trackEvents(campaignId, "clicked")
+                        clickEvent(link = link, campaignId = campaignId)
+                        showModal = false
+                    }
+                },
+                onSecondaryCta = { link ->
+                    campaign?.id?.let { campaignId ->
+                        trackEvents(campaignId, "clicked")
+                        clickEvent(link = link, campaignId = campaignId)
+                        showModal = false
+                    }
                 },
             )
         }
@@ -2036,3 +2052,4 @@ object AppStorys {
     @JvmStatic
     fun getInstance() = this
 }
+

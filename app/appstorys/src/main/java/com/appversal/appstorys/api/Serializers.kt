@@ -279,4 +279,3 @@ object CampaignResponseDeserializer : KSerializer<CampaignResponse> {
         )
     }
 }
-

@@ -652,23 +652,26 @@ data class FontStyle(
     val decoration: List<String>?
 )
 
+
+
 @Keep
 @Serializable
 data class ModalDetails(
-    @SerialName("_id") val id: String?,
-    val campaign: String?,
+    val id: String?,
     val modals: List<Modal>?,
+    val name: String? = null
 ) : CampaignDetails()
 
-
-//@Keep
-//@Serializable
-//data class Modal(
-//    @SerialName("_id") val id: String?,
-//    @SerialName("modal_type") val modalType: String?, // "modal-with-cta"
-//    val content: ModalContent? = null,
-//    val styling: ModalStyling? = null
-//)
+@Keep
+@Serializable
+data class Modal(
+    @SerialName("id") val id: String?,
+    @SerialName("modal_type") val modalType: String? = null,
+    val content: ModalContent? = null,
+    val styling: ModalStyling? = null,
+    val screen: Int? = null,
+    val name: String? = null
+)
 
 @Serializable
 data class ModalContent(
@@ -691,46 +694,132 @@ data class ModalMedia(
 data class ModalRedirection(
     val type: String?, // url | deeplink
     val url: String?,
-    val value: String?
+    val value: String?,
+    val key: String? = null,
+    val pageName: String? = null
 )
 
 @Serializable
 data class ModalStyling(
-    val appearance: ModalAppearance?
+    val appearance: ModalAppearance?,
+    val crossButton: ModalCrossButton? = null,
+    val primaryCta: ModalCta? = null,
+    val secondaryCta: ModalCta? = null,
+    val title: ModalTextStyling? = null,
+    val subTitle: ModalTextStyling? = null
+)
+
+@Serializable
+data class ModalCrossButton(
+    val default: ModalCrossButtonDefault? = null,
+    val enableCrossButton: Boolean? = null,
+    val uploadImage: ModalUploadImage? = null
+)
+
+@Serializable
+data class ModalCrossButtonDefault(
+    val color: BannerColors? = null,
+    val spacing: ModalSpacing? = null,
+    val crossButtonImage: String? = null
+)
+
+@Serializable
+data class ModalUploadImage(
+    val url: String? = null
+)
+
+@Serializable
+data class ModalSpacing(
+    val margin: ModalMargin? = null
+)
+
+@Serializable
+data class ModalMargin(
+    val top: Int? = null,
+    val right: Int? = null,
+    val bottom: Int? = null,
+    val left: Int? = null
+)
+
+@Serializable
+data class ModalCta(
+    val backgroundColor: String? = null,
+    val borderColor: String? = null,
+    val containerStyle: ModalCtaContainer? = null,
+    val cornerRadius: ModalCtaCornerRadius? = null,
+    val occupyFullWidth: String? = null,
+    val spacing: ModalSpacing? = null,
+    val textColor: String? = null,
+    val textStyle: ModalTextStyle? = null
+)
+
+@Serializable
+data class ModalCtaContainer(
+    val alignment: String? = null,
+    val borderWidth: Int? = null,
+    val ctaWidth: Int? = null,
+    val height: Int? = null
+)
+
+@Serializable
+data class ModalCtaCornerRadius(
+    val topLeft: Int? = null,
+    val topRight: Int? = null,
+    val bottomLeft: Int? = null,
+    val bottomRight: Int? = null
+)
+
+@Serializable
+data class ModalTextStyle(
+    val font: String? = null,
+    val size: Int? = null
+)
+
+@Serializable
+data class ModalTextStyling(
+    val alignment: String? = null,
+    val color: String? = null,
+    val font: String? = null,
+    val fontStyle: String? = null,
+    val size: Int? = null
 )
 
 @Serializable
 data class ModalAppearance(
-    val dimension: ModalDimension?,
-    val cornerRadius: ModalCornerRadius?
+    val dimension: ModalDimension? = null,
+    val cornerRadius: ModalCornerRadius? = null,
+    val backdrop: ModalBackdrop? = null,
+    val enableBackdrop: Boolean? = null,
+    val padding: ModalPadding? = null,
+    val ctaDisplay: String? = null
+)
+
+@Serializable
+data class ModalPadding(
+    val top: Int? = null,
+    val right: Int? = null,
+    val bottom: Int? = null,
+    val left: Int? = null
+)
+
+@Serializable
+data class ModalBackdrop(
+    val color: String? = null,
+    val opacity: Int? = null
 )
 
 @Serializable
 data class ModalDimension(
-    val height: String?
+    val height: String? = null,
+    val borderWidth: String? = null
 )
 
 @Serializable
 data class ModalCornerRadius(
-    val topLeft: String?,
-    val topRight: String?,
-    val bottomLeft: String?,
-    val bottomRight: String?
-)
-
-
-
-@Keep
-@Serializable
-data class Modal(
-    @SerialName("media_type") val mediaType: String?,
-    val size: String?,
-    val link: String?,
-    val borderRadius: String?,
-    val backgroundOpacity: Double? = null,
-    val name: String?,
-    val url: String?,
-    @SerialName("_id") val id: String?,
+    val topLeft: String? = null,
+    val topRight: String? = null,
+    val bottomLeft: String? = null,
+    val bottomRight: String? = null
 )
 
 @Keep
@@ -847,5 +936,4 @@ data class ExpandButtonStyleConfig(
     val margin: MuteUnmuteMargin?,
     val selectedStyle: String?
 )
-
 
