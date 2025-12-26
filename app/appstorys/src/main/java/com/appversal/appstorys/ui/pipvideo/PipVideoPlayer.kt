@@ -1,6 +1,7 @@
 package com.appversal.appstorys.ui.pipvideo
 
 import androidx.annotation.OptIn
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Box
@@ -198,7 +199,7 @@ internal fun PipVideo(
                             shape = RoundedCornerShape(12.dp),
                             elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
                             content = {
-                                Box {
+                                Box(modifier = Modifier.background(Color.Black)) {
                                     PipPlayerView(
                                         exoPlayer = pipPlayer,
                                         pipStyling = pipStyling,
