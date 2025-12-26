@@ -1,7 +1,8 @@
-package com.appversal.appstorys.ui
+package com.appversal.appstorys.ui.modals
 
 import android.os.Build.VERSION.SDK_INT
 import android.util.Log
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -39,8 +40,6 @@ import com.appversal.appstorys.ui.components.createCrossButtonConfig
 import com.appversal.appstorys.ui.components.parseColorString
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.border
-import androidx.compose.ui.zIndex
-import com.appversal.appstorys.ui.components.BackendCta
 
 @Composable
 internal fun PopupModal(
@@ -81,6 +80,7 @@ internal fun PopupModal(
     // CTA styling (integers from model)
     val primaryBg = parseColorString(modal?.styling?.primaryCta?.backgroundColor) ?: Color.Black
     val primaryTextColor = parseColorString(modal?.styling?.primaryCta?.textColor) ?: Color.White
+
     // CTA default height: 48.dp is a common, accessible size
     val primaryHeight = (modal?.styling?.primaryCta?.containerStyle?.height ?: 48).dp
     val primaryBorderWidth = (modal?.styling?.primaryCta?.containerStyle?.borderWidth ?: 0).dp
@@ -109,8 +109,6 @@ internal fun PopupModal(
         imageUrl = modal?.styling?.crossButton?.default?.crossButtonImage
     )
 
-    // Debug: print cross button settings to Logcat
-    Log.d("PopupModal", "crossButton.enable=${modal?.styling?.crossButton?.enableCrossButton} crossConfig=$crossConfig")
 
     Dialog(
         onDismissRequest = onCloseClick,
@@ -132,11 +130,12 @@ internal fun PopupModal(
             Box(modifier = Modifier.wrapContentSize()) {
                 // White rounded container
                 // Enforce a minimum bottom padding so CTAs don't sit flush when backend sends 0
-                val minBottomPadding = 10.dp
-                val containerPaddingStart = appearance?.padding?.left?.dp ?: 16.dp
-                val containerPaddingTop = appearance?.padding?.top?.dp ?: 16.dp
-                val containerPaddingEnd = appearance?.padding?.right?.dp ?: 16.dp
-                val rawBottom = appearance?.padding?.bottom?.dp ?: 16.dp
+                // Give at least 12.dp bottom inset so CTA borders/rounded corners don't visually overflow
+                val minBottomPadding = 0.dp
+                val containerPaddingStart = appearance?.padding?.left?.dp ?: 0.dp
+                val containerPaddingTop = appearance?.padding?.top?.dp ?: 0.dp
+                val containerPaddingEnd = appearance?.padding?.right?.dp ?: 0.dp
+                val rawBottom = appearance?.padding?.bottom?.dp ?: 0.dp
                 val containerPaddingBottom = if (rawBottom < minBottomPadding) minBottomPadding else rawBottom
 
                 Box(
@@ -183,7 +182,7 @@ internal fun PopupModal(
                                         imageLoader = imageLoader
                                     )
 
-                                    androidx.compose.foundation.Image(
+                                    Image(
                                         painter = painter,
                                         contentDescription = "GIF Image",
                                         contentScale = ContentScale.Crop,
@@ -222,13 +221,28 @@ internal fun PopupModal(
                         }
 
                         // Title and subtitle
+                        // Determine title/subtitle alignment from backend styling (defaults to Center)
+                        val titleTextAlign = when (modal?.styling?.title?.alignment?.trim()?.lowercase()) {
+                            "left" -> TextAlign.Start
+                            "right" -> TextAlign.End
+                            "center" -> TextAlign.Center
+                            else -> TextAlign.Center
+                        }
+
+                        val subtitleTextAlign = when (modal?.styling?.subTitle?.alignment?.trim()?.lowercase()) {
+                            "left" -> TextAlign.Start
+                            "right" -> TextAlign.End
+                            "center" -> TextAlign.Center
+                            else -> TextAlign.Center
+                        }
+
                         modal?.content?.titleText?.let { title ->
                             Spacer(modifier = Modifier.height(12.dp))
                             Text(
                                 text = title,
                                 color = titleColor,
                                 fontSize = titleSizeSp,
-                                textAlign = TextAlign.Center,
+                                textAlign = titleTextAlign,
                                 modifier = Modifier.fillMaxWidth()
                             )
                         }
@@ -239,7 +253,7 @@ internal fun PopupModal(
                                 text = subtitle,
                                 color = subtitleColor,
                                 fontSize = subtitleSizeSp,
-                                textAlign = TextAlign.Center,
+                                textAlign = subtitleTextAlign,
                                 modifier = Modifier.fillMaxWidth()
                             )
                         }
@@ -249,19 +263,70 @@ internal fun PopupModal(
                         val primaryOccupy = modal?.styling?.primaryCta?.occupyFullWidth?.trim()?.equals("true", true) == true
                         val secondaryOccupy = modal?.styling?.secondaryCta?.occupyFullWidth?.trim()?.equals("true", true) == true
 
-                        val rowArrangement = if (primaryOccupy || secondaryOccupy) {
-                            Arrangement.spacedBy(12.dp)
-                        } else {
-                            Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
+                        // Read CTA margins from backend (dashboard) - default to 0.dp to honor explicit zero from dashboard
+                        val primaryMarginLeft = (modal?.styling?.primaryCta?.spacing?.margin?.left ?: 0)
+                        val primaryMarginRight = (modal?.styling?.primaryCta?.spacing?.margin?.right ?: 0)
+                        val primaryMarginTop = (modal?.styling?.primaryCta?.spacing?.margin?.top ?: 0)
+                        val primaryMarginBottom = (modal?.styling?.primaryCta?.spacing?.margin?.bottom ?: 0)
+
+                        val secondaryMarginLeft = (modal?.styling?.secondaryCta?.spacing?.margin?.left ?: 0)
+                        val secondaryMarginRight = (modal?.styling?.secondaryCta?.spacing?.margin?.right ?: 0)
+                        val secondaryMarginTop = (modal?.styling?.secondaryCta?.spacing?.margin?.top ?: 0)
+                        val secondaryMarginBottom = (modal?.styling?.secondaryCta?.spacing?.margin?.bottom ?: 0)
+
+                        // Convert to Dp
+                        val primaryMarginLeftDp = primaryMarginLeft.dp
+                        val primaryMarginRightDp = primaryMarginRight.dp
+                        val primaryMarginTopDp = primaryMarginTop.dp
+                        val primaryMarginBottomDp = primaryMarginBottom.dp
+
+                        val secondaryMarginLeftDp = secondaryMarginLeft.dp
+                        val secondaryMarginRightDp = secondaryMarginRight.dp
+                        val secondaryMarginTopDp = secondaryMarginTop.dp
+                        val secondaryMarginBottomDp = secondaryMarginBottom.dp
+
+                        // Provide a small horizontal inset when occupyFullWidth is true and backend margin is zero
+                        val minHorizontalInset = 2.dp
+                        val effectivePrimaryMarginLeftDp = if (primaryOccupy && primaryMarginLeftDp == 0.dp) minHorizontalInset else primaryMarginLeftDp
+                        val effectivePrimaryMarginRightDp = if (primaryOccupy && primaryMarginRightDp == 0.dp) minHorizontalInset else primaryMarginRightDp
+
+                        val effectiveSecondaryMarginLeftDp = if (secondaryOccupy && secondaryMarginLeftDp == 0.dp) minHorizontalInset else secondaryMarginLeftDp
+                        val effectiveSecondaryMarginRightDp = if (secondaryOccupy && secondaryMarginRightDp == 0.dp) minHorizontalInset else secondaryMarginRightDp
+
+                        // If a full-width CTA is present, add a small row-level horizontal inset to keep CTA inside container rounded corners
+                        val rowStartInset = when {
+                            primaryOccupy && primaryMarginLeftDp == 0.dp -> minHorizontalInset
+                            !primaryOccupy && secondaryOccupy && secondaryMarginLeftDp == 0.dp -> minHorizontalInset
+                            else -> 0.dp
                         }
+
+                        val rowEndInset = when {
+                            secondaryOccupy && secondaryMarginRightDp == 0.dp -> minHorizontalInset
+                            !secondaryOccupy && primaryOccupy && primaryMarginRightDp == 0.dp -> minHorizontalInset
+                            else -> 0.dp
+                        }
+
+                        // Between-CTA spacing: prefer primary.right then secondary.left, fallback to 0.dp
+                        val ctaBetweenSpacing = ((modal?.styling?.primaryCta?.spacing?.margin?.right
+                             ?: modal?.styling?.secondaryCta?.spacing?.margin?.left ?: 0)).dp
+
+                         // Row top/bottom padding should respect max of both CTAs' top/bottom margins
+                         val rowTopPadding = maxOf(primaryMarginTopDp, secondaryMarginTopDp)
+                         val rowBottomPadding = maxOf(primaryMarginBottomDp, secondaryMarginBottomDp)
+
+                         val rowArrangement = if (primaryOccupy || secondaryOccupy) {
+                             Arrangement.spacedBy(ctaBetweenSpacing)
+                         } else {
+                             Arrangement.spacedBy(ctaBetweenSpacing, Alignment.CenterHorizontally)
+                         }
 
                         Row(
                             modifier = Modifier
-                                .padding(top = 12.dp, bottom = 12.dp)
+                                .padding(start = rowStartInset, end = rowEndInset, top = rowTopPadding, bottom = rowBottomPadding)
                                 .fillMaxWidth(),
-                            horizontalArrangement = rowArrangement,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
+                             horizontalArrangement = rowArrangement,
+                             verticalAlignment = Alignment.CenterVertically
+                         ) {
 
                             // Create shapes using full corner radius values
                             val primaryShape = RoundedCornerShape(
@@ -281,62 +346,79 @@ internal fun PopupModal(
                             val secondaryTextSize = modal?.styling?.secondaryCta?.textStyle?.size?.let { it.sp } ?: 14.sp
 
                             modal?.content?.primaryCtaText?.let { primaryText ->
-                                val primaryFontName = modal?.styling?.primaryCta?.textStyle?.font
                                 val primaryTextAlign = when (modal?.styling?.primaryCta?.containerStyle?.alignment) {
-                                    "left" -> androidx.compose.ui.text.style.TextAlign.Start
-                                    "right" -> androidx.compose.ui.text.style.TextAlign.End
-                                    else -> androidx.compose.ui.text.style.TextAlign.Center
+                                    "left" -> TextAlign.Start
+                                    "right" -> TextAlign.End
+                                    else -> TextAlign.Center
                                 }
 
-                                BackendCta(
-                                    text = primaryText,
-                                    height = primaryHeight,
-                                    width = primaryWidth,
-                                    occupyFullWidth = primaryOccupy,
-                                    backgroundColor = primaryBg,
-                                    textColor = primaryTextColor,
-                                    textSizeSp = primaryTextSize.value.toInt(),
-                                    borderColor = primaryBorderColor,
-                                    borderWidth = primaryBorderWidth,
-                                    cornerRadius = primaryShape,
-                                    fontFamilyName = primaryFontName,
-                                    textAlign = primaryTextAlign,
-                                    modifier = if (primaryOccupy) Modifier.weight(1f) else Modifier
-                                ) {
-                                    val link =
-                                        modal.content?.primaryCtaRedirection?.url
-                                            ?: modal.content?.primaryCtaRedirection?.value
-                                    onPrimaryCta?.invoke(link)
+                                // Wrap CTA so backend-provided margins are applied
+                                val primaryBoxModifier = (if (primaryOccupy) Modifier.weight(1f) else Modifier)
+                                    .padding(
+                                        start = effectivePrimaryMarginLeftDp,
+                                        end = effectivePrimaryMarginRightDp,
+                                        top = primaryMarginTopDp,
+                                        bottom = primaryMarginBottomDp
+                                    )
+
+                                Box(modifier = primaryBoxModifier) {
+                                    BackendCta(
+                                        text = primaryText,
+                                        height = primaryHeight,
+                                        width = primaryWidth,
+                                        occupyFullWidth = primaryOccupy,
+                                        backgroundColor = primaryBg,
+                                        textColor = primaryTextColor,
+                                        textSizeSp = primaryTextSize.value.toInt(),
+                                        borderColor = primaryBorderColor,
+                                        borderWidth = primaryBorderWidth,
+                                        cornerRadius = primaryShape,
+                                        textAlign = primaryTextAlign,
+                                        modifier = Modifier
+                                    ) {
+                                        val link =
+                                            modal.content?.primaryCtaRedirection?.url
+                                                ?: modal.content?.primaryCtaRedirection?.value
+                                        onPrimaryCta?.invoke(link)
+                                    }
                                 }
                             }
 
                             modal?.content?.secondaryCtaText?.let { secondaryText ->
-                                val secondaryFontName = modal?.styling?.secondaryCta?.textStyle?.font
                                 val secondaryTextAlign = when (modal?.styling?.secondaryCta?.containerStyle?.alignment) {
-                                    "left" -> androidx.compose.ui.text.style.TextAlign.Start
-                                    "right" -> androidx.compose.ui.text.style.TextAlign.End
-                                    else -> androidx.compose.ui.text.style.TextAlign.Center
+                                    "left" -> TextAlign.Start
+                                    "right" -> TextAlign.End
+                                    else -> TextAlign.Center
                                 }
 
-                                BackendCta(
-                                    text = secondaryText,
-                                    height = secondaryHeight,
-                                    width = secondaryWidth,
-                                    occupyFullWidth = secondaryOccupy,
-                                    backgroundColor = secondaryBg,
-                                    textColor = secondaryTextColor,
-                                    textSizeSp = secondaryTextSize.value.toInt(),
-                                    borderColor = secondaryBorderColor,
-                                    borderWidth = secondaryBorderWidth,
-                                    cornerRadius = secondaryShape,
-                                    fontFamilyName = secondaryFontName,
-                                    textAlign = secondaryTextAlign,
-                                    modifier = if (secondaryOccupy) Modifier.weight(1f) else Modifier
-                                ) {
-                                    val link =
-                                        modal.content?.secondaryCtaRedirection?.url
-                                            ?: modal.content?.secondaryCtaRedirection?.value
-                                    onSecondaryCta?.invoke(link)
+                                val secondaryBoxModifier = (if (secondaryOccupy) Modifier.weight(1f) else Modifier)
+                                    .padding(
+                                        start = effectiveSecondaryMarginLeftDp,
+                                        end = effectiveSecondaryMarginRightDp,
+                                        top = secondaryMarginTopDp,
+                                        bottom = secondaryMarginBottomDp
+                                    )
+
+                                Box(modifier = secondaryBoxModifier) {
+                                    BackendCta(
+                                        text = secondaryText,
+                                        height = secondaryHeight,
+                                        width = secondaryWidth,
+                                        occupyFullWidth = secondaryOccupy,
+                                        backgroundColor = secondaryBg,
+                                        textColor = secondaryTextColor,
+                                        textSizeSp = secondaryTextSize.value.toInt(),
+                                        borderColor = secondaryBorderColor,
+                                        borderWidth = secondaryBorderWidth,
+                                        cornerRadius = secondaryShape,
+                                        textAlign = secondaryTextAlign,
+                                        modifier = Modifier
+                                    ) {
+                                        val link =
+                                            modal.content?.secondaryCtaRedirection?.url
+                                                ?: modal.content?.secondaryCtaRedirection?.value
+                                        onSecondaryCta?.invoke(link)
+                                    }
                                 }
                             }
 
@@ -349,7 +431,7 @@ internal fun PopupModal(
                     // Cross button in top-right using non-padded parent Box so it visually overlaps the modal
                         Log.d("PopupModal", "Rendering cross button with config=$crossConfig")
                         Box(modifier = Modifier.align(Alignment.TopEnd)) {
-                            CrossButton(modifier = Modifier, config = crossConfig, onClose = onCloseClick, boundaryPadding = 8.dp)
+                            CrossButton(modifier = Modifier.size(32.dp), config = crossConfig, onClose = onCloseClick, boundaryPadding = 3.dp)
 
                         }
                     }
@@ -357,3 +439,5 @@ internal fun PopupModal(
             }
         }
     }
+
+

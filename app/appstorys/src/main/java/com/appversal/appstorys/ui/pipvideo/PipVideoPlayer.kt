@@ -1,4 +1,4 @@
-package com.appversal.appstorys.ui
+package com.appversal.appstorys.ui.pipvideo
 
 import androidx.annotation.OptIn
 import androidx.compose.foundation.clickable
@@ -66,6 +66,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.appversal.appstorys.AppStorys
 import com.appversal.appstorys.AppStorys.isValidUrl
@@ -75,9 +76,6 @@ import com.appversal.appstorys.R
 import com.appversal.appstorys.api.PipStyling
 import com.appversal.appstorys.ui.components.CrossButton
 import com.appversal.appstorys.ui.components.CrossButtonConfig
-import com.appversal.appstorys.ui.components.ExpandButton
-import com.appversal.appstorys.ui.components.MuteUnmuteButton
-import com.appversal.appstorys.ui.components.pipControlSize
 import com.appversal.appstorys.utils.VideoCache
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -209,7 +207,7 @@ internal fun PipVideo(
 
                                     CrossButton(
                                         size = controlSize,
-                                        boundaryPadding = 5.dp,
+                                        //boundaryPadding = 5.dp,
                                         modifier = Modifier.align(Alignment.TopEnd),
                                         config = crossButtonConfig,
                                         onClose = onClose
@@ -222,7 +220,7 @@ internal fun PipVideo(
                                         soundToggle = pipStyling?.soundToggle,
                                         muteButtonImageUrl = muteButtonImageUrl,
                                         unmuteButtonImageUrl = unmuteButtonImageUrl,
-                                        boundaryPadding = 5.dp,
+                                        //boundaryPadding = 5.dp,
                                         onToggleMute = { isMuted = !isMuted }
                                     )
 
@@ -234,7 +232,7 @@ internal fun PipVideo(
                                             expandControls = pipStyling?.expandControls,
                                             maximiseImageUrl = maximiseImageUrl,
                                             minimiseImageUrl = minimiseImageUrl,
-                                            boundaryPadding = 5.dp,
+                                            //boundaryPadding = 5.dp,
                                             onToggle = {
                                                 onExpandClick()
                                                 isFullScreen = true
@@ -284,7 +282,7 @@ fun PipPlayerView(
             PlayerView(ctx).apply {
                 player = exoPlayer
                 useController = false
-                resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
+                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
                 setShowBuffering(PlayerView.SHOW_BUFFERING_ALWAYS)
                 useArtwork = false
                 setKeepContentOnPlayerReset(true)

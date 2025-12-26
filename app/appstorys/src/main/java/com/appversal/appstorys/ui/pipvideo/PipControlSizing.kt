@@ -1,4 +1,4 @@
-package com.appversal.appstorys.ui.components
+package com.appversal.appstorys.ui.pipvideo
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.Dp

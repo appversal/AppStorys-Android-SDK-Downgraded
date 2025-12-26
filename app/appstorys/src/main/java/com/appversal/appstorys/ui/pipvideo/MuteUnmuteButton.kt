@@ -1,4 +1,4 @@
-package com.appversal.appstorys.ui.components
+package com.appversal.appstorys.ui.pipvideo
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
