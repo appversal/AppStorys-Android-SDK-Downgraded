@@ -149,7 +149,7 @@ internal fun PipVideo(
                 (pipStyling?.pipTopPadding?.toFloatOrNull()?.dp ?: topPadding).toPx()
             }
 
-            val controlSize = 46.dp
+            val controlSize = 32.dp
 
             Box(
                 modifier = Modifier.fillMaxSize(),
@@ -205,7 +205,6 @@ internal fun PipVideo(
 
                                     CrossButton(
                                         size = controlSize,
-
                                         //boundaryPadding = 5.dp,
                                         modifier = Modifier.align(Alignment.TopEnd),
                                         config = crossButtonConfig,

@@ -100,13 +100,17 @@ internal fun PopupModal(
     val subtitleColor = parseColorString(modal?.styling?.subTitle?.color) ?: Color.Gray
     val subtitleSizeSp = modal?.styling?.subTitle?.size?.let { it.sp } ?: 12.sp
 
+    // Prefer uploaded image URL if provided by backend, fallback to default crossButtonImage
+    val crossButtonImageUrl = modal?.styling?.crossButton?.uploadImage?.url
+        ?: modal?.styling?.crossButton?.default?.crossButtonImage
+
     val crossConfig = createCrossButtonConfig(
         fillColorString = modal?.styling?.crossButton?.default?.color?.fill,
         crossColorString = modal?.styling?.crossButton?.default?.color?.cross,
         strokeColorString = modal?.styling?.crossButton?.default?.color?.stroke,
         marginTop = modal?.styling?.crossButton?.default?.spacing?.margin?.top,
         marginEnd = modal?.styling?.crossButton?.default?.spacing?.margin?.right,
-        imageUrl = modal?.styling?.crossButton?.default?.crossButtonImage
+        imageUrl = crossButtonImageUrl
     )
 
 
@@ -431,7 +435,7 @@ internal fun PopupModal(
                     // Cross button in top-right using non-padded parent Box so it visually overlaps the modal
                         Log.d("PopupModal", "Rendering cross button with config=$crossConfig")
                         Box(modifier = Modifier.align(Alignment.TopEnd)) {
-                            CrossButton(modifier = Modifier.size(32.dp), config = crossConfig, onClose = onCloseClick, boundaryPadding = 3.dp)
+                            CrossButton(modifier = Modifier.size(36.dp), config = crossConfig, onClose = onCloseClick, boundaryPadding = 3.dp)
 
                         }
                     }
@@ -439,5 +443,7 @@ internal fun PopupModal(
             }
         }
     }
+
+
 
 

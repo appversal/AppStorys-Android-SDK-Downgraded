@@ -666,8 +666,22 @@ object AppStorys {
                                 strokeColorString = pipDetails.styling?.crossButton?.colors?.stroke,
                                 marginTop = pipDetails.styling?.crossButton?.margin?.top,
                                 marginEnd = pipDetails.styling?.crossButton?.margin?.right,
-                                imageUrl = pipDetails.crossButtonImage
+
+                                imageUrl = (
+                                    pipDetails.crossButtonImage?.takeIf { !it.isNullOrBlank() }?.let { raw ->
+                                        val trimmed = raw.trim()
+                                        if (trimmed.startsWith("http", true)) {
+                                            trimmed
+                                        } else {
+                                            // Backend sometimes sends relative paths like "pip/<file>.jpg" -- prefix with S3 base
+                                            val base = "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/"
+                                            // Avoid double slashes
+                                            if (trimmed.startsWith("/")) base + trimmed.removePrefix("/") else base + trimmed
+                                        }
+                                    }
+                                )
                             ),
+
                             muteButtonImageUrl = pipDetails.muteImage,
                             unmuteButtonImageUrl = pipDetails.unmuteImage,
                             onButtonClick = {
@@ -1026,7 +1040,15 @@ object AppStorys {
                         strokeColorString = style?.crossButton?.colors?.stroke,
                         marginTop = style?.crossButton?.margin?.top,
                         marginEnd = style?.crossButton?.margin?.right,
-                        imageUrl = bannerDetails.crossButtonImage?.takeIf { it.isNotBlank() }
+                        imageUrl = bannerDetails.crossButtonImage?.takeIf { it.isNotBlank() }?.let { raw ->
+                            val trimmed = raw.trim()
+                            if (trimmed.startsWith("http", true)) {
+                                trimmed
+                            } else {
+                                val base = "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/"
+                                if (trimmed.startsWith("/")) base + trimmed.removePrefix("/") else base + trimmed
+                            }
+                        }
                     ),
                     onClick = {
                         campaign.id?.let {
@@ -2036,4 +2058,3 @@ object AppStorys {
     @JvmStatic
     fun getInstance() = this
 }
-

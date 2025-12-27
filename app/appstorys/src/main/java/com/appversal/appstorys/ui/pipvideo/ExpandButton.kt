@@ -4,10 +4,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import coil.compose.AsyncImage
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -18,9 +18,13 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.toColorInt
+import coil.compose.AsyncImage
 import com.appversal.appstorys.R
 import com.appversal.appstorys.api.ExpandControls
 
+/**
+ * Config model (UNCHANGED – kept for backward compatibility)
+ */
 data class ExpandButtonConfig(
     val fillColor: Color = Color.Black.copy(alpha = 0.5f),
     val iconColor: Color = Color.White,
@@ -40,173 +44,88 @@ internal fun ExpandButton(
     expandControls: ExpandControls?,
     maximiseImageUrl: String? = null,
     minimiseImageUrl: String? = null,
-    applyMargins: Boolean = true,  // Set to false to ignore backend margins (for maximized view)
+    applyMargins: Boolean = true,
     boundaryPadding: Dp? = null,
     onToggle: () -> Unit
 ) {
-    // Get the appropriate config based on current state
-    // When minimized (isMaximized = false), show maximize button
-    // When maximized (isMaximized = true), show minimize button
-    val maximiseConfig = expandControls?.maximise
-    val minimiseConfig = expandControls?.minimise
     val safePadding = boundaryPadding ?: 0.dp
-
-
-    val fillColor = if (isMaximized) {
-        try {
-            minimiseConfig?.colors?.fill?.let { Color(it.toColorInt()) }
-        } catch (_: Exception) {
-            null
-        }
-    } else {
-        try {
-            maximiseConfig?.colors?.fill?.let { Color(it.toColorInt()) }
-        } catch (_: Exception) {
-            null
-        }
-    } ?: Color.Transparent
-
-    val iconColor = if (isMaximized) {
-        try {
-            minimiseConfig?.colors?.cross?.let { Color(it.toColorInt()) }
-        } catch (_: Exception) {
-            null
-        }
-    } else {
-        try {
-            maximiseConfig?.colors?.cross?.let { Color(it.toColorInt()) }
-        } catch (_: Exception) {
-            null
-        }
-    } ?: Color.White
-
-    val strokeColor = if (isMaximized) {
-        try {
-            minimiseConfig?.colors?.stroke?.let { Color(it.toColorInt()) }
-        } catch (_: Exception) {
-            null
-        }
-    } else {
-        try {
-            maximiseConfig?.colors?.stroke?.let { Color(it.toColorInt()) }
-        } catch (_: Exception) {
-            null
-        }
-    } ?: Color.Transparent
-
-    // Extract margins - only apply if applyMargins is true
-    val topMargin = if (applyMargins) {
-        if (isMaximized) {
-            try {
-                minimiseConfig?.margin?.top?.toIntOrNull()?.dp
-            } catch (_: Exception) {
-                null
-            }
-        } else {
-            try {
-                maximiseConfig?.margin?.top?.toIntOrNull()?.dp
-            } catch (_: Exception) {
-                null
-            }
-        } ?: 0.dp
-    } else 0.dp
-
-    val endMargin = if (applyMargins) {
-        if (isMaximized) {
-            try {
-                minimiseConfig?.margin?.right?.toIntOrNull()?.dp
-            } catch (_: Exception) {
-                null
-            }
-        } else {
-            try {
-                maximiseConfig?.margin?.right?.toIntOrNull()?.dp
-            } catch (_: Exception) {
-                null
-            }
-        } ?: 0.dp
-    } else 0.dp
-
-    val bottomMargin = if (applyMargins) {
-        if (isMaximized) {
-            try {
-                minimiseConfig?.margin?.bottom?.toIntOrNull()?.dp
-            } catch (_: Exception) {
-                null
-            }
-        } else {
-            try {
-                maximiseConfig?.margin?.bottom?.toIntOrNull()?.dp
-            } catch (_: Exception) {
-                null
-            }
-        } ?: 0.dp
-    } else 0.dp
-
-    val startMargin = if (applyMargins) {
-        if (isMaximized) {
-            try {
-                minimiseConfig?.margin?.left?.toIntOrNull()?.dp
-            } catch (_: Exception) {
-                null
-            }
-        } else {
-            try {
-                maximiseConfig?.margin?.left?.toIntOrNull()?.dp
-            } catch (_: Exception) {
-                null
-            }
-        } ?: 0.dp
-    } else 0.dp
-
-    // Check if the expand controls are enabled
     val isEnabled = expandControls?.enabled ?: true
     if (!isEnabled) return
 
+    // Pick active backend config ONCE
+    val activeConfig = if (isMaximized) {
+        expandControls?.minimise
+    } else {
+        expandControls?.maximise
+    }
+
+    // ---------- Helpers ----------
+    fun parseColor(value: String?, fallback: Color): Color =
+        runCatching { value?.let { Color(it.toColorInt()) } }.getOrNull() ?: fallback
+
+    fun parseStroke(value: String?): Color? =
+        runCatching { value?.let { Color(it.toColorInt()) } }.getOrNull()
+
+    fun marginDp(value: String?): Dp =
+        if (applyMargins) value?.toIntOrNull()?.dp ?: 0.dp else 0.dp
+    // -----------------------------
+
+    val fillColor = parseColor(activeConfig?.colors?.fill, Color.Transparent)
+    val iconColor = parseColor(activeConfig?.colors?.cross, Color.White)
+    val strokeColor = parseStroke(activeConfig?.colors?.stroke)
+
+    val paddingValues = PaddingValues(
+        top = marginDp(activeConfig?.margin?.top) + safePadding,
+        end = marginDp(activeConfig?.margin?.right) + safePadding,
+        bottom = marginDp(activeConfig?.margin?.bottom) + safePadding,
+        start = marginDp(activeConfig?.margin?.left) + safePadding
+    )
+
+    /**
+     * 🔑 FIX FOR YOUR SCREENSHOT ISSUE
+     * Padding scales with button size instead of being hardcoded
+     */
+    val iconPadding = (size * 0.25f).coerceIn(3.dp, 8.dp)
+
     Box(
         modifier = modifier
-            .padding(
-                top = topMargin + safePadding,
-                end = endMargin + safePadding,
-                bottom = bottomMargin + safePadding,
-                start = startMargin + safePadding
-            )
+            .padding(paddingValues)
             .size(size)
             .clip(CircleShape)
             .background(fillColor)
             .then(
-                if (strokeColor != null) {
-                    Modifier.border(1.dp, strokeColor, CircleShape)
-                } else {
-                    Modifier
-                }
+                strokeColor?.let {
+                    Modifier.border(1.dp, it, CircleShape)
+                } ?: Modifier
             )
             .clickable { onToggle() },
         contentAlignment = Alignment.Center
     ) {
         when {
-            // When maximized, show minimize button
             isMaximized && !minimiseImageUrl.isNullOrBlank() -> {
                 AsyncImage(
                     model = minimiseImageUrl,
                     contentDescription = "Minimize",
-                    modifier = Modifier.padding(4.dp)
+                    modifier = Modifier.padding(iconPadding)
                 )
             }
-            // When minimized, show maximize button
+
             !isMaximized && !maximiseImageUrl.isNullOrBlank() -> {
                 AsyncImage(
                     model = maximiseImageUrl,
                     contentDescription = "Maximize",
-                    modifier = Modifier.padding(4.dp)
+                    modifier = Modifier.padding(iconPadding)
                 )
             }
+
             else -> {
                 Icon(
-                    painter = if (isMaximized) painterResource(R.drawable.minimize) else painterResource(R.drawable.expand),
+                    painter = painterResource(
+                        if (isMaximized) R.drawable.minimize else R.drawable.expand
+                    ),
                     contentDescription = if (isMaximized) "Minimize" else "Maximize",
                     tint = iconColor,
-                    modifier = Modifier.padding(9.dp)
+                    modifier = Modifier.padding(iconPadding)
                 )
             }
         }
@@ -214,7 +133,7 @@ internal fun ExpandButton(
 }
 
 /**
- * Helper function to create ExpandButtonConfig from raw values.
+ * Helper function (UNCHANGED behavior)
  */
 fun createExpandButtonConfig(
     fillColorString: String? = null,
@@ -226,23 +145,17 @@ fun createExpandButtonConfig(
     marginStart: Int? = null,
     imageUrl: String? = null
 ): ExpandButtonConfig {
-    val fillColor = try {
+    val fillColor = runCatching {
         fillColorString?.let { Color(it.toColorInt()) }
-    } catch (_: Exception) {
-        null
-    } ?: Color.Black.copy(alpha = 0.5f)
+    }.getOrNull() ?: Color.Black.copy(alpha = 0.5f)
 
-    val iconColor = try {
+    val iconColor = runCatching {
         iconColorString?.let { Color(it.toColorInt()) }
-    } catch (_: Exception) {
-        null
-    } ?: Color.White
+    }.getOrNull() ?: Color.White
 
-    val strokeColor = try {
+    val strokeColor = runCatching {
         strokeColorString?.let { Color(it.toColorInt()) }
-    } catch (_: Exception) {
-        null
-    }
+    }.getOrNull()
 
     return ExpandButtonConfig(
         fillColor = fillColor,
@@ -255,4 +168,3 @@ fun createExpandButtonConfig(
         imageUrl = imageUrl
     )
 }
-
