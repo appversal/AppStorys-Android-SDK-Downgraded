@@ -1,5 +1,6 @@
 package com.appversal.appstorys.api
 
+import android.os.Parcelable
 import androidx.annotation.Keep
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -681,7 +682,18 @@ data class ModalContent(
     val primaryCtaText: String?,
     val primaryCtaRedirection: ModalRedirection?,
     val secondaryCtaText: String?,
-    val secondaryCtaRedirection: ModalRedirection?
+    val secondaryCtaRedirection: ModalRedirection?,
+    // Support an optional `set` of slides (some backends return `content.set` for carousel modals).
+    // The slide objects use the same shape as ModalContent so we reuse the type recursively.
+    val set: List<ModalContent>? = null,
+    // Per-slide styling/overrides (optional). Some payloads include `styling` inside each slide.
+    val styling: ModalStyling? = null,
+    // Alternate/backward-compatible CTA keys that some backends use
+    @SerialName("primaryCta") val primaryCta: String? = null,
+    @SerialName("secondayCta") val secondayCta: String? = null,
+    @SerialName("secondaryCta") val secondaryCtaAlt: String? = null,
+    // Accept content-level enable flag (some payloads put this under content)
+    @SerialName("enableCrossButton") val enableCrossButton: String? = null
 )
 
 @Serializable
@@ -741,6 +753,15 @@ data class ModalMargin(
     val left: Int? = null
 )
 
+// Add ModalPadding definition (same shape as ModalMargin) because some payloads use `padding` inside ModalAppearance
+@Serializable
+data class ModalPadding(
+    val top: Int? = null,
+    val right: Int? = null,
+    val bottom: Int? = null,
+    val left: Int? = null
+)
+
 @Serializable
 data class ModalCta(
     val backgroundColor: String? = null,
@@ -791,21 +812,19 @@ data class ModalAppearance(
     val backdrop: ModalBackdrop? = null,
     val enableBackdrop: Boolean? = null,
     val padding: ModalPadding? = null,
-    val ctaDisplay: String? = null
-)
-
-@Serializable
-data class ModalPadding(
-    val top: Int? = null,
-    val right: Int? = null,
-    val bottom: Int? = null,
-    val left: Int? = null
+    val ctaDisplay: String? = null,
+    // Accept alternate flat keys used by some backends
+    val backdropColor: String? = null,
+    val backdropOpacity: String? = null,
+    // Some payloads use misspelled "dimentons" instead of "dimension"
+    val dimentons: ModalDimension? = null
 )
 
 @Serializable
 data class ModalBackdrop(
     val color: String? = null,
-    val opacity: Int? = null
+    // keep as String? to accept numeric or string representations from backend
+    val opacity: String? = null
 )
 
 @Serializable

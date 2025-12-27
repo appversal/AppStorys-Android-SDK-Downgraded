@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -40,6 +41,17 @@ import com.appversal.appstorys.ui.components.createCrossButtonConfig
 import com.appversal.appstorys.ui.components.parseColorString
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.border
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.ui.PlayerView
+import com.appversal.appstorys.utils.VideoCache
 
 @Composable
 internal fun PopupModal(
@@ -50,6 +62,13 @@ internal fun PopupModal(
     onSecondaryCta: ((link: String?) -> Unit)? = null,
 ) {
     val modal = modalDetails.modals?.getOrNull(0)
+
+    // If backend explicitly sent a carousel modal type, delegate to the FullPageCarousel implementation
+    if (modal?.modalType?.trim()?.equals("modal-fullpage-carousel", true) == true) {
+        FullPageCarouselModal(onCloseClick = onCloseClick, modalDetails = modalDetails, onModalClick = onModalClick, onPrimaryCta = onPrimaryCta, onSecondaryCta = onSecondaryCta)
+        return
+    }
+
     val imageUrl = modal?.content?.chooseMediaType?.url
     val context = LocalContext.current
     // appearance (styling) - may be null if backend omits styling
@@ -74,8 +93,9 @@ internal fun PopupModal(
 
     // backdrop opacity (appearance.backdrop.opacity is percentage). Respect enableBackdrop (if false => 0f)
     // backdrop opacity percentage (fallback to 30% if missing)
-    val rawBackdropOpacity = appearance?.backdrop?.opacity ?: 30
-    val backdropAlpha = if (appearance?.enableBackdrop == false) 0f else (rawBackdropOpacity.toFloat() / 100f).coerceIn(0f, 1f)
+    val rawBackdropOpacityStr = appearance?.backdrop?.opacity ?: appearance?.backdropOpacity ?: "30"
+    val rawBackdropOpacity = rawBackdropOpacityStr.toFloatOrNull() ?: 30f
+    val backdropAlpha = if (appearance?.enableBackdrop == false) 0f else (rawBackdropOpacity / 100f).coerceIn(0f, 1f)
 
     // CTA styling (integers from model)
     val primaryBg = parseColorString(modal?.styling?.primaryCta?.backgroundColor) ?: Color.Black
@@ -85,20 +105,20 @@ internal fun PopupModal(
     val primaryHeight = (modal?.styling?.primaryCta?.containerStyle?.height ?: 48).dp
     val primaryBorderWidth = (modal?.styling?.primaryCta?.containerStyle?.borderWidth ?: 0).dp
     val primaryBorderColor = parseColorString(modal?.styling?.primaryCta?.borderColor) ?: Color.Transparent
-    val primaryWidth = modal?.styling?.primaryCta?.containerStyle?.ctaWidth?.let { it.dp }
+    val primaryWidth = modal?.styling?.primaryCta?.containerStyle?.ctaWidth?.dp
 
     val secondaryBg = parseColorString(modal?.styling?.secondaryCta?.backgroundColor) ?: Color.DarkGray
     val secondaryTextColor = parseColorString(modal?.styling?.secondaryCta?.textColor) ?: Color.White
     val secondaryHeight = (modal?.styling?.secondaryCta?.containerStyle?.height ?: 48).dp
     val secondaryBorderWidth = (modal?.styling?.secondaryCta?.containerStyle?.borderWidth ?: 0).dp
     val secondaryBorderColor = parseColorString(modal?.styling?.secondaryCta?.borderColor) ?: Color.Transparent
-    val secondaryWidth = modal?.styling?.secondaryCta?.containerStyle?.ctaWidth?.let { it.dp }
+    val secondaryWidth = modal?.styling?.secondaryCta?.containerStyle?.ctaWidth?.dp
 
     // Title/subtitle styling
     val titleColor = parseColorString(modal?.styling?.title?.color) ?: Color(0xFF3700FF)
-    val titleSizeSp = modal?.styling?.title?.size?.let { it.sp } ?: 16.sp
+    val titleSizeSp = modal?.styling?.title?.size?.sp ?: 16.sp
     val subtitleColor = parseColorString(modal?.styling?.subTitle?.color) ?: Color.Gray
-    val subtitleSizeSp = modal?.styling?.subTitle?.size?.let { it.sp } ?: 12.sp
+    val subtitleSizeSp = modal?.styling?.subTitle?.size?.sp ?: 12.sp
 
     // Prefer uploaded image URL if provided by backend, fallback to default crossButtonImage
     val crossButtonImageUrl = modal?.styling?.crossButton?.uploadImage?.url
@@ -198,7 +218,14 @@ internal fun PopupModal(
                                 }
 
                                 "lottie" -> {
-                                    val composition by rememberLottieComposition(LottieCompositionSpec.Url(imageUrl ?: ""))
+                                    // Support both URL-backed Lottie and inline Lottie JSON strings
+                                    val lottieSrc = imageUrl ?: ""
+                                    val compositionSpec = if (lottieSrc.trimStart().startsWith("{") || lottieSrc.trimStart().startsWith("[")) {
+                                        LottieCompositionSpec.JsonString(lottieSrc)
+                                    } else {
+                                        LottieCompositionSpec.Url(lottieSrc)
+                                    }
+                                    val composition by rememberLottieComposition(compositionSpec)
                                     LottieAnimation(
                                         composition = composition,
                                         iterations = LottieConstants.IterateForever,
@@ -207,6 +234,14 @@ internal fun PopupModal(
                                             .height(appearanceHeightDp)
                                             .clip(containerShape)
                                     )
+                                }
+
+                                // Video handling: detect common video extensions and render ExoPlayer
+                                "video" -> {
+                                    ModalMediaRenderer(mediaUrl = imageUrl ?: "", modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(appearanceHeightDp)
+                                        .clip(containerShape), contentDescription = "Video", muted = false)
                                 }
 
                                 else -> {
@@ -346,8 +381,8 @@ internal fun PopupModal(
                                 bottomEnd = (modal?.styling?.secondaryCta?.cornerRadius?.bottomRight ?: 12).dp,
                             )
 
-                            val primaryTextSize = modal?.styling?.primaryCta?.textStyle?.size?.let { it.sp } ?: 14.sp
-                            val secondaryTextSize = modal?.styling?.secondaryCta?.textStyle?.size?.let { it.sp } ?: 14.sp
+                            val primaryTextSize = modal?.styling?.primaryCta?.textStyle?.size?.sp ?: 14.sp
+                            val secondaryTextSize = modal?.styling?.secondaryCta?.textStyle?.size?.sp ?: 14.sp
 
                             modal?.content?.primaryCtaText?.let { primaryText ->
                                 val primaryTextAlign = when (modal?.styling?.primaryCta?.containerStyle?.alignment) {
@@ -444,6 +479,4 @@ internal fun PopupModal(
         }
     }
 
-
-
-
+    // local VideoPlayerInline removed in favor of ModalComponents.VideoPlayerInline
