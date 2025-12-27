@@ -1,5 +1,6 @@
 package com.appversal.appstorys.ui.components
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -59,7 +60,13 @@ internal fun CrossButton(
             .clickable { onClose() },
         contentAlignment = Alignment.Center
     ) {
-        if (!config.imageUrl.isNullOrBlank() && config.imageUrl.startsWith("http"))  {
+        // Log the image URL for debugging
+        if (!config.imageUrl.isNullOrBlank()) {
+            Log.d("CrossButton", "Attempting to load cross button image: ${config.imageUrl}")
+        }
+
+        // Try to load any non-blank image URL (allow content://, file://, data:, relative paths etc.)
+        if (!config.imageUrl.isNullOrBlank())  {
             AsyncImage(
                 model = config.imageUrl,
                 contentDescription = "Close",
