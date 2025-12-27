@@ -1564,17 +1564,25 @@ object AppStorys {
                 onCloseClick = {
                     showModal = false
                 },
+
+
                 modalDetails = modalDetails,
                 onModalClick = {
-                    val link = modalDetails.modals?.getOrNull(0)?.content?.primaryCtaRedirection?.url
-                        ?: modalDetails.modals?.getOrNull(0)?.content?.primaryCtaRedirection?.value
+                    val modal = modalDetails.modals?.getOrNull(0)
+
+                    val link =
+                        modal?.content?.primaryCtaRedirection?.url
+                            ?: modal?.content?.primaryCtaRedirection?.value
+                            ?: modal?.redirection?.url
+                            ?: modal?.redirection?.value
+
                     campaign?.id?.let { campaignId ->
                         trackEvents(campaignId, "clicked")
                         clickEvent(link = link, campaignId = campaignId)
                     }
-
-//                    showModal = false
                 },
+
+
                 onPrimaryCta = { link ->
                     // primary CTA receives resolved URL string
                     campaign?.id?.let { campaignId ->

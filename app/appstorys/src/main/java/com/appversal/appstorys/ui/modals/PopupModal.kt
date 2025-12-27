@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -41,17 +40,6 @@ import com.appversal.appstorys.ui.components.createCrossButtonConfig
 import com.appversal.appstorys.ui.components.parseColorString
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.border
-import androidx.compose.ui.viewinterop.AndroidView
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.media3.common.MediaItem
-import androidx.media3.common.Player
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
-import androidx.media3.common.util.UnstableApi
-import androidx.media3.ui.PlayerView
-import com.appversal.appstorys.utils.VideoCache
 
 @Composable
 internal fun PopupModal(
@@ -61,24 +49,41 @@ internal fun PopupModal(
     onPrimaryCta: ((link: String?) -> Unit)? = null,
     onSecondaryCta: ((link: String?) -> Unit)? = null,
 ) {
-    val modal = modalDetails.modals?.getOrNull(0)
+    // Early-return when no modal is provided; simplifies downstream nullability handling
+    val modal = modalDetails.modals?.getOrNull(0) ?: return
+
+    // Robust extraction of media across different backend shapes:
+    // 1) modal.content.chooseMediaType
+    // 2) modal.chooseMediaType
+    // 3) modal.content.set -> first element -> chooseMediaType
+    // 4) top-level modal.url
+    val chooseMedia = modal.content?.chooseMediaType
+        ?: modal.chooseMediaType
+        ?: modal.content?.set?.firstOrNull()?.chooseMediaType
+
+    // Use the resolved chooseMedia url if present. The `Modal` data class does not have a `url` field
+    // so referencing `modal.url` causes "Unresolved reference: url" at compile time.
+    val imageUrl = chooseMedia?.url?.takeIf { it.isNotBlank() }
+
 
     // If backend explicitly sent a carousel modal type, delegate to the FullPageCarousel implementation
-    if (modal?.modalType?.trim()?.equals("modal-fullpage-carousel", true) == true) {
+    if (modal.modalType?.trim()?.equals("modal-fullpage-carousel", true) == true) {
         FullPageCarouselModal(onCloseClick = onCloseClick, modalDetails = modalDetails, onModalClick = onModalClick, onPrimaryCta = onPrimaryCta, onSecondaryCta = onSecondaryCta)
         return
     }
 
-    val imageUrl = modal?.content?.chooseMediaType?.url
+
     val context = LocalContext.current
     // appearance (styling) - may be null if backend omits styling
-    val appearance = modal?.styling?.appearance
+    val appearance = modal.styling?.appearance
 
     val mediaType = when {
-        imageUrl?.endsWith(".gif", ignoreCase = true) == true -> "gif"
-        imageUrl?.endsWith(".json", ignoreCase = true) == true -> "lottie"
+        imageUrl?.endsWith(".gif", true) == true -> "gif"
+        imageUrl?.endsWith(".json", true) == true -> "lottie"
+        imageUrl?.endsWith(".mp4", true) == true || imageUrl?.endsWith(".m3u8", true) == true -> "video"
         else -> "image"
     }
+
 
     // appearance values (safe parsing) - wired from ModalAppearance
     // Use industry-standard fallbacks when backend omits values
@@ -98,40 +103,42 @@ internal fun PopupModal(
     val backdropAlpha = if (appearance?.enableBackdrop == false) 0f else (rawBackdropOpacity / 100f).coerceIn(0f, 1f)
 
     // CTA styling (integers from model)
-    val primaryBg = parseColorString(modal?.styling?.primaryCta?.backgroundColor) ?: Color.Black
-    val primaryTextColor = parseColorString(modal?.styling?.primaryCta?.textColor) ?: Color.White
+    val primaryBg = parseColorString(modal.styling?.primaryCta?.backgroundColor) ?: Color.Black
+    val primaryTextColor = parseColorString(modal.styling?.primaryCta?.textColor) ?: Color.White
 
     // CTA default height: 48.dp is a common, accessible size
-    val primaryHeight = (modal?.styling?.primaryCta?.containerStyle?.height ?: 48).dp
-    val primaryBorderWidth = (modal?.styling?.primaryCta?.containerStyle?.borderWidth ?: 0).dp
-    val primaryBorderColor = parseColorString(modal?.styling?.primaryCta?.borderColor) ?: Color.Transparent
-    val primaryWidth = modal?.styling?.primaryCta?.containerStyle?.ctaWidth?.dp
+    val primaryHeight = (modal.styling?.primaryCta?.containerStyle?.height ?: 48).dp
+    val primaryBorderWidth = (modal.styling?.primaryCta?.containerStyle?.borderWidth ?: 0).dp
+    val primaryBorderColor = parseColorString(modal.styling?.primaryCta?.borderColor) ?: Color.Transparent
+    val primaryWidth = modal.styling?.primaryCta?.containerStyle?.ctaWidth?.dp
 
-    val secondaryBg = parseColorString(modal?.styling?.secondaryCta?.backgroundColor) ?: Color.DarkGray
-    val secondaryTextColor = parseColorString(modal?.styling?.secondaryCta?.textColor) ?: Color.White
-    val secondaryHeight = (modal?.styling?.secondaryCta?.containerStyle?.height ?: 48).dp
-    val secondaryBorderWidth = (modal?.styling?.secondaryCta?.containerStyle?.borderWidth ?: 0).dp
-    val secondaryBorderColor = parseColorString(modal?.styling?.secondaryCta?.borderColor) ?: Color.Transparent
-    val secondaryWidth = modal?.styling?.secondaryCta?.containerStyle?.ctaWidth?.dp
+    val secondaryBg = parseColorString(modal.styling?.secondaryCta?.backgroundColor) ?: Color.DarkGray
+    val secondaryTextColor = parseColorString(modal.styling?.secondaryCta?.textColor) ?: Color.White
+    val secondaryHeight = (modal.styling?.secondaryCta?.containerStyle?.height ?: 48).dp
+    val secondaryBorderWidth = (modal.styling?.secondaryCta?.containerStyle?.borderWidth ?: 0).dp
+    val secondaryBorderColor = parseColorString(modal.styling?.secondaryCta?.borderColor) ?: Color.Transparent
+    val secondaryWidth = modal.styling?.secondaryCta?.containerStyle?.ctaWidth?.dp
 
     // Title/subtitle styling
-    val titleColor = parseColorString(modal?.styling?.title?.color) ?: Color(0xFF3700FF)
-    val titleSizeSp = modal?.styling?.title?.size?.sp ?: 16.sp
-    val subtitleColor = parseColorString(modal?.styling?.subTitle?.color) ?: Color.Gray
-    val subtitleSizeSp = modal?.styling?.subTitle?.size?.sp ?: 12.sp
+    val titleColor = parseColorString(modal.styling?.title?.color) ?: Color(0xFF3700FF)
+    val titleSizeSp = modal.styling?.title?.size?.sp ?: 16.sp
+    val subtitleColor = parseColorString(modal.styling?.subTitle?.color) ?: Color.Gray
+    val subtitleSizeSp = modal.styling?.subTitle?.size?.sp ?: 12.sp
 
     // Prefer uploaded image URL if provided by backend, fallback to default crossButtonImage
-    val crossButtonImageUrl = modal?.styling?.crossButton?.uploadImage?.url
-        ?: modal?.styling?.crossButton?.default?.crossButtonImage
+    val crossButtonImageUrl = modal.styling?.crossButton?.uploadImage?.url
+        ?: modal.styling?.crossButton?.default?.crossButtonImage
 
     val crossConfig = createCrossButtonConfig(
-        fillColorString = modal?.styling?.crossButton?.default?.color?.fill,
-        crossColorString = modal?.styling?.crossButton?.default?.color?.cross,
-        strokeColorString = modal?.styling?.crossButton?.default?.color?.stroke,
-        marginTop = modal?.styling?.crossButton?.default?.spacing?.margin?.top,
-        marginEnd = modal?.styling?.crossButton?.default?.spacing?.margin?.right,
+        fillColorString = modal.styling?.crossButton?.default?.color?.fill,
+        crossColorString = modal.styling?.crossButton?.default?.color?.cross,
+        strokeColorString = modal.styling?.crossButton?.default?.color?.stroke,
+        marginTop = modal.styling?.crossButton?.default?.spacing?.margin?.top,
+        marginEnd = modal.styling?.crossButton?.default?.spacing?.margin?.right,
         imageUrl = crossButtonImageUrl
     )
+
+
 
 
     Dialog(
@@ -245,15 +252,14 @@ internal fun PopupModal(
                                 }
 
                                 else -> {
-                                    AsyncImage(
-                                        model = imageUrl,
-                                        contentDescription = "Popup Image",
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(appearanceHeightDp)
-                                            .clip(containerShape),
-                                        contentScale = ContentScale.Crop
-                                    )
+                                    // Use the dedicated image-only composable for better reuse and separation
+                                    ModalImageOnly(
+                                        imageUrl = imageUrl,
+                                        appearanceHeightDp = appearanceHeightDp,
+                                        containerShape = containerShape
+                                    ) {
+                                        onModalClick()
+                                    }
                                 }
 
                             }
@@ -261,21 +267,21 @@ internal fun PopupModal(
 
                         // Title and subtitle
                         // Determine title/subtitle alignment from backend styling (defaults to Center)
-                        val titleTextAlign = when (modal?.styling?.title?.alignment?.trim()?.lowercase()) {
+                        val titleTextAlign = when (modal.styling?.title?.alignment?.trim()?.lowercase()) {
                             "left" -> TextAlign.Start
                             "right" -> TextAlign.End
                             "center" -> TextAlign.Center
                             else -> TextAlign.Center
                         }
 
-                        val subtitleTextAlign = when (modal?.styling?.subTitle?.alignment?.trim()?.lowercase()) {
+                        val subtitleTextAlign = when (modal.styling?.subTitle?.alignment?.trim()?.lowercase()) {
                             "left" -> TextAlign.Start
                             "right" -> TextAlign.End
                             "center" -> TextAlign.Center
                             else -> TextAlign.Center
                         }
 
-                        modal?.content?.titleText?.let { title ->
+                        modal.content?.titleText?.let { title ->
                             Spacer(modifier = Modifier.height(12.dp))
                             Text(
                                 text = title,
@@ -286,7 +292,7 @@ internal fun PopupModal(
                             )
                         }
 
-                        modal?.content?.subtitleText?.let { subtitle ->
+                        modal.content?.subtitleText?.let { subtitle ->
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
                                 text = subtitle,
@@ -299,19 +305,19 @@ internal fun PopupModal(
 
                         // CTA buttons
                         // If neither CTA is occupying full width, center the row contents
-                        val primaryOccupy = modal?.styling?.primaryCta?.occupyFullWidth?.trim()?.equals("true", true) == true
-                        val secondaryOccupy = modal?.styling?.secondaryCta?.occupyFullWidth?.trim()?.equals("true", true) == true
+                        val primaryOccupy = modal.styling?.primaryCta?.occupyFullWidth?.trim()?.equals("true", true) == true
+                        val secondaryOccupy = modal.styling?.secondaryCta?.occupyFullWidth?.trim()?.equals("true", true) == true
 
                         // Read CTA margins from backend (dashboard) - default to 0.dp to honor explicit zero from dashboard
-                        val primaryMarginLeft = (modal?.styling?.primaryCta?.spacing?.margin?.left ?: 0)
-                        val primaryMarginRight = (modal?.styling?.primaryCta?.spacing?.margin?.right ?: 0)
-                        val primaryMarginTop = (modal?.styling?.primaryCta?.spacing?.margin?.top ?: 0)
-                        val primaryMarginBottom = (modal?.styling?.primaryCta?.spacing?.margin?.bottom ?: 0)
+                        val primaryMarginLeft = (modal.styling?.primaryCta?.spacing?.margin?.left ?: 0)
+                        val primaryMarginRight = (modal.styling?.primaryCta?.spacing?.margin?.right ?: 0)
+                        val primaryMarginTop = (modal.styling?.primaryCta?.spacing?.margin?.top ?: 0)
+                        val primaryMarginBottom = (modal.styling?.primaryCta?.spacing?.margin?.bottom ?: 0)
 
-                        val secondaryMarginLeft = (modal?.styling?.secondaryCta?.spacing?.margin?.left ?: 0)
-                        val secondaryMarginRight = (modal?.styling?.secondaryCta?.spacing?.margin?.right ?: 0)
-                        val secondaryMarginTop = (modal?.styling?.secondaryCta?.spacing?.margin?.top ?: 0)
-                        val secondaryMarginBottom = (modal?.styling?.secondaryCta?.spacing?.margin?.bottom ?: 0)
+                        val secondaryMarginLeft = (modal.styling?.secondaryCta?.spacing?.margin?.left ?: 0)
+                        val secondaryMarginRight = (modal.styling?.secondaryCta?.spacing?.margin?.right ?: 0)
+                        val secondaryMarginTop = (modal.styling?.secondaryCta?.spacing?.margin?.top ?: 0)
+                        val secondaryMarginBottom = (modal.styling?.secondaryCta?.spacing?.margin?.bottom ?: 0)
 
                         // Convert to Dp
                         val primaryMarginLeftDp = primaryMarginLeft.dp
@@ -346,8 +352,8 @@ internal fun PopupModal(
                         }
 
                         // Between-CTA spacing: prefer primary.right then secondary.left, fallback to 0.dp
-                        val ctaBetweenSpacing = ((modal?.styling?.primaryCta?.spacing?.margin?.right
-                             ?: modal?.styling?.secondaryCta?.spacing?.margin?.left ?: 0)).dp
+                        val ctaBetweenSpacing = ((modal.styling?.primaryCta?.spacing?.margin?.right
+                             ?: modal.styling?.secondaryCta?.spacing?.margin?.left ?: 0)).dp
 
                          // Row top/bottom padding should respect max of both CTAs' top/bottom margins
                          val rowTopPadding = maxOf(primaryMarginTopDp, secondaryMarginTopDp)
@@ -369,23 +375,24 @@ internal fun PopupModal(
 
                             // Create shapes using full corner radius values
                             val primaryShape = RoundedCornerShape(
-                                topStart = (modal?.styling?.primaryCta?.cornerRadius?.topLeft ?: 12).dp,
-                                topEnd = (modal?.styling?.primaryCta?.cornerRadius?.topRight ?: 12).dp,
-                                bottomStart = (modal?.styling?.primaryCta?.cornerRadius?.bottomLeft ?: 12).dp,
-                                bottomEnd = (modal?.styling?.primaryCta?.cornerRadius?.bottomRight ?: 12).dp,
+                                topStart = (modal.styling?.primaryCta?.cornerRadius?.topLeft ?: 12).dp,
+                                topEnd = (modal.styling?.primaryCta?.cornerRadius?.topRight ?: 12).dp,
+                                bottomStart = (modal.styling?.primaryCta?.cornerRadius?.bottomLeft ?: 12).dp,
+                                bottomEnd = (modal.styling?.primaryCta?.cornerRadius?.bottomRight ?: 12).dp,
                             )
                             val secondaryShape = RoundedCornerShape(
-                                topStart = (modal?.styling?.secondaryCta?.cornerRadius?.topLeft ?: 12).dp,
-                                topEnd = (modal?.styling?.secondaryCta?.cornerRadius?.topRight ?: 12).dp,
-                                bottomStart = (modal?.styling?.secondaryCta?.cornerRadius?.bottomLeft ?: 12).dp,
-                                bottomEnd = (modal?.styling?.secondaryCta?.cornerRadius?.bottomRight ?: 12).dp,
+                                topStart = (modal.styling?.secondaryCta?.cornerRadius?.topLeft ?: 12).dp,
+                                topEnd = (modal.styling?.secondaryCta?.cornerRadius?.topRight ?: 12).dp,
+                                bottomStart = (modal.styling?.secondaryCta?.cornerRadius?.bottomLeft ?: 12).dp,
+                                bottomEnd = (modal.styling?.secondaryCta?.cornerRadius?.bottomRight ?: 12).dp,
                             )
 
-                            val primaryTextSize = modal?.styling?.primaryCta?.textStyle?.size?.sp ?: 14.sp
-                            val secondaryTextSize = modal?.styling?.secondaryCta?.textStyle?.size?.sp ?: 14.sp
+                            val primaryTextSize = modal.styling?.primaryCta?.textStyle?.size?.sp ?: 14.sp
+                            val secondaryTextSize = modal.styling?.secondaryCta?.textStyle?.size?.sp ?: 14.sp
 
-                            modal?.content?.primaryCtaText?.let { primaryText ->
-                                val primaryTextAlign = when (modal?.styling?.primaryCta?.containerStyle?.alignment) {
+                            modal.content?.primaryCtaText?.let { primaryText ->
+                                val content = modal.content!!
+                                val primaryTextAlign = when (modal.styling?.primaryCta?.containerStyle?.alignment) {
                                     "left" -> TextAlign.Start
                                     "right" -> TextAlign.End
                                     else -> TextAlign.Center
@@ -415,16 +422,15 @@ internal fun PopupModal(
                                         textAlign = primaryTextAlign,
                                         modifier = Modifier
                                     ) {
-                                        val link =
-                                            modal.content?.primaryCtaRedirection?.url
-                                                ?: modal.content?.primaryCtaRedirection?.value
+                                        val link = content.primaryCtaRedirection?.url ?: content.primaryCtaRedirection?.value
                                         onPrimaryCta?.invoke(link)
                                     }
                                 }
                             }
 
-                            modal?.content?.secondaryCtaText?.let { secondaryText ->
-                                val secondaryTextAlign = when (modal?.styling?.secondaryCta?.containerStyle?.alignment) {
+                            modal.content?.secondaryCtaText?.let { secondaryText ->
+                                val content = modal.content!!
+                                val secondaryTextAlign = when (modal.styling?.secondaryCta?.containerStyle?.alignment) {
                                     "left" -> TextAlign.Start
                                     "right" -> TextAlign.End
                                     else -> TextAlign.Center
@@ -453,9 +459,7 @@ internal fun PopupModal(
                                         textAlign = secondaryTextAlign,
                                         modifier = Modifier
                                     ) {
-                                        val link =
-                                            modal.content?.secondaryCtaRedirection?.url
-                                                ?: modal.content?.secondaryCtaRedirection?.value
+                                        val link = content.secondaryCtaRedirection?.url ?: content.secondaryCtaRedirection?.value
                                         onSecondaryCta?.invoke(link)
                                     }
                                 }

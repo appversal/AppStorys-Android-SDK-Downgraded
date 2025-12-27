@@ -663,16 +663,31 @@ data class ModalDetails(
     val name: String? = null
 ) : CampaignDetails()
 
+
 @Keep
 @Serializable
 data class Modal(
     @SerialName("id") val id: String?,
     @SerialName("modal_type") val modalType: String? = null,
+
+    // ---------- CONTENT-BASED (CTA / CAROUSEL) ----------
     val content: ModalContent? = null,
     val styling: ModalStyling? = null,
     val screen: Int? = null,
-    val name: String? = null
+    val name: String? = null,
+
+    // ---------- FLAT MEDIA-ONLY MODAL ----------
+    val chooseMediaType: ModalMedia? = null,
+    val link: String? = null,
+    val size: String? = null,
+    val backgroundOpacity: String? = null,
+    val borderRadius: Int? = null,
+    val enableBackdrop: Boolean? = null,
+    val enableCrossButton: Boolean? = null,
+    val crossButtonImage: String? = null,
+    val redirection: ModalRedirection? = null
 )
+
 
 @Serializable
 data class ModalContent(
@@ -948,6 +963,8 @@ data class ExpandControls(
     val minimise: ExpandButtonStyleConfig?
 )
 
+
+//Modal files
 @Keep
 @Serializable
 data class ExpandButtonStyleConfig(
@@ -956,3 +973,32 @@ data class ExpandButtonStyleConfig(
     val selectedStyle: String?
 )
 
+fun Modal.resolvedMedia(): ModalMedia? {
+    // CTA / Carousel modal
+    content?.chooseMediaType?.let { return it }
+
+    // Media-only modal
+    chooseMediaType?.let { return it }
+
+    // Fallback via link
+    link?.takeIf {
+        it.endsWith(".png", true) ||
+                it.endsWith(".jpg", true) ||
+                it.endsWith(".jpeg", true) ||
+                it.endsWith(".gif", true) ||
+                it.endsWith(".mp4", true) ||
+                it.endsWith(".json", true)
+    }?.let {
+        return ModalMedia(type = "auto", url = it)
+    }
+
+    return null
+}
+
+
+fun Modal.isCarousel(): Boolean =
+    content?.set?.isNotEmpty() == true
+
+fun Modal.isMediaOnly(): Boolean =
+    resolvedMedia() != null &&
+            content == null
