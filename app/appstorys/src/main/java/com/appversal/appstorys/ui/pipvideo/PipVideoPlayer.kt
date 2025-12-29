@@ -1,4 +1,4 @@
-package com.appversal.appstorys.ui
+package com.appversal.appstorys.ui.pipvideo
 
 import androidx.annotation.OptIn
 import androidx.compose.foundation.background
@@ -7,28 +7,20 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
@@ -52,8 +44,6 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -77,6 +67,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.appversal.appstorys.AppStorys
 import com.appversal.appstorys.AppStorys.isValidUrl
@@ -84,6 +75,8 @@ import com.appversal.appstorys.AppStorys.navigateToScreen
 import com.appversal.appstorys.AppStorys.openUrl
 import com.appversal.appstorys.R
 import com.appversal.appstorys.api.PipStyling
+import com.appversal.appstorys.ui.components.CrossButton
+import com.appversal.appstorys.ui.components.CrossButtonConfig
 import com.appversal.appstorys.utils.VideoCache
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -102,6 +95,11 @@ internal fun PipVideo(
     topPadding: Dp = 0.dp,
     isMovable: Boolean = true,
     pipStyling: PipStyling?,
+    crossButtonConfig: CrossButtonConfig = CrossButtonConfig(),
+    muteButtonImageUrl: String? = null,
+    unmuteButtonImageUrl: String? = null,
+    maximiseImageUrl: String? = null,
+    minimiseImageUrl: String? = null,
     onClose: () -> Unit,
     onButtonClick: () -> Unit,
     onExpandClick: () -> Unit = {}
@@ -118,6 +116,11 @@ internal fun PipVideo(
             button_text = button_text,
             link = link,
             pipStyling = pipStyling,
+            crossButtonConfig = crossButtonConfig,
+            muteButtonImageUrl = muteButtonImageUrl,
+            unmuteButtonImageUrl = unmuteButtonImageUrl,
+            maximiseImageUrl = maximiseImageUrl,
+            minimiseImageUrl = minimiseImageUrl,
             onButtonClick = onButtonClick
         )
 
@@ -145,6 +148,8 @@ internal fun PipVideo(
             val topPaddingPx = with(LocalDensity.current) {
                 (pipStyling?.pipTopPadding?.toFloatOrNull()?.dp ?: topPadding).toPx()
             }
+
+            val controlSize = 32.dp
 
             Box(
                 modifier = Modifier.fillMaxSize(),
@@ -191,80 +196,50 @@ internal fun PipVideo(
                             shape = RoundedCornerShape(12.dp),
                             elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
                             content = {
-                                Box {
+                                Box(modifier = Modifier.background(Color.Black)) {
                                     PipPlayerView(
                                         exoPlayer = pipPlayer,
                                         pipStyling = pipStyling,
                                         modifier = Modifier.fillMaxSize()
                                     )
-                                    Box(
-                                        modifier = Modifier
-                                            .align(Alignment.TopEnd)
-                                            .padding(4.dp)
-                                            .size(23.dp)
-                                            .background(
-                                                Color.Black.copy(alpha = 0.5f),
-                                                CircleShape
-                                            )
-                                            .clickable { onClose() },
-                                        contentAlignment = Alignment.Center,
-                                        content = {
-                                            Icon(
-                                                imageVector = Icons.Default.Close,
-                                                contentDescription = "Close",
-                                                tint = Color.White,
-                                                modifier = Modifier.size(17.dp)
-                                            )
-                                        }
+
+                                    CrossButton(
+                                        size = controlSize,
+                                        //boundaryPadding = 5.dp,
+                                        modifier = Modifier.align(Alignment.TopEnd),
+                                        config = crossButtonConfig,
+                                        onClose = onClose
                                     )
-                                    Box(
-                                        modifier = Modifier
-                                            .align(Alignment.TopStart)
-                                            .padding(4.dp)
-                                            .size(24.dp)
-                                            .background(
-                                                Color.Black.copy(alpha = 0.5f),
-                                                CircleShape
-                                            )
-                                            .clickable { isMuted = !isMuted },
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            painter = if (isMuted) painterResource(R.drawable.mute) else painterResource(
-                                                R.drawable.volume
-                                            ),
-                                            contentDescription = "Mute/Unmute",
-                                            tint = Color.White,
-                                            modifier = Modifier.size(14.dp)
+
+                                    MuteUnmuteButton(
+                                        size = controlSize,
+                                        modifier = Modifier.align(Alignment.TopStart),
+                                        isMuted = isMuted,
+                                        soundToggle = pipStyling?.soundToggle,
+                                        muteButtonImageUrl = muteButtonImageUrl,
+                                        unmuteButtonImageUrl = unmuteButtonImageUrl,
+                                        //boundaryPadding = 5.dp,
+                                        onToggleMute = { isMuted = !isMuted }
+                                    )
+
+                                    if (!fullScreenVideoUri.isNullOrEmpty()) {
+                                        ExpandButton(
+                                            size = controlSize,
+                                            modifier = Modifier.align(Alignment.BottomEnd),
+                                            isMaximized = false,
+                                            expandControls = pipStyling?.expandControls,
+                                            maximiseImageUrl = maximiseImageUrl,
+                                            minimiseImageUrl = minimiseImageUrl,
+                                            //boundaryPadding = 5.dp,
+                                            onToggle = {
+                                                onExpandClick()
+                                                isFullScreen = true
+                                                pipPlayer.pause()
+                                            }
                                         )
                                     }
-                                    if (!fullScreenVideoUri.isNullOrEmpty()) {
-                                        Box(
-                                            modifier = Modifier
-                                                .align(Alignment.BottomEnd)
-                                                .padding(4.dp)
-                                                .size(24.dp)
-                                                .background(
-                                                    Color.Black.copy(alpha = 0.5f),
-                                                    CircleShape
-                                                )
-                                                .clickable {
-                                                    if (fullScreenVideoUri.isNotEmpty()) {
-                                                        onExpandClick()
-                                                        isFullScreen = true
-                                                        pipPlayer.pause()
-                                                    }
-                                                },
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                painter = painterResource(R.drawable.expand),
-                                                contentDescription = "Maximize",
-                                                tint = Color.White,
-                                                modifier = Modifier.size(12.dp)
-                                            )
-                                        }
-                                    }
+
+
                                 }
                             }
                         )
@@ -305,7 +280,7 @@ fun PipPlayerView(
             PlayerView(ctx).apply {
                 player = exoPlayer
                 useController = false
-                resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
+                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
                 setShowBuffering(PlayerView.SHOW_BUFFERING_ALWAYS)
                 useArtwork = false
                 setKeepContentOnPlayerReset(true)
@@ -323,11 +298,15 @@ fun FullScreenVideoDialog(
     button_text: String?,
     link: String?,
     pipStyling: PipStyling?,
+    crossButtonConfig: CrossButtonConfig = CrossButtonConfig(),
+    muteButtonImageUrl: String? = null,
+    unmuteButtonImageUrl: String? = null,
+    maximiseImageUrl: String? = null,
+    minimiseImageUrl: String? = null,
     onClose: () -> Unit,
     onButtonClick: () -> Unit
 ) {
     var isMuted by remember { mutableStateOf(false) }
-    val uriHandler = LocalUriHandler.current
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
@@ -375,63 +354,53 @@ fun FullScreenVideoDialog(
                         pipStyling = pipStyling,
                         modifier = Modifier.fillMaxWidth(),
                     )
-                    IconButton(
+
+                    // Minimize button (top-left) - using ExpandButton component
+                    ExpandButton(
+                        size = 46.dp,
                         modifier = Modifier
                             .align(Alignment.TopStart)
-                            .padding(16.dp)
-                            .size(36.dp)
-                            .background(Color.Black.copy(alpha = 0.5f), CircleShape),
-                        onClick = {
+                            .padding(16.dp),
+                        isMaximized = true,
+                        expandControls = pipStyling?.expandControls,
+                        maximiseImageUrl = maximiseImageUrl,
+                        minimiseImageUrl = minimiseImageUrl,
+                        applyMargins = false,  // Don't apply backend margins for maximized view
+                        onToggle = {
                             onHide(onDismiss)
-                        },
-                        content = {
-                            Icon(
-                                painter = painterResource(R.drawable.minimize),
-                                contentDescription = "Minimize",
-                                tint = Color.White,
-                                modifier = Modifier.size(23.dp)
-                            )
                         }
                     )
+
                     Row(
                         modifier = Modifier
                             .align(Alignment.TopEnd)
                             .padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         content = {
-                            IconButton(
-                                onClick = { isMuted = !isMuted },
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .background(Color.Black.copy(alpha = 0.5f), CircleShape),
-                                content = {
-                                    Icon(
-                                        painter = if (isMuted) painterResource(R.drawable.mute) else painterResource(
-                                            R.drawable.volume
-                                        ),
-                                        contentDescription = "Mute/Unmute",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                }
+                            // Mute/Unmute button - using MuteUnmuteButton component
+                            MuteUnmuteButton(
+                                size = 46.dp,
+                                modifier = Modifier,
+                                isMuted = isMuted,
+                                soundToggle = pipStyling?.soundToggle,
+                                muteButtonImageUrl = muteButtonImageUrl,
+                                unmuteButtonImageUrl = unmuteButtonImageUrl,
+                                applyMargins = false,  // Don't apply backend margins for maximized view
+                                onToggleMute = { isMuted = !isMuted }
                             )
 
                             Spacer(Modifier.width(12.dp))
 
-                            IconButton(
-                                onClick = {
+                            // Cross button - using CrossButton component
+                            CrossButton(
+                                size = 46.dp,
+                                modifier = Modifier,
+                                config = crossButtonConfig.copy(
+                                    marginTop = 0.dp,
+                                    marginEnd = 0.dp
+                                ),
+                                onClose = {
                                     onHide(onClose)
-                                },
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .background(Color.Black.copy(alpha = 0.5f), CircleShape),
-                                content = {
-                                    Icon(
-                                        imageVector = Icons.Default.Close,
-                                        contentDescription = "Close",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(32.dp)
-                                    )
                                 }
                             )
                         }
