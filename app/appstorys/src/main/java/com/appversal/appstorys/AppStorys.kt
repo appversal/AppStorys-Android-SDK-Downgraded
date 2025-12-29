@@ -15,7 +15,6 @@ import androidx.annotation.OptIn
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -24,16 +23,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.Icon
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -68,6 +60,7 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import androidx.media3.common.util.UnstableApi
 import com.appversal.appstorys.api.ApiRepository
 import com.appversal.appstorys.api.ApiResult
 import com.appversal.appstorys.api.BannerDetails
@@ -77,8 +70,6 @@ import com.appversal.appstorys.api.Campaign
 import com.appversal.appstorys.api.CsatFeedbackPostRequest
 import com.appversal.appstorys.api.FloaterDetails
 import com.appversal.appstorys.api.MilestoneDetails
-import com.appversal.appstorys.api.MilestoneItem
-import com.appversal.appstorys.api.MilestoneStyling
 import com.appversal.appstorys.api.ModalDetails
 import com.appversal.appstorys.api.PipDetails
 import com.appversal.appstorys.api.ReelStatusRequest
@@ -107,11 +98,12 @@ import com.appversal.appstorys.ui.MilestoneModal
 import com.appversal.appstorys.ui.MilestoneWidgets
 import com.appversal.appstorys.ui.OverlayContainer
 import com.appversal.appstorys.ui.OverlayFloater
-import com.appversal.appstorys.ui.PipVideo
-import com.appversal.appstorys.ui.PopupModal
+import com.appversal.appstorys.ui.pipvideo.PipVideo
+import com.appversal.appstorys.ui.modals.PopupModal
 import com.appversal.appstorys.ui.ReelsRow
 import com.appversal.appstorys.ui.StoryAppMain
 import com.appversal.appstorys.ui.SurveyBottomSheet
+import com.appversal.appstorys.ui.components.createCrossButtonConfig
 import com.appversal.appstorys.ui.getLikedReels
 import com.appversal.appstorys.ui.getScratchedCampaigns
 import com.appversal.appstorys.ui.saveLikedReels
@@ -666,8 +658,32 @@ object AppStorys {
                             position = pipDetails.position.toString(),
                             bottomPadding = bottomPadding,
                             topPadding = topPadding,
-                            isMovable = pipDetails.styling?.isMovable!!,
+                            isMovable = pipDetails.styling?.isMovable ?: false,
                             pipStyling = pipDetails.styling,
+                            crossButtonConfig = createCrossButtonConfig(
+                                fillColorString = pipDetails.styling?.crossButton?.colors?.fill,
+                                crossColorString = pipDetails.styling?.crossButton?.colors?.cross,
+                                strokeColorString = pipDetails.styling?.crossButton?.colors?.stroke,
+                                marginTop = pipDetails.styling?.crossButton?.margin?.top,
+                                marginEnd = pipDetails.styling?.crossButton?.margin?.right,
+
+                                imageUrl = (
+                                    pipDetails.crossButtonImage?.takeIf { !it.isNullOrBlank() }?.let { raw ->
+                                        val trimmed = raw.trim()
+                                        if (trimmed.startsWith("http", true)) {
+                                            trimmed
+                                        } else {
+                                            // Backend sometimes sends relative paths like "pip/<file>.jpg" -- prefix with S3 base
+                                            val base = "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/"
+                                            // Avoid double slashes
+                                            if (trimmed.startsWith("/")) base + trimmed.removePrefix("/") else base + trimmed
+                                        }
+                                    }
+                                )
+                            ),
+
+                            muteButtonImageUrl = pipDetails.muteImage,
+                            unmuteButtonImageUrl = pipDetails.unmuteImage,
                             onButtonClick = {
                                 campaign?.id?.let { campaignId ->
                                     trackEvents(campaignId, "clicked")
@@ -716,6 +732,7 @@ object AppStorys {
         }
     }
 
+    @OptIn(UnstableApi::class)
     @Composable
     fun Stories() {
         val campaignsData = campaigns.collectAsStateWithLifecycle()
@@ -1005,10 +1022,10 @@ object AppStorys {
                         }
                     },
                     shape = RoundedCornerShape(
-                        topStart = style?.topLeftRadius?.dp ?: 0.dp,
-                        topEnd = style?.topRightRadius?.dp ?: 0.dp,
-                        bottomEnd = style?.bottomRightRadius?.dp ?: 0.dp,
-                        bottomStart = style?.bottomLeftRadius?.dp ?: 0.dp
+                        topStart = style?.topLeftRadius?.toIntOrNull()?.dp ?: 0.dp,
+                        topEnd = style?.topRightRadius?.toIntOrNull()?.dp ?: 0.dp,
+                        bottomEnd = style?.bottomRightRadius?.toIntOrNull()?.dp ?: 0.dp,
+                        bottomStart = style?.bottomLeftRadius?.toIntOrNull()?.dp ?: 0.dp
                     ),
                     bottomMargin = style?.marginBottom?.dp ?: 0.dp,
                     leftMargin = style?.marginLeft?.dp ?: 0.dp,
@@ -1017,6 +1034,22 @@ object AppStorys {
                     height = calculatedHeight,
                     placeHolder = placeholder,
                     placeholderContent = placeholderContent,
+                    crossButtonConfig = createCrossButtonConfig(
+                        fillColorString = style?.crossButton?.colors?.fill,
+                        crossColorString = style?.crossButton?.colors?.cross,
+                        strokeColorString = style?.crossButton?.colors?.stroke,
+                        marginTop = style?.crossButton?.margin?.top,
+                        marginEnd = style?.crossButton?.margin?.right,
+                        imageUrl = bannerDetails.crossButtonImage?.takeIf { it.isNotBlank() }?.let { raw ->
+                            val trimmed = raw.trim()
+                            if (trimmed.startsWith("http", true)) {
+                                trimmed
+                            } else {
+                                val base = "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/"
+                                if (trimmed.startsWith("/")) base + trimmed.removePrefix("/") else base + trimmed
+                            }
+                        }
+                    ),
                     onClick = {
                         campaign.id?.let {
                             clickEvent(link = bannerDetails.link.toString().trim().removeSurrounding("\""), campaignId = it)
@@ -1531,13 +1564,35 @@ object AppStorys {
                 },
                 modalDetails = modalDetails,
                 onModalClick = {
-                    val link = modalDetails.modals?.getOrNull(0)?.link
+                    val modal = modalDetails.modals?.getOrNull(0)
+
+                    val link =
+                        modal?.content?.primaryCtaRedirection?.url
+                            ?: modal?.content?.primaryCtaRedirection?.value
+                            ?: modal?.redirection?.url
+                            ?: modal?.redirection?.value
+
                     campaign?.id?.let { campaignId ->
                         trackEvents(campaignId, "clicked")
                         clickEvent(link = link, campaignId = campaignId)
                     }
+                },
 
-//                    showModal = false
+
+                onPrimaryCta = { link ->
+                    // primary CTA receives resolved URL string
+                    campaign?.id?.let { campaignId ->
+                        trackEvents(campaignId, "clicked")
+                        clickEvent(link = link, campaignId = campaignId)
+                        showModal = false
+                    }
+                },
+                onSecondaryCta = { link ->
+                    campaign?.id?.let { campaignId ->
+                        trackEvents(campaignId, "clicked")
+                        clickEvent(link = link, campaignId = campaignId)
+                        showModal = false
+                    }
                 },
             )
         }

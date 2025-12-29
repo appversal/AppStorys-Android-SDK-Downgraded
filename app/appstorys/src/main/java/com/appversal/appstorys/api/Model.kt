@@ -1,5 +1,6 @@
 package com.appversal.appstorys.api
 
+import android.os.Parcelable
 import androidx.annotation.Keep
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -135,7 +136,8 @@ data class BannerDetails(
     val height: Int?,
     val link: JsonElement?,
     val styling: BannerStyling?,
-    val lottie_data: String?
+    val lottie_data: String?,
+    val crossButtonImage: String? // Banner image
 ) : CampaignDetails()
 
 @Keep
@@ -145,10 +147,37 @@ data class BannerStyling(
     val marginLeft: Int?,
     val marginRight: Int?,
     val marginBottom: Int?,
-    val topLeftRadius: Int?,
-    val topRightRadius: Int?,
-    val bottomLeftRadius: Int?,
-    val bottomRightRadius: Int?
+    val topLeftRadius: String?,
+    val topRightRadius: String?,
+    val bottomLeftRadius: String?,
+    val bottomRightRadius: String?,
+    val crossButton: BannerStyleConfig?,
+)
+
+@Keep
+@Serializable
+data class BannerStyleConfig(
+    val colors: BannerColors?,
+    val margin: BannerMargin?,
+    val option: String? = null,
+    val selectedStyle: String? = null
+)
+
+@Keep
+@Serializable
+data class BannerColors(
+    val cross: String?,
+    val fill: String?,
+    val stroke: String?
+)
+
+@Keep
+@Serializable
+data class BannerMargin(
+    val top: Int?,
+    val right: Int?,
+    val bottom: Int?,
+    val left: Int?
 )
 
 @Keep
@@ -462,7 +491,14 @@ data class PipDetails(
     val styling: PipStyling?,
     val link: String?,
     val campaign: String?,
-    val button_text: String?
+    val button_text: String?,
+
+    val crossButtonImage: String?,
+    val muteImage: String?,
+    val unmuteImage: String?,
+    val maximiseImage: String?,
+    val minimiseImage: String?,
+
 ) : CampaignDetails()
 
 @Keep
@@ -484,6 +520,11 @@ data class PipStyling(
     val ctaButtonBackgroundColor: String?,
     val pipTopPadding: String?,
     val pipBottomPadding: String?,
+    val expandablePip: String?,
+    val videoSelection: String?,
+    val soundToggle: SoundToggle?,
+    val crossButton: BannerStyleConfig?,
+    val expandControls: ExpandControls?
 )
 
 @Keep
@@ -599,25 +640,207 @@ data class FontStyle(
     val decoration: List<String>?
 )
 
+
+
 @Keep
 @Serializable
 data class ModalDetails(
-    @SerialName("_id") val id: String?,
-    val campaign: String?,
+    val id: String?,
     val modals: List<Modal>?,
+    val name: String? = null
 ) : CampaignDetails()
+
 
 @Keep
 @Serializable
 data class Modal(
-    @SerialName("media_type") val mediaType: String?,
-    val size: String?,
-    val link: String?,
-    val borderRadius: String?,
-    val backgroundOpacity: Double? = null,
-    val name: String?,
+    @SerialName("id") val id: String?,
+    @SerialName("modal_type") val modalType: String? = null,
+
+    // ---------- CONTENT-BASED (CTA / CAROUSEL) ----------
+    val content: ModalContent? = null,
+    val styling: ModalStyling? = null,
+    val screen: Int? = null,
+    val name: String? = null,
+
+    // ---------- FLAT MEDIA-ONLY MODAL ----------
+    val chooseMediaType: ModalMedia? = null,
+    val link: String? = null,
+    val size: String? = null,
+    val backgroundOpacity: String? = null,
+    val borderRadius: Int? = null,
+    val enableBackdrop: Boolean? = null,
+    val enableCrossButton: Boolean? = null,
+    val crossButtonImage: String? = null,
+    val redirection: ModalRedirection? = null
+)
+
+
+@Serializable
+data class ModalContent(
+    val chooseMediaType: ModalMedia?,
+    val titleText: String?,
+    val subtitleText: String?,
+    val primaryCtaText: String?,
+    val primaryCtaRedirection: ModalRedirection?,
+    val secondaryCtaText: String?,
+    val secondaryCtaRedirection: ModalRedirection?,
+    // Support an optional `set` of slides (some backends return `content.set` for carousel modals).
+    // The slide objects use the same shape as ModalContent so we reuse the type recursively.
+    val set: List<ModalContent>? = null,
+    // Per-slide styling/overrides (optional). Some payloads include `styling` inside each slide.
+    val styling: ModalStyling? = null,
+    // Alternate/backward-compatible CTA keys that some backends use
+    @SerialName("primaryCta") val primaryCta: String? = null,
+    @SerialName("secondayCta") val secondayCta: String? = null,
+    @SerialName("secondaryCta") val secondaryCtaAlt: String? = null,
+    // Accept content-level enable flag (some payloads put this under content)
+    @SerialName("enableCrossButton") val enableCrossButton: String? = null
+)
+
+@Serializable
+data class ModalMedia(
+    val type: String?, // image | gif | lottie
+    val url: String?
+)
+
+@Serializable
+data class ModalRedirection(
+    val type: String?, // url | deeplink
     val url: String?,
-    @SerialName("_id") val id: String?,
+    val value: String?,
+    val key: String? = null,
+    val pageName: String? = null
+)
+
+@Serializable
+data class ModalStyling(
+    val appearance: ModalAppearance?,
+    val crossButton: ModalCrossButton? = null,
+    val primaryCta: ModalCta? = null,
+    val secondaryCta: ModalCta? = null,
+    val title: ModalTextStyling? = null,
+    val subTitle: ModalTextStyling? = null
+)
+
+@Serializable
+data class ModalCrossButton(
+    val default: ModalCrossButtonDefault? = null,
+    val enableCrossButton: Boolean? = null,
+    val uploadImage: ModalUploadImage? = null
+)
+
+@Serializable
+data class ModalCrossButtonDefault(
+    val color: BannerColors? = null,
+    val spacing: ModalSpacing? = null,
+    val crossButtonImage: String? = null
+)
+
+@Serializable
+data class ModalUploadImage(
+    val url: String? = null
+)
+
+@Serializable
+data class ModalSpacing(
+    val margin: ModalMargin? = null
+)
+
+@Serializable
+data class ModalMargin(
+    val top: Int? = null,
+    val right: Int? = null,
+    val bottom: Int? = null,
+    val left: Int? = null
+)
+
+// Add ModalPadding definition (same shape as ModalMargin) because some payloads use `padding` inside ModalAppearance
+@Serializable
+data class ModalPadding(
+    val top: Int? = null,
+    val right: Int? = null,
+    val bottom: Int? = null,
+    val left: Int? = null
+)
+
+@Serializable
+data class ModalCta(
+    val backgroundColor: String? = null,
+    val borderColor: String? = null,
+    val containerStyle: ModalCtaContainer? = null,
+    val cornerRadius: ModalCtaCornerRadius? = null,
+    val occupyFullWidth: String? = null,
+    val spacing: ModalSpacing? = null,
+    val textColor: String? = null,
+    val textStyle: ModalTextStyle? = null
+)
+
+@Serializable
+data class ModalCtaContainer(
+    val alignment: String? = null,
+    val borderWidth: Int? = null,
+    val ctaWidth: Int? = null,
+    val height: Int? = null
+)
+
+@Serializable
+data class ModalCtaCornerRadius(
+    val topLeft: Int? = null,
+    val topRight: Int? = null,
+    val bottomLeft: Int? = null,
+    val bottomRight: Int? = null
+)
+
+@Serializable
+data class ModalTextStyle(
+    val font: String? = null,
+    val size: Int? = null
+)
+
+@Serializable
+data class ModalTextStyling(
+    val alignment: String? = null,
+    val color: String? = null,
+    val font: String? = null,
+    val fontStyle: String? = null,
+    val size: Int? = null
+)
+
+@Serializable
+data class ModalAppearance(
+    val dimension: ModalDimension? = null,
+    val cornerRadius: ModalCornerRadius? = null,
+    val backdrop: ModalBackdrop? = null,
+    val enableBackdrop: Boolean? = null,
+    val padding: ModalPadding? = null,
+    val ctaDisplay: String? = null,
+    // Accept alternate flat keys used by some backends
+    val backdropColor: String? = null,
+    val backdropOpacity: String? = null,
+    // Some payloads use misspelled "dimentons" instead of "dimension"
+    val dimentons: ModalDimension? = null
+)
+
+@Serializable
+data class ModalBackdrop(
+    val color: String? = null,
+    // keep as String? to accept numeric or string representations from backend
+    val opacity: String? = null
+)
+
+@Serializable
+data class ModalDimension(
+    val height: String? = null,
+    val borderWidth: String? = null
+)
+
+@Serializable
+data class ModalCornerRadius(
+    val topLeft: String? = null,
+    val topRight: String? = null,
+    val bottomLeft: String? = null,
+    val bottomRight: String? = null
 )
 
 @Keep
@@ -691,3 +914,87 @@ data class CornerRadius(
     val topLeft: Int?,
     val topRight: Int?
 )
+
+@Keep
+@Serializable
+data class SoundToggle(
+    val defaultSound: String?,
+    val enabled: Boolean?,
+    val option: String?,
+    val mute: MuteButtonConfig?,
+    val unmute: UnmuteButtonConfig?
+)
+
+@Keep
+@Serializable
+data class MuteButtonConfig(
+    val colors: BannerColors?,
+    val margin: MuteUnmuteMargin?,
+    val selectedStyle: String?
+)
+
+@Keep
+@Serializable
+data class UnmuteButtonConfig(
+    val colors: BannerColors?,
+    val margin: MuteUnmuteMargin?,
+    val selectedStyle: String?
+)
+
+@Keep
+@Serializable
+data class MuteUnmuteMargin(
+    val top: String?,
+    val right: String?,
+    val bottom: String?,
+    val left: String?
+)
+
+@Keep
+@Serializable
+data class ExpandControls(
+    val option: String?,
+    val enabled: Boolean?,
+    val maximise: ExpandButtonStyleConfig?,
+    val minimise: ExpandButtonStyleConfig?
+)
+
+
+//Modal files
+@Keep
+@Serializable
+data class ExpandButtonStyleConfig(
+    val colors: BannerColors?,
+    val margin: MuteUnmuteMargin?,
+    val selectedStyle: String?
+)
+
+fun Modal.resolvedMedia(): ModalMedia? {
+    // CTA / Carousel modal
+    content?.chooseMediaType?.let { return it }
+
+    // Media-only modal
+    chooseMediaType?.let { return it }
+
+    // Fallback via link
+    link?.takeIf {
+        it.endsWith(".png", true) ||
+                it.endsWith(".jpg", true) ||
+                it.endsWith(".jpeg", true) ||
+                it.endsWith(".gif", true) ||
+                it.endsWith(".mp4", true) ||
+                it.endsWith(".json", true)
+    }?.let {
+        return ModalMedia(type = "auto", url = it)
+    }
+
+    return null
+}
+
+
+fun Modal.isCarousel(): Boolean =
+    content?.set?.isNotEmpty() == true
+
+fun Modal.isMediaOnly(): Boolean =
+    resolvedMedia() != null &&
+            content == null

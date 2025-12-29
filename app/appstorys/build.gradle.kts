@@ -74,6 +74,7 @@ dependencies {
     implementation(libs.androidx.media3.ui)
     implementation(libs.androidx.media3.exoplayer.dash)
     implementation(libs.androidx.media3.exoplayer.hls)
+    implementation(libs.androidx.glance.preview)
 }
 
 afterEvaluate {

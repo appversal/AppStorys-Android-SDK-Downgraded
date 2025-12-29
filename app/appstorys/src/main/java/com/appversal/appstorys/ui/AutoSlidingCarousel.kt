@@ -63,6 +63,7 @@ internal fun AutoSlidingCarousel(
     modifier: Modifier = Modifier,
     widgetDetails: WidgetDetails,
     autoSlideDuration: Long = AUTO_SLIDE_DURATION,
+    autoScrollEnabled: Boolean = true,
     pagerState: PagerState,
     itemsCount: Int,
     itemContent: @Composable (index: Int) -> Unit,
@@ -73,7 +74,7 @@ internal fun AutoSlidingCarousel(
     width: Dp? = null
 ) {
     val isDragged by pagerState.interactionSource.collectIsDraggedAsState()
-    if (!isDragged) {
+    if (autoScrollEnabled && !isDragged) {
         LaunchedEffect(
             key1 = Unit,
             block = {
