@@ -61,6 +61,7 @@ dependencies {
 
     implementation("androidx.lifecycle:lifecycle-process:2.8.7")
 
+    implementation(libs.gson)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.coil.gif)
     implementation(libs.androidx.activity.ktx)

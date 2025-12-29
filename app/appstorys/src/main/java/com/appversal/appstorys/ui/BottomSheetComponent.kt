@@ -52,6 +52,10 @@ import coil.compose.rememberAsyncImagePainter
 import com.appversal.appstorys.R
 import com.appversal.appstorys.api.BottomSheetDetails
 import com.appversal.appstorys.api.BottomSheetElement
+import com.appversal.appstorys.utils.asInt
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.intOrNull
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -219,7 +223,14 @@ private fun ImageElement(
             Image(
                 painter = rememberAsyncImagePainter(element.url, onState = onState),
                 contentDescription = "Image",
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(
+                        topStart = (element.cornerRadius?.topLeft ?: 0).dp,
+                        topEnd = (element.cornerRadius?.topRight ?: 0).dp,
+                        bottomEnd = (element.cornerRadius?.bottomRight ?: 0).dp,
+                        bottomStart = (element.cornerRadius?.bottomLeft ?: 0).dp
+                    )),
                 contentScale = ContentScale.FillWidth
             )
         }
@@ -228,10 +239,10 @@ private fun ImageElement(
 
 @Composable
 private fun BodyElement(element: BottomSheetElement) {
-    val paddingLeft = element.paddingLeft?.dp ?: 0.dp
-    val paddingRight = element.paddingRight?.dp ?: 0.dp
-    val paddingTop = element.paddingTop?.dp ?: 0.dp
-    val paddingBottom = element.paddingBottom?.dp ?: 0.dp
+    val paddingLeft = element.marginLeft?.dp ?: 0.dp
+    val paddingRight = element.marginRight?.dp ?: 0.dp
+    val paddingTop = element.marginTop?.dp ?: 0.dp
+    val paddingBottom = element.marginBottom?.dp ?: 0.dp
 
     val alignment = when (element.alignment) {
         "left" -> Alignment.Start
@@ -335,10 +346,10 @@ private fun BodyElement(element: BottomSheetElement) {
 
 @Composable
 private fun CTAElement(element: BottomSheetElement, onClick: () -> Unit = {}) {
-    val paddingLeft = element.paddingLeft?.dp ?: 0.dp
-    val paddingRight = element.paddingRight?.dp ?: 0.dp
-    val paddingTop = element.paddingTop?.dp ?: 0.dp
-    val paddingBottom = element.paddingBottom?.dp ?: 0.dp
+    val paddingLeft = element.marginLeft?.dp ?: 0.dp
+    val paddingRight = element.marginRight?.dp ?: 0.dp
+    val paddingTop = element.marginTop?.dp ?: 0.dp
+    val paddingBottom = element.marginBottom?.dp ?: 0.dp
 
     val buttonColor = try {
         Color((element.ctaBoxColor ?: "#000000").toColorInt())
@@ -352,17 +363,22 @@ private fun CTAElement(element: BottomSheetElement, onClick: () -> Unit = {}) {
         Color.White
     }
 
-    val borderRadius = element.ctaBorderRadius?.dp ?: 5.dp
-    val buttonHeight = element.ctaHeight?.dp ?: 50.dp
-    val buttonWidth = element.ctaWidth?.dp ?: 100.dp
+    val buttonHeight = element.ctaHeight?.asInt(50)?.dp ?: 50.dp
+    val buttonWidth = element.ctaWidth?.asInt(100)?.dp ?: 100.dp
+
+    val ctaBackgroundColor = try {
+        Color(
+            (element.ctaBackgroundColor ?: "#FFFFFF").toColorInt()
+        )
+    } catch (_: Exception) {
+        Color.White
+    }
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .background(
-                color = Color(
-                    (element.ctaBackgroundColor ?: "#FFFFFF").toColorInt()
-                )
+                color = ctaBackgroundColor
             )
             .padding(
                 start = paddingLeft,
@@ -378,7 +394,12 @@ private fun CTAElement(element: BottomSheetElement, onClick: () -> Unit = {}) {
         content = {
             Button(
                 onClick = onClick,
-                shape = RoundedCornerShape(borderRadius),
+                shape = RoundedCornerShape(
+                    topStart = (element.ctaBorderRadius?.topLeft ?: 0).dp,
+                    topEnd = (element.ctaBorderRadius?.topRight ?: 0).dp,
+                    bottomEnd = (element.ctaBorderRadius?.bottomRight ?: 0).dp,
+                    bottomStart = (element.ctaBorderRadius?.bottomLeft ?: 0).dp
+                ),
                 colors = ButtonDefaults.buttonColors(containerColor = buttonColor),
                 modifier = Modifier
                     .height(buttonHeight)

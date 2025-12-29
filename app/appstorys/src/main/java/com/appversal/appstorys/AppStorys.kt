@@ -66,7 +66,6 @@ import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.media3.common.util.UnstableApi
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.appversal.appstorys.api.ApiRepository
@@ -82,7 +81,6 @@ import com.appversal.appstorys.api.MilestoneItem
 import com.appversal.appstorys.api.MilestoneStyling
 import com.appversal.appstorys.api.ModalDetails
 import com.appversal.appstorys.api.PipDetails
-import com.appversal.appstorys.api.ReelActionRequest
 import com.appversal.appstorys.api.ReelStatusRequest
 import com.appversal.appstorys.api.ReelsDetails
 import com.appversal.appstorys.api.RetrofitClient
@@ -91,7 +89,6 @@ import com.appversal.appstorys.api.StoriesDetails
 import com.appversal.appstorys.api.SurveyDetails
 import com.appversal.appstorys.api.Tooltip
 import com.appversal.appstorys.api.TooltipsDetails
-import com.appversal.appstorys.api.TrackActionStories
 import com.appversal.appstorys.api.TrackUserWebSocketRequest
 import com.appversal.appstorys.api.UpdateUserPropertiesRequest
 import com.appversal.appstorys.api.WidgetDetails
@@ -233,7 +230,7 @@ object AppStorys {
         this.userId = userId
         this.navigateToScreen = navigateToScreen
 
-        this.repository = ApiRepository(context, apiService) {
+        this.repository = ApiRepository(context, apiService, webSocketService) {
             currentScreen
         }
 
@@ -261,7 +258,6 @@ object AppStorys {
                     showCsat = false
                     showBottomSheet = true
                     trackedEventNames.clear()
-                    repository.disconnect()
                     campaignsJob?.cancel()
                     campaignsJob = null
                 }
@@ -269,7 +265,7 @@ object AppStorys {
         )
         coroutineScope.launch {
             try {
-                val accessToken = repository.getAccessToken(appId, accountId)
+                val accessToken = repository.getAccessToken(appId, accountId, userId)
                 if (!accessToken.isNullOrBlank()) {
                     this@AppStorys.accessToken = accessToken
                     sdkState = AppStorysSdkState.Initialized
@@ -315,19 +311,16 @@ object AppStorys {
 
                     ensureActive()
 
-                    val (campaignResponse, webSocketResponse) = repository.triggerScreenData(
+                    val campaignsList = repository.getScreenCampaignsData(
                         accessToken = accessToken,
+                        accountId = accountId,
                         screenName = currentScreen,
                         userId = userId
                     )
 
                     ensureActive()
 
-                    webSocketResponse?.let { response ->
-                        isScreenCaptureEnabled = response.screen_capture_enabled ?: false
-                    }
-
-                    campaignResponse?.campaigns?.let { campaigns.emit(it) }
+                    campaignsList?.let { campaigns.emit(it) }
                     Log.e("AppStorys", "Campaign: ${campaigns.value}")
                 } catch (exception: Exception) {
                     Log.e("AppStorys", "Error getting campaigns for $screenName", exception)
@@ -723,7 +716,6 @@ object AppStorys {
         }
     }
 
-    @OptIn(UnstableApi::class)
     @Composable
     fun Stories() {
         val campaignsData = campaigns.collectAsStateWithLifecycle()

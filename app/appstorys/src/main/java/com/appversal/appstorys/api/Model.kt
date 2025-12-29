@@ -13,7 +13,15 @@ sealed class CampaignDetails
 @Serializable
 data class ValidateAccountRequest(
     val app_id: String?,
-    val account_id: String?
+    val account_id: String?,
+    val user_id: String?
+)
+
+@Keep
+@Serializable
+data class EligibleCampaignsResponse(
+    val eligibleCampaignList: List<String>,
+    val userId: String
 )
 
 @Keep
@@ -86,33 +94,6 @@ data class ReelStatusRequest(
     val user_id: String?,
     val action: String?,
     val reel: String?
-)
-
-@Keep
-@Serializable
-data class TrackActionStories(
-    val campaign_id: String?,
-    val user_id: String?,
-    val event_type: String?,
-    val story_slide: String?
-)
-
-@Keep
-@Serializable
-data class TrackActionTooltips(
-    val campaign_id: String?,
-    val user_id: String?,
-    val event_type: String?,
-    val tooltip_id: String?
-)
-
-@Keep
-@Serializable
-data class ReelActionRequest(
-    val user_id: String?,
-    val event_type: String?,
-    val reel_id: String?,
-    val campaign_id: String?,
 )
 
 @Keep
@@ -530,7 +511,7 @@ data class BottomSheetElement(
     val url: String? = null,
     val imageLink: String? = null,
     val overlayButton: Boolean? = null,
-
+    val cornerRadius: CornerRadius? = null,
 
     // Body-specific
     val titleText: String? = null,
@@ -548,9 +529,9 @@ data class BottomSheetElement(
     val ctaText: String? = null,
     val ctaLink: String? = null,
     val position: String? = null,
-    val ctaBorderRadius: Int? = null,
-    val ctaHeight: Int? = null,
-    val ctaWidth: Int? = null,
+    val ctaBorderRadius: CornerRadius?,
+    val ctaHeight: JsonElement? = null,
+    val ctaWidth: JsonElement? = null,
     val ctaTextColour: String? = null,
     val ctaFontSize: String? = null,
     val ctaFontFamily: String? = null,
@@ -563,7 +544,13 @@ data class BottomSheetElement(
     val paddingLeft: Int? = null,
     val paddingRight: Int? = null,
     val paddingTop: Int? = null,
-    val paddingBottom: Int? = null
+    val paddingBottom: Int? = null,
+
+    // Shared paddings
+    val marginLeft: Int? = null,
+    val marginRight: Int? = null,
+    val marginTop: Int? = null,
+    val marginBottom: Int? = null
 )
 
 @Keep
@@ -694,4 +681,13 @@ data class MilestoneBannerStyling(
     val borderRadiusTopRight: String?,
     val borderRadiusBottomLeft: String?,
     val borderRadiusBottomRight: String?
+)
+
+@Keep
+@Serializable
+data class CornerRadius(
+    val bottomLeft: Int?,
+    val bottomRight: Int?,
+    val topLeft: Int?,
+    val topRight: Int?
 )

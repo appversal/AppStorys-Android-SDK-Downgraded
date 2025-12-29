@@ -31,6 +31,18 @@ internal interface ApiService {
         @Body request: TrackUserWebSocketRequest
     ): WebSocketConnectionResponse
 
+    @POST("track-user-res")
+    suspend fun getEligibleCampaigns(
+        @Header("Authorization") token: String,
+        @Body request: TrackUserWebSocketRequest
+    ): EligibleCampaignsResponse
+
+    @POST("load-campaign-data")
+    suspend fun loadMissingCampaigns(
+        @Header("Authorization") token: String,
+        @Body campaignIds: List<String>
+    ): List<Campaign>
+
     @POST("update-user-atr")
     suspend fun updateUserProperties(
         @Header("Authorization") token: String,

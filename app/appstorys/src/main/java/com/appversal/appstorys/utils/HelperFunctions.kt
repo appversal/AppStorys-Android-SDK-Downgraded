@@ -9,16 +9,15 @@ import androidx.compose.ui.composed
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.intOrNull
 import org.json.JSONArray
 import org.json.JSONObject
 
 fun isGifUrl(url: String): Boolean {
     return url.lowercase().endsWith(".gif")
 }
-
-//fun isGifUrl(url: String): Boolean {
-//    return url.lowercase().endsWith(".gif")
-//}
 
 fun String?.toColor(defaultColor: Color): Color {
     return try {
@@ -41,7 +40,6 @@ fun Modifier.noRippleClickable(onClick: () -> Unit): Modifier = composed {
         onClick()
     }
 }
-
 
 
 fun Context.pxToDp(px: Float): Dp {
@@ -89,3 +87,6 @@ fun JSONArray.toList(): List<Any> {
         emptyList()
     }
 }
+
+fun JsonElement?.asInt(default: Int = 0): Int =
+    (this as? JsonPrimitive)?.intOrNull ?: default
