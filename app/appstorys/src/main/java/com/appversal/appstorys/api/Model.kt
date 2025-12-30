@@ -158,6 +158,7 @@ data class BannerStyling(
 @Serializable
 data class BannerStyleConfig(
     val colors: BannerColors?,
+    val crossButtonSize: Int?,
     val margin: BannerMargin?,
     val option: String? = null,
     val selectedStyle: String? = null
@@ -929,6 +930,7 @@ data class SoundToggle(
 @Serializable
 data class MuteButtonConfig(
     val colors: BannerColors?,
+    val muteButtonSize: Int?,
     val margin: MuteUnmuteMargin?,
     val selectedStyle: String?
 )
@@ -937,6 +939,7 @@ data class MuteButtonConfig(
 @Serializable
 data class UnmuteButtonConfig(
     val colors: BannerColors?,
+    val unmuteButtonSize: Int?,
     val margin: MuteUnmuteMargin?,
     val selectedStyle: String?
 )
@@ -955,16 +958,26 @@ data class MuteUnmuteMargin(
 data class ExpandControls(
     val option: String?,
     val enabled: Boolean?,
-    val maximise: ExpandButtonStyleConfig?,
-    val minimise: ExpandButtonStyleConfig?
+    val maximise: MaximiseButtonStyleConfig?,
+    val minimise: MinimiseButtonStyleConfig?
 )
 
 
 //Modal files
 @Keep
 @Serializable
-data class ExpandButtonStyleConfig(
+data class MaximiseButtonStyleConfig(
     val colors: BannerColors?,
+    val maximiseButtonSize: Int?,
+    val margin: MuteUnmuteMargin?,
+    val selectedStyle: String?
+)
+
+@Keep
+@Serializable
+data class MinimiseButtonStyleConfig(
+    val colors: BannerColors?,
+    val minimiseButtonSize: Int?,
     val margin: MuteUnmuteMargin?,
     val selectedStyle: String?
 )

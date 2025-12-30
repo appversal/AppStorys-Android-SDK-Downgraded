@@ -666,20 +666,20 @@ object AppStorys {
                                 strokeColorString = pipDetails.styling?.crossButton?.colors?.stroke,
                                 marginTop = pipDetails.styling?.crossButton?.margin?.top,
                                 marginEnd = pipDetails.styling?.crossButton?.margin?.right,
-
+                                size = pipDetails.styling?.crossButton?.crossButtonSize,  // ✅ NEW
                                 imageUrl = (
-                                    pipDetails.crossButtonImage?.takeIf { !it.isNullOrBlank() }?.let { raw ->
-                                        val trimmed = raw.trim()
-                                        if (trimmed.startsWith("http", true)) {
-                                            trimmed
-                                        } else {
-                                            // Backend sometimes sends relative paths like "pip/<file>.jpg" -- prefix with S3 base
-                                            val base = "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/"
-                                            // Avoid double slashes
-                                            if (trimmed.startsWith("/")) base + trimmed.removePrefix("/") else base + trimmed
+                                        pipDetails.crossButtonImage?.takeIf { !it.isNullOrBlank() }?.let { raw ->
+                                            val trimmed = raw.trim()
+                                            if (trimmed.startsWith("http", true)) {
+                                                trimmed
+                                            } else {
+                                                // Backend sometimes sends relative paths like "pip/<file>.jpg" -- prefix with S3 base
+                                                val base = "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/"
+                                                // Avoid double slashes
+                                                if (trimmed.startsWith("/")) base + trimmed.removePrefix("/") else base + trimmed
+                                            }
                                         }
-                                    }
-                                )
+                                        )
                             ),
 
                             muteButtonImageUrl = pipDetails.muteImage,
@@ -1040,6 +1040,7 @@ object AppStorys {
                         strokeColorString = style?.crossButton?.colors?.stroke,
                         marginTop = style?.crossButton?.margin?.top,
                         marginEnd = style?.crossButton?.margin?.right,
+                        size = style?.crossButton?.crossButtonSize,  // ✅ NEW
                         imageUrl = bannerDetails.crossButtonImage?.takeIf { it.isNotBlank() }?.let { raw ->
                             val trimmed = raw.trim()
                             if (trimmed.startsWith("http", true)) {
@@ -1584,7 +1585,6 @@ object AppStorys {
                     campaign?.id?.let { campaignId ->
                         trackEvents(campaignId, "clicked")
                         clickEvent(link = link, campaignId = campaignId)
-                        showModal = false
                     }
                 },
                 onSecondaryCta = { link ->

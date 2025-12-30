@@ -357,6 +357,7 @@ fun FullScreenVideoDialog(
 
                     // Minimize button (top-left) - using ExpandButton component
                     ExpandButton(
+                        shouldUseSize = true,
                         size = 46.dp,
                         modifier = Modifier
                             .align(Alignment.TopStart)
@@ -379,6 +380,7 @@ fun FullScreenVideoDialog(
                         content = {
                             // Mute/Unmute button - using MuteUnmuteButton component
                             MuteUnmuteButton(
+                                shouldUseSize = true,
                                 size = 46.dp,
                                 modifier = Modifier,
                                 isMuted = isMuted,
@@ -393,6 +395,7 @@ fun FullScreenVideoDialog(
 
                             // Cross button - using CrossButton component
                             CrossButton(
+                                shouldUseSize = true,
                                 size = 46.dp,
                                 modifier = Modifier,
                                 config = crossButtonConfig.copy(
