@@ -1,6 +1,7 @@
 package com.appversal.appstorys.ui.xml
 
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.content.Context
 import android.util.AttributeSet
 import android.util.Log
@@ -8,6 +9,9 @@ import android.view.View
 import android.widget.FrameLayout
 import androidx.annotation.Keep
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.unit.dp
 import androidx.core.content.withStyledAttributes
@@ -42,6 +46,12 @@ class OverlayLayoutView @JvmOverloads constructor(
     private var pipBottomPadding = 0
     private var csatBottomPadding = 0
 
+    private var _activity by mutableStateOf<Activity?>(null)
+
+    fun setActivity(activity: Activity) {
+        this._activity = activity
+    }
+
     init {
         attrs?.let(::loadPaddings)
         addView(
@@ -55,6 +65,8 @@ class OverlayLayoutView @JvmOverloads constructor(
                         }
                     }
 
+                    val resolvedActivity = _activity ?: (context as? Activity)
+
                     OverlayContainer.Content(
                         topPadding = topPadding.toDp(),
                         bottomPadding = bottomPadding.toDp(),
@@ -62,7 +74,8 @@ class OverlayLayoutView @JvmOverloads constructor(
                         floaterBottomPadding = floaterBottomPadding.toDp(),
                         pipTopPadding = pipTopPadding.toDp(),
                         pipBottomPadding = pipBottomPadding.toDp(),
-                        csatBottomPadding = csatBottomPadding.toDp()
+                        csatBottomPadding = csatBottomPadding.toDp(),
+                        activity = resolvedActivity
                     )
                 }
             }
