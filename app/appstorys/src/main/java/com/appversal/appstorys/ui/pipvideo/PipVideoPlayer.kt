@@ -205,7 +205,6 @@ internal fun PipVideo(
 
                                     CrossButton(
                                         size = controlSize,
-                                        //boundaryPadding = 5.dp,
                                         modifier = Modifier.align(Alignment.TopEnd),
                                         config = crossButtonConfig,
                                         onClose = onClose
@@ -218,7 +217,6 @@ internal fun PipVideo(
                                         soundToggle = pipStyling?.soundToggle,
                                         muteButtonImageUrl = muteButtonImageUrl,
                                         unmuteButtonImageUrl = unmuteButtonImageUrl,
-                                        //boundaryPadding = 5.dp,
                                         onToggleMute = { isMuted = !isMuted }
                                     )
 
@@ -239,7 +237,17 @@ internal fun PipVideo(
                                         )
                                     }
 
-
+                                    // Add CTA for small PIP using existing PipCta composable
+                                    if (button_text.isNotEmpty() && link.isNotEmpty()) {
+                                        PipCta(
+                                            buttonText = button_text,
+                                            link = link,
+                                            pipStyling = pipStyling,
+                                            modifier = Modifier.align(Alignment.BottomCenter),
+                                            applyMargins = true,
+                                            onButtonClick = onButtonClick
+                                        )
+                                    }
                                 }
                             }
                         )
@@ -411,73 +419,14 @@ fun FullScreenVideoDialog(
 
                     if (!button_text.isNullOrEmpty() && !link.isNullOrEmpty()) {
 
-                        fun String?.toDp(): Dp = this?.toIntOrNull()?.dp ?: 0.dp
-
-                        val paddingLeft = pipStyling?.marginLeft?.toDp()
-                        val paddingRight = pipStyling?.marginRight?.toDp()
-                        val paddingTop = pipStyling?.marginTop?.toDp()
-                        val paddingBottom = pipStyling?.marginBottom?.toDp()
-
-                        val buttonColor = try {
-                            Color((pipStyling?.ctaButtonBackgroundColor ?: "#000000").toColorInt())
-                        } catch (e: Exception) {
-                            Color.Black
-                        }
-
-                        val textColor = try {
-                            Color((pipStyling?.ctaButtonTextColor ?: "#FFFFFF").toColorInt())
-                        } catch (e: Exception) {
-                            Color.White
-                        }
-
-                        Button(
-                            onClick = {
-                                    if (link.isNotEmpty()) {
-                                        if (!isValidUrl(link)) {
-                                            navigateToScreen(link)
-                                        } else {
-                                            openUrl(link)
-                                        }
-                                    }
-                                onButtonClick()
-                            },
-                            modifier = Modifier
-                                .align(Alignment.BottomCenter)
-                                .padding(
-//                                top = paddingTop ?: 0.dp,
-                                    bottom = (paddingBottom ?: 0.dp) + 10.dp,
-                                    start = paddingLeft ?: 0.dp,
-                                    end = paddingRight ?: 0.dp
-                                )
-                                .then(
-                                    if (pipStyling?.ctaFullWidth == true) {
-                                        Modifier.fillMaxWidth()
-                                    } else {
-                                        Modifier.width(pipStyling?.ctaWidth?.toDp() ?: 0.dp)
-                                    }
-                                )
-                                .height(pipStyling?.ctaHeight?.toDp() ?: 0.dp),
-                            shape = RoundedCornerShape(pipStyling?.cornerRadius?.toDp() ?: 0.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = buttonColor),
-                            content = {
-                                Text(
-                                    fontFamily = FontFamily(
-                                        Font(
-                                            googleFont = GoogleFont("Poppins"),
-                                            fontProvider = GoogleFont.Provider(
-                                                providerAuthority = "com.google.android.gms.fonts",
-                                                providerPackage = "com.google.android.gms",
-                                                certificates = R.array.com_google_android_gms_fonts_certs
-                                            ),
-                                            FontWeight.Normal,
-                                            FontStyle.Normal
-                                        )
-                                    ),
-                                    text = button_text,
-                                    color = textColor,
-                                    textAlign = TextAlign.Center
-                                )
-                            }
+                        // Use new PipCta composable instead of inline Button
+                        PipCta(
+                            buttonText = button_text,
+                            link = link,
+                            pipStyling = pipStyling,
+                            modifier = Modifier.align(Alignment.BottomCenter),
+                            applyMargins = false,
+                            onButtonClick = onButtonClick
                         )
                     }
                 }

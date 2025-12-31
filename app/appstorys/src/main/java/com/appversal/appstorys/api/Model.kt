@@ -525,7 +525,46 @@ data class PipStyling(
     val videoSelection: String?,
     val soundToggle: SoundToggle?,
     val crossButton: BannerStyleConfig?,
-    val expandControls: ExpandControls?
+    val expandControls: ExpandControls?,
+    val cta: PipCta? // structured CTA object (new)
+)
+
+@Keep
+@Serializable
+data class PipCta(
+    val borderRadius: CornerRadius? = null,
+    val container: PipCtaContainer? = null,
+    val margin: PipCtaMargin? = null,
+    val text: PipCtaText? = null
+)
+
+@Keep
+@Serializable
+data class PipCtaContainer(
+    val alignment: String? = null,
+    val backgroundColor: String? = null,
+    val borderColor: String? = null,
+    val borderWidth: String? = null,
+    val ctaFullWidth: Boolean? = null,
+    val ctaWidth: Int? = null,
+    val height: String? = null
+)
+
+@Keep
+@Serializable
+data class PipCtaMargin(
+    val bottom: Int? = null,
+    val left: Int? = null,
+    val right: Int? = null,
+    val top: Int? = null
+)
+
+@Keep
+@Serializable
+data class PipCtaText(
+    val color: String? = null,
+    val fontFamily: String? = null,
+    val fontSize: Int? = null
 )
 
 @Keep
