@@ -301,12 +301,14 @@ fun HomeScreen(
                         onClick = {
                             campaignManager.trackEvents(
 //                                event = "Login"
-                                event = "NewEventTest"
+                                event = "Kiwi",
+                                metadata = mapOf("property" to "I love kiwi")
                             )
                         },
                         modifier = Modifier.appstorys("anuridhtest")
                     ) {
-                        Text("Open Bottom Sheet")
+//                        Text("Open Bottom Sheet")
+                        Text("Kiwi event with attributes")
                     }
                 }
 

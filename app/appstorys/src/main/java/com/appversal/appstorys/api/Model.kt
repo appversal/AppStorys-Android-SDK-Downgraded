@@ -13,7 +13,15 @@ sealed class CampaignDetails
 @Serializable
 data class ValidateAccountRequest(
     val app_id: String?,
-    val account_id: String?
+    val account_id: String?,
+    val user_id: String?
+)
+
+@Keep
+@Serializable
+data class EligibleCampaignsResponse(
+    val eligibleCampaignList: List<String>,
+    val userId: String
 )
 
 @Keep

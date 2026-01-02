@@ -213,7 +213,7 @@ object AppStorys {
         this.userId = userId
         this.navigateToScreen = navigateToScreen
 
-        this.repository = ApiRepository(context, apiService) {
+        this.repository = ApiRepository(context, apiService, webSocketService) {
             currentScreen
         }
 
@@ -241,7 +241,6 @@ object AppStorys {
                     showCsat = false
                     showBottomSheet = true
                     trackedEventNames.clear()
-                    repository.disconnect()
                     campaignsJob?.cancel()
                     campaignsJob = null
                 }
@@ -249,7 +248,7 @@ object AppStorys {
         )
         coroutineScope.launch {
             try {
-                val accessToken = repository.getAccessToken(appId, accountId)
+                val accessToken = repository.getAccessToken(appId, accountId, userId)
                 if (!accessToken.isNullOrBlank()) {
                     this@AppStorys.accessToken = accessToken
                     sdkState = AppStorysSdkState.Initialized
@@ -295,19 +294,16 @@ object AppStorys {
 
                     ensureActive()
 
-                    val (campaignResponse, webSocketResponse) = repository.triggerScreenData(
+                    val campaignsList = repository.getScreenCampaignsData(
                         accessToken = accessToken,
+                        accountId = accountId,
                         screenName = currentScreen,
                         userId = userId
                     )
 
                     ensureActive()
 
-                    webSocketResponse?.let { response ->
-                        isScreenCaptureEnabled = response.screen_capture_enabled ?: false
-                    }
-
-                    campaignResponse?.campaigns?.let { campaigns.emit(it) }
+                    campaignsList?.let { campaigns.emit(it) }
                     Log.e("AppStorys", "Campaign: ${campaigns.value}")
                 } catch (exception: Exception) {
                     Log.e("AppStorys", "Error getting campaigns for $screenName", exception)
@@ -725,14 +721,6 @@ object AppStorys {
                 apiStoryGroups = storiesDetails,
                 sendEvent = {
                     coroutineScope.launch {
-                        repository.trackStoriesActions(
-                            accessToken, TrackActionStories(
-                                campaign_id = campaign.id,
-                                user_id = userId,
-                                story_slide = it.first.id,
-                                event_type = it.second
-                            )
-                        )
                         trackEvents(campaign.id, "viewed", mapOf("story_slide" to it.first.id!!))
                     }
                 },
@@ -879,15 +867,6 @@ object AppStorys {
                                     val impressions = ArrayList(impressions.value)
                                     impressions.add(it.first.id)
                                     this@AppStorys.impressions.emit(impressions)
-                                    repository.trackReelActions(
-                                        accessToken = accessToken,
-                                        actions = ReelActionRequest(
-                                            user_id = userId,
-                                            reel_id = it.first.id,
-                                            event_type = it.second,
-                                            campaign_id = campaignId
-                                        )
-                                    )
                                     trackEvents(
                                         campaignId,
                                         "viewed",
@@ -897,15 +876,6 @@ object AppStorys {
                             }
                         } else {
                             coroutineScope.launch {
-                                repository.trackReelActions(
-                                    accessToken = accessToken,
-                                    actions = ReelActionRequest(
-                                        user_id = userId,
-                                        reel_id = it.first.id,
-                                        event_type = it.second,
-                                        campaign_id = campaignId
-                                    )
-                                )
                                 trackEvents(
                                     campaignId,
                                     "clicked",
@@ -1032,9 +1002,11 @@ object AppStorys {
                     placeHolder = placeholder,
                     placeholderContent = placeholderContent,
                     onClick = {
-                        campaign.id?.let {
-                            clickEvent(link = bannerDetails.link.toString().trim().removeSurrounding("\""), campaignId = it)
-                            trackEvents(it, "clicked")
+                        if(bannerDetails.link.toString().trim().removeSurrounding("\"").isNotEmpty()){
+                            campaign.id?.let {
+                                clickEvent(link = bannerDetails.link.toString().trim().removeSurrounding("\""), campaignId = it)
+                                trackEvents(it, "clicked")
+                            }
                         }
                     }
                 )
@@ -1135,7 +1107,8 @@ object AppStorys {
 
                     val actualWidth = (staticWidth ?: screenWidth) - marginLeft - marginRight
                     (actualWidth.value.minus(
-                        32
+                        0
+//                        32
                         // for the new widget
 //                            +26
                     ) * aspectRatio).dp
@@ -1197,17 +1170,19 @@ object AppStorys {
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
                             ) {
-                                clickEvent(
-                                    link = widgetDetails.widgetImages[index].link.toString().trim().removeSurrounding("\""),
-                                    campaignId = campaign.id,
-                                    widgetImageId = widgetDetails.widgetImages[index].id
-                                )
+                                if(widgetDetails.widgetImages[index].link.toString().trim().removeSurrounding("\"").isNotEmpty()){
+                                    clickEvent(
+                                        link = widgetDetails.widgetImages[index].link.toString().trim().removeSurrounding("\""),
+                                        campaignId = campaign.id,
+                                        widgetImageId = widgetDetails.widgetImages[index].id
+                                    )
 
-                                trackEvents(
-                                    campaign.id,
-                                    "clicked",
-                                    mapOf("widget_image" to widgetDetails.widgetImages[index].id!!)
-                                )
+                                    trackEvents(
+                                        campaign.id,
+                                        "clicked",
+                                        mapOf("widget_image" to widgetDetails.widgetImages[index].id!!)
+                                    )
+                                }
                             },
                             contentScale = contentScale,
                             imageUrl = widgetDetails.widgetImages[index].image ?: "",
@@ -1346,7 +1321,8 @@ object AppStorys {
                                         interactionSource = remember { MutableInteractionSource() },
                                         indication = null,
                                     ) {
-                                        if (leftImage.link != null) {
+                                        if (leftImage.link.toString().trim()
+                                                .removeSurrounding("\"").isNotEmpty()) {
                                             clickEvent(
                                                 link = leftImage.link.toString().trim()
                                                     .removeSurrounding("\""),
@@ -1378,7 +1354,8 @@ object AppStorys {
                                         interactionSource = remember { MutableInteractionSource() },
                                         indication = null,
                                     ) {
-                                        if (rightImage.link != null) {
+                                        if (rightImage.link.toString().trim()
+                                                .removeSurrounding("\"").isNotEmpty()) {
                                             clickEvent(
                                                 link = rightImage.link.toString().trim()
                                                     .removeSurrounding("\""),

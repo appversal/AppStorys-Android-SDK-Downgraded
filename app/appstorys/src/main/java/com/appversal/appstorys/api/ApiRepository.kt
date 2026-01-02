@@ -13,6 +13,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.serialization.builtins.ListSerializer
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
@@ -22,65 +23,23 @@ import java.io.File
 internal class ApiRepository(
     context: Context,
     private val apiService: ApiService,
+    private val webSocketApiService: ApiService,
     private val getScreen: () -> String,
 ) {
-    private var webSocketClient: WebSocketClient? = null
-    private var webSocketConfig: WebSocketConfig? = null
-    private var campaignResponseChannel = Channel<CampaignResponse?>(Channel.UNLIMITED)
+    private val sharedPreferences = context.getSharedPreferences("appversal_campaigns", Context.MODE_PRIVATE)
+    private var cachedCampaignsJson: List<Campaign>? = null
+    private var isCampaignsJsonFetchedThisSession = false
 
-    private val sharedPreferences =
-        context.getSharedPreferences("appstorys_sdk_prefs", Context.MODE_PRIVATE)
-    private var lastProcessedMessageId: String?
-        get() = sharedPreferences.getString("last_message_id", null)
-        set(value) {
-            sharedPreferences.edit { putString("last_message_id", value) }
-        }
-
-    init {
-        webSocketClient = WebSocketClient()
-
-        CoroutineScope(Dispatchers.IO).launch {
-            webSocketClient?.message?.collect { message ->
-                try {
-                    val campaignResponse = SdkJson.decodeFromString<CampaignResponse>(message)
-
-                    if (campaignResponse.messageId == lastProcessedMessageId) {
-                        Log.d(
-                            "ApiRepository",
-                            "Duplicate WebSocket message skipped: ${campaignResponse.messageId}"
-                        )
-                        return@collect
-                    }
-                    lastProcessedMessageId = campaignResponse.messageId
-
-                    val campaign = campaignResponse.campaigns?.firstOrNull()
-                    val campaignId = campaign?.id
-                    val campaignScreen = campaign?.screen
-
-                    if (
-                        campaign != null &&
-                        getScreen().equals(campaignScreen, ignoreCase = true)
-                    ) {
-                        campaignResponseChannel.send(campaignResponse)
-                        Log.d("ApiRepository", "New campaign processed: $campaignId")
-
-//                        webSocketClient?.disconnect()
-                    } else {
-                        Log.d("ApiRepository", "Campaign skipped: $campaignId")
-                    }
-                } catch (e: Exception) {
-                    Log.e("ApiRepository", "Error parsing WebSocket message: ${e.message}", e)
-                    campaignResponseChannel.send(null)
-                }
-            }
-        }
+    companion object {
+        private const val PREF_CAMPAIGNS_JSON = "campaigns_json"
+        private const val PREF_ETAG = "campaigns_etag"
     }
 
-    suspend fun getAccessToken(app_id: String, account_id: String): String? {
+    suspend fun getAccessToken(app_id: String, account_id: String, user_id: String): String? {
         return withContext(Dispatchers.IO) {
             when (val result = safeApiCall {
                 webSocketApiService.validateAccount(
-                    ValidateAccountRequest(app_id = app_id, account_id = account_id)
+                    ValidateAccountRequest(app_id = app_id, account_id = account_id, user_id = user_id)
                 ).access_token
             }) {
                 is ApiResult.Success -> result.data
@@ -117,93 +76,208 @@ internal class ApiRepository(
         }
     }
 
-    suspend fun initializeWebSocketConnection(
-        accessToken: String,
-        screenName: String,
-        userId: String
-    ): Boolean {
+    private suspend fun fetchCampaignsJson(accountId: String): Boolean {
         return withContext(Dispatchers.IO) {
             try {
-                when (val result = safeApiCall {
-                    webSocketApiService.getWebSocketConnectionDetails(
+                // Check if already fetched this session
+                if (isCampaignsJsonFetchedThisSession) {
+                    Log.d("ApiRepository", "Campaigns already fetched this session, using cached data")
+                    return@withContext true
+                }
+
+                val campaignsJsonUrl = "https://s3.ap-south-1.amazonaws.com/cdn-campaigns.appstorys.com/clients/$accountId/campaigns.json"
+                val savedETag = sharedPreferences.getString(PREF_ETAG, null)
+
+                val client = okhttp3.OkHttpClient()
+                val requestBuilder = okhttp3.Request.Builder()
+                    .url(campaignsJsonUrl)
+
+                // Add If-None-Match header if we have a saved ETag
+                if (savedETag != null) {
+                    requestBuilder.addHeader("If-None-Match", savedETag)
+                    Log.d("ApiRepository", "Using cached ETag: $savedETag")
+                }
+
+                val request = requestBuilder.build()
+                val response = client.newCall(request).execute()
+
+                when (response.code) {
+                    200 -> {
+                        // New data available
+                        val jsonString = response.body?.string()
+                        val newETag = response.header("ETag")
+
+                        if (jsonString != null) {
+                            // Parse and cache the campaigns
+                            cachedCampaignsJson = SdkJson.decodeFromString<List<Campaign>>(jsonString)
+
+                            // Save to SharedPreferences
+                            sharedPreferences.edit {
+                                putString(PREF_CAMPAIGNS_JSON, jsonString)
+                                if (newETag != null) {
+                                    putString(PREF_ETAG, newETag)
+                                }
+                            }
+
+                            isCampaignsJsonFetchedThisSession = true
+                            Log.d("ApiRepository", "Campaigns.json fetched and cached (200 OK). Total campaigns: ${cachedCampaignsJson?.size}, ETag: $newETag")
+                            return@withContext true
+                        }
+                    }
+                    304 -> {
+                        // Not Modified - use cached data from SharedPreferences
+                        Log.d("ApiRepository", "Campaigns.json not modified (304), using local storage")
+
+                        val cachedJsonString = sharedPreferences.getString(PREF_CAMPAIGNS_JSON, null)
+                        if (cachedJsonString != null) {
+                            cachedCampaignsJson = SdkJson.decodeFromString<List<Campaign>>(cachedJsonString)
+                            isCampaignsJsonFetchedThisSession = true
+                            Log.d("ApiRepository", "Loaded ${cachedCampaignsJson?.size} campaigns from local storage")
+                            return@withContext true
+                        } else {
+                            Log.e("ApiRepository", "Got 304 but no cached data in SharedPreferences")
+                            return@withContext false
+                        }
+                    }
+                    else -> {
+                        Log.e("ApiRepository", "Error fetching campaigns.json: ${response.code}")
+
+                        // Try to use cached data as fallback
+                        val cachedJsonString = sharedPreferences.getString(PREF_CAMPAIGNS_JSON, null)
+                        if (cachedJsonString != null) {
+                            cachedCampaignsJson = SdkJson.decodeFromString<List<Campaign>>(cachedJsonString)
+                            isCampaignsJsonFetchedThisSession = true
+                            Log.d("ApiRepository", "Using cached data as fallback. Total campaigns: ${cachedCampaignsJson?.size}")
+                            return@withContext true
+                        }
+                        return@withContext false
+                    }
+                }
+
+                false
+            } catch (e: Exception) {
+                Log.e("ApiRepository", "Exception fetching campaigns.json: ${e.message}", e)
+
+                // Try to use cached data as fallback
+                val cachedJsonString = sharedPreferences.getString(PREF_CAMPAIGNS_JSON, null)
+                if (cachedJsonString != null) {
+                    try {
+                        cachedCampaignsJson = SdkJson.decodeFromString<List<Campaign>>(cachedJsonString)
+                        isCampaignsJsonFetchedThisSession = true
+                        Log.d("ApiRepository", "Using cached data after exception. Total campaigns: ${cachedCampaignsJson?.size}")
+                        return@withContext true
+                    } catch (parseException: Exception) {
+                        Log.e("ApiRepository", "Error parsing cached data: ${parseException.message}", parseException)
+                    }
+                }
+                false
+            }
+        }
+    }
+
+    suspend fun getScreenCampaignsData(
+        accessToken: String,
+        accountId: String,
+        screenName: String,
+        userId: String
+    ): List<Campaign>? {
+        return withContext(Dispatchers.IO) {
+            try {
+                // Step 1: Call track-user-res to get eligible campaigns
+                val eligibleCampaignsResult = safeApiCall {
+                    webSocketApiService.getEligibleCampaigns(
                         token = "Bearer $accessToken",
                         request = TrackUserWebSocketRequest(
                             screenName = screenName,
                             user_id = userId
                         )
                     )
-                }) {
+                }
+
+                when (eligibleCampaignsResult) {
                     is ApiResult.Success -> {
-                        result.data.ws.let { config ->
-                            webSocketConfig = config
-                            webSocketClient?.connect(config) ?: false
+                        val eligibleCampaigns = eligibleCampaignsResult.data.eligibleCampaignList
+
+                        Log.d("ApiRepository", "Eligible campaigns: $eligibleCampaigns")
+
+                        // Step 2: If eligibleCampaigns is empty, return null
+                        if (eligibleCampaigns.isEmpty()) {
+                            Log.d("ApiRepository", "No eligible campaigns for screen: $screenName")
+                            return@withContext null
                         }
+
+                        // Step 3: Fetch campaigns.json (with caching)
+                        val fetchSuccess = fetchCampaignsJson(accountId)
+
+                        if (!fetchSuccess) {
+                            Log.e("ApiRepository", "Failed to fetch campaigns.json")
+                            return@withContext null
+                        }
+
+                        val cachedCampaignIds = cachedCampaignsJson?.mapNotNull { it.id }?.toSet() ?: emptySet()
+                        val missingCampaignIds = eligibleCampaigns.filter { it !in cachedCampaignIds }
+
+                        if (missingCampaignIds.isNotEmpty()) {
+                            Log.d("ApiRepository", "Missing ${missingCampaignIds.size} campaigns from cache: $missingCampaignIds")
+
+                            // Fetch missing campaigns from load-campaign-data endpoint
+                            val missingCampaignsResult = safeApiCall {
+                                webSocketApiService.loadMissingCampaigns(
+                                    token = "Bearer $accessToken",
+                                    campaignIds = missingCampaignIds
+                                )
+                            }
+
+                            when (missingCampaignsResult) {
+                                is ApiResult.Success -> {
+                                    val fetchedCampaigns = missingCampaignsResult.data
+                                    Log.d("ApiRepository", "Fetched ${fetchedCampaigns.size} missing campaigns from load-campaign-data")
+
+                                    // Merge fetched campaigns with cached campaigns
+                                    cachedCampaignsJson = (cachedCampaignsJson ?: emptyList()) + fetchedCampaigns
+                                    Log.d("ApiRepository", "Total campaigns after merge: ${cachedCampaignsJson?.size}")
+
+                                    // Update SharedPreferences with merged data
+                                    try {
+                                        val updatedJsonString = SdkJson.encodeToString(ListSerializer(Campaign.serializer()), cachedCampaignsJson!!)
+                                        sharedPreferences.edit {
+                                            putString(PREF_CAMPAIGNS_JSON, updatedJsonString)
+                                        }
+                                        Log.d("ApiRepository", "Updated local storage with merged campaigns")
+                                    } catch (e: Exception) {
+                                        Log.e("ApiRepository", "Error saving merged campaigns: ${e.message}", e)
+                                    }
+                                }
+                                is ApiResult.Error -> {
+                                    Log.e("ApiRepository", "Error loading missing campaigns: ${missingCampaignsResult.message}")
+                                    // Continue with cached campaigns only
+                                }
+                            }
+                        } else {
+                            Log.d("ApiRepository", "All eligible campaigns found in cache")
+                        }
+
+                        // Step 4: Filter campaigns by screenName and eligibleCampaigns
+                        val filteredCampaigns = cachedCampaignsJson?.filter { campaign ->
+                            val isEligible = campaign.id in eligibleCampaigns
+                            val isScreenMatch = campaign.screen?.equals(screenName, ignoreCase = true) == true
+                            isEligible && isScreenMatch
+                        }
+
+                        Log.d("ApiRepository", "Filtered campaigns for screen '$screenName': ${filteredCampaigns?.size ?: 0}")
+
+                        filteredCampaigns
                     }
 
                     is ApiResult.Error -> {
-                        Log.e("ApiRepository", "Error getting WebSocket config: ${result.message}")
-                        false
+                        Log.e("ApiRepository", "Error getting eligible campaigns: ${eligibleCampaignsResult.message}")
+                        null
                     }
                 }
             } catch (e: Exception) {
-                Log.e("ApiRepository", "Error initializing WebSocket connection: ${e.message}")
-                false
+                Log.e("ApiRepository", "Error in getScreenCampaignsData: ${e.message}", e)
+                null
             }
-        }
-    }
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    suspend fun triggerScreenData(
-        accessToken: String,
-        screenName: String,
-        userId: String,
-        timeoutMs: Long = 20000
-    ): Pair<CampaignResponse?, WebSocketConnectionResponse?> {
-        return withContext(Dispatchers.IO) {
-
-            var webSocketResponse: WebSocketConnectionResponse?
-
-            while (!campaignResponseChannel.isEmpty) {
-                campaignResponseChannel.tryReceive()
-            }
-
-            if (!webSocketClient!!.isConnected()) {
-                val reconnected =
-                    initializeWebSocketConnection(accessToken, screenName, userId)
-                if (!reconnected) {
-                    Log.e("ApiRepository", "Failed to reconnect WebSocket")
-                    return@withContext Pair(null, null)
-                }
-
-            }
-            when (val result = safeApiCall {
-                webSocketApiService.getWebSocketConnectionDetails(
-                    token = "Bearer $accessToken",
-                    request = TrackUserWebSocketRequest(
-                        screenName = screenName,
-                        user_id = userId
-                    )
-                )
-            }) {
-                is ApiResult.Success -> {
-                    Log.i("ApiRepository", "Parsed WebSocket response: ${result.data}")
-                    webSocketResponse = result.data
-                }
-
-                is ApiResult.Error -> {
-                    Log.e(
-                        "ApiRepository",
-                        "Error sending track-user request: ${result.message}"
-                    )
-                    return@withContext Pair(null, null)
-                }
-            }
-
-            val campaignResponse = withTimeoutOrNull(timeoutMs) {
-                campaignResponseChannel.receive()
-            }
-
-            Pair(campaignResponse, webSocketResponse)
         }
     }
 
@@ -221,52 +295,10 @@ internal class ApiRepository(
         }
     }
 
-    suspend fun trackReelActions(accessToken: String, actions: ReelActionRequest) {
-        withContext(Dispatchers.IO) {
-            when (val result = safeApiCall {
-                apiService.trackReelAction(
-                    token = "Bearer $accessToken",
-                    request = actions
-                )
-            }) {
-                is ApiResult.Error -> println("Error tracking actions: ${result.message}")
-                else -> Unit
-            }
-        }
-    }
-
     suspend fun sendReelLikeStatus(accessToken: String, actions: ReelStatusRequest) {
         withContext(Dispatchers.IO) {
             when (val result = safeApiCall {
                 apiService.sendReelLikeStatus(
-                    token = "Bearer $accessToken",
-                    request = actions
-                )
-            }) {
-                is ApiResult.Error -> println("Error tracking actions: ${result.message}")
-                else -> Unit
-            }
-        }
-    }
-
-    suspend fun trackStoriesActions(accessToken: String, actions: TrackActionStories) {
-        withContext(Dispatchers.IO) {
-            when (val result = safeApiCall {
-                apiService.trackStoriesAction(
-                    token = "Bearer $accessToken",
-                    request = actions
-                )
-            }) {
-                is ApiResult.Error -> println("Error tracking actions: ${result.message}")
-                else -> Unit
-            }
-        }
-    }
-
-    suspend fun trackTooltipsActions(accessToken: String, actions: TrackActionTooltips) {
-        withContext(Dispatchers.IO) {
-            when (val result = safeApiCall {
-                apiService.trackTooltipsAction(
                     token = "Bearer $accessToken",
                     request = actions
                 )
@@ -319,9 +351,5 @@ internal class ApiRepository(
                 println("Exception in tooltipIdentify: ${e.message}")
             }
         }
-    }
-
-    fun disconnect() {
-        webSocketClient?.disconnect()
     }
 }
