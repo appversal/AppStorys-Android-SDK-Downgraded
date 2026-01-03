@@ -130,8 +130,20 @@ fun PipCta(
         else -> Modifier.wrapContentWidth()
     }
     
-    // Outer container for alignment when we have a fixed width button
-    // If button is full width, we don't need the outer container
+    // Shared click handler logic to avoid duplication
+    val handleClick: () -> Unit = {
+        // Note: link is guaranteed non-null/non-empty due to early return at line 43
+        if (!AppStorys.isValidUrl(link)) {
+            AppStorys.navigateToScreen(link)
+        } else {
+            AppStorys.openUrl(link)
+        }
+        onButtonClick()
+    }
+    
+    // Conditional rendering based on width configuration:
+    // - If explicit width is provided (e.g., 120dp), use outer Box for alignment
+    // - If full width or wrap content, use single Box approach (like ModalBackendCta)
     if (ctaWidth != null && !ctaFullWidth) {
         // Fixed width button - use outer Box for alignment
         Box(
@@ -162,14 +174,7 @@ fun PipCta(
                         role = Role.Button,
                         interactionSource = remember { MutableInteractionSource() },
                         indication = rememberRipple(bounded = true),
-                        onClick = {
-                            if (!AppStorys.isValidUrl(link)) {
-                                AppStorys.navigateToScreen(link)
-                            } else {
-                                AppStorys.openUrl(link)
-                            }
-                            onButtonClick()
-                        }
+                        onClick = handleClick
                     ),
                 contentAlignment = Alignment.Center
             ) {
@@ -208,14 +213,7 @@ fun PipCta(
                     role = Role.Button,
                     interactionSource = remember { MutableInteractionSource() },
                     indication = rememberRipple(bounded = true),
-                    onClick = {
-                        if (!AppStorys.isValidUrl(link)) {
-                            AppStorys.navigateToScreen(link)
-                        } else {
-                            AppStorys.openUrl(link)
-                        }
-                        onButtonClick()
-                    }
+                    onClick = handleClick
                 ),
             contentAlignment = Alignment.Center
         ) {
