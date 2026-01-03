@@ -132,7 +132,7 @@ fun PipCta(
     
     // Shared click handler logic to avoid duplication
     val handleClick: () -> Unit = {
-        // Note: link is guaranteed non-null/non-empty due to early return at line 43
+        // Note: link is guaranteed non-null/non-empty due to early return check
         if (!AppStorys.isValidUrl(link)) {
             AppStorys.navigateToScreen(link)
         } else {
