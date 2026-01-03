@@ -16,14 +16,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SheetValue
-import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -44,18 +41,12 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontStyle
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.googlefonts.Font
-import androidx.compose.ui.text.googlefonts.GoogleFont
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.core.graphics.toColorInt
+import androidx.compose.ui.zIndex
 import androidx.core.net.toUri
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -70,10 +61,6 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.appversal.appstorys.AppStorys
-import com.appversal.appstorys.AppStorys.isValidUrl
-import com.appversal.appstorys.AppStorys.navigateToScreen
-import com.appversal.appstorys.AppStorys.openUrl
-import com.appversal.appstorys.R
 import com.appversal.appstorys.api.PipStyling
 import com.appversal.appstorys.ui.components.CrossButton
 import com.appversal.appstorys.ui.components.CrossButtonConfig
@@ -234,18 +221,6 @@ internal fun PipVideo(
                                                 isFullScreen = true
                                                 pipPlayer.pause()
                                             }
-                                        )
-                                    }
-
-                                    // Add CTA for small PIP using existing PipCta composable
-                                    if (button_text.isNotEmpty() && link.isNotEmpty()) {
-                                        PipCta(
-                                            buttonText = button_text,
-                                            link = link,
-                                            pipStyling = pipStyling,
-                                            modifier = Modifier.align(Alignment.BottomCenter),
-                                            applyMargins = true,
-                                            onButtonClick = onButtonClick
                                         )
                                     }
                                 }
@@ -424,8 +399,10 @@ fun FullScreenVideoDialog(
                             buttonText = button_text,
                             link = link,
                             pipStyling = pipStyling,
-                            modifier = Modifier.align(Alignment.BottomCenter),
-                            applyMargins = false,
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .zIndex(10f),
+                            applyMargins = true,
                             onButtonClick = onButtonClick
                         )
                     }

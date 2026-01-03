@@ -293,6 +293,7 @@ data class FeedbackOption(
 @Keep
 @Serializable
 data class CSATStyling(
+    // Legacy flat fields (keep for backward compatibility)
     val delayDisplay: Int?,
     val displayDelay: String?,
     val csatTitleColor: String?,
@@ -353,6 +354,139 @@ data class CSATStyling(
     val csatCtaAlignment: String?,
 
     val csatBottomPadding: String?,
+
+    // New nested structure fields
+    val appearance: CsatAppearance?,
+    val feedbackPage: CsatFeedbackPage?,
+    val initialFeedback: CsatInitialFeedback?,
+    val rating: CsatRating?,
+    val thankyouPage: CsatThankyouPage?
+)
+
+@Keep
+@Serializable
+data class CsatAppearance(
+    val backgroundColor: String?,
+    val borderRadius: Int?,
+    val displayDelay: Int?,
+    val margin: Margin?,
+    val padding: Margin?
+)
+
+@Keep
+@Serializable
+data class CsatFeedbackPage(
+    val additionalComments: CsatAdditionalComments?,
+    val options: CsatOptions?,
+    val submitButton: CsatButton?
+)
+
+@Keep
+@Serializable
+data class CsatAdditionalComments(
+    val colors: CsatColors?,
+    val enabled: Boolean?,
+    val textStyle: CsatTextStyle?
+)
+
+@Keep
+@Serializable
+data class CsatOptions(
+    val nonSelectedOptions: CsatOptionStyle?,
+    val selectedOptions: CsatOptionStyle?
+)
+
+@Keep
+@Serializable
+data class CsatOptionStyle(
+    val colors: CsatColors?,
+    val textStyle: CsatTextStyle?
+)
+
+@Keep
+@Serializable
+data class CsatButton(
+    val colors: CsatColors?,
+    val containerRadius: CornerRadius?,
+    val containerStyle: CsatContainerStyle?,
+    val fullWidth: Boolean?,
+    val margin: Margin?,
+    val padding: Margin?,
+    val text: String?,
+    val textStyle: CsatTextStyle?
+)
+
+@Keep
+@Serializable
+data class CsatContainerStyle(
+    val alignment: String?,
+    val borderWidth: Int?,
+    val height: Int?
+)
+
+@Keep
+@Serializable
+data class CsatInitialFeedback(
+    val subtitle: CsatTextElement?,
+    val title: CsatTextElement?
+)
+
+@Keep
+@Serializable
+data class CsatTextElement(
+    val colors: String?,
+    val textStyle: CsatTextStyle?
+)
+
+@Keep
+@Serializable
+data class CsatRating(
+    val displayText: String?,
+    val high: CsatRatingStyle?,
+    val low: CsatRatingStyle?,
+    val unselected: CsatRatingStyle?
+)
+
+@Keep
+@Serializable
+data class CsatRatingStyle(
+    val background: String?,
+    val border: String?,
+    val borderWidth: Int?,
+    val highRatingSubtitle: String?,
+    val lowRatingSubtitle: String?
+)
+
+@Keep
+@Serializable
+data class CsatThankyouPage(
+    val doneButton: CsatButton?,
+    val imageStyle: CsatImageStyle?,
+    val subtitle: CsatTextElement?,
+    val title: CsatTextElement?
+)
+
+@Keep
+@Serializable
+data class CsatImageStyle(
+    val margin: Margin?,
+    val padding: Margin?
+)
+
+@Keep
+@Serializable
+data class CsatColors(
+    val background: String?,
+    val border: String?,
+    val text: String?
+)
+
+@Keep
+@Serializable
+data class CsatTextStyle(
+    val alignment: String?,
+    val font: String?,
+    val size: Int?
 )
 
 @Keep

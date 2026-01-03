@@ -1,22 +1,23 @@
 package com.appversal.appstorys.ui.pipvideo
 
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.toColorInt
@@ -55,9 +56,9 @@ fun PipCta(
 
     // Colors: structured -> container.backgroundColor, text.color; fallbacks to legacy fields
     val buttonColor = runCatching {
-        val bg = cta?.container?.backgroundColor ?: pipStyling?.ctaButtonBackgroundColor ?: "#000000"
+        val bg = cta?.container?.backgroundColor ?: pipStyling?.ctaButtonBackgroundColor ?: "#F7921C"
         Color(bg.toColorInt())
-    }.getOrNull() ?: Color.Black
+    }.getOrNull() ?: Color(0xFFF7921C)
 
     val textColor = runCatching {
         val tc = cta?.text?.color ?: pipStyling?.ctaButtonTextColor ?: "#FFFFFF"
@@ -65,18 +66,15 @@ fun PipCta(
     }.getOrNull() ?: Color.White
 
     // Border
-    val borderStroke = runCatching {
-        val borderColorString = cta?.container?.borderColor ?: null
-        val borderWidthString = cta?.container?.borderWidth ?: null
-            ?: null
-        if (!borderColorString.isNullOrBlank() && !borderWidthString.isNullOrBlank()) {
-            val widthFloat = borderWidthString.toFloatOrNull() ?: 0f
-            if (widthFloat > 0f) {
-                val parsed = Color(borderColorString.toColorInt())
-                BorderStroke(widthFloat.dp, parsed)
-            } else null
-        } else null
-    }.getOrNull()
+    val borderColor = runCatching {
+        val c = cta?.container?.borderColor ?: "#FE6B35"
+        Color(c.toColorInt())
+    }.getOrNull() ?: Color(0xFFFE6B35)
+
+    val borderWidth = runCatching {
+        val w = cta?.container?.borderWidth
+        if (!w.isNullOrBlank()) w.toFloat().dp else 0.dp
+    }.getOrNull() ?: 0.dp
 
     // Height
     val heightDp = runCatching {
@@ -95,7 +93,7 @@ fun PipCta(
     val cornerBottomLeft = cta?.borderRadius?.bottomLeft?.dp
         ?: pipStyling?.cornerRadius?.toIntOrNull()?.dp ?: 0.dp
 
-    val shape = androidx.compose.foundation.shape.RoundedCornerShape(
+    val shape = RoundedCornerShape(
         topStart = cornerTopLeft,
         topEnd = cornerTopRight,
         bottomEnd = cornerBottomRight,
@@ -103,58 +101,69 @@ fun PipCta(
     )
 
     // Width handling: structured cta.container.ctaFullWidth / ctaWidth or flat fields
-    val widthModifier = when {
-        cta?.container?.ctaFullWidth == true -> Modifier.fillMaxWidth()
-        cta?.container?.ctaWidth != null -> Modifier.width(cta.container.ctaWidth.dp)
-        pipStyling?.ctaFullWidth == true -> Modifier.fillMaxWidth()
-        pipStyling?.ctaWidth != null -> pipStyling.ctaWidth.toIntOrNull()?.let { Modifier.width(it.dp) } ?: Modifier
-        else -> Modifier
+    val isFullWidth = cta?.container?.ctaFullWidth == true || pipStyling?.ctaFullWidth == true
+    val fixedWidth = if (!isFullWidth) {
+        cta?.container?.ctaWidth?.dp ?: pipStyling?.ctaWidth?.toIntOrNull()?.dp
+    } else null
+
+    // Alignment
+    val alignmentStr = cta?.container?.alignment ?: "center"
+    val contentAlignment = when (alignmentStr.lowercase()) {
+        "left" -> Alignment.CenterStart
+        "right" -> Alignment.CenterEnd
+        else -> Alignment.Center
     }
 
-    val baseModifier = modifier
+    val textAlign = when (alignmentStr.lowercase()) {
+        "left" -> TextAlign.Start
+        "right" -> TextAlign.End
+        else -> TextAlign.Center
+    }
+
+    // Font
+    val fontFamilyName = cta?.text?.fontFamily ?: pipStyling?.fontFamily
+    val fontFamily = when (fontFamilyName?.lowercase()) {
+        "serif" -> FontFamily.Serif
+        "sans-serif", "sansserif" -> FontFamily.SansSerif
+        "monospace" -> FontFamily.Monospace
+        "cursive" -> FontFamily.Cursive
+        else -> FontFamily.Default // Default for Helvetica, Arial, or any unrecognized font
+    }
+    val fontSizeSp = cta?.text?.fontSize?.sp ?: pipStyling?.fontSize?.toIntOrNull()?.sp ?: 16.sp
+
+    val boxModifier = modifier
         .padding(
             top = paddingTop,
-            bottom = paddingBottom + 10.dp,
+            bottom = paddingBottom,
             start = paddingLeft,
             end = paddingRight
         )
-        .then(widthModifier)
+        .then(if (isFullWidth) Modifier.fillMaxWidth() else if (fixedWidth != null) Modifier.width(fixedWidth) else Modifier)
         .height(heightDp)
-        .let { m -> if (borderStroke != null) m.border(borderStroke, shape) else m }
-
-    // Font
-    val fontFamily = when (cta?.text?.fontFamily ?: pipStyling?.fontFamily) {
-        null -> FontFamily.Default
-        "Helvetica" -> FontFamily.SansSerif
-        "Poppins" -> FontFamily.Default
-        else -> FontFamily.Default
-    }
-
-    val fontSizeSp = cta?.text?.fontSize?.sp ?: pipStyling?.fontSize?.toIntOrNull()?.sp ?: 16.sp
-
-    Button(
-        onClick = {
-            if (!link.isNullOrEmpty()) {
-                if (!AppStorys.isValidUrl(link)) {
-                    AppStorys.navigateToScreen(link)
-                } else {
-                    AppStorys.openUrl(link)
-                }
+        .background(buttonColor, shape)
+        .then(if (borderWidth > 0.dp) Modifier.border(borderWidth, borderColor, shape) else Modifier)
+        .clickable {
+            if (AppStorys.isValidUrl(link)) {
+                AppStorys.navigateToScreen(link)
+            } else {
+                AppStorys.openUrl(link)
             }
             onButtonClick()
-        },
-        modifier = baseModifier,
-        shape = shape,
-        colors = ButtonDefaults.buttonColors(containerColor = buttonColor)
+        }
+
+    Box(
+        modifier = boxModifier,
+        contentAlignment = contentAlignment
     ) {
         Text(
-            fontFamily = fontFamily,
             text = buttonText,
             color = textColor,
-            textAlign = TextAlign.Center,
             fontSize = fontSizeSp,
+            fontFamily = fontFamily,
+            textAlign = textAlign,
             fontWeight = FontWeight.Normal,
-            fontStyle = FontStyle.Normal
+            fontStyle = FontStyle.Normal,
+            modifier = Modifier.padding(horizontal = 8.dp)
         )
     }
 }
