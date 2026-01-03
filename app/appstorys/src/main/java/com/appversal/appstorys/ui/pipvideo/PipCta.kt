@@ -141,11 +141,32 @@ fun PipCta(
         onButtonClick()
     }
     
+    // Helper to apply border if needed
+    val borderModifier = if (borderWidth.value > 0f) {
+        Modifier.border(borderWidth, borderColor, shape)
+    } else {
+        Modifier
+    }
+    
+    // Shared Text component to avoid duplication
+    val ctaText = @Composable {
+        Text(
+            text = buttonText,
+            color = textColor,
+            fontSize = fontSize,
+            fontFamily = FontFamily.Default, // Keep font default as requested
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            modifier = Modifier.padding(horizontal = 12.dp)
+        )
+    }
+    
     // Conditional rendering based on width configuration:
-    // - If explicit width is provided (e.g., 120dp), use outer Box for alignment
+    // - If explicit width is provided (e.g., 120dp), use outer Box for alignment (preferred even if fullWidth is also true)
     // - If full width or wrap content, use single Box approach (like ModalBackendCta)
-    if (ctaWidth != null && !ctaFullWidth) {
+    if (ctaWidth != null) {
         // Fixed width button - use outer Box for alignment
+        // This allows centering a 120dp button even when ctaFullWidth is also true
         Box(
             modifier = modifier
                 .fillMaxWidth()
@@ -163,13 +184,7 @@ fun PipCta(
                     .width(ctaWidth.dp)
                     .height(height)
                     .background(backgroundColor, shape)
-                    .then(
-                        if (borderWidth.value > 0f) {
-                            Modifier.border(borderWidth, borderColor, shape)
-                        } else {
-                            Modifier
-                        }
-                    )
+                    .then(borderModifier)
                     .clickable(
                         role = Role.Button,
                         interactionSource = remember { MutableInteractionSource() },
@@ -178,15 +193,7 @@ fun PipCta(
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = buttonText,
-                    color = textColor,
-                    fontSize = fontSize,
-                    fontFamily = FontFamily.Default, // Keep font default as requested
-                    textAlign = TextAlign.Center,
-                    maxLines = 1,
-                    modifier = Modifier.padding(horizontal = 12.dp)
-                )
+                ctaText()
             }
         }
     } else {
@@ -202,13 +209,7 @@ fun PipCta(
                 .then(widthModifier)
                 .height(height)
                 .background(backgroundColor, shape)
-                .then(
-                    if (borderWidth.value > 0f) {
-                        Modifier.border(borderWidth, borderColor, shape)
-                    } else {
-                        Modifier
-                    }
-                )
+                .then(borderModifier)
                 .clickable(
                     role = Role.Button,
                     interactionSource = remember { MutableInteractionSource() },
@@ -217,15 +218,7 @@ fun PipCta(
                 ),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = buttonText,
-                color = textColor,
-                fontSize = fontSize,
-                fontFamily = FontFamily.Default, // Keep font default as requested
-                textAlign = TextAlign.Center,
-                maxLines = 1,
-                modifier = Modifier.padding(horizontal = 12.dp)
-            )
+            ctaText()
         }
     }
 }
