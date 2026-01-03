@@ -1,22 +1,26 @@
 package com.appversal.appstorys.ui.pipvideo
 
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontStyle
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.toColorInt
@@ -25,6 +29,7 @@ import com.appversal.appstorys.api.PipStyling
 
 /**
  * Reusable CTA for PIP video. Reads either nested `pipStyling.cta` or falls back to flat `PipStyling` fields.
+ * Refactored to use Box instead of Button for better styling control, similar to ModalBackendCta.
  */
 @Composable
 fun PipCta(
@@ -40,21 +45,21 @@ fun PipCta(
     val cta = pipStyling?.cta
 
     // Margins: prefer structured cta.margin, else fall back to pipStyling margins
-    val paddingLeft = if (applyMargins) {
+    val marginLeft = if (applyMargins) {
         cta?.margin?.left?.dp ?: pipStyling?.marginLeft?.toIntOrNull()?.dp ?: 0.dp
     } else 0.dp
-    val paddingRight = if (applyMargins) {
+    val marginRight = if (applyMargins) {
         cta?.margin?.right?.dp ?: pipStyling?.marginRight?.toIntOrNull()?.dp ?: 0.dp
     } else 0.dp
-    val paddingBottom = if (applyMargins) {
+    val marginBottom = if (applyMargins) {
         cta?.margin?.bottom?.dp ?: pipStyling?.marginBottom?.toIntOrNull()?.dp ?: 0.dp
     } else 0.dp
-    val paddingTop = if (applyMargins) {
+    val marginTop = if (applyMargins) {
         cta?.margin?.top?.dp ?: pipStyling?.marginTop?.toIntOrNull()?.dp ?: 0.dp
     } else 0.dp
 
     // Colors: structured -> container.backgroundColor, text.color; fallbacks to legacy fields
-    val buttonColor = runCatching {
+    val backgroundColor = runCatching {
         val bg = cta?.container?.backgroundColor ?: pipStyling?.ctaButtonBackgroundColor ?: "#000000"
         Color(bg.toColorInt())
     }.getOrNull() ?: Color.Black
@@ -64,97 +69,124 @@ fun PipCta(
         Color(tc.toColorInt())
     }.getOrNull() ?: Color.White
 
-    // Border
-    val borderStroke = runCatching {
-        val borderColorString = cta?.container?.borderColor ?: null
-        val borderWidthString = cta?.container?.borderWidth ?: null
-            ?: null
-        if (!borderColorString.isNullOrBlank() && !borderWidthString.isNullOrBlank()) {
-            val widthFloat = borderWidthString.toFloatOrNull() ?: 0f
-            if (widthFloat > 0f) {
-                val parsed = Color(borderColorString.toColorInt())
-                BorderStroke(widthFloat.dp, parsed)
-            } else null
-        } else null
-    }.getOrNull()
+    // Border color and width
+    val borderColor = runCatching {
+        val bc = cta?.container?.borderColor
+        if (!bc.isNullOrBlank()) Color(bc.toColorInt()) else Color.Transparent
+    }.getOrNull() ?: Color.Transparent
+    
+    val borderWidth = runCatching {
+        val bw = cta?.container?.borderWidth
+        if (!bw.isNullOrBlank()) {
+            val width = bw.toFloatOrNull() ?: 0f
+            if (width > 0f) width.dp else 0.dp
+        } else 0.dp
+    }.getOrNull() ?: 0.dp
 
     // Height
-    val heightDp = runCatching {
-        // structured container.height may be string; prefer cta.container.height, then flat ctaHeight
+    val height = runCatching {
         val h = cta?.container?.height ?: pipStyling?.ctaHeight
         h?.toIntOrNull()?.dp ?: 48.dp
     }.getOrNull() ?: 48.dp
 
     // Corner radius per corner
-    val cornerTopLeft = cta?.borderRadius?.topLeft?.dp
-        ?: pipStyling?.cornerRadius?.toIntOrNull()?.dp ?: 0.dp
-    val cornerTopRight = cta?.borderRadius?.topRight?.dp
-        ?: pipStyling?.cornerRadius?.toIntOrNull()?.dp ?: 0.dp
-    val cornerBottomRight = cta?.borderRadius?.bottomRight?.dp
-        ?: pipStyling?.cornerRadius?.toIntOrNull()?.dp ?: 0.dp
-    val cornerBottomLeft = cta?.borderRadius?.bottomLeft?.dp
-        ?: pipStyling?.cornerRadius?.toIntOrNull()?.dp ?: 0.dp
+    val cornerTopLeft = cta?.borderRadius?.topLeft?.dp ?: 0.dp
+    val cornerTopRight = cta?.borderRadius?.topRight?.dp ?: 0.dp
+    val cornerBottomRight = cta?.borderRadius?.bottomRight?.dp ?: 0.dp
+    val cornerBottomLeft = cta?.borderRadius?.bottomLeft?.dp ?: 0.dp
 
-    val shape = androidx.compose.foundation.shape.RoundedCornerShape(
+    val shape = RoundedCornerShape(
         topStart = cornerTopLeft,
         topEnd = cornerTopRight,
         bottomEnd = cornerBottomRight,
         bottomStart = cornerBottomLeft
     )
 
-    // Width handling: structured cta.container.ctaFullWidth / ctaWidth or flat fields
-    val widthModifier = when {
-        cta?.container?.ctaFullWidth == true -> Modifier.fillMaxWidth()
-        cta?.container?.ctaWidth != null -> Modifier.width(cta.container.ctaWidth.dp)
-        pipStyling?.ctaFullWidth == true -> Modifier.fillMaxWidth()
-        pipStyling?.ctaWidth != null -> pipStyling.ctaWidth.toIntOrNull()?.let { Modifier.width(it.dp) } ?: Modifier
-        else -> Modifier
+    // Width handling: when both ctaFullWidth and ctaWidth are present, prefer ctaWidth for better control
+    // This matches the backend JSON where ctaFullWidth: true and ctaWidth: 120 are both present
+    val ctaWidth = cta?.container?.ctaWidth ?: pipStyling?.ctaWidth?.toIntOrNull()
+    val ctaFullWidth = cta?.container?.ctaFullWidth ?: pipStyling?.ctaFullWidth ?: false
+    
+    // Font size
+    val fontSize = cta?.text?.fontSize?.sp ?: pipStyling?.fontSize?.toIntOrNull()?.sp ?: 16.sp
+
+    // Alignment: determine container alignment from backend
+    val alignment = cta?.container?.alignment?.lowercase() ?: "center"
+    
+    val containerAlignment = when (alignment) {
+        "left" -> Alignment.CenterStart
+        "right" -> Alignment.CenterEnd
+        "center", "middle" -> Alignment.Center
+        else -> Alignment.Center
     }
-
-    val baseModifier = modifier
-        .padding(
-            top = paddingTop,
-            bottom = paddingBottom + 10.dp,
-            start = paddingLeft,
-            end = paddingRight
-        )
-        .then(widthModifier)
-        .height(heightDp)
-        .let { m -> if (borderStroke != null) m.border(borderStroke, shape) else m }
-
-    // Font
-    val fontFamily = when (cta?.text?.fontFamily ?: pipStyling?.fontFamily) {
-        null -> FontFamily.Default
-        "Helvetica" -> FontFamily.SansSerif
-        "Poppins" -> FontFamily.Default
-        else -> FontFamily.Default
-    }
-
-    val fontSizeSp = cta?.text?.fontSize?.sp ?: pipStyling?.fontSize?.toIntOrNull()?.sp ?: 16.sp
-
-    Button(
-        onClick = {
-            if (!link.isNullOrEmpty()) {
-                if (!AppStorys.isValidUrl(link)) {
-                    AppStorys.navigateToScreen(link)
-                } else {
-                    AppStorys.openUrl(link)
+    
+    // Outer container with alignment and margins
+    Box(
+        modifier = modifier
+            .padding(
+                top = marginTop,
+                bottom = marginBottom,
+                start = marginLeft,
+                end = marginRight
+            )
+            .then(
+                when {
+                    // If explicit width is provided, use it (even if fullWidth is also true)
+                    ctaWidth != null -> Modifier.width(ctaWidth.dp)
+                    // Otherwise, respect fullWidth flag
+                    ctaFullWidth -> Modifier.fillMaxWidth()
+                    // Default: wrap content
+                    else -> Modifier.wrapContentWidth()
                 }
-            }
-            onButtonClick()
-        },
-        modifier = baseModifier,
-        shape = shape,
-        colors = ButtonDefaults.buttonColors(containerColor = buttonColor)
+            ),
+        contentAlignment = containerAlignment
     ) {
-        Text(
-            fontFamily = fontFamily,
-            text = buttonText,
-            color = textColor,
-            textAlign = TextAlign.Center,
-            fontSize = fontSizeSp,
-            fontWeight = FontWeight.Normal,
-            fontStyle = FontStyle.Normal
-        )
+        // Inner clickable box (the actual button)
+        Box(
+            modifier = Modifier
+                .then(
+                    when {
+                        // If explicit width, use it
+                        ctaWidth != null -> Modifier.width(ctaWidth.dp)
+                        // If fullWidth and no explicit width, fill available width
+                        ctaFullWidth -> Modifier.fillMaxWidth()
+                        // Default: wrap content
+                        else -> Modifier.wrapContentWidth()
+                    }
+                )
+                .height(height)
+                .background(backgroundColor, shape)
+                .then(
+                    if (borderWidth.value > 0f) {
+                        Modifier.border(borderWidth, borderColor, shape)
+                    } else {
+                        Modifier
+                    }
+                )
+                .clickable(
+                    role = Role.Button,
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = rememberRipple(bounded = true),
+                    onClick = {
+                        if (!AppStorys.isValidUrl(link)) {
+                            AppStorys.navigateToScreen(link)
+                        } else {
+                            AppStorys.openUrl(link)
+                        }
+                        onButtonClick()
+                    }
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = buttonText,
+                color = textColor,
+                fontSize = fontSize,
+                fontFamily = FontFamily.Default, // Keep font default as requested
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                modifier = Modifier.padding(horizontal = 12.dp)
+            )
+        }
     }
 }

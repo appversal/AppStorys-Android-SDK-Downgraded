@@ -425,7 +425,7 @@ fun FullScreenVideoDialog(
                             link = link,
                             pipStyling = pipStyling,
                             modifier = Modifier.align(Alignment.BottomCenter),
-                            applyMargins = false,
+                            applyMargins = true,
                             onButtonClick = onButtonClick
                         )
                     }
