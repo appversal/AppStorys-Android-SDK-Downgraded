@@ -120,40 +120,81 @@ fun PipCta(
         else -> Alignment.Center
     }
     
-    // Outer container with alignment and margins
-    Box(
-        modifier = modifier
-            .padding(
-                top = marginTop,
-                bottom = marginBottom,
-                start = marginLeft,
-                end = marginRight
-            )
-            .then(
-                when {
-                    // If explicit width is provided, use it (even if fullWidth is also true)
-                    ctaWidth != null -> Modifier.width(ctaWidth.dp)
-                    // Otherwise, respect fullWidth flag
-                    ctaFullWidth -> Modifier.fillMaxWidth()
-                    // Default: wrap content
-                    else -> Modifier.wrapContentWidth()
-                }
-            ),
-        contentAlignment = containerAlignment
-    ) {
-        // Inner clickable box (the actual button)
+    // Determine width modifier for the button
+    val widthModifier = when {
+        // If explicit width is provided, use it (even if fullWidth is also true)
+        ctaWidth != null -> Modifier.width(ctaWidth.dp)
+        // Otherwise, respect fullWidth flag
+        ctaFullWidth -> Modifier.fillMaxWidth()
+        // Default: wrap content
+        else -> Modifier.wrapContentWidth()
+    }
+    
+    // Outer container for alignment when we have a fixed width button
+    // If button is full width, we don't need the outer container
+    if (ctaWidth != null && !ctaFullWidth) {
+        // Fixed width button - use outer Box for alignment
         Box(
-            modifier = Modifier
-                .then(
-                    when {
-                        // If explicit width, use it
-                        ctaWidth != null -> Modifier.width(ctaWidth.dp)
-                        // If fullWidth and no explicit width, fill available width
-                        ctaFullWidth -> Modifier.fillMaxWidth()
-                        // Default: wrap content
-                        else -> Modifier.wrapContentWidth()
-                    }
+            modifier = modifier
+                .fillMaxWidth()
+                .padding(
+                    top = marginTop,
+                    bottom = marginBottom,
+                    start = marginLeft,
+                    end = marginRight
+                ),
+            contentAlignment = containerAlignment
+        ) {
+            // Inner clickable box (the actual button)
+            Box(
+                modifier = Modifier
+                    .width(ctaWidth.dp)
+                    .height(height)
+                    .background(backgroundColor, shape)
+                    .then(
+                        if (borderWidth.value > 0f) {
+                            Modifier.border(borderWidth, borderColor, shape)
+                        } else {
+                            Modifier
+                        }
+                    )
+                    .clickable(
+                        role = Role.Button,
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = rememberRipple(bounded = true),
+                        onClick = {
+                            if (!AppStorys.isValidUrl(link)) {
+                                AppStorys.navigateToScreen(link)
+                            } else {
+                                AppStorys.openUrl(link)
+                            }
+                            onButtonClick()
+                        }
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = buttonText,
+                    color = textColor,
+                    fontSize = fontSize,
+                    fontFamily = FontFamily.Default, // Keep font default as requested
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    modifier = Modifier.padding(horizontal = 12.dp)
                 )
+            }
+        }
+    } else {
+        // Full width or wrap content - single Box (like ModalBackendCta)
+        Box(
+            modifier = modifier
+                .padding(
+                    top = marginTop,
+                    bottom = marginBottom,
+                    start = marginLeft,
+                    end = marginRight
+                )
+                .then(widthModifier)
                 .height(height)
                 .background(backgroundColor, shape)
                 .then(
