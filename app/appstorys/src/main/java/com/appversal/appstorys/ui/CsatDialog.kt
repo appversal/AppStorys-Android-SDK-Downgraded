@@ -110,12 +110,21 @@ internal fun CsatDialog(
             "csatLowStarColor" to (s?.rating?.low?.background?.toColor(
                 s?.csatLowStarColor.toColor(Color(0xFFFF6B6B))
             ) ?: s?.csatLowStarColor.toColor(Color(0xFFFF6B6B))),
+            "csatLowStarBorderColor" to (s?.rating?.low?.border?.toColor(
+                Color.Transparent
+            ) ?: Color.Transparent),
             "csatHighStarColor" to (s?.rating?.high?.background?.toColor(
                 s?.csatHighStarColor.toColor(Color(0xFFFFD700))
             ) ?: s?.csatHighStarColor.toColor(Color(0xFFFFD700))),
+            "csatHighStarBorderColor" to (s?.rating?.high?.border?.toColor(
+                Color.Transparent
+            ) ?: Color.Transparent),
             "csatUnselectedStarColor" to (s?.rating?.unselected?.background?.toColor(
                 s?.csatUnselectedStarColor.toColor(Color(0xFFCCCCCC))
             ) ?: s?.csatUnselectedStarColor.toColor(Color(0xFFCCCCCC))),
+            "csatUnselectedStarBorderColor" to (s?.rating?.unselected?.border?.toColor(
+                Color.Transparent
+            ) ?: Color.Transparent),
 
             // Additional comments colors
             "csatAdditionalTextColor" to (s?.feedbackPage?.additionalComments?.colors?.text?.toColor(
@@ -177,7 +186,7 @@ internal fun CsatDialog(
                 end = (containerMargin?.right ?: 16).dp
             ),
         shape = RoundedCornerShape(borderRadius.dp),
-        color = styling["csatBackgroundColor"]!!,
+        color = styling["csatBackgroundColor"] ?: Color.White,
 //        shadowElevation = 8.dp
     ) {
         Box(
@@ -289,46 +298,153 @@ private fun MainContent(
                 end = (containerPadding?.right ?: 24).dp
             )
     ) {
+        // Extract title and subtitle textStyle
+        val titleTextStyle = csatDetails.styling?.initialFeedback?.title?.textStyle
+        val subtitleTextStyle = csatDetails.styling?.initialFeedback?.subtitle?.textStyle
+
+        // Title alignment
+        val titleAlignment = when (titleTextStyle?.alignment?.lowercase()) {
+            "left" -> androidx.compose.ui.text.style.TextAlign.Start
+            "right" -> androidx.compose.ui.text.style.TextAlign.End
+            "center" -> androidx.compose.ui.text.style.TextAlign.Center
+            else -> androidx.compose.ui.text.style.TextAlign.Start
+        }
+
+        // Title font family
+        val titleFontFamily = when (titleTextStyle?.font?.lowercase()) {
+            "serif" -> androidx.compose.ui.text.font.FontFamily.Serif
+            "monospace" -> androidx.compose.ui.text.font.FontFamily.Monospace
+            "cursive" -> androidx.compose.ui.text.font.FontFamily.Cursive
+            else -> androidx.compose.ui.text.font.FontFamily.SansSerif
+        }
+
+        // Subtitle alignment
+        val subtitleAlignment = when (subtitleTextStyle?.alignment?.lowercase()) {
+            "left" -> androidx.compose.ui.text.style.TextAlign.Start
+            "right" -> androidx.compose.ui.text.style.TextAlign.End
+            "center" -> androidx.compose.ui.text.style.TextAlign.Center
+            else -> androidx.compose.ui.text.style.TextAlign.Start
+        }
+
+        // Subtitle font family
+        val subtitleFontFamily = when (subtitleTextStyle?.font?.lowercase()) {
+            "serif" -> androidx.compose.ui.text.font.FontFamily.Serif
+            "monospace" -> androidx.compose.ui.text.font.FontFamily.Monospace
+            "cursive" -> androidx.compose.ui.text.font.FontFamily.Cursive
+            else -> androidx.compose.ui.text.font.FontFamily.SansSerif
+        }
+
         Text(
-            modifier = Modifier.padding(end = 18.dp),
+            modifier = Modifier
+                .padding(end = 18.dp)
+                .fillMaxWidth(),
             text = localContent["title"]!!,
-            fontSize = ((csatDetails.styling?.fontSize ?: 16) + 6).sp,
+            fontSize = (titleTextStyle?.size ?: ((csatDetails.styling?.fontSize ?: 16) + 6)).sp,
             fontWeight = FontWeight.Bold,
-            color = styling["csatTitleColor"]!!
+            color = styling["csatTitleColor"] ?: Color.Black,
+            textAlign = titleAlignment,
+            fontFamily = titleFontFamily
         )
 
         Spacer(modifier = Modifier.height(4.dp))
 
         Text(
             text = localContent["description"]!!,
-            fontSize = (csatDetails.styling?.fontSize ?: 16).sp,
-            color = styling["csatDescriptionTextColor"]!!
+            fontSize = (subtitleTextStyle?.size ?: (csatDetails.styling?.fontSize ?: 16)).sp,
+            color = styling["csatDescriptionTextColor"] ?: Color(0xFF504F58),
+            textAlign = subtitleAlignment,
+            fontFamily = subtitleFontFamily,
+            modifier = Modifier.fillMaxWidth()
         )
 
         Spacer(modifier = Modifier.height(12.dp))
+
+        // Display text for rating
+        csatDetails.styling?.rating?.displayText?.let { displayText ->
+            if (displayText.isNotEmpty() && displayText.lowercase() != "same") {
+                Text(
+                    text = displayText,
+                    fontSize = (csatDetails.styling?.fontSize ?: 16).sp,
+                    color = styling["csatDescriptionTextColor"] ?: Color(0xFF504F58),
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+            }
+        }
 
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.Start
         ) {
             repeat(5) { index ->
+                val isSelected = index < selectedStars
+
+                // Determine if we're in high rating mode (4-5 stars selected)
+                val isHighRatingMode = selectedStars >= 4
+
                 val starColor = when {
-                    index >= selectedStars -> styling["csatUnselectedStarColor"]!!
-                    selectedStars >= 4 -> styling["csatHighStarColor"]!!
-                    else -> styling["csatLowStarColor"]!!
+                    !isSelected -> styling["csatUnselectedStarColor"] ?: Color(0xFFCCCCCC)
+                    isHighRatingMode -> styling["csatHighStarColor"] ?: Color(0xFFFFD700)
+                    else -> styling["csatLowStarColor"] ?: Color(0xFFFF6B6B)
                 }
-                Icon(
-                    imageVector = Icons.Default.Star,
-                    contentDescription = "Star ${index + 1}",
-                    tint = starColor,
+
+                val borderColor = when {
+                    !isSelected -> styling["csatUnselectedStarBorderColor"] ?: Color.Transparent
+                    isHighRatingMode -> styling["csatHighStarBorderColor"] ?: Color.Transparent
+                    else -> styling["csatLowStarBorderColor"] ?: Color.Transparent
+                }
+
+                val borderWidth = when {
+                    !isSelected -> csatDetails.styling?.rating?.unselected?.borderWidth ?: 0
+                    isHighRatingMode -> csatDetails.styling?.rating?.high?.borderWidth ?: 0
+                    else -> csatDetails.styling?.rating?.low?.borderWidth ?: 0
+                }
+
+                Box(
                     modifier = Modifier
                         .size(40.dp)
+                        .then(
+                            if (borderWidth > 0) {
+                                Modifier.border(
+                                    width = borderWidth.dp,
+                                    color = borderColor,
+                                    shape = CircleShape
+                                )
+                            } else Modifier
+                        )
                         .clickable(
                             indication = null,
                             interactionSource = remember { MutableInteractionSource() }
-                        ) { onStarSelected(index + 1) }
-                )
+                        ) { onStarSelected(index + 1) },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Star,
+                        contentDescription = "Star ${index + 1}",
+                        tint = starColor,
+                        modifier = Modifier.size(36.dp)
+                    )
+                }
                 Spacer(modifier = Modifier.width(8.dp))
+            }
+        }
+
+        // Display subtitle based on rating
+        if (selectedStars > 0) {
+            val subtitle = when {
+                selectedStars >= 4 -> csatDetails.styling?.rating?.high?.highRatingSubtitle
+                else -> csatDetails.styling?.rating?.low?.lowRatingSubtitle
+            }
+
+            subtitle?.let { text ->
+                if (text.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = text,
+                        fontSize = (csatDetails.styling?.fontSize ?: 16).sp,
+                        color = styling["csatDescriptionTextColor"] ?: Color(0xFF504F58),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
             }
         }
 
@@ -367,7 +483,7 @@ private fun FeedbackContent(
             Text(
                 text = feedbackPrompt,
                 fontSize = (csatDetails.styling?.fontSize ?: 16).sp,
-                color = styling["csatTitleColor"]!!
+                color = styling["csatTitleColor"] ?: Color.Black
             )
         }
 //        if (feedbackOptions?.toList()?.isNotEmpty() == true) {
@@ -401,13 +517,13 @@ private fun FeedbackContent(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 4.dp),
-                color = if (isSelected) styling["csatSelectedOptionBackgroundColor"]!!
-                       else styling["csatOptionBoxColour"]!!,
+                color = if (isSelected) styling["csatSelectedOptionBackgroundColor"] ?: Color(0xFFE3F2FD)
+                       else styling["csatOptionBoxColour"] ?: Color.White,
                 shape = RoundedCornerShape(24.dp),
                 border = androidx.compose.foundation.BorderStroke(
                     width = 1.dp,
-                    color = if (isSelected) styling["csatSelectedOptionStrokeColor"]!!
-                           else styling["csatOptionStrokeColor"]!!
+                    color = if (isSelected) styling["csatSelectedOptionStrokeColor"] ?: Color(0xFF007AFF)
+                           else styling["csatOptionStrokeColor"] ?: Color(0xFFCCCCCC)
                 )
             ) {
                 Box(
@@ -422,8 +538,8 @@ private fun FeedbackContent(
                         textAlign = optionAlignment,
                         fontFamily = optionFontFamily,
                         modifier = Modifier.fillMaxWidth(),
-                        color = if (isSelected) styling["csatSelectedOptionTextColor"]!!
-                               else styling["csatOptionTextColor"]!!
+                        color = if (isSelected) styling["csatSelectedOptionTextColor"] ?: Color(0xFF007AFF)
+                               else styling["csatOptionTextColor"] ?: Color.Black
                     )
                 }
             }
@@ -451,12 +567,12 @@ private fun FeedbackContent(
                     .fillMaxWidth()
                     .height(92.dp)
                     .background(
-                        color = styling["csatAdditionalBackgroundColor"]!!,
+                        color = styling["csatAdditionalBackgroundColor"] ?: Color.White,
                         shape = RoundedCornerShape(18.dp)
                     )
                     .border(
                         width = 1.dp,
-                        color = styling["csatAdditionalBorderColor"]!!,
+                        color = styling["csatAdditionalBorderColor"] ?: Color(0xFFCCCCCC),
                         shape = RoundedCornerShape(18.dp)
                     )
             ) {
@@ -486,8 +602,8 @@ private fun FeedbackContent(
                     maxLines = Int.MAX_VALUE,
                     singleLine = false,
                     colors = TextFieldDefaults.colors(
-                        focusedTextColor = styling["csatAdditionalTextColor"]!!,
-                        unfocusedTextColor = styling["csatAdditionalTextColor"]!!,
+                        focusedTextColor = styling["csatAdditionalTextColor"] ?: Color.Black,
+                        unfocusedTextColor = styling["csatAdditionalTextColor"] ?: Color.Black,
                         unfocusedContainerColor = Color.Transparent,
                         focusedContainerColor = Color.Transparent,
                         focusedIndicatorColor = Color.Transparent,
@@ -498,22 +614,45 @@ private fun FeedbackContent(
         }
 
 
-        Spacer(modifier = Modifier.height(18.dp))
+        val submitButton = csatDetails.styling?.feedbackPage?.submitButton
+        val submitButtonMargin = submitButton?.margin
 
-        val submitButtonText = csatDetails.styling?.feedbackPage?.submitButton?.text ?: "Submit"
-        val submitButtonRadius = csatDetails.styling?.feedbackPage?.submitButton?.containerRadius
-        val submitButtonBorderWidth = csatDetails.styling?.feedbackPage?.submitButton?.containerStyle?.borderWidth ?: 0
+        Spacer(modifier = Modifier.height((submitButtonMargin?.top ?: 18).dp))
+
+        val submitButtonText = submitButton?.text ?: "Submit"
+        val submitButtonRadius = submitButton?.containerRadius
+        val submitButtonBorderWidth = submitButton?.containerStyle?.borderWidth ?: 0
+        val submitButtonHeight = submitButton?.containerStyle?.height
+        val submitButtonAlignment = submitButton?.containerStyle?.alignment
+        val submitButtonFullWidth = submitButton?.fullWidth ?: true
+        val submitButtonTextStyle = submitButton?.textStyle
+
+        // Determine button alignment
+        val buttonAlignment = when (submitButtonAlignment?.lowercase()) {
+            "left" -> Alignment.Start
+            "right" -> Alignment.End
+            else -> Alignment.CenterHorizontally
+        }
 
         Button(
             onClick = onSubmit,
             modifier = Modifier
-                .align(Alignment.CenterHorizontally)
-                .fillMaxWidth()
+                .align(buttonAlignment)
+                .padding(
+                    start = (submitButtonMargin?.left ?: 0).dp,
+                    end = (submitButtonMargin?.right ?: 0).dp
+                )
+                .then(
+                    if (submitButtonFullWidth) Modifier.fillMaxWidth() else Modifier
+                )
+                .then(
+                    if (submitButtonHeight != null) Modifier.height(submitButtonHeight.dp) else Modifier
+                )
                 .then(
                     if (submitButtonBorderWidth > 0) {
                         Modifier.border(
                             width = submitButtonBorderWidth.dp,
-                            color = styling["csatCtaBorderColor"]!!,
+                            color = styling["csatCtaBorderColor"] ?: Color.Transparent,
                             shape = RoundedCornerShape(
                                 topStart = (submitButtonRadius?.topLeft ?: 12).dp,
                                 topEnd = (submitButtonRadius?.topRight ?: 12).dp,
@@ -530,16 +669,35 @@ private fun FeedbackContent(
                 bottomEnd = (submitButtonRadius?.bottomRight ?: 12).dp
             ),
             colors = ButtonDefaults.buttonColors(
-                containerColor = styling["csatCtaBackgroundColor"]!!
-            ),
-            contentPadding = PaddingValues(0.dp) // NO PADDING as requested
+                containerColor = styling["csatCtaBackgroundColor"] ?: Color(0xFF007AFF)
+            )
         ) {
+            // Determine text alignment
+            val textAlign = when (submitButtonTextStyle?.alignment?.lowercase()) {
+                "left" -> androidx.compose.ui.text.style.TextAlign.Start
+                "right" -> androidx.compose.ui.text.style.TextAlign.End
+                else -> androidx.compose.ui.text.style.TextAlign.Center
+            }
+
+            // Determine font family
+            val fontFamily = when (submitButtonTextStyle?.font?.lowercase()) {
+                "serif" -> androidx.compose.ui.text.font.FontFamily.Serif
+                "monospace" -> androidx.compose.ui.text.font.FontFamily.Monospace
+                "cursive" -> androidx.compose.ui.text.font.FontFamily.Cursive
+                else -> androidx.compose.ui.text.font.FontFamily.SansSerif
+            }
+
             Text(
                 text = submitButtonText,
-                fontSize = ((csatDetails.styling?.fontSize ?: 16) + 2).sp,
-                color = styling["csatCtaTextColor"]!!
+                fontSize = (submitButtonTextStyle?.size ?: ((csatDetails.styling?.fontSize ?: 16) + 2)).sp,
+                color = styling["csatCtaTextColor"] ?: Color.White,
+                textAlign = textAlign,
+                fontFamily = fontFamily,
+                modifier = if (submitButtonFullWidth) Modifier.fillMaxWidth() else Modifier
             )
         }
+
+        Spacer(modifier = Modifier.height((submitButtonMargin?.bottom ?: 0).dp))
     }
 }
 
@@ -555,11 +713,27 @@ private fun ThankYouContent(
     val context = LocalContext.current
 
     // Extract thank you page styling
-    val imageMargin = csatDetails.styling?.thankyouPage?.imageStyle?.margin
-    val doneButtonText = csatDetails.styling?.thankyouPage?.doneButton?.text ?:
+    val imageStyle = csatDetails.styling?.thankyouPage?.imageStyle
+    val imageMargin = imageStyle?.margin
+    val imageWidth = imageStyle?.width ?: 66
+    val imageHeight = imageStyle?.height ?: 66
+    val doneButton = csatDetails.styling?.thankyouPage?.doneButton
+    val doneButtonText = doneButton?.text ?:
         (if (selectedStars < 4) csatDetails.lowStarText else csatDetails.highStarText) ?: "Done"
-    val doneButtonRadius = csatDetails.styling?.thankyouPage?.doneButton?.containerRadius
-    val doneButtonBorderWidth = csatDetails.styling?.thankyouPage?.doneButton?.containerStyle?.borderWidth ?: 0
+    val doneButtonRadius = doneButton?.containerRadius
+    val doneButtonBorderWidth = doneButton?.containerStyle?.borderWidth ?: 0
+    val doneButtonHeight = doneButton?.containerStyle?.height
+    val doneButtonAlignment = doneButton?.containerStyle?.alignment
+    val doneButtonFullWidth = doneButton?.fullWidth ?: true
+    val doneButtonMargin = doneButton?.margin
+    val doneButtonTextStyle = doneButton?.textStyle
+
+    // Determine button alignment
+    val buttonAlignment = when (doneButtonAlignment?.lowercase()) {
+        "left" -> Alignment.Start
+        "right" -> Alignment.End
+        else -> Alignment.CenterHorizontally
+    }
 
     Column(
         modifier = Modifier
@@ -567,49 +741,143 @@ private fun ThankYouContent(
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        AsyncImage(
-            model = image.ifEmpty { "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTwlQ-xYqAIcjylz3NUGJ_jcdRmdzk_vMae0w&s"  },
-            contentDescription = "Thank you",
-            modifier = Modifier
-                .size(66.dp)
-                .padding(
-                    top = (imageMargin?.top ?: 0).dp,
-                    bottom = (imageMargin?.bottom ?: 0).dp,
-                    start = (imageMargin?.left ?: 0).dp,
-                    end = (imageMargin?.right ?: 0).dp
-                ), // NO PADDING from imageStyle.padding as requested
-            contentScale = ContentScale.Fit
-        )
+        // Determine image type and render accordingly
+        val imageUrl = image.ifEmpty { "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTwlQ-xYqAIcjylz3NUGJ_jcdRmdzk_vMae0w&s" }
+        val isLottie = imageUrl.endsWith(".json", ignoreCase = true)
+        val isHtml = imageUrl.endsWith(".html", ignoreCase = true) || imageUrl.endsWith(".htm", ignoreCase = true)
+
+        when {
+            isLottie -> {
+                // Lottie animation
+                com.airbnb.lottie.compose.LottieAnimation(
+                    composition = com.airbnb.lottie.compose.rememberLottieComposition(
+                        com.airbnb.lottie.compose.LottieCompositionSpec.Url(imageUrl)
+                    ).value,
+                    iterations = com.airbnb.lottie.compose.LottieConstants.IterateForever,
+                    modifier = Modifier
+                        .size(width = imageWidth.dp, height = imageHeight.dp)
+                        .padding(
+                            top = (imageMargin?.top ?: 0).dp,
+                            bottom = (imageMargin?.bottom ?: 0).dp,
+                            start = (imageMargin?.left ?: 0).dp,
+                            end = (imageMargin?.right ?: 0).dp
+                        )
+                )
+            }
+            isHtml -> {
+                // HTML content - would need WebView implementation
+                // For now, show a placeholder or text
+                Box(
+                    modifier = Modifier
+                        .size(width = imageWidth.dp, height = imageHeight.dp)
+                        .padding(
+                            top = (imageMargin?.top ?: 0).dp,
+                            bottom = (imageMargin?.bottom ?: 0).dp,
+                            start = (imageMargin?.left ?: 0).dp,
+                            end = (imageMargin?.right ?: 0).dp
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "✓",
+                        fontSize = 48.sp,
+                        color = Color.Green
+                    )
+                }
+            }
+            else -> {
+                // Static image (JPEG, PNG, GIF)
+                AsyncImage(
+                    model = imageUrl,
+                    contentDescription = "Thank you",
+                    modifier = Modifier
+                        .size(width = imageWidth.dp, height = imageHeight.dp)
+                        .padding(
+                            top = (imageMargin?.top ?: 0).dp,
+                            bottom = (imageMargin?.bottom ?: 0).dp,
+                            start = (imageMargin?.left ?: 0).dp,
+                            end = (imageMargin?.right ?: 0).dp
+                        ),
+                    contentScale = ContentScale.Fit
+                )
+            }
+        }
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // Extract title textStyle
+        val titleConfig = csatDetails.styling?.thankyouPage?.title
+        val titleTextStyle = titleConfig?.textStyle
+        val titleAlignment = when ((titleConfig?.alignment ?: titleTextStyle?.alignment)?.lowercase()) {
+            "left" -> androidx.compose.ui.text.style.TextAlign.Start
+            "right" -> androidx.compose.ui.text.style.TextAlign.End
+            "center" -> androidx.compose.ui.text.style.TextAlign.Center
+            else -> androidx.compose.ui.text.style.TextAlign.Center
+        }
+        val titleFontFamily = when (titleTextStyle?.font?.lowercase()) {
+            "serif" -> androidx.compose.ui.text.font.FontFamily.Serif
+            "monospace" -> androidx.compose.ui.text.font.FontFamily.Monospace
+            "cursive" -> androidx.compose.ui.text.font.FontFamily.Cursive
+            else -> androidx.compose.ui.text.font.FontFamily.SansSerif
+        }
+
         Text(
             text = localContent["thankyouText"]!!,
-            fontSize = ((csatDetails.styling?.fontSize ?: 16) + 6).sp,
+            fontSize = (titleTextStyle?.size ?: ((csatDetails.styling?.fontSize ?: 16) + 6)).sp,
             fontWeight = FontWeight.Bold,
-            color = styling["thankyouTitleColor"]!!
+            color = styling["thankyouTitleColor"] ?: Color.Black,
+            textAlign = titleAlignment,
+            fontFamily = titleFontFamily,
+            modifier = Modifier.fillMaxWidth()
         )
 
         Spacer(modifier = Modifier.height(4.dp))
 
+        // Extract subtitle textStyle
+        val subtitleConfig = csatDetails.styling?.thankyouPage?.subtitle
+        val subtitleTextStyle = subtitleConfig?.textStyle
+        val subtitleAlignment = when ((subtitleConfig?.alignment ?: subtitleTextStyle?.alignment)?.lowercase()) {
+            "left" -> androidx.compose.ui.text.style.TextAlign.Start
+            "right" -> androidx.compose.ui.text.style.TextAlign.End
+            "center" -> androidx.compose.ui.text.style.TextAlign.Center
+            else -> androidx.compose.ui.text.style.TextAlign.Center
+        }
+        val subtitleFontFamily = when (subtitleTextStyle?.font?.lowercase()) {
+            "serif" -> androidx.compose.ui.text.font.FontFamily.Serif
+            "monospace" -> androidx.compose.ui.text.font.FontFamily.Monospace
+            "cursive" -> androidx.compose.ui.text.font.FontFamily.Cursive
+            else -> androidx.compose.ui.text.font.FontFamily.SansSerif
+        }
+
         Text(
             text = localContent["thankyouDescription"]!!,
-            fontSize = (csatDetails.styling?.fontSize ?: 16).sp,
-            color = styling["thankyouSubtitleColor"]!!,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            fontSize = (subtitleTextStyle?.size ?: (csatDetails.styling?.fontSize ?: 16)).sp,
+            color = styling["thankyouSubtitleColor"] ?: Color(0xFF504F58),
+            textAlign = subtitleAlignment,
+            fontFamily = subtitleFontFamily,
+            modifier = Modifier.fillMaxWidth()
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height((doneButtonMargin?.top ?: 16).dp))
 
         Button(
             modifier = Modifier
-                .align(Alignment.CenterHorizontally)
-                .fillMaxWidth()
+                .align(buttonAlignment)
+                .padding(
+                    start = (doneButtonMargin?.left ?: 0).dp,
+                    end = (doneButtonMargin?.right ?: 0).dp
+                )
+                .then(
+                    if (doneButtonFullWidth) Modifier.fillMaxWidth() else Modifier
+                )
+                .then(
+                    if (doneButtonHeight != null) Modifier.height(doneButtonHeight.dp) else Modifier
+                )
                 .then(
                     if (doneButtonBorderWidth > 0) {
                         Modifier.border(
                             width = doneButtonBorderWidth.dp,
-                            color = styling["thankyouButtonBorderColor"]!!,
+                            color = styling["thankyouButtonBorderColor"] ?: Color.Transparent,
                             shape = RoundedCornerShape(
                                 topStart = (doneButtonRadius?.topLeft ?: 12).dp,
                                 topEnd = (doneButtonRadius?.topRight ?: 12).dp,
@@ -644,15 +912,34 @@ private fun ThankYouContent(
                 bottomEnd = (doneButtonRadius?.bottomRight ?: 12).dp
             ),
             colors = ButtonDefaults.buttonColors(
-                containerColor = styling["thankyouButtonBackgroundColor"]!!
-            ),
-            contentPadding = PaddingValues(0.dp) // NO PADDING as requested
+                containerColor = styling["thankyouButtonBackgroundColor"] ?: Color(0xFF007AFF)
+            )
         ) {
+            // Determine text alignment
+            val textAlign = when (doneButtonTextStyle?.alignment?.lowercase()) {
+                "left" -> androidx.compose.ui.text.style.TextAlign.Start
+                "right" -> androidx.compose.ui.text.style.TextAlign.End
+                else -> androidx.compose.ui.text.style.TextAlign.Center
+            }
+
+            // Determine font family
+            val fontFamily = when (doneButtonTextStyle?.font?.lowercase()) {
+                "serif" -> androidx.compose.ui.text.font.FontFamily.Serif
+                "monospace" -> androidx.compose.ui.text.font.FontFamily.Monospace
+                "cursive" -> androidx.compose.ui.text.font.FontFamily.Cursive
+                else -> androidx.compose.ui.text.font.FontFamily.SansSerif
+            }
+
             Text(
-                fontSize = ((csatDetails.styling?.fontSize ?: 16) + 2).sp,
+                fontSize = (doneButtonTextStyle?.size ?: ((csatDetails.styling?.fontSize ?: 16) + 2)).sp,
                 text = doneButtonText,
-                color = styling["thankyouButtonTextColor"]!!
+                color = styling["thankyouButtonTextColor"] ?: Color.White,
+                fontFamily = fontFamily,
+                textAlign = textAlign,
+                modifier = if (doneButtonFullWidth) Modifier.fillMaxWidth() else Modifier
             )
         }
+
+        Spacer(modifier = Modifier.height((doneButtonMargin?.bottom ?: 0).dp))
     }
 }

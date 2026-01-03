@@ -434,6 +434,7 @@ data class CsatInitialFeedback(
 @Keep
 @Serializable
 data class CsatTextElement(
+    val alignment: String?,
     val colors: String?,
     val textStyle: CsatTextStyle?
 )
@@ -469,6 +470,8 @@ data class CsatThankyouPage(
 @Keep
 @Serializable
 data class CsatImageStyle(
+    val width: Int?,
+    val height: Int?,
     val margin: Margin?,
     val padding: Margin?
 )
