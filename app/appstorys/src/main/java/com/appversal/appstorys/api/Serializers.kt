@@ -280,3 +280,35 @@ object CampaignResponseDeserializer : KSerializer<CampaignResponse> {
     }
 }
 
+    /**
+     * Custom serializer for nullable Int that treats empty strings as null.
+     * Backend sometimes sends empty strings ("") instead of omitting the field or sending null.
+     */
+    object NullableIntSerializer : KSerializer<Int?> {
+        override val descriptor: SerialDescriptor =
+            PrimitiveSerialDescriptor("NullableInt", PrimitiveKind.INT)
+
+        override fun deserialize(decoder: Decoder): Int? {
+            val jsonDecoder = decoder as? JsonDecoder ?: return decoder.decodeInt()
+            val element = jsonDecoder.decodeJsonElement()
+
+            // Handle empty string as null
+            if (element is kotlinx.serialization.json.JsonPrimitive) {
+                val content = element.contentOrNull
+                if (content.isNullOrEmpty()) return null
+                return content.toIntOrNull()
+            }
+
+            return null
+        }
+
+        @OptIn(ExperimentalSerializationApi::class)
+        override fun serialize(encoder: Encoder, value: Int?) {
+            if (value == null) {
+                encoder.encodeNull()
+            } else {
+                encoder.encodeInt(value)
+            }
+        }
+    }
+

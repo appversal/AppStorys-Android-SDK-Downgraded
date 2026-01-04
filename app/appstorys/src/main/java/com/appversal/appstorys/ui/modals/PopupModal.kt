@@ -100,12 +100,19 @@ internal fun PopupModal(
     val crossButtonImageUrl = modal.styling?.crossButton?.uploadImage?.url
         ?: modal.styling?.crossButton?.default?.crossButtonImage
 
+    // Extract spacing to avoid naming conflicts with Modifier.padding
+    val crossButtonSpacing = modal.styling?.crossButton?.default?.spacing
+
     val crossConfig = createCrossButtonConfig(
         fillColorString = modal.styling?.crossButton?.default?.color?.fill,
         crossColorString = modal.styling?.crossButton?.default?.color?.cross,
         strokeColorString = modal.styling?.crossButton?.default?.color?.stroke,
-        marginTop = modal.styling?.crossButton?.default?.spacing?.margin?.top,
-        marginEnd = modal.styling?.crossButton?.default?.spacing?.margin?.right,
+        marginTop = crossButtonSpacing?.margin?.top,
+        marginEnd = crossButtonSpacing?.margin?.right,
+        paddingTop = crossButtonSpacing?.padding?.top,
+        paddingEnd = crossButtonSpacing?.padding?.right,
+        paddingBottom = crossButtonSpacing?.padding?.bottom,
+        paddingStart = crossButtonSpacing?.padding?.left,
         imageUrl = crossButtonImageUrl
     )
 

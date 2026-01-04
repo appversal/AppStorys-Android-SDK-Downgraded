@@ -159,6 +159,10 @@ data class CrossButtonConfig(
     val marginTop: Dp = 8.dp,
     val marginEnd: Dp = 8.dp,
     val size: Dp = 18.dp,
+    val paddingTop: Dp = 0.dp,
+    val paddingEnd: Dp = 0.dp,
+    val paddingBottom: Dp = 0.dp,
+    val paddingStart: Dp = 0.dp,
     val imageUrl: String? = null
 )
 
@@ -180,8 +184,21 @@ internal fun CrossButton(
     Box(
         modifier = modifier
             .padding(
-                top = config.marginTop + safePadding ,
+                top = config.marginTop + safePadding,
                 end = config.marginEnd + safePadding
+            )
+            .then(
+                if (config.paddingTop > 0.dp || config.paddingEnd > 0.dp ||
+                    config.paddingBottom > 0.dp || config.paddingStart > 0.dp) {
+                    Modifier.padding(
+                        top = config.paddingTop,
+                        end = config.paddingEnd,
+                        bottom = config.paddingBottom,
+                        start = config.paddingStart
+                    )
+                } else {
+                    Modifier
+                }
             )
             .size(
                 if(shouldUseSize){
@@ -254,6 +271,10 @@ fun createCrossButtonConfig(
     strokeColorString: String? = null,
     marginTop: Int? = null,
     marginEnd: Int? = null,
+    paddingTop: Int? = null,
+    paddingEnd: Int? = null,
+    paddingBottom: Int? = null,
+    paddingStart: Int? = null,
     size: Int? = null,
     imageUrl: String? = null
 ): CrossButtonConfig {
@@ -267,6 +288,10 @@ fun createCrossButtonConfig(
         marginTop = marginTop?.dp ?: 8.dp,
         marginEnd = marginEnd?.dp ?: 8.dp,
         size = size?.dp ?: 18.dp,
+        paddingTop = paddingTop?.dp ?: 0.dp,
+        paddingEnd = paddingEnd?.dp ?: 0.dp,
+        paddingBottom = paddingBottom?.dp ?: 0.dp,
+        paddingStart = paddingStart?.dp ?: 0.dp,
         imageUrl = imageUrl
     )
 }

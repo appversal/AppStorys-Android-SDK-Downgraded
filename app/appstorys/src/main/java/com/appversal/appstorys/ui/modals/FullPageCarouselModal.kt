@@ -71,10 +71,15 @@ internal fun FullPageCarouselModal(
     val configuration = LocalConfiguration.current
     val screenHeight = configuration.screenHeightDp.dp
 
-    // appearance and styling - prefer slide-level appearance if present else modal-level
-    // We'll compute effective appearance per modal using first slide's styling if provided
-    val firstSlideAppearance = slides.firstOrNull()?.styling?.appearance
-    val effectiveAppearance = firstSlideAppearance ?: modal.styling?.appearance
+    val pagerState = rememberPagerState(initialPage = 0, pageCount = { slides.size })
+
+    // Get current slide for dynamic appearance
+    val currentSlideIndex = pagerState.currentPage
+    val currentSlide = slides.getOrNull(currentSlideIndex)
+
+    // Resolve appearance dynamically based on current slide
+    val currentSlideAppearance = currentSlide?.styling?.appearance
+    val effectiveAppearance = currentSlideAppearance ?: modal.styling?.appearance
 
     // prefer dimentons if provided by backend (some send misspelled field)
     val effectiveDimension = effectiveAppearance?.dimension ?: effectiveAppearance?.dimentons
@@ -128,7 +133,6 @@ internal fun FullPageCarouselModal(
                     .background(Color.White)
                     .padding(start = padStart, top = padTop, end = padEnd, bottom = padBottom)
             ) {
-                val pagerState = rememberPagerState(initialPage = 0, pageCount = { slides.size })
 
                 AutoSlidingCarousel(
                     widgetDetails = com.appversal.appstorys.api.WidgetDetails(id = null, type = null, width = null, height = null, widgetImages = null, campaign = null, screen = null, styling = null),
@@ -197,10 +201,8 @@ internal fun FullPageCarouselModal(
                             // CTAs row
                             Spacer(modifier = Modifier.height(12.dp))
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 8.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.Start,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
 
@@ -233,14 +235,6 @@ internal fun FullPageCarouselModal(
                                 val secondaryMarginTopDp = (secondaryStyling?.spacing?.margin?.top ?: 0).dp
                                 val secondaryMarginBottomDp = (secondaryStyling?.spacing?.margin?.bottom ?: 0).dp
 
-                                val minHorizontalInset = 2.dp
-                                val effectivePrimaryMarginLeftDp = if (primaryOccupy && primaryMarginLeftDp == 0.dp) minHorizontalInset else primaryMarginLeftDp
-                                val effectivePrimaryMarginRightDp = if (primaryOccupy && primaryMarginRightDp == 0.dp) minHorizontalInset else primaryMarginRightDp
-                                val effectiveSecondaryMarginLeftDp = if (secondaryOccupy && secondaryMarginLeftDp == 0.dp) minHorizontalInset else secondaryMarginLeftDp
-                                val effectiveSecondaryMarginRightDp = if (secondaryOccupy && secondaryMarginRightDp == 0.dp) minHorizontalInset else secondaryMarginRightDp
-
-                                val ctaBetweenSpacing = 8.dp
-
                                 // Primary button
                                 if (!primaryText.isNullOrEmpty()) {
                                     val primaryBg = parseColorString(primaryStyling?.backgroundColor) ?: Color.Black
@@ -250,6 +244,12 @@ internal fun FullPageCarouselModal(
                                     val primaryBorderColor = parseColorString(primaryStyling?.borderColor) ?: Color.Transparent
                                     val primaryWidth = primaryStyling?.containerStyle?.ctaWidth?.let { it.dp }
                                     val primaryTextSize = primaryStyling?.textStyle?.size ?: 14
+                                    val primaryAlignment = primaryStyling?.containerStyle?.alignment
+                                    val primaryTextAlign = when (primaryAlignment?.lowercase()) {
+                                        "left" -> TextAlign.Start
+                                        "right" -> TextAlign.End
+                                        else -> TextAlign.Center
+                                    }
                                     val primaryShape = RoundedCornerShape(
                                         topStart = (primaryStyling?.cornerRadius?.topLeft ?: 12).dp,
                                         topEnd = (primaryStyling?.cornerRadius?.topRight ?: 12).dp,
@@ -258,7 +258,7 @@ internal fun FullPageCarouselModal(
                                     )
 
                                     val primaryBoxModifier = (if (primaryOccupy) Modifier.weight(1f) else Modifier)
-                                        .padding(start = effectivePrimaryMarginLeftDp, end = effectivePrimaryMarginRightDp, top = primaryMarginTopDp, bottom = primaryMarginBottomDp)
+                                        .padding(start = primaryMarginLeftDp, end = primaryMarginRightDp, top = primaryMarginTopDp, bottom = primaryMarginBottomDp)
 
                                     Box(modifier = primaryBoxModifier) {
                                         BackendCta(
@@ -272,6 +272,8 @@ internal fun FullPageCarouselModal(
                                             borderColor = primaryBorderColor,
                                             borderWidth = primaryBorderWidth,
                                             cornerRadius = primaryShape,
+                                            textAlign = primaryTextAlign,
+                                            buttonAlignment = primaryAlignment,
                                             modifier = Modifier
                                         ) {
                                             val link = slide.primaryCtaRedirection?.url ?: slide.primaryCtaRedirection?.value
@@ -289,6 +291,12 @@ internal fun FullPageCarouselModal(
                                     val secondaryBorderColor = parseColorString(secondaryStyling?.borderColor) ?: Color.Transparent
                                     val secondaryWidth = secondaryStyling?.containerStyle?.ctaWidth?.let { it.dp }
                                     val secondaryTextSize = secondaryStyling?.textStyle?.size ?: 14
+                                    val secondaryAlignment = secondaryStyling?.containerStyle?.alignment
+                                    val secondaryTextAlign = when (secondaryAlignment?.lowercase()) {
+                                        "left" -> TextAlign.Start
+                                        "right" -> TextAlign.End
+                                        else -> TextAlign.Center
+                                    }
                                     val secondaryShape = RoundedCornerShape(
                                         topStart = (secondaryStyling?.cornerRadius?.topLeft ?: 12).dp,
                                         topEnd = (secondaryStyling?.cornerRadius?.topRight ?: 12).dp,
@@ -297,7 +305,7 @@ internal fun FullPageCarouselModal(
                                     )
 
                                     val secondaryBoxModifier = (if (secondaryOccupy) Modifier.weight(1f) else Modifier)
-                                        .padding(start = effectiveSecondaryMarginLeftDp, end = effectiveSecondaryMarginRightDp, top = secondaryMarginTopDp, bottom = secondaryMarginBottomDp)
+                                        .padding(start = secondaryMarginLeftDp, end = secondaryMarginRightDp, top = secondaryMarginTopDp, bottom = secondaryMarginBottomDp)
 
                                     Box(modifier = secondaryBoxModifier) {
                                         BackendCta(
@@ -311,6 +319,8 @@ internal fun FullPageCarouselModal(
                                             borderColor = secondaryBorderColor,
                                             borderWidth = secondaryBorderWidth,
                                             cornerRadius = secondaryShape,
+                                            textAlign = secondaryTextAlign,
+                                            buttonAlignment = secondaryAlignment,
                                             modifier = Modifier
                                         ) {
                                             val link = slide.secondaryCtaRedirection?.url ?: slide.secondaryCtaRedirection?.value
@@ -325,9 +335,9 @@ internal fun FullPageCarouselModal(
                     }
                 )
 
-                // Cross button: prefer slide-level crossButton config (first slide) then modal-level
-                val slideCrossButton = slides.firstOrNull()?.styling?.crossButton
-                val effectiveCrossButton = slideCrossButton ?: modal.styling?.crossButton
+                // Cross button: use current slide's crossButton config
+                val currentSlideCrossButton = currentSlide?.styling?.crossButton
+                val effectiveCrossButton = currentSlideCrossButton ?: modal.styling?.crossButton
 
                 val crossButtonImageUrl = effectiveCrossButton?.uploadImage?.url ?: effectiveCrossButton?.default?.crossButtonImage
                 val crossConfig = createCrossButtonConfig(
@@ -336,12 +346,16 @@ internal fun FullPageCarouselModal(
                     strokeColorString = effectiveCrossButton?.default?.color?.stroke,
                     marginTop = effectiveCrossButton?.default?.spacing?.margin?.top,
                     marginEnd = effectiveCrossButton?.default?.spacing?.margin?.right,
+                    paddingTop = effectiveCrossButton?.default?.spacing?.padding?.top,
+                    paddingEnd = effectiveCrossButton?.default?.spacing?.padding?.right,
+                    paddingBottom = effectiveCrossButton?.default?.spacing?.padding?.bottom,
+                    paddingStart = effectiveCrossButton?.default?.spacing?.padding?.left,
                     imageUrl = crossButtonImageUrl
                 )
 
                 // show cross button only if enabled (defaults to true)
                 // check per-slide enable first, then modal.content
-                val contentEnable = slides.firstOrNull()?.enableCrossButton?.trim()?.equals("true", true)
+                val contentEnable = currentSlide?.enableCrossButton?.trim()?.equals("true", true)
                     ?: modal.content?.enableCrossButton?.trim()?.equals("true", true)
 
                 val crossEnableFlag = effectiveCrossButton?.enableCrossButton
@@ -350,7 +364,7 @@ internal fun FullPageCarouselModal(
 
                 if (showCross) {
                     Box(modifier = Modifier.align(TopEnd)) {
-                        CrossButton(modifier = Modifier.size(36.dp), config = crossConfig, onClose = onCloseClick, boundaryPadding = 3.dp)
+                        CrossButton(shouldUseSize = true , config = crossConfig, onClose = onCloseClick)
                     }
                 }
 

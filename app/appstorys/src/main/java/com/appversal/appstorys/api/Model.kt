@@ -921,23 +921,32 @@ data class ModalUploadImage(
 
 @Serializable
 data class ModalSpacing(
-    val margin: ModalMargin? = null
+    val margin: ModalMargin? = null,
+    val padding: ModalPadding? = null
 )
 
 @Serializable
 data class ModalMargin(
+    @Serializable(with = NullableIntSerializer::class)
     val top: Int? = null,
+    @Serializable(with = NullableIntSerializer::class)
     val right: Int? = null,
+    @Serializable(with = NullableIntSerializer::class)
     val bottom: Int? = null,
+    @Serializable(with = NullableIntSerializer::class)
     val left: Int? = null
 )
 
 // Add ModalPadding definition (same shape as ModalMargin) because some payloads use `padding` inside ModalAppearance
 @Serializable
 data class ModalPadding(
+    @Serializable(with = NullableIntSerializer::class)
     val top: Int? = null,
+    @Serializable(with = NullableIntSerializer::class)
     val right: Int? = null,
+    @Serializable(with = NullableIntSerializer::class)
     val bottom: Int? = null,
+    @Serializable(with = NullableIntSerializer::class)
     val left: Int? = null
 )
 
