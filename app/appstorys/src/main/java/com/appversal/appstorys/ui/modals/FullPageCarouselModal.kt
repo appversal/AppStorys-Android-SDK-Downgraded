@@ -340,6 +340,8 @@ internal fun FullPageCarouselModal(
                 val effectiveCrossButton = currentSlideCrossButton ?: modal.styling?.crossButton
 
                 val crossButtonImageUrl = effectiveCrossButton?.uploadImage?.url ?: effectiveCrossButton?.default?.crossButtonImage
+                val crossButtonSize = effectiveCrossButton?.default?.crossButtonSize ?: effectiveCrossButton?.crossButtonSize
+
                 val crossConfig = createCrossButtonConfig(
                     fillColorString = effectiveCrossButton?.default?.color?.fill,
                     crossColorString = effectiveCrossButton?.default?.color?.cross,
@@ -350,6 +352,7 @@ internal fun FullPageCarouselModal(
                     paddingEnd = effectiveCrossButton?.default?.spacing?.padding?.right,
                     paddingBottom = effectiveCrossButton?.default?.spacing?.padding?.bottom,
                     paddingStart = effectiveCrossButton?.default?.spacing?.padding?.left,
+                    size = crossButtonSize,
                     imageUrl = crossButtonImageUrl
                 )
 

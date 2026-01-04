@@ -904,14 +904,22 @@ data class ModalStyling(
 data class ModalCrossButton(
     val default: ModalCrossButtonDefault? = null,
     val enableCrossButton: Boolean? = null,
-    val uploadImage: ModalUploadImage? = null
+    val uploadImage: ModalUploadImage? = null,
+    // Alternative structure support (for legacy/image-only modals)
+    val colors: BannerColors? = null,
+    val enabled: Boolean? = null,
+    val margin: ModalMargin? = null,
+    val option: String? = null,
+    val selectedStyle: String? = null,
+    val crossButtonSize: Int? = null
 )
 
 @Serializable
 data class ModalCrossButtonDefault(
     val color: BannerColors? = null,
     val spacing: ModalSpacing? = null,
-    val crossButtonImage: String? = null
+    val crossButtonImage: String? = null,
+    val crossButtonSize: Int? = null
 )
 
 @Serializable
