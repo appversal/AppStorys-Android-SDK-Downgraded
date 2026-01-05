@@ -43,7 +43,7 @@ import com.appversal.appstorys.utils.pxToDp
                     AppStorys.Widget(
                         modifier = Modifier,
                         placeholder = placeholder,
-                        position = position,
+                        position = position
                     )
                 }
             }
@@ -66,22 +66,6 @@ import com.appversal.appstorys.utils.pxToDp
 
     override fun onFinishInflate() {
         super.onFinishInflate()
-        if (composed) {
-            return
-        }
-        placeholderContent { content ->
-            addView(
-                ComposeView(context).apply {
-                    setContent {
-                        AppStorys.Widget(
-                            placeholder = placeholder,
-                            position = position
-                        )
-                    }
-                }
-            )
-            composed = true
-        }
     }
 }
 

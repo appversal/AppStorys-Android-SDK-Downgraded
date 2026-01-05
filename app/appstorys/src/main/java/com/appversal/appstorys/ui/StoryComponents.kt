@@ -3,11 +3,12 @@ package com.appversal.appstorys.ui
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.util.Log
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.widget.FrameLayout
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -24,6 +25,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Share
@@ -53,7 +55,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.changedToDown
 import androidx.compose.ui.input.pointer.changedToUp
@@ -62,6 +63,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -80,7 +83,9 @@ import androidx.media3.ui.PlayerView
 import coil.compose.rememberAsyncImagePainter
 import com.appversal.appstorys.AppStorys
 import com.appversal.appstorys.R
+import com.appversal.appstorys.api.StoriesDetails
 import com.appversal.appstorys.api.StoryGroup
+import com.appversal.appstorys.api.StoryGroupStyling
 import com.appversal.appstorys.api.StorySlide
 import com.appversal.appstorys.utils.VideoCache
 import kotlinx.coroutines.delay
@@ -116,7 +121,8 @@ internal fun StoryCircles(
                     username = storyGroup.name ?: "",
                     ringColor = Color(android.graphics.Color.parseColor(storyGroup.ringColor)),
                     nameColor = Color(android.graphics.Color.parseColor(storyGroup.nameColor)),
-                    onClick = { onStoryClick(storyGroup) }
+                    onClick = { onStoryClick(storyGroup) },
+                    groupStyling = storyGroup.styling
                 )
             }
         }
@@ -130,8 +136,49 @@ internal fun StoryItem(
     username: String,
     ringColor: Color,
     nameColor: Color,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    groupStyling: StoryGroupStyling?
 ) {
+    // Get styling values with fallbacks
+    val ringAndImageSpace = groupStyling?.ringAndImageSpace ?: 8
+    val size = (groupStyling?.size ?: 70).dp
+    val ringWidth = (groupStyling?.ringWidth ?: 2).dp
+
+    // Get state-specific styling
+    val currentState = if (isStoryGroupViewed) {
+        groupStyling?.storyGroupViewed
+    } else {
+        groupStyling?.storyGroupNotViewed
+    }
+
+    // Determine final colors - use hardcoded greys when viewed (matching React Native)
+    val finalRingColor = if (isStoryGroupViewed) {
+        Color(0xFFCCCCCC) // #CCCCCC
+    } else {
+        try {
+            currentState?.ringColor?.let { Color(android.graphics.Color.parseColor(it)) } ?: ringColor
+        } catch (e: Exception) {
+            ringColor
+        }
+    }
+
+    val finalNameColor = if (isStoryGroupViewed) {
+        Color(0xFFCCCCCC) // #666666
+    } else {
+        try {
+            currentState?.fontColor?.let { Color(android.graphics.Color.parseColor(it)) } ?: nameColor
+        } catch (e: Exception) {
+            nameColor
+        }
+    }
+
+    val fontSize = (currentState?.fontSize ?: groupStyling?.name?.size ?: 12).sp
+
+    // Font decoration
+    val fontDecoration = currentState?.fontDecoration ?: emptyList()
+    val fontWeight = if (fontDecoration.contains("bold")) FontWeight.Bold else FontWeight.Normal
+    val fontStyle = if (fontDecoration.contains("italic")) FontStyle.Italic else FontStyle.Normal
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
@@ -144,26 +191,45 @@ internal fun StoryItem(
         content = {
             Box(
                 contentAlignment = Alignment.Center,
-                modifier = Modifier.size(70.dp),
+                modifier = Modifier.size(size + (ringWidth * 2) + 4.dp),
                 content = {
-                    Canvas(
-                        modifier = Modifier.size(80.dp),
-                        onDraw = {
-                            drawCircle(
-                                color = if (isStoryGroupViewed) Color.Gray else ringColor,
-                                style = Stroke(width = 5f),
-                                radius = size.minDimension / 2
+                    // Ring/Border with corner radius
+                    Box(
+                        modifier = Modifier
+                            .size(size + (ringWidth * 2))
+                            .clip(RoundedCornerShape(
+                                topStart = (groupStyling?.cornerRadius?.topLeft ?: 0).dp + (ringWidth * 2),
+                                topEnd = (groupStyling?.cornerRadius?.topRight ?: 0).dp + (ringWidth * 2),
+                                bottomStart = (groupStyling?.cornerRadius?.bottomLeft ?: 0).dp + (ringWidth * 2),
+                                bottomEnd = (groupStyling?.cornerRadius?.bottomRight ?: 0).dp + (ringWidth * 2)
+                            ))
+                            .border(
+                                width = ringWidth,
+                                color = finalRingColor,
+                                shape = RoundedCornerShape(
+                                    topStart = (groupStyling?.cornerRadius?.topLeft ?: 0).dp + (ringWidth * 2),
+                                    topEnd = (groupStyling?.cornerRadius?.topRight ?: 0).dp + (ringWidth * 2),
+                                    bottomStart = (groupStyling?.cornerRadius?.bottomLeft ?: 0).dp + (ringWidth * 2),
+                                    bottomEnd = (groupStyling?.cornerRadius?.bottomRight ?: 0).dp + (ringWidth * 2)
+                                )
                             )
-                        }
                     )
+
+                    // Thumbnail image with corner radius and grey out for viewed
                     Image(
                         painter = rememberAsyncImagePainter(imageUrl),
                         contentDescription = null,
                         modifier = Modifier
-                            .size(65.dp)
-                            .clip(CircleShape)
+                            .size(size - ringAndImageSpace.dp)
+                            .clip(RoundedCornerShape(
+                                topStart = (groupStyling?.cornerRadius?.topLeft ?: 0).dp,
+                                topEnd = (groupStyling?.cornerRadius?.topRight ?: 0).dp,
+                                bottomStart = (groupStyling?.cornerRadius?.bottomLeft ?: 0).dp,
+                                bottomEnd = (groupStyling?.cornerRadius?.bottomRight ?: 0).dp
+                            ))
                             .background(Color.LightGray),
-                        contentScale = ContentScale.Crop
+                        contentScale = ContentScale.Crop,
+                        alpha = if (isStoryGroupViewed) 0.6f else 1f
                     )
                 }
             )
@@ -174,10 +240,12 @@ internal fun StoryItem(
                     .align(Alignment.CenterHorizontally),
                 text = username,
                 maxLines = 2,
-                fontSize = 12.sp,
-                color = nameColor,
+                fontSize = fontSize,
+                color = finalNameColor,
                 textAlign = TextAlign.Center,
-                lineHeight = 15.sp
+                lineHeight = fontSize * 1.2f,
+                fontWeight = fontWeight,
+                fontStyle = fontStyle
             )
         }
     )
@@ -211,7 +279,8 @@ internal fun StoryScreen(
     val completedSlides = remember { mutableStateListOf<Int>() }
 
     val isImage = currentSlide.image != null
-    val storyDuration = if (isImage) 5000 else 0
+    // Use slideShowTime from styling if available, otherwise default to 5 seconds
+    val storyDuration = if (isImage) (storyGroup.styling?.slideShowTime ?: 5) * 1000 else 0
 
     val player = remember(context) {
         ExoPlayer
@@ -389,11 +458,16 @@ internal fun StoryScreen(
                                                     currentSlideIndex + 1
                                                 }
 
-                                                else -> {
+                                                tapPosition.x > screenWidth / 2 && currentSlideIndex == slides.lastIndex -> {
+                                                    // On last slide, tap right to go to next story group
+                                                    if (!completedSlides.contains(currentSlideIndex)) {
+                                                        completedSlides.add(currentSlideIndex)
+                                                    }
                                                     onStoryGroupEnd()
-                                                    completedSlides.clear()
-                                                    0
+                                                    currentSlideIndex // Don't change index, let story group change handle it
                                                 }
+
+                                                else -> currentSlideIndex
                                             }
                                         }
 
@@ -433,20 +507,80 @@ internal fun StoryScreen(
                             }
 
                             if (currentSlide.link?.isNotEmpty() == true && currentSlide.buttonText?.isNotEmpty() == true) {
+                                val styling = currentSlide.styling
+
+                                // Parse colors from styling or use defaults
+                                val backgroundColor = try {
+                                    Color(android.graphics.Color.parseColor(styling?.ctaBackground?.backgroundColor ?: "#FFFFFF"))
+                                } catch (e: Exception) {
+                                    Color.White
+                                }
+
+                                val borderColor = try {
+                                    Color(android.graphics.Color.parseColor(styling?.ctaBackground?.borderColor ?: "#FFFFFF"))
+                                } catch (e: Exception) {
+                                    Color.White
+                                }
+
+                                val textColor = try {
+                                    Color(android.graphics.Color.parseColor(styling?.ctaText?.fontColor ?: "#000000"))
+                                } catch (e: Exception) {
+                                    Color.Black
+                                }
+
+                                // Get dimensions and margins
+                                val ctaHeight = (styling?.ctaHeight ?: 32).dp
+                                val fontSize = (styling?.ctaText?.fontSize ?: 12).sp
+                                val borderWidth = (styling?.borderWidth ?: 2).dp
+                                val fullWidth = styling?.fullWidthCta ?: false
+
+                                val marginLeft = (styling?.ctaMargins?.left ?: 12).dp
+                                val marginRight = (styling?.ctaMargins?.right ?: 12).dp
+                                val marginTop = (styling?.ctaMargins?.top ?: 12).dp
+                                val marginBottom = (styling?.ctaMargins?.bottom ?: 12).dp
+
+                                // Determine alignment
+                                val alignment = when (styling?.ctaAlignment?.lowercase()) {
+                                    "left" -> Alignment.BottomStart
+                                    "right" -> Alignment.BottomEnd
+                                    else -> Alignment.BottomCenter
+                                }
+
                                 Button(
                                     onClick = {
-                                        uriHandler.openUri(currentSlide.link)
+                                        try {
+                                            uriHandler.openUri(currentSlide.link)
+                                        } catch (e: Exception) {
+                                            Log.i("Click", "Link has $e")
+                                        }
                                         sendEvent(Pair(currentSlide, "CLK"))
                                         sendClickEvent(Pair(currentSlide, "clicked"))
                                     },
                                     modifier = Modifier
-                                        .align(Alignment.BottomCenter)
-                                        .padding(bottom = 32.dp),
+                                        .align(alignment)
+                                        .padding(
+                                            start = marginLeft,
+                                            end = marginRight,
+                                            top = marginTop,
+                                            bottom = marginBottom
+                                        )
+                                        .height(ctaHeight)
+                                        .then(
+                                            if (fullWidth) Modifier.fillMaxWidth() else Modifier
+                                        ),
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color.White
+                                        containerColor = backgroundColor
+                                    ),
+                                    border = androidx.compose.foundation.BorderStroke(
+                                        width = borderWidth,
+                                        color = borderColor
                                     ),
                                     content = {
-                                        Text(text = currentSlide.buttonText, color = Color.Black)
+                                        Text(
+                                            text = currentSlide.buttonText,
+                                            color = textColor,
+                                            fontSize = fontSize
+                                        )
                                     }
                                 )
                             }
@@ -520,12 +654,46 @@ internal fun StoryScreen(
                         horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End),
                         content = {
                             if (!isImage) {
+                                // Get mute/unmute styling from storyGroup
+                                val muteConfig = if (isMuted) {
+                                    storyGroup.styling?.soundToggle?.mute
+                                } else {
+                                    storyGroup.styling?.soundToggle?.unmute
+                                }
+
+                                val fillColor = try {
+                                    muteConfig?.colors?.fill?.let { Color(android.graphics.Color.parseColor(it)) }
+                                } catch (e: Exception) {
+                                    null
+                                } ?: Color.Black.copy(alpha = 0.2f)
+
+                                val iconColor = try {
+                                    muteConfig?.colors?.cross?.let { Color(android.graphics.Color.parseColor(it)) }
+                                } catch (e: Exception) {
+                                    null
+                                } ?: Color.White
+
+                                val strokeColor = try {
+                                    muteConfig?.colors?.stroke?.let { Color(android.graphics.Color.parseColor(it)) }
+                                } catch (e: Exception) {
+                                    null
+                                }
+
+                                val marginTop = (muteConfig?.margin?.top ?: 0).dp
+                                val marginRight = (muteConfig?.margin?.right ?: 0).dp
+
                                 Box(
                                     modifier = Modifier
+                                        .padding(top = marginTop, end = marginRight)
                                         .size(32.dp)
                                         .background(
-                                            color = Color.Black.copy(alpha = 0.2f),
+                                            color = fillColor,
                                             shape = CircleShape
+                                        )
+                                        .then(
+                                            strokeColor?.let {
+                                                Modifier.border(1.dp, it, CircleShape)
+                                            } ?: Modifier
                                         )
                                         .clickable {
                                             isMuted = !isMuted
@@ -542,18 +710,49 @@ internal fun StoryScreen(
                                                 R.drawable.volume
                                             ),
                                             contentDescription = if (isMuted) "Unmute" else "Mute",
-                                            tint = Color.White
+                                            tint = iconColor
                                         )
                                     }
                                 )
                             }
+
                             if (currentSlide.link?.isNotEmpty() == true && currentSlide.buttonText?.isNotEmpty() == true) {
+                                // Get share button styling from storyGroup
+                                val shareConfig = storyGroup.styling?.share
+
+                                val fillColor = try {
+                                    shareConfig?.colors?.fill?.let { Color(android.graphics.Color.parseColor(it)) }
+                                } catch (e: Exception) {
+                                    null
+                                } ?: Color.Black.copy(alpha = 0.2f)
+
+                                val iconColor = try {
+                                    shareConfig?.colors?.cross?.let { Color(android.graphics.Color.parseColor(it)) }
+                                } catch (e: Exception) {
+                                    null
+                                } ?: Color.White
+
+                                val strokeColor = try {
+                                    shareConfig?.colors?.stroke?.let { Color(android.graphics.Color.parseColor(it)) }
+                                } catch (e: Exception) {
+                                    null
+                                }
+
+                                val marginTop = (shareConfig?.margin?.top ?: 0).dp
+                                val marginRight = (shareConfig?.margin?.right ?: 0).dp
+
                                 Box(
                                     modifier = Modifier
+                                        .padding(top = marginTop, end = marginRight)
                                         .size(32.dp)
                                         .background(
-                                            color = Color.Black.copy(alpha = 0.2f),
+                                            color = fillColor,
                                             shape = CircleShape
+                                        )
+                                        .then(
+                                            strokeColor?.let {
+                                                Modifier.border(1.dp, it, CircleShape)
+                                            } ?: Modifier
                                         )
                                         .clickable(onClick = {
                                             context.startActivity(
@@ -575,19 +774,49 @@ internal fun StoryScreen(
                                         Icon(
                                             imageVector = Icons.Default.Share,
                                             contentDescription = "Share",
-                                            tint = Color.White,
+                                            tint = iconColor,
                                             modifier = Modifier.size(24.dp)
                                         )
                                     }
                                 )
                             }
 
+                            // Get close button styling from storyGroup
+                            val closeConfig = storyGroup.styling?.crossButton
+
+                            val fillColor = try {
+                                closeConfig?.colors?.fill?.let { Color(android.graphics.Color.parseColor(it)) }
+                            } catch (e: Exception) {
+                                null
+                            } ?: Color.Black.copy(alpha = 0.2f)
+
+                            val iconColor = try {
+                                closeConfig?.colors?.cross?.let { Color(android.graphics.Color.parseColor(it)) }
+                            } catch (e: Exception) {
+                                null
+                            } ?: Color.White
+
+                            val strokeColor = try {
+                                closeConfig?.colors?.stroke?.let { Color(android.graphics.Color.parseColor(it)) }
+                            } catch (e: Exception) {
+                                null
+                            }
+
+                            val marginTop = (closeConfig?.margin?.top ?: 0).dp
+                            val marginRight = (closeConfig?.margin?.right ?: 0).dp
+
                             Box(
                                 modifier = Modifier
+                                    .padding(top = marginTop, end = marginRight)
                                     .size(32.dp)
                                     .background(
-                                        color = Color.Black.copy(alpha = 0.2f),
+                                        color = fillColor,
                                         shape = CircleShape
+                                    )
+                                    .then(
+                                        strokeColor?.let {
+                                            Modifier.border(1.dp, it, CircleShape)
+                                        } ?: Modifier
                                     )
                                     .clickable {
                                         scope.launch {
@@ -600,7 +829,7 @@ internal fun StoryScreen(
                                     Icon(
                                         imageVector = Icons.Default.Close,
                                         contentDescription = "Close",
-                                        tint = Color.White,
+                                        tint = iconColor,
                                         modifier = Modifier.size(28.dp)
                                     )
                                 }
@@ -616,13 +845,14 @@ internal fun StoryScreen(
 @UnstableApi
 @Composable
 internal fun StoriesApp(
-    storyGroups: List<StoryGroup>,
+    storiesDetails: StoriesDetails,
     sendEvent: (Pair<StorySlide, String>) -> Unit,
     viewedStories: List<String>,
     storyViewed: (String) -> Unit,
     sendClickEvent: (Pair<StorySlide, String>) -> Unit
 ) {
     var selectedStoryGroup by remember { mutableStateOf<StoryGroup?>(null) }
+    val storyGroups = storiesDetails.groups ?: emptyList()
 
     Box(
         modifier = Modifier.fillMaxSize(),
@@ -632,9 +862,6 @@ internal fun StoriesApp(
                 storyGroups = storyGroups,
                 onStoryClick = { storyGroup ->
                     selectedStoryGroup = storyGroup
-                    selectedStoryGroup?.id?.let {
-                        storyViewed(it)
-                    }
                 }
             )
 
@@ -666,14 +893,17 @@ internal fun StoriesApp(
 @UnstableApi
 @Composable
 internal fun StoryAppMain(
-    apiStoryGroups: List<StoryGroup>,
+    apiStoriesDetails: StoriesDetails,
     sendEvent: (Pair<StorySlide, String>) -> Unit,
     sendClickEvent: (Pair<StorySlide, String>) -> Unit
 ) {
     val context = LocalContext.current
-    var viewedStories by remember {
+    val storyGroups = apiStoriesDetails.groups ?: emptyList()
+
+    // Track viewed slides instead of just groups
+    var viewedSlides by remember {
         mutableStateOf(
-            getViewedStories(
+            getViewedSlides(
                 context.getSharedPreferences(
                     "AppStory",
                     Context.MODE_PRIVATE
@@ -681,32 +911,47 @@ internal fun StoryAppMain(
             )
         )
     }
-    var storyGroups by remember {
+
+    // Determine which groups are fully viewed (all slides viewed)
+    val viewedGroups = remember(viewedSlides, storyGroups) {
+        storyGroups.filter { group ->
+            val slideIds = group.slides?.mapNotNull { it.id } ?: emptyList()
+            slideIds.isNotEmpty() && slideIds.all { it in viewedSlides }
+        }.mapNotNull { it.id }
+    }
+
+    var sortedGroups by remember {
         mutableStateOf(
-            apiStoryGroups.sortedWith(
-                compareByDescending<StoryGroup> { it.id !in viewedStories }
+            storyGroups.sortedWith(
+                compareByDescending<StoryGroup> { it.id !in viewedGroups }
                     .thenBy { it.order })
         )
     }
 
-    LaunchedEffect(viewedStories) {
-        storyGroups = storyGroups.sortedWith(
-            compareByDescending<StoryGroup> { it.id !in viewedStories }
+    LaunchedEffect(viewedGroups) {
+        sortedGroups = storyGroups.sortedWith(
+            compareByDescending<StoryGroup> { it.id !in viewedGroups }
                 .thenBy { it.order }
         )
     }
 
+    // Create a new StoriesDetails with sorted groups
+    val sortedStoriesDetails = StoriesDetails(
+        groups = sortedGroups
+    )
+
     StoriesApp(
-        storyGroups = storyGroups,
-        sendEvent = sendEvent,
-        viewedStories = viewedStories,
-        storyViewed = {
-            if (!viewedStories.contains(it)) {
-                val list = ArrayList(viewedStories)
-                list.add(it)
-                viewedStories = list
-                saveViewedStories(
-                    idList = list,
+        storiesDetails = sortedStoriesDetails,
+        sendEvent = { pair ->
+            sendEvent(pair)
+            // Mark slide as viewed
+            val slideId = pair.first.id
+            if (slideId != null && !viewedSlides.contains(slideId)) {
+                val updatedSlides = ArrayList(viewedSlides)
+                updatedSlides.add(slideId)
+                viewedSlides = updatedSlides
+                saveViewedSlides(
+                    slideIds = updatedSlides,
                     sharedPreferences = context.getSharedPreferences(
                         "AppStory",
                         Context.MODE_PRIVATE
@@ -714,6 +959,8 @@ internal fun StoryAppMain(
                 )
             }
         },
+        viewedStories = viewedGroups,
+        storyViewed = { /* No-op, tracking at slide level now */ },
         sendClickEvent = sendClickEvent
     )
 }
@@ -725,6 +972,18 @@ internal fun saveViewedStories(idList: List<String>, sharedPreferences: SharedPr
 
 internal fun getViewedStories(sharedPreferences: SharedPreferences): List<String> {
     val jsonString = sharedPreferences.getString("VIEWED_STORIES", "[]") ?: "[]"
+    val jsonArray = JSONArray(jsonString)
+    return List(jsonArray.length()) { jsonArray.getString(it) }
+}
+
+// New functions for slide-level tracking
+internal fun saveViewedSlides(slideIds: List<String>, sharedPreferences: SharedPreferences) {
+    val jsonArray = JSONArray(slideIds)
+    sharedPreferences.edit { putString("VIEWED_STORY_SLIDES", jsonArray.toString()) }
+}
+
+internal fun getViewedSlides(sharedPreferences: SharedPreferences): List<String> {
+    val jsonString = sharedPreferences.getString("VIEWED_STORY_SLIDES", "[]") ?: "[]"
     val jsonArray = JSONArray(jsonString)
     return List(jsonArray.length()) { jsonArray.getString(it) }
 }

@@ -18,6 +18,7 @@ import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
+import kotlinx.serialization.builtins.ListSerializer
 
 internal class ApiRepository(
     context: Context,
@@ -25,8 +26,14 @@ internal class ApiRepository(
     private val webSocketApiService: ApiService,
     private val getScreen: () -> String,
 ) {
+    private val sharedPreferences = context.getSharedPreferences("appversal_campaigns", Context.MODE_PRIVATE)
     private var cachedCampaignsJson: List<Campaign>? = null
-    private var isCampaignsJsonFetched = false
+    private var isCampaignsJsonFetchedThisSession = false
+
+    companion object {
+        private const val PREF_CAMPAIGNS_JSON = "campaigns_json"
+        private const val PREF_ETAG = "campaigns_etag"
+    }
 
     suspend fun getAccessToken(app_id: String, account_id: String, user_id: String): String? {
         return withContext(Dispatchers.IO) {
@@ -69,6 +76,110 @@ internal class ApiRepository(
         }
     }
 
+    private suspend fun fetchCampaignsJson(accountId: String): Boolean {
+        return withContext(Dispatchers.IO) {
+            try {
+                // Check if already fetched this session
+                if (isCampaignsJsonFetchedThisSession) {
+                    Log.d("ApiRepository", "Campaigns already fetched this session, using cached data")
+                    return@withContext true
+                }
+
+                // Below link is for prod
+//                            val campaignsJsonUrl = "https://s3.ap-south-1.amazonaws.com/cdn-campaigns.appstorys.com/clients/$accountId/campaigns.json"
+
+                // Below link is for dev
+                val campaignsJsonUrl = "https://dev-cdn-campaign-appstorys.s3.ap-south-1.amazonaws.com/clients/$accountId/campaigns.json"
+
+                val savedETag = sharedPreferences.getString(PREF_ETAG, null)
+
+                val client = okhttp3.OkHttpClient()
+                val requestBuilder = okhttp3.Request.Builder()
+                    .url(campaignsJsonUrl)
+
+                // Add If-None-Match header if we have a saved ETag
+                if (savedETag != null) {
+                    requestBuilder.addHeader("If-None-Match", savedETag)
+                    Log.d("ApiRepository", "Using cached ETag: $savedETag")
+                }
+
+                val request = requestBuilder.build()
+                val response = client.newCall(request).execute()
+
+                when (response.code) {
+                    200 -> {
+                        // New data available
+                        val jsonString = response.body?.string()
+                        val newETag = response.header("ETag")
+
+                        if (jsonString != null) {
+                            // Parse and cache the campaigns
+                            cachedCampaignsJson = SdkJson.decodeFromString<List<Campaign>>(jsonString)
+
+                            // Save to SharedPreferences
+                            sharedPreferences.edit {
+                                putString(PREF_CAMPAIGNS_JSON, jsonString)
+                                if (newETag != null) {
+                                    putString(PREF_ETAG, newETag)
+                                }
+                            }
+
+                            isCampaignsJsonFetchedThisSession = true
+                            Log.d("ApiRepository", "Campaigns.json fetched and cached (200 OK). Total campaigns: ${cachedCampaignsJson?.size}, ETag: $newETag")
+                            return@withContext true
+                        }
+                    }
+                    304 -> {
+                        // Not Modified - use cached data from SharedPreferences
+                        Log.d("ApiRepository", "Campaigns.json not modified (304), using local storage")
+
+                        val cachedJsonString = sharedPreferences.getString(PREF_CAMPAIGNS_JSON, null)
+                        if (cachedJsonString != null) {
+                            cachedCampaignsJson = SdkJson.decodeFromString<List<Campaign>>(cachedJsonString)
+                            isCampaignsJsonFetchedThisSession = true
+                            Log.d("ApiRepository", "Loaded ${cachedCampaignsJson?.size} campaigns from local storage")
+                            return@withContext true
+                        } else {
+                            Log.e("ApiRepository", "Got 304 but no cached data in SharedPreferences")
+                            return@withContext false
+                        }
+                    }
+                    else -> {
+                        Log.e("ApiRepository", "Error fetching campaigns.json: ${response.code}")
+
+                        // Try to use cached data as fallback
+                        val cachedJsonString = sharedPreferences.getString(PREF_CAMPAIGNS_JSON, null)
+                        if (cachedJsonString != null) {
+                            cachedCampaignsJson = SdkJson.decodeFromString<List<Campaign>>(cachedJsonString)
+                            isCampaignsJsonFetchedThisSession = true
+                            Log.d("ApiRepository", "Using cached data as fallback. Total campaigns: ${cachedCampaignsJson?.size}")
+                            return@withContext true
+                        }
+                        return@withContext false
+                    }
+                }
+
+                false
+            } catch (e: Exception) {
+                Log.e("ApiRepository", "Exception fetching campaigns.json: ${e.message}", e)
+
+                // Try to use cached data as fallback
+                val cachedJsonString = sharedPreferences.getString(PREF_CAMPAIGNS_JSON, null)
+                if (cachedJsonString != null) {
+                    try {
+                        cachedCampaignsJson = SdkJson.decodeFromString<List<Campaign>>(cachedJsonString)
+                        isCampaignsJsonFetchedThisSession = true
+                        Log.d("ApiRepository", "Using cached data after exception. Total campaigns: ${cachedCampaignsJson?.size}")
+                        return@withContext true
+                    } catch (parseException: Exception) {
+                        Log.e("ApiRepository", "Error parsing cached data: ${parseException.message}", parseException)
+                    }
+                }
+                false
+            }
+        }
+    }
+
     suspend fun getScreenCampaignsData(
         accessToken: String,
         accountId: String,
@@ -100,39 +211,19 @@ internal class ApiRepository(
                             return@withContext null
                         }
 
-                        // Step 3: Fetch campaigns.json from S3 if not already cached
-                        if (!isCampaignsJsonFetched) {
-                            // Below link is for prod
-//                            val campaignsJsonUrl = "https://s3.ap-south-1.amazonaws.com/cdn-campaigns.appstorys.com/clients/$accountId/campaigns.json"
+                        // Step 3: Fetch campaigns.json (with caching)
+                        val fetchSuccess = fetchCampaignsJson(accountId)
 
-                            // Below link is for dev
-                            val campaignsJsonUrl = "https://dev-cdn-campaign-appstorys.s3.ap-south-1.amazonaws.com/clients/$accountId/campaigns.json"
-
-                            val client = okhttp3.OkHttpClient()
-                            val request = okhttp3.Request.Builder()
-                                .url(campaignsJsonUrl)
-                                .build()
-
-                            val response = client.newCall(request).execute()
-
-                            if (response.isSuccessful) {
-                                val jsonString = response.body?.string()
-                                if (jsonString != null) {
-                                    cachedCampaignsJson = SdkJson.decodeFromString<List<Campaign>>(jsonString)
-                                    isCampaignsJsonFetched = true
-                                    Log.d("ApiRepository", "Campaigns.json fetched and cached successfully. Total campaigns: ${cachedCampaignsJson?.size}")
-                                }
-                            } else {
-                                Log.e("ApiRepository", "Error fetching campaigns.json: ${response.code}")
-                                return@withContext null
-                            }
+                        if (!fetchSuccess) {
+                            Log.e("ApiRepository", "Failed to fetch campaigns.json")
+                            return@withContext null
                         }
 
                         val cachedCampaignIds = cachedCampaignsJson?.mapNotNull { it.id }?.toSet() ?: emptySet()
                         val missingCampaignIds = eligibleCampaigns.filter { it !in cachedCampaignIds }
 
                         if (missingCampaignIds.isNotEmpty()) {
-                            Log.d("ApiRepository", "Missing ${missingCampaignIds.size} campaigns from S3: $missingCampaignIds")
+                            Log.d("ApiRepository", "Missing ${missingCampaignIds.size} campaigns from cache: $missingCampaignIds")
 
                             // Fetch missing campaigns from load-campaign-data endpoint
                             val missingCampaignsResult = safeApiCall {
@@ -150,6 +241,17 @@ internal class ApiRepository(
                                     // Merge fetched campaigns with cached campaigns
                                     cachedCampaignsJson = (cachedCampaignsJson ?: emptyList()) + fetchedCampaigns
                                     Log.d("ApiRepository", "Total campaigns after merge: ${cachedCampaignsJson?.size}")
+
+                                    // Update SharedPreferences with merged data
+                                    try {
+                                        val updatedJsonString = SdkJson.encodeToString(ListSerializer(Campaign.serializer()), cachedCampaignsJson!!)
+                                        sharedPreferences.edit {
+                                            putString(PREF_CAMPAIGNS_JSON, updatedJsonString)
+                                        }
+                                        Log.d("ApiRepository", "Updated local storage with merged campaigns")
+                                    } catch (e: Exception) {
+                                        Log.e("ApiRepository", "Error saving merged campaigns: ${e.message}", e)
+                                    }
                                 }
                                 is ApiResult.Error -> {
                                     Log.e("ApiRepository", "Error loading missing campaigns: ${missingCampaignsResult.message}")
