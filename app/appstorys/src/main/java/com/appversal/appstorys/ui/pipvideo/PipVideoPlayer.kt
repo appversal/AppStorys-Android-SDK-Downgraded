@@ -1,5 +1,6 @@
 package com.appversal.appstorys.ui.pipvideo
 
+import android.util.Log
 import androidx.annotation.OptIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -92,6 +93,10 @@ internal fun PipVideo(
     onButtonClick: () -> Unit,
     onExpandClick: () -> Unit = {}
 ) {
+    // Debug logging
+    Log.d("PipVideo", "maximiseImageUrl received: $maximiseImageUrl")
+    Log.d("PipVideo", "minimiseImageUrl received: $minimiseImageUrl")
+
     var isFullScreen by remember { mutableStateOf(false) }
 
     when {
@@ -136,8 +141,6 @@ internal fun PipVideo(
             val topPaddingPx = with(LocalDensity.current) {
                 (pipStyling?.pipTopPadding?.toFloatOrNull()?.dp ?: topPadding).toPx()
             }
-
-            val controlSize = 32.dp
 
             Box(
                 modifier = Modifier.fillMaxSize(),
@@ -192,14 +195,12 @@ internal fun PipVideo(
                                     )
 
                                     CrossButton(
-                                        size = controlSize,
                                         modifier = Modifier.align(Alignment.TopEnd),
                                         config = crossButtonConfig,
                                         onClose = onClose
                                     )
 
                                     MuteUnmuteButton(
-                                        size = controlSize,
                                         modifier = Modifier.align(Alignment.TopStart),
                                         isMuted = isMuted,
                                         soundToggle = pipStyling?.soundToggle,
@@ -210,13 +211,11 @@ internal fun PipVideo(
 
                                     if (!fullScreenVideoUri.isNullOrEmpty()) {
                                         ExpandButton(
-                                            size = controlSize,
                                             modifier = Modifier.align(Alignment.BottomEnd),
                                             isMaximized = false,
                                             expandControls = pipStyling?.expandControls,
                                             maximiseImageUrl = maximiseImageUrl,
                                             minimiseImageUrl = minimiseImageUrl,
-                                            //boundaryPadding = 5.dp,
                                             onToggle = {
                                                 onExpandClick()
                                                 isFullScreen = true
@@ -339,6 +338,7 @@ fun FullScreenVideoDialog(
                         modifier = Modifier.fillMaxWidth(),
                     )
 
+                    // Minimize button (top-left) - using ExpandButton component
                     // Minimize button (top-left) - using ExpandButton component
                     ExpandButton(
                         shouldUseSize = true,

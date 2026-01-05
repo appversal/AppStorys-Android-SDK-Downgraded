@@ -79,33 +79,58 @@ internal fun PopupModal(
     }
 
 
-    // appearance values (safe parsing) - wired from ModalAppearance
-    // Use industry-standard fallbacks when backend omits values
-    val appearanceHeightDp = appearance?.dimension?.height?.toFloatOrNull()?.dp ?: 180.dp // default image height
+    // appearance values (safe parsing) - wired from ModalAppearance with fallback to flat fields
+    // Prefer styling.appearance fields, fallback to flat fields (for media-only modals)
+    val appearanceHeightDp = appearance?.dimension?.height?.toFloatOrNull()?.dp
+        ?: modal.size?.toFloatOrNull()?.dp
+        ?: 180.dp // default image height
+
     val appearanceBorderWidth = appearance?.dimension?.borderWidth?.toFloatOrNull()?.dp ?: 0.dp
+
+    // Corner radius: prefer styling.appearance, fallback to flat borderRadius
+    val flatBorderRadius = modal.borderRadius?.toFloat()
     val containerShape = RoundedCornerShape(
-        topStart = appearance?.cornerRadius?.topLeft?.toFloatOrNull()?.dp ?: 12.dp,
-        topEnd = appearance?.cornerRadius?.topRight?.toFloatOrNull()?.dp ?: 12.dp,
-        bottomStart = appearance?.cornerRadius?.bottomLeft?.toFloatOrNull()?.dp ?: 12.dp,
-        bottomEnd = appearance?.cornerRadius?.bottomRight?.toFloatOrNull()?.dp ?: 12.dp
+        topStart = appearance?.cornerRadius?.topLeft?.toFloatOrNull()?.dp ?: flatBorderRadius?.dp ?: 12.dp,
+        topEnd = appearance?.cornerRadius?.topRight?.toFloatOrNull()?.dp ?: flatBorderRadius?.dp ?: 12.dp,
+        bottomStart = appearance?.cornerRadius?.bottomLeft?.toFloatOrNull()?.dp ?: flatBorderRadius?.dp ?: 12.dp,
+        bottomEnd = appearance?.cornerRadius?.bottomRight?.toFloatOrNull()?.dp ?: flatBorderRadius?.dp ?: 12.dp
     )
 
-    // backdrop opacity (appearance.backdrop.opacity is percentage). Respect enableBackdrop (if false => 0f)
+    // backdrop opacity: prefer styling.appearance, fallback to flat backgroundOpacity
     // backdrop opacity percentage (fallback to 30% if missing)
-    val rawBackdropOpacityStr = appearance?.backdrop?.opacity ?: appearance?.backdropOpacity ?: "30"
+    val rawBackdropOpacityStr = appearance?.backdrop?.opacity
+        ?: appearance?.backdropOpacity
+        ?: modal.backgroundOpacity
+        ?: "30"
     val rawBackdropOpacity = rawBackdropOpacityStr.toFloatOrNull() ?: 30f
-    val backdropAlpha = if (appearance?.enableBackdrop == false) 0f else (rawBackdropOpacity / 100f).coerceIn(0f, 1f)
 
-    // Prefer uploaded image URL if provided by backend, fallback to default crossButtonImage
+    // enableBackdrop: check both flat field and appearance field
+    val backdropEnabled = modal.enableBackdrop != false && appearance?.enableBackdrop != false
+    val backdropAlpha = if (!backdropEnabled) 0f else (rawBackdropOpacity / 100f).coerceIn(0f, 1f)
+
+    // Prefer uploaded image URL if provided by backend, fallback to default crossButtonImage, then flat crossButtonImage field (for media-only modals)
     val crossButtonImageUrl = modal.styling?.crossButton?.uploadImage?.url
         ?: modal.styling?.crossButton?.default?.crossButtonImage
+        ?: modal.crossButtonImage
+
+    // Extract spacing to avoid naming conflicts with Modifier.padding
+    // Support both standard structure (default.spacing) and legacy structure (margin directly)
+    val crossButtonSpacing = modal.styling?.crossButton?.default?.spacing
+    val crossButtonColors = modal.styling?.crossButton?.default?.color ?: modal.styling?.crossButton?.colors
+    val crossButtonMargin = crossButtonSpacing?.margin ?: modal.styling?.crossButton?.margin
+    val crossButtonSize = modal.styling?.crossButton?.default?.crossButtonSize ?: modal.styling?.crossButton?.crossButtonSize
 
     val crossConfig = createCrossButtonConfig(
-        fillColorString = modal.styling?.crossButton?.default?.color?.fill,
-        crossColorString = modal.styling?.crossButton?.default?.color?.cross,
-        strokeColorString = modal.styling?.crossButton?.default?.color?.stroke,
-        marginTop = modal.styling?.crossButton?.default?.spacing?.margin?.top,
-        marginEnd = modal.styling?.crossButton?.default?.spacing?.margin?.right,
+        fillColorString = crossButtonColors?.fill,
+        crossColorString = crossButtonColors?.cross,
+        strokeColorString = crossButtonColors?.stroke,
+        marginTop = crossButtonMargin?.top,
+        marginEnd = crossButtonMargin?.right,
+        paddingTop = crossButtonSpacing?.padding?.top,
+        paddingEnd = crossButtonSpacing?.padding?.right,
+        paddingBottom = crossButtonSpacing?.padding?.bottom,
+        paddingStart = crossButtonSpacing?.padding?.left,
+        size = crossButtonSize,
         imageUrl = crossButtonImageUrl
     )
 
@@ -161,7 +186,14 @@ internal fun PopupModal(
                                 .clickable(
                                     indication = null,
                                     interactionSource = remember { MutableInteractionSource() }
-                                ) { onModalClick() }
+                                ) {
+                                    onModalClick()
+                                    // Handle redirection for media-only modals (image-only modals)
+                                    val redirectUrl = modal.redirection?.url ?: modal.link
+                                    if (!redirectUrl.isNullOrBlank()) {
+                                        onPrimaryCta?.invoke(redirectUrl)
+                                    }
+                                }
                         ) {
                             // Use the shared ModalMediaRenderer for all media types for consistent behavior
                             ModalMediaRenderer(
@@ -184,14 +216,21 @@ internal fun PopupModal(
 
                     }
 
-                    // Cross button in top-right using non-padded parent Box so it visually overlaps the modal
+                    // Cross button in top-right - only show if enabled (defaults to true for backward compatibility)
+                    // Support both enableCrossButton (standard) and enabled (legacy) fields
+                    val crossButtonEnabled = modal.styling?.crossButton?.enableCrossButton
+                        ?: modal.styling?.crossButton?.enabled
+                        ?: modal.enableCrossButton
+                    val showCrossButton = crossButtonEnabled != false
+
+                    if (showCrossButton) {
                         Log.d("PopupModal", "Rendering cross button with config=$crossConfig")
                         Box(modifier = Modifier.align(Alignment.TopEnd)) {
-                            CrossButton(modifier = Modifier.size(36.dp), config = crossConfig, onClose = onCloseClick, boundaryPadding = 3.dp)
-
+                            CrossButton(config = crossConfig, onClose = onCloseClick)
                         }
                     }
                 }
+            }
             }
         }
     }

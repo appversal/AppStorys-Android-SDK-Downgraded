@@ -174,7 +174,6 @@ internal fun PinnedBanner(
             if (exitIcon) {
                 CrossButton(
                     modifier = Modifier.align(Alignment.TopEnd),
-                    boundaryPadding = 1.dp,
                     config = crossButtonConfig,
                     onClose = exitUnit
                 )

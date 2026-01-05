@@ -261,6 +261,7 @@ data class BannerStyleConfig(
     val colors: BannerColors?,
     val crossButtonSize: Int?,
     val margin: BannerMargin?,
+    val enabled: Boolean? = null,
     val option: String? = null,
     val selectedStyle: String? = null
 )
@@ -535,6 +536,7 @@ data class CsatInitialFeedback(
 @Keep
 @Serializable
 data class CsatTextElement(
+    val alignment: String?,
     val colors: String?,
     val textStyle: CsatTextStyle?
 )
@@ -570,6 +572,8 @@ data class CsatThankyouPage(
 @Keep
 @Serializable
 data class CsatImageStyle(
+    val width: Int?,
+    val height: Int?,
     val margin: Margin?,
     val padding: Margin?
 )
@@ -799,7 +803,10 @@ data class PipCtaMargin(
 data class PipCtaText(
     val color: String? = null,
     val fontFamily: String? = null,
-    val fontSize: Int? = null
+    val fontSize: Int? = null,
+    val fontWeight: String? = null,
+    val fontStyle: String? = null,
+    val textDecoration: List<String>? = null
 )
 
 @Keep
@@ -1002,14 +1009,22 @@ data class ModalStyling(
 data class ModalCrossButton(
     val default: ModalCrossButtonDefault? = null,
     val enableCrossButton: Boolean? = null,
-    val uploadImage: ModalUploadImage? = null
+    val uploadImage: ModalUploadImage? = null,
+    // Alternative structure support (for legacy/image-only modals)
+    val colors: BannerColors? = null,
+    val enabled: Boolean? = null,
+    val margin: ModalMargin? = null,
+    val option: String? = null,
+    val selectedStyle: String? = null,
+    val crossButtonSize: Int? = null
 )
 
 @Serializable
 data class ModalCrossButtonDefault(
     val color: BannerColors? = null,
     val spacing: ModalSpacing? = null,
-    val crossButtonImage: String? = null
+    val crossButtonImage: String? = null,
+    val crossButtonSize: Int? = null
 )
 
 @Serializable
@@ -1019,23 +1034,32 @@ data class ModalUploadImage(
 
 @Serializable
 data class ModalSpacing(
-    val margin: ModalMargin? = null
+    val margin: ModalMargin? = null,
+    val padding: ModalPadding? = null
 )
 
 @Serializable
 data class ModalMargin(
+    @Serializable(with = NullableIntSerializer::class)
     val top: Int? = null,
+    @Serializable(with = NullableIntSerializer::class)
     val right: Int? = null,
+    @Serializable(with = NullableIntSerializer::class)
     val bottom: Int? = null,
+    @Serializable(with = NullableIntSerializer::class)
     val left: Int? = null
 )
 
 // Add ModalPadding definition (same shape as ModalMargin) because some payloads use `padding` inside ModalAppearance
 @Serializable
 data class ModalPadding(
+    @Serializable(with = NullableIntSerializer::class)
     val top: Int? = null,
+    @Serializable(with = NullableIntSerializer::class)
     val right: Int? = null,
+    @Serializable(with = NullableIntSerializer::class)
     val bottom: Int? = null,
+    @Serializable(with = NullableIntSerializer::class)
     val left: Int? = null
 )
 
