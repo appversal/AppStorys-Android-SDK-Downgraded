@@ -226,7 +226,7 @@ internal fun PopupModal(
                     if (showCrossButton) {
                         Log.d("PopupModal", "Rendering cross button with config=$crossConfig")
                         Box(modifier = Modifier.align(Alignment.TopEnd)) {
-                            CrossButton(shouldUseSize = true, config = crossConfig, onClose = onCloseClick)
+                            CrossButton(config = crossConfig, onClose = onCloseClick)
                         }
                     }
                 }

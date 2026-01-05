@@ -160,6 +160,7 @@ data class BannerStyleConfig(
     val colors: BannerColors?,
     val crossButtonSize: Int?,
     val margin: BannerMargin?,
+    val enabled: Boolean? = null,
     val option: String? = null,
     val selectedStyle: String? = null
 )
@@ -701,7 +702,10 @@ data class PipCtaMargin(
 data class PipCtaText(
     val color: String? = null,
     val fontFamily: String? = null,
-    val fontSize: Int? = null
+    val fontSize: Int? = null,
+    val fontWeight: String? = null,
+    val fontStyle: String? = null,
+    val textDecoration: List<String>? = null
 )
 
 @Keep

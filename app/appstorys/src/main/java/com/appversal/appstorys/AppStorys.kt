@@ -640,6 +640,10 @@ object AppStorys {
 
                 Box(modifier = modifier?.fillMaxWidth() ?: Modifier.fillMaxWidth()) {
                     if (showPip) {
+                        // Debug logging for expand button images
+                        Log.d("AppStorys", "PIP Details - maximiseImage: ${pipDetails.maximiseImage}")
+                        Log.d("AppStorys", "PIP Details - minimiseImage: ${pipDetails.minimiseImage}")
+
                         PipVideo(
                             videoUri = pipDetails.small_video,
                             fullScreenVideoUri = if (!pipDetails.large_video.isNullOrEmpty()) {
@@ -684,6 +688,8 @@ object AppStorys {
 
                             muteButtonImageUrl = pipDetails.muteImage,
                             unmuteButtonImageUrl = pipDetails.unmuteImage,
+                            maximiseImageUrl = pipDetails.maximiseImage,
+                            minimiseImageUrl = pipDetails.minimiseImage,
                             onButtonClick = {
                                 campaign?.id?.let { campaignId ->
                                     trackEvents(campaignId, "clicked")

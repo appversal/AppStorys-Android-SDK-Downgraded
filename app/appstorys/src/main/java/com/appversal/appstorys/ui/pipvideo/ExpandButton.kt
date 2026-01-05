@@ -172,11 +172,13 @@
 
 package com.appversal.appstorys.ui.pipvideo
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -186,6 +188,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -232,6 +235,12 @@ internal fun ExpandButton(
     boundaryPadding: Dp? = null,
     onToggle: () -> Unit
 ) {
+    // Debug logging
+    Log.d("ExpandButton", "isMaximized: $isMaximized")
+    Log.d("ExpandButton", "maximiseImageUrl: $maximiseImageUrl")
+    Log.d("ExpandButton", "minimiseImageUrl: $minimiseImageUrl")
+    Log.d("ExpandButton", "expandControls?.enabled: ${expandControls?.enabled}")
+
     val safePadding = boundaryPadding ?: 0.dp
     val isEnabled = expandControls?.enabled ?: true
     if (!isEnabled) return
@@ -302,7 +311,10 @@ internal fun ExpandButton(
                 AsyncImage(
                     model = minimiseImageUrl,
                     contentDescription = "Minimize",
-                    modifier = Modifier.padding(iconPadding)
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(CircleShape)
                 )
             }
 
@@ -310,7 +322,10 @@ internal fun ExpandButton(
                 AsyncImage(
                     model = maximiseImageUrl,
                     contentDescription = "Maximize",
-                    modifier = Modifier.padding(iconPadding)
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(CircleShape)
                 )
             }
 

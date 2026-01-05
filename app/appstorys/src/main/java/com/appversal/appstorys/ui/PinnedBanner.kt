@@ -173,7 +173,6 @@ internal fun PinnedBanner(
 
             if (exitIcon) {
                 CrossButton(
-                    shouldUseSize = true,
                     modifier = Modifier.align(Alignment.TopEnd),
                     config = crossButtonConfig,
                     onClose = exitUnit
