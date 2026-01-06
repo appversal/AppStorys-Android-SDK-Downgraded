@@ -233,7 +233,10 @@ internal fun CarousalImage(
 ) {
     val context = LocalContext.current
 
-    Box(modifier = modifier) {
+    Box(
+        modifier = modifier.fillMaxWidth(),
+        contentAlignment = Alignment.Center
+    ) {
         when {
             !lottieUrl.isNullOrEmpty() -> {
                 val composition by rememberLottieComposition(

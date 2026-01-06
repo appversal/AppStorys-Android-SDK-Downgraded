@@ -743,7 +743,7 @@ object AppStorys {
     fun Stories() {
         val campaignsData = campaigns.collectAsStateWithLifecycle()
         val campaign = campaignsData.value.firstOrNull { it.campaignType == "STR" }
-        val storiesDetails = (campaign?.details as? StoriesDetails)?.groups
+        val storiesDetails = campaign?.details as? StoriesDetails
 
         val triggerEventValue = when (val event = campaign?.triggerEvent) {
             "viaAppStorys" -> "viaAppStorys${campaign?.id}"
@@ -755,9 +755,9 @@ object AppStorys {
             triggerEventValue.isNullOrEmpty() || trackedEventNames.contains(triggerEventValue)
         }
 
-        if (!storiesDetails.isNullOrEmpty() && shouldShowStories) {
+        if (storiesDetails != null && !storiesDetails.groups.isNullOrEmpty() && shouldShowStories) {
             StoryAppMain(
-                apiStoryGroups = storiesDetails,
+                apiStoriesDetails = storiesDetails,
                 sendEvent = {
                     coroutineScope.launch {
                         trackEvents(campaign.id, "viewed", mapOf("story_slide" to it.first.id!!))
@@ -1058,9 +1058,11 @@ object AppStorys {
                         }
                     ),
                     onClick = {
-                        campaign.id?.let {
-                            clickEvent(link = bannerDetails.link.toString().trim().removeSurrounding("\""), campaignId = it)
-                            trackEvents(it, "clicked")
+                        if(bannerDetails.link.toString().trim().removeSurrounding("\"").isNotEmpty()){
+                            campaign.id?.let {
+                                clickEvent(link = bannerDetails.link.toString().trim().removeSurrounding("\""), campaignId = it)
+                                trackEvents(it, "clicked")
+                            }
                         }
                     }
                 )
@@ -1160,8 +1162,8 @@ object AppStorys {
                         widgetDetails.styling?.rightMargin?.toFloatOrNull()?.dp ?: 0.dp
 
                     val actualWidth = (staticWidth ?: screenWidth) - marginLeft - marginRight
-                    (actualWidth.value.minus(
-                        32
+                    (actualWidth.value.minus( 0
+//                        32
                         // for the new widget
 //                            +26
                     ) * aspectRatio).dp
@@ -1223,17 +1225,19 @@ object AppStorys {
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
                             ) {
-                                clickEvent(
-                                    link = widgetDetails.widgetImages[index].link.toString().trim().removeSurrounding("\""),
-                                    campaignId = campaign.id,
-                                    widgetImageId = widgetDetails.widgetImages[index].id
-                                )
+                                if(widgetDetails.widgetImages[index].link.toString().trim().removeSurrounding("\"").isNotEmpty()){
+                                    clickEvent(
+                                        link = widgetDetails.widgetImages[index].link.toString().trim().removeSurrounding("\""),
+                                        campaignId = campaign.id,
+                                        widgetImageId = widgetDetails.widgetImages[index].id
+                                    )
 
-                                trackEvents(
-                                    campaign.id,
-                                    "clicked",
-                                    mapOf("widget_image" to widgetDetails.widgetImages[index].id!!)
-                                )
+                                    trackEvents(
+                                        campaign.id,
+                                        "clicked",
+                                        mapOf("widget_image" to widgetDetails.widgetImages[index].id!!)
+                                    )
+                                }
                             },
                             contentScale = contentScale,
                             imageUrl = widgetDetails.widgetImages[index].image ?: "",
@@ -1372,7 +1376,8 @@ object AppStorys {
                                         interactionSource = remember { MutableInteractionSource() },
                                         indication = null,
                                     ) {
-                                        if (leftImage.link != null) {
+                                        if (leftImage.link.toString().trim()
+                                                .removeSurrounding("\"").isNotEmpty()) {
                                             clickEvent(
                                                 link = leftImage.link.toString().trim()
                                                     .removeSurrounding("\""),
@@ -1404,7 +1409,8 @@ object AppStorys {
                                         interactionSource = remember { MutableInteractionSource() },
                                         indication = null,
                                     ) {
-                                        if (rightImage.link != null) {
+                                        if (rightImage.link.toString().trim()
+                                                .removeSurrounding("\"").isNotEmpty()) {
                                             clickEvent(
                                                 link = rightImage.link.toString().trim()
                                                     .removeSurrounding("\""),

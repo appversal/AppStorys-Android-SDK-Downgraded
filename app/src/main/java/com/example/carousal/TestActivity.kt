@@ -17,6 +17,8 @@ class TestActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_home)
 
+        findViewById<OverlayLayoutView>(R.id.overlay_layout)?.setActivity(this)
+
         findViewById<Button>(R.id.open_bottom_sheet).setOnClickListener {
 //            findViewById<BottomSheetView>(R.id.bottom_sheet_view).open()
         }

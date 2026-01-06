@@ -112,7 +112,72 @@ data class StoryGroup(
     val ringColor: String?,
     val nameColor: String?,
     val order: Int?,
-    val slides: List<StorySlide>?
+    val slides: List<StorySlide>?,
+    val styling: StoryGroupStyling?
+)
+
+@Keep
+@Serializable
+data class StoryGroupStyling(
+    // Global viewer controls styling
+    val cornerRadius: CornerRadius?,
+    val crossButton: StoryButtonConfig?,
+    val name: StoryNameConfig?,
+    val ringWidth: Int?,
+    val share: StoryButtonConfig?,
+    val size: Int?,
+    val slideShowTime: Int?,
+    val soundToggle: StorySoundToggleConfig?,
+
+    // Per-state thumbnail styling
+    val ringAndImageSpace: Int?,
+    val storyGroupNotViewed: StoryGroupState?,
+    val storyGroupViewed: StoryGroupState?
+)
+
+@Keep
+@Serializable
+data class StoryGroupState(
+    val ringColor: String?,
+    val fontColor: String?,
+    val fontSize: Int?,
+    val fontDecoration: List<String>?
+)
+
+@Keep
+@Serializable
+data class StoryButtonConfig(
+    val colors: StoryButtonColors?,
+    val margin: StoryButtonMargin?
+)
+
+@Keep
+@Serializable
+data class StoryButtonColors(
+    val cross: String?,
+    val fill: String?,
+    val stroke: String?
+)
+
+@Keep
+@Serializable
+data class StoryButtonMargin(
+    val right: Int?,
+    val top: Int?
+)
+
+@Keep
+@Serializable
+data class StoryNameConfig(
+    val font: String?,
+    val size: Int?
+)
+
+@Keep
+@Serializable
+data class StorySoundToggleConfig(
+    val mute: StoryButtonConfig?,
+    val unmute: StoryButtonConfig?
 )
 
 @Keep
@@ -124,7 +189,43 @@ data class StorySlide(
     val video: String?,
     val link: String?,
     @SerialName("button_text") val buttonText: String?,
-    val order: Int?
+    val order: Int?,
+    val styling: StorySlideStyling?
+)
+
+@Keep
+@Serializable
+data class StorySlideStyling(
+    val borderWidth: Int?,
+    val ctaAlignment: String?,
+    val ctaBackground: StoryCtaBackground?,
+    val ctaHeight: Int?,
+    val ctaMargins: StoryCtaMargins?,
+    val ctaText: StoryCtaText?,
+    val fullWidthCta: Boolean?
+)
+
+@Keep
+@Serializable
+data class StoryCtaBackground(
+    val backgroundColor: String?,
+    val borderColor: String?
+)
+
+@Keep
+@Serializable
+data class StoryCtaMargins(
+    val bottom: Int?,
+    val left: Int?,
+    val right: Int?,
+    val top: Int?
+)
+
+@Keep
+@Serializable
+data class StoryCtaText(
+    val fontColor: String?,
+    val fontSize: Int?
 )
 
 @Keep
