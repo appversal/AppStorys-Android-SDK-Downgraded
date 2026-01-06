@@ -71,7 +71,8 @@ internal fun AutoSlidingCarousel(
     unSelectedColor: Color = Color.Gray,
     selectedLength: Dp = 20.dp,
     dotSize: Dp = 8.dp,
-    width: Dp? = null
+    width: Dp? = null,
+    useDots: Boolean? = true
 ) {
     val isDragged by pagerState.interactionSource.collectIsDraggedAsState()
     if (autoScrollEnabled && !isDragged) {
@@ -118,7 +119,7 @@ internal fun AutoSlidingCarousel(
                 itemContent(page)
             }
         }
-        if (itemsCount > 1) {
+        if (itemsCount > 1 && useDots == true) {
             Spacer(modifier = Modifier.height(12.dp))
             DotsIndicator(
                 modifier = Modifier.padding(horizontal = 8.dp),

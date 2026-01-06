@@ -43,6 +43,7 @@ import com.appversal.appstorys.ui.components.parseColorString
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.Alignment.Companion.TopEnd
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.glance.preview.Preview
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -52,10 +53,13 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.PlayerView
+import com.appversal.appstorys.api.WidgetDetails
+import com.appversal.appstorys.ui.DotsIndicator
 import com.appversal.appstorys.utils.VideoCache
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
+
 internal fun FullPageCarouselModal(
     onCloseClick: () -> Unit,
     modalDetails: ModalDetails,
@@ -63,13 +67,15 @@ internal fun FullPageCarouselModal(
     onPrimaryCta: ((link: String?) -> Unit)? = null,
     onSecondaryCta: ((link: String?) -> Unit)? = null,
 ) {
+
     val modal = modalDetails.modals?.getOrNull(0) ?: return
+
     // Determine slides: prefer content.set if present, else fallback to single content as a list
     val slides: List<ModalContent> = modal.content?.set?.takeIf { it.isNotEmpty() } ?: listOfNotNull(modal.content)
 
     val context = LocalContext.current
-    val configuration = LocalConfiguration.current
-    val screenHeight = configuration.screenHeightDp.dp
+//    val configuration = LocalConfiguration.current
+//    val screenHeight = configuration.screenHeightDp.dp
 
     val pagerState = rememberPagerState(initialPage = 0, pageCount = { slides.size })
 
@@ -100,8 +106,8 @@ internal fun FullPageCarouselModal(
         bottomEnd = (effectiveAppearance?.cornerRadius?.bottomRight?.toFloatOrNull() ?: 12f).dp,
     )
 
-    // compute container height: prefer effectiveDimension.height, else fallback to 90% screen
-    val containerHeight = effectiveDimension?.height?.toFloatOrNull()?.dp ?: (screenHeight * 1f)
+    //compute container height: prefer effectiveDimension.height, else fallback to 90% screen
+    //val containerHeight = effectiveDimension?.height?.toFloatOrNull()?.dp ?: (screenHeight * 1f)
 
     // container padding from effective appearance (fallback to 8.dp)
     val padStart = (effectiveAppearance?.padding?.left ?: 8).dp
@@ -117,261 +123,300 @@ internal fun FullPageCarouselModal(
             usePlatformDefaultWidth = false
         )
     ) {
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(backdropColorFinal.copy(alpha = backdropAlphaFinal))
-                .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { onCloseClick() },
-             contentAlignment = Alignment.Center
+                .background(backdropColorFinal.copy(alpha = backdropAlphaFinal)),
         ) {
-            // Carousel container: use a large container (90% height)
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(containerHeight)
-                    .clip(containerCornerShape)
-                    .background(Color.White)
-                    .padding(start = padStart, top = padTop, end = padEnd, bottom = padBottom)
-            ) {
+            Column(modifier = Modifier.fillMaxSize()
+            ){
 
-                AutoSlidingCarousel(
-                    widgetDetails = com.appversal.appstorys.api.WidgetDetails(id = null, type = null, width = null, height = null, widgetImages = null, campaign = null, screen = null, styling = null),
-                    autoScrollEnabled = false,
-                    pagerState = pagerState,
-                    itemsCount = slides.size,
-                    itemContent = { index ->
-                        val slide = slides[index]
-                        Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Box(modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(1f)
-                                .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { onModalClick() }
-                            ) {
-                                // render media
-                                val imageUrl = slide.chooseMediaType?.url ?: ""
-                                val mediaType = when {
-                                    imageUrl.endsWith(".gif", ignoreCase = true) -> "gif"
-                                    imageUrl.endsWith(".json", ignoreCase = true) -> "lottie"
-                                    imageUrl.endsWith(".mp4", ignoreCase = true) || imageUrl.endsWith(".m3u8", ignoreCase = true) -> "video"
-                                    else -> "image"
-                                }
-
-                                ModalMediaRenderer(mediaUrl = imageUrl, modifier = Modifier.fillMaxWidth().fillMaxHeight(), contentDescription = slide.titleText ?: "", muted = false)
-                             }
-
-                            // Resolve alignment from slide styling if present, else fallback to modal styling.
-                            val titleAlignmentStr = slide.styling?.title?.alignment ?: modal.styling?.title?.alignment
-                            val titleTextAlign = when (titleAlignmentStr?.trim()?.lowercase()) {
-                                "left" -> TextAlign.Start
-                                "right" -> TextAlign.End
-                                "center" -> TextAlign.Center
-                                else -> TextAlign.Center
-                            }
-
-                            val subtitleAlignmentStr = slide.styling?.subTitle?.alignment ?: modal.styling?.subTitle?.alignment
-                            val subtitleTextAlign = when (subtitleAlignmentStr?.trim()?.lowercase()) {
-                                "left" -> TextAlign.Start
-                                "right" -> TextAlign.End
-                                "center" -> TextAlign.Center
-                                else -> TextAlign.Center
-                            }
-
-                            slide.titleText?.let { title ->
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Text(
-                                    text = title,
-                                    color = parseColorString(slide.styling?.title?.color) ?: parseColorString(modal.styling?.title?.color) ?: Color.Black,
-                                    fontSize = (slide.styling?.title?.size ?: modal.styling?.title?.size ?: 18).sp,
-                                    textAlign = titleTextAlign,
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                            }
-
-                            slide.subtitleText?.let { subtitle ->
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    text = subtitle,
-                                    color = parseColorString(slide.styling?.subTitle?.color) ?: parseColorString(modal.styling?.subTitle?.color) ?: Color.Gray,
-                                    fontSize = (slide.styling?.subTitle?.size ?: modal.styling?.subTitle?.size ?: 14).sp,
-                                    textAlign = subtitleTextAlign,
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                            }
-
-                            // CTAs row
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.Start,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-
-                                // Resolve CTA text with fallbacks (slide -> modal)
-                                val primaryText = slide.primaryCtaText
-                                    ?: slide.primaryCta
-                                    ?: modal.content?.primaryCtaText
-                                    ?: modal.content?.primaryCta
-
-                                val secondaryText = slide.secondaryCtaText
-                                    ?: slide.secondayCta
-                                    ?: slide.secondaryCtaAlt
-                                    ?: modal.content?.secondaryCtaText
-                                    ?: modal.content?.secondaryCtaAlt
-
-                                val primaryStyling = slide.styling?.primaryCta ?: modal.styling?.primaryCta
-                                val secondaryStyling = slide.styling?.secondaryCta ?: modal.styling?.secondaryCta
-
-                                val primaryOccupy = primaryStyling?.occupyFullWidth?.trim()?.equals("true", true) == true
-                                val secondaryOccupy = secondaryStyling?.occupyFullWidth?.trim()?.equals("true", true) == true
-
-                                // Margins
-                                val primaryMarginLeftDp = (primaryStyling?.spacing?.margin?.left ?: 0).dp
-                                val primaryMarginRightDp = (primaryStyling?.spacing?.margin?.right ?: 0).dp
-                                val primaryMarginTopDp = (primaryStyling?.spacing?.margin?.top ?: 0).dp
-                                val primaryMarginBottomDp = (primaryStyling?.spacing?.margin?.bottom ?: 0).dp
-
-                                val secondaryMarginLeftDp = (secondaryStyling?.spacing?.margin?.left ?: 0).dp
-                                val secondaryMarginRightDp = (secondaryStyling?.spacing?.margin?.right ?: 0).dp
-                                val secondaryMarginTopDp = (secondaryStyling?.spacing?.margin?.top ?: 0).dp
-                                val secondaryMarginBottomDp = (secondaryStyling?.spacing?.margin?.bottom ?: 0).dp
-
-                                // Primary button
-                                if (!primaryText.isNullOrEmpty()) {
-                                    val primaryBg = parseColorString(primaryStyling?.backgroundColor) ?: Color.Black
-                                    val primaryTextColor = parseColorString(primaryStyling?.textColor) ?: Color.White
-                                    val primaryHeight = (primaryStyling?.containerStyle?.height ?: 48).dp
-                                    val primaryBorderWidth = (primaryStyling?.containerStyle?.borderWidth ?: 0).dp
-                                    val primaryBorderColor = parseColorString(primaryStyling?.borderColor) ?: Color.Transparent
-                                    val primaryWidth = primaryStyling?.containerStyle?.ctaWidth?.let { it.dp }
-                                    val primaryTextSize = primaryStyling?.textStyle?.size ?: 14
-                                    val primaryAlignment = primaryStyling?.containerStyle?.alignment
-                                    val primaryTextAlign = when (primaryAlignment?.lowercase()) {
-                                        "left" -> TextAlign.Start
-                                        "right" -> TextAlign.End
-                                        else -> TextAlign.Center
-                                    }
-                                    val primaryShape = RoundedCornerShape(
-                                        topStart = (primaryStyling?.cornerRadius?.topLeft ?: 12).dp,
-                                        topEnd = (primaryStyling?.cornerRadius?.topRight ?: 12).dp,
-                                        bottomStart = (primaryStyling?.cornerRadius?.bottomLeft ?: 12).dp,
-                                        bottomEnd = (primaryStyling?.cornerRadius?.bottomRight ?: 12).dp,
-                                    )
-
-                                    val primaryBoxModifier = (if (primaryOccupy) Modifier.weight(1f) else Modifier)
-                                        .padding(start = primaryMarginLeftDp, end = primaryMarginRightDp, top = primaryMarginTopDp, bottom = primaryMarginBottomDp)
-
-                                    Box(modifier = primaryBoxModifier) {
-                                        BackendCta(
-                                            text = primaryText,
-                                            height = primaryHeight,
-                                            width = primaryWidth,
-                                            occupyFullWidth = primaryOccupy,
-                                            backgroundColor = primaryBg,
-                                            textColor = primaryTextColor,
-                                            textSizeSp = primaryTextSize,
-                                            borderColor = primaryBorderColor,
-                                            borderWidth = primaryBorderWidth,
-                                            cornerRadius = primaryShape,
-                                            textAlign = primaryTextAlign,
-                                            buttonAlignment = primaryAlignment,
-                                            modifier = Modifier
-                                        ) {
-                                            val link = slide.primaryCtaRedirection?.url ?: slide.primaryCtaRedirection?.value
-                                            onPrimaryCta?.invoke(link)
-                                        }
-                                    }
-                                }
-
-                                // Secondary button
-                                if (!secondaryText.isNullOrEmpty()) {
-                                    val secondaryBg = parseColorString(secondaryStyling?.backgroundColor) ?: Color.DarkGray
-                                    val secondaryTextColor = parseColorString(secondaryStyling?.textColor) ?: Color.White
-                                    val secondaryHeight = (secondaryStyling?.containerStyle?.height ?: 48).dp
-                                    val secondaryBorderWidth = (secondaryStyling?.containerStyle?.borderWidth ?: 0).dp
-                                    val secondaryBorderColor = parseColorString(secondaryStyling?.borderColor) ?: Color.Transparent
-                                    val secondaryWidth = secondaryStyling?.containerStyle?.ctaWidth?.let { it.dp }
-                                    val secondaryTextSize = secondaryStyling?.textStyle?.size ?: 14
-                                    val secondaryAlignment = secondaryStyling?.containerStyle?.alignment
-                                    val secondaryTextAlign = when (secondaryAlignment?.lowercase()) {
-                                        "left" -> TextAlign.Start
-                                        "right" -> TextAlign.End
-                                        else -> TextAlign.Center
-                                    }
-                                    val secondaryShape = RoundedCornerShape(
-                                        topStart = (secondaryStyling?.cornerRadius?.topLeft ?: 12).dp,
-                                        topEnd = (secondaryStyling?.cornerRadius?.topRight ?: 12).dp,
-                                        bottomStart = (secondaryStyling?.cornerRadius?.bottomLeft ?: 12).dp,
-                                        bottomEnd = (secondaryStyling?.cornerRadius?.bottomRight ?: 12).dp,
-                                    )
-
-                                    val secondaryBoxModifier = (if (secondaryOccupy) Modifier.weight(1f) else Modifier)
-                                        .padding(start = secondaryMarginLeftDp, end = secondaryMarginRightDp, top = secondaryMarginTopDp, bottom = secondaryMarginBottomDp)
-
-                                    Box(modifier = secondaryBoxModifier) {
-                                        BackendCta(
-                                            text = secondaryText,
-                                            height = secondaryHeight,
-                                            width = secondaryWidth,
-                                            occupyFullWidth = secondaryOccupy,
-                                            backgroundColor = secondaryBg,
-                                            textColor = secondaryTextColor,
-                                            textSizeSp = secondaryTextSize,
-                                            borderColor = secondaryBorderColor,
-                                            borderWidth = secondaryBorderWidth,
-                                            cornerRadius = secondaryShape,
-                                            textAlign = secondaryTextAlign,
-                                            buttonAlignment = secondaryAlignment,
-                                            modifier = Modifier
-                                        ) {
-                                            val link = slide.secondaryCtaRedirection?.url ?: slide.secondaryCtaRedirection?.value
-                                            onSecondaryCta?.invoke(link)
-                                        }
-                                    }
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(8.dp))
+                // 🔵 MEDIA SECTION
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)   // media takes available space
+                ) {
+                    AutoSlidingCarousel(
+                        useDots = false,
+                        autoScrollEnabled = false,
+                        pagerState = pagerState,
+                        itemsCount = slides.size,
+                        modifier = Modifier.fillMaxSize(),
+                        widgetDetails = WidgetDetails(
+                            id = null,
+                            type = null,
+                            width = null,
+                            height = null,
+                            widgetImages = null,
+                            campaign = null,
+                            screen = null,
+                            styling = null
+                        ),
+                        itemContent = { index ->
+                            val slide = slides[index]
+                            ModalMediaRenderer(
+                                mediaUrl = slide.chooseMediaType?.url,
+                                modifier = Modifier.fillMaxSize(),
+                                contentDescription = slide.titleText,
+                                muted = false
+                            )
                         }
-                    }
-                )
+                    )
+                }
 
-                // Cross button: use current slide's crossButton config
-                val currentSlideCrossButton = currentSlide?.styling?.crossButton
-                val effectiveCrossButton = currentSlideCrossButton ?: modal.styling?.crossButton
-
-                val crossButtonImageUrl = effectiveCrossButton?.uploadImage?.url ?: effectiveCrossButton?.default?.crossButtonImage
-                val crossButtonSize = effectiveCrossButton?.default?.crossButtonSize ?: effectiveCrossButton?.crossButtonSize
-
-                val crossConfig = createCrossButtonConfig(
-                    fillColorString = effectiveCrossButton?.default?.color?.fill,
-                    crossColorString = effectiveCrossButton?.default?.color?.cross,
-                    strokeColorString = effectiveCrossButton?.default?.color?.stroke,
-                    marginTop = effectiveCrossButton?.default?.spacing?.margin?.top,
-                    marginEnd = effectiveCrossButton?.default?.spacing?.margin?.right,
-                    paddingTop = effectiveCrossButton?.default?.spacing?.padding?.top,
-                    paddingEnd = effectiveCrossButton?.default?.spacing?.padding?.right,
-                    paddingBottom = effectiveCrossButton?.default?.spacing?.padding?.bottom,
-                    paddingStart = effectiveCrossButton?.default?.spacing?.padding?.left,
-                    size = crossButtonSize,
-                    imageUrl = crossButtonImageUrl
-                )
-
-                // show cross button only if enabled (defaults to true)
-                // check per-slide enable first, then modal.content
-                val contentEnable = currentSlide?.enableCrossButton?.trim()?.equals("true", true)
-                    ?: modal.content?.enableCrossButton?.trim()?.equals("true", true)
-
-                val crossEnableFlag = effectiveCrossButton?.enableCrossButton
-                val hasCrossResources = (effectiveCrossButton?.default != null) || (!effectiveCrossButton?.uploadImage?.url.isNullOrEmpty())
-                val showCross = (contentEnable ?: (crossEnableFlag != false)) && hasCrossResources
-
-                if (showCross) {
-                    Box(modifier = Modifier.align(TopEnd)) {
-                        CrossButton(shouldUseSize = true , config = crossConfig, onClose = onCloseClick)
+                // 🔵 DOTS — BELOW MEDIA, ABOVE TEXT (NO align())
+                if (slides.size > 1) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        DotsIndicator(
+                            totalDots = slides.size,
+                            selectedIndex =
+                                if (pagerState.isScrollInProgress)
+                                    pagerState.currentPage
+                                else
+                                    pagerState.targetPage,
+                            selectedColor = Color.White,
+                            unSelectedColor = Color.White.copy(alpha = 0.5f),
+                            dotSize = 8.dp,
+                            selectedLength = 20.dp
+                        )
                     }
                 }
 
-             }
-         }
-     }
- }
+
+                currentSlide?.let { slide ->
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .navigationBarsPadding()
+                            .padding(16.dp)
+                    ) {
+                        // Resolve alignment from slide styling if present, else fallback to modal styling.
+                        val titleAlignmentStr = slide.styling?.title?.alignment ?: modal.styling?.title?.alignment
+                        val titleTextAlign = when (titleAlignmentStr?.trim()?.lowercase()) {
+                            "left" -> TextAlign.Start
+                            "right" -> TextAlign.End
+                            "center" -> TextAlign.Center
+                            else -> TextAlign.Center
+                        }
+
+                        val subtitleAlignmentStr = slide.styling?.subTitle?.alignment ?: modal.styling?.subTitle?.alignment
+                        val subtitleTextAlign = when (subtitleAlignmentStr?.trim()?.lowercase()) {
+                            "left" -> TextAlign.Start
+                            "right" -> TextAlign.End
+                            "center" -> TextAlign.Center
+                            else -> TextAlign.Center
+                        }
+
+                        slide.titleText?.let { title ->
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                text = title,
+                                color = parseColorString(slide.styling?.title?.color) ?: parseColorString(modal.styling?.title?.color) ?: Color.Black,
+                                fontSize = (slide.styling?.title?.size ?: modal.styling?.title?.size ?: 18).sp,
+                                textAlign = titleTextAlign,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+
+                        slide.subtitleText?.let { subtitle ->
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = subtitle,
+                                color = parseColorString(slide.styling?.subTitle?.color) ?: parseColorString(modal.styling?.subTitle?.color) ?: Color.Gray,
+                                fontSize = (slide.styling?.subTitle?.size ?: modal.styling?.subTitle?.size ?: 14).sp,
+                                textAlign = subtitleTextAlign,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+
+                        // ⬇ KEEP YOUR EXISTING CTA ROW CODE HERE
+                        // CTAs row
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Start,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+
+                            // Resolve CTA text with fallbacks (slide -> modal)
+                            val primaryText = slide.primaryCtaText
+                                ?: slide.primaryCta
+                                ?: modal.content?.primaryCtaText
+                                ?: modal.content?.primaryCta
+
+                            val secondaryText = slide.secondaryCtaText
+                                ?: slide.secondayCta
+                                ?: slide.secondaryCtaAlt
+                                ?: modal.content?.secondaryCtaText
+                                ?: modal.content?.secondaryCtaAlt
+
+                            val primaryStyling = slide.styling?.primaryCta ?: modal.styling?.primaryCta
+                            val secondaryStyling = slide.styling?.secondaryCta ?: modal.styling?.secondaryCta
+
+                            val primaryOccupy = primaryStyling?.occupyFullWidth?.trim()?.equals("true", true) == true
+                            val secondaryOccupy = secondaryStyling?.occupyFullWidth?.trim()?.equals("true", true) == true
+
+                            // Margins
+                            val primaryMarginLeftDp = (primaryStyling?.spacing?.margin?.left ?: 0).dp
+                            val primaryMarginRightDp = (primaryStyling?.spacing?.margin?.right ?: 0).dp
+                            val primaryMarginTopDp = (primaryStyling?.spacing?.margin?.top ?: 0).dp
+                            val primaryMarginBottomDp = (primaryStyling?.spacing?.margin?.bottom ?: 0).dp
+
+                            val secondaryMarginLeftDp = (secondaryStyling?.spacing?.margin?.left ?: 0).dp
+                            val secondaryMarginRightDp = (secondaryStyling?.spacing?.margin?.right ?: 0).dp
+                            val secondaryMarginTopDp = (secondaryStyling?.spacing?.margin?.top ?: 0).dp
+                            val secondaryMarginBottomDp = (secondaryStyling?.spacing?.margin?.bottom ?: 0).dp
+
+                            // Primary button
+                            if (!primaryText.isNullOrEmpty()) {
+                                val primaryBg = parseColorString(primaryStyling?.backgroundColor) ?: Color.Black
+                                val primaryTextColor = parseColorString(primaryStyling?.textColor) ?: Color.White
+                                val primaryHeight = (primaryStyling?.containerStyle?.height ?: 48).dp
+                                val primaryBorderWidth = (primaryStyling?.containerStyle?.borderWidth ?: 0).dp
+                                val primaryBorderColor = parseColorString(primaryStyling?.borderColor) ?: Color.Transparent
+                                val primaryWidth = primaryStyling?.containerStyle?.ctaWidth?.let { it.dp }
+                                val primaryTextSize = primaryStyling?.textStyle?.size ?: 14
+                                val primaryAlignment = primaryStyling?.containerStyle?.alignment
+                                val primaryTextAlign = when (primaryAlignment?.lowercase()) {
+                                    "left" -> TextAlign.Start
+                                    "right" -> TextAlign.End
+                                    else -> TextAlign.Center
+                                }
+                                val primaryShape = RoundedCornerShape(
+                                    topStart = (primaryStyling?.cornerRadius?.topLeft ?: 12).dp,
+                                    topEnd = (primaryStyling?.cornerRadius?.topRight ?: 12).dp,
+                                    bottomStart = (primaryStyling?.cornerRadius?.bottomLeft ?: 12).dp,
+                                    bottomEnd = (primaryStyling?.cornerRadius?.bottomRight ?: 12).dp,
+                                )
+
+                                val primaryBoxModifier = (if (primaryOccupy) Modifier.weight(1f) else Modifier)
+                                    .padding(start = primaryMarginLeftDp, end = primaryMarginRightDp, top = primaryMarginTopDp, bottom = primaryMarginBottomDp)
+
+                                Box(modifier = primaryBoxModifier) {
+                                    BackendCta(
+                                        text = primaryText,
+                                        height = primaryHeight,
+                                        width = primaryWidth,
+                                        occupyFullWidth = primaryOccupy,
+                                        backgroundColor = primaryBg,
+                                        textColor = primaryTextColor,
+                                        textSizeSp = primaryTextSize,
+                                        borderColor = primaryBorderColor,
+                                        borderWidth = primaryBorderWidth,
+                                        cornerRadius = primaryShape,
+                                        textAlign = primaryTextAlign,
+                                        buttonAlignment = primaryAlignment,
+                                        modifier = Modifier
+                                    ) {
+                                        val link = slide.primaryCtaRedirection?.url ?: slide.primaryCtaRedirection?.value
+                                        onPrimaryCta?.invoke(link)
+                                    }
+                                }
+                            }
+
+                            // Secondary button
+                            if (!secondaryText.isNullOrEmpty()) {
+                                val secondaryBg = parseColorString(secondaryStyling?.backgroundColor) ?: Color.DarkGray
+                                val secondaryTextColor = parseColorString(secondaryStyling?.textColor) ?: Color.White
+                                val secondaryHeight = (secondaryStyling?.containerStyle?.height ?: 48).dp
+                                val secondaryBorderWidth = (secondaryStyling?.containerStyle?.borderWidth ?: 0).dp
+                                val secondaryBorderColor = parseColorString(secondaryStyling?.borderColor) ?: Color.Transparent
+                                val secondaryWidth = secondaryStyling?.containerStyle?.ctaWidth?.let { it.dp }
+                                val secondaryTextSize = secondaryStyling?.textStyle?.size ?: 14
+                                val secondaryAlignment = secondaryStyling?.containerStyle?.alignment
+                                val secondaryTextAlign = when (secondaryAlignment?.lowercase()) {
+                                    "left" -> TextAlign.Start
+                                    "right" -> TextAlign.End
+                                    else -> TextAlign.Center
+                                }
+                                val secondaryShape = RoundedCornerShape(
+                                    topStart = (secondaryStyling?.cornerRadius?.topLeft ?: 12).dp,
+                                    topEnd = (secondaryStyling?.cornerRadius?.topRight ?: 12).dp,
+                                    bottomStart = (secondaryStyling?.cornerRadius?.bottomLeft ?: 12).dp,
+                                    bottomEnd = (secondaryStyling?.cornerRadius?.bottomRight ?: 12).dp,
+                                )
+
+                                val secondaryBoxModifier = (if (secondaryOccupy) Modifier.weight(1f) else Modifier)
+                                    .padding(start = secondaryMarginLeftDp, end = secondaryMarginRightDp, top = secondaryMarginTopDp, bottom = secondaryMarginBottomDp)
+
+                                Box(modifier = secondaryBoxModifier) {
+                                    BackendCta(
+                                        text = secondaryText,
+                                        height = secondaryHeight,
+                                        width = secondaryWidth,
+                                        occupyFullWidth = secondaryOccupy,
+                                        backgroundColor = secondaryBg,
+                                        textColor = secondaryTextColor,
+                                        textSizeSp = secondaryTextSize,
+                                        borderColor = secondaryBorderColor,
+                                        borderWidth = secondaryBorderWidth,
+                                        cornerRadius = secondaryShape,
+                                        textAlign = secondaryTextAlign,
+                                        buttonAlignment = secondaryAlignment,
+                                        modifier = Modifier
+                                    ) {
+                                        val link = slide.secondaryCtaRedirection?.url ?: slide.secondaryCtaRedirection?.value
+                                        onSecondaryCta?.invoke(link)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+
+            // Cross button: use current slide's crossButton config
+            val currentSlideCrossButton = currentSlide?.styling?.crossButton
+            val effectiveCrossButton = currentSlideCrossButton ?: modal.styling?.crossButton
+
+            val crossButtonImageUrl = effectiveCrossButton?.uploadImage?.url ?: effectiveCrossButton?.default?.crossButtonImage
+            val crossButtonSize = effectiveCrossButton?.default?.crossButtonSize ?: effectiveCrossButton?.crossButtonSize
+
+            val crossConfig = createCrossButtonConfig(
+                fillColorString = effectiveCrossButton?.default?.color?.fill,
+                crossColorString = effectiveCrossButton?.default?.color?.cross,
+                strokeColorString = effectiveCrossButton?.default?.color?.stroke,
+                marginTop = effectiveCrossButton?.default?.spacing?.margin?.top,
+                marginEnd = effectiveCrossButton?.default?.spacing?.margin?.right,
+                paddingTop = effectiveCrossButton?.default?.spacing?.padding?.top,
+                paddingEnd = effectiveCrossButton?.default?.spacing?.padding?.right,
+                paddingBottom = effectiveCrossButton?.default?.spacing?.padding?.bottom,
+                paddingStart = effectiveCrossButton?.default?.spacing?.padding?.left,
+                size = crossButtonSize,
+                imageUrl = crossButtonImageUrl
+            )
+
+            // show cross button only if enabled (defaults to true)
+            // check per-slide enable first, then modal.content
+            val contentEnable = currentSlide?.enableCrossButton?.trim()?.equals("true", true)
+                ?: modal.content?.enableCrossButton?.trim()?.equals("true", true)
+
+            val crossEnableFlag = effectiveCrossButton?.enableCrossButton
+            val hasCrossResources = (effectiveCrossButton?.default != null) || (!effectiveCrossButton?.uploadImage?.url.isNullOrEmpty())
+            val showCross = (contentEnable ?: (crossEnableFlag != false)) && hasCrossResources
+
+            if (showCross) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .statusBarsPadding()
+                        .padding(16.dp)
+                ) {
+                    CrossButton(
+                        config = crossConfig,
+                        onClose = onCloseClick
+                    )
+                }
+            }
+        }
+    }
+}
