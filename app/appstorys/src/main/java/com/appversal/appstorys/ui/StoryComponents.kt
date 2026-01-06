@@ -259,6 +259,7 @@ internal fun StoryScreen(
     onDismiss: () -> Unit,
     slides: List<StorySlide>,
     onStoryGroupEnd: () -> Unit,
+    onStoryGroupBack: () -> Unit, // 🔴 NAVIGATION PATCH
     sendEvent: (Pair<StorySlide, String>) -> Unit,
     sendClickEvent: (Pair<StorySlide, String>) -> Unit
 ) {
@@ -396,7 +397,7 @@ internal fun StoryScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .statusBarsPadding()
-                    .pointerInput("story_gestures") {
+                    .pointerInput(storyGroup.id, slides, currentSlideIndex) {
                         var startPosition: Offset? = null
                         var startTime = 0L
                         var hasMovedVertically = false
@@ -443,28 +444,34 @@ internal fun StoryScreen(
                                         // 3. Not in top area
                                         if (duration < 200 && !hasMovedVertically && tapPosition.y > 100) {
                                             val screenWidth = size.width
-                                            currentSlideIndex = when {
-                                                tapPosition.x < screenWidth / 2 && currentSlideIndex > 0 -> {
-                                                    if (completedSlides.contains(currentSlideIndex)) {
-                                                        completedSlides.remove(currentSlideIndex)
-                                                    }
-                                                    currentSlideIndex - 1
+                                            val isLeftTap = tapPosition.x < screenWidth / 2
+                                            val isRightTap = tapPosition.x >= screenWidth / 2
+                                            val lastSlideIndex = slides.lastIndex
+
+                                            // 🔴 NAVIGATION PATCH (ported 1:1)
+                                            when {
+                                                // ⬅️ Left tap → previous slide
+                                                isLeftTap && currentSlideIndex > 0 -> {
+                                                    completedSlides.remove(currentSlideIndex)
+                                                    currentSlideIndex--
                                                 }
 
-                                                tapPosition.x > screenWidth / 2 && currentSlideIndex < slides.lastIndex -> {
-                                                    if (!completedSlides.contains(currentSlideIndex)) {
-                                                        completedSlides.add(currentSlideIndex)
-                                                    }
-                                                    currentSlideIndex + 1
+                                                // ⬅️ Left tap on first slide → previous story group
+                                                isLeftTap && currentSlideIndex == 0 -> {
+                                                    onStoryGroupBack()
+                                                    completedSlides.clear()
                                                 }
 
-                                                tapPosition.x > screenWidth / 2 && currentSlideIndex == slides.lastIndex -> {
-                                                    // On last slide, tap right to go to next story group
-                                                    if (!completedSlides.contains(currentSlideIndex)) {
-                                                        completedSlides.add(currentSlideIndex)
-                                                    }
+                                                // ➡️ Right tap → next slide
+                                                isRightTap && currentSlideIndex < lastSlideIndex -> {
+                                                    completedSlides.add(currentSlideIndex)
+                                                    currentSlideIndex++
+                                                }
+
+                                                // ➡️ Right tap on last slide → next story group
+                                                isRightTap && currentSlideIndex == lastSlideIndex -> {
                                                     onStoryGroupEnd()
-                                                    currentSlideIndex // Don't change index, let story group change handle it
+                                                    completedSlides.clear()
                                                 }
 
                                                 else -> currentSlideIndex
@@ -875,12 +882,20 @@ internal fun StoriesApp(
                         val currentIndex = storyGroups.indexOf(storyGroup)
                         if (currentIndex < storyGroups.lastIndex) {
                             selectedStoryGroup = storyGroups[currentIndex + 1]
-                            selectedStoryGroup?.id?.let {
-                                storyViewed(it)
-                            }
+                            // Mark the new story group as viewed
+                            selectedStoryGroup?.id?.let { storyViewed(it) }
                         } else {
                             selectedStoryGroup = null
                         }
+                    },
+                    onStoryGroupBack = {
+                        val currentIndex = storyGroups.indexOf(storyGroup)
+                        if (currentIndex > 0) {
+                            selectedStoryGroup = storyGroups[currentIndex - 1]
+                            // Mark the new story group as viewed when going back
+                            selectedStoryGroup?.id?.let { storyViewed(it) }
+                        }
+                        // If at first story group, do nothing (stay on current story)
                     },
                     sendEvent = sendEvent,
                     sendClickEvent = sendClickEvent
