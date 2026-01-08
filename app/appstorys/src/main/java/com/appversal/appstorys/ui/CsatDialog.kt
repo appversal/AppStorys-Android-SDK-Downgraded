@@ -45,13 +45,12 @@ internal fun CsatDialog(
     onSubmitFeedback: (CsatFeedback) -> Unit,
     csatDetails: CSATDetails
 ) {
-    val localContent: Map<String, String?> = remember {
+    val localContent: Map<String, String> = remember {
         mapOf(
-            "title" to csatDetails.title?.takeIf { it.isNotEmpty() },
-            "description" to csatDetails.descriptionText?.takeIf { it.isNotEmpty() },
-            "thankyouText" to csatDetails.thankyouText?.takeIf { it.isNotEmpty() },
-            "thankyouDescription" to csatDetails.thankyouDescription?.takeIf { it.isNotEmpty() },
-            "feedbackPrompt" to csatDetails.styling?.csatFeedbackTitleText?.takeIf { it.isNotEmpty() },
+            "title" to (csatDetails.title ?: "Title"),
+            "description" to (csatDetails.descriptionText ?: "Description"),
+            "thankyouText" to (csatDetails.thankyouText ?: "Thank You"),
+            "thankyouDescription" to (csatDetails.thankyouDescription ?: "Thank you"),
         )
     }
 
@@ -59,100 +58,48 @@ internal fun CsatDialog(
         val s = csatDetails.styling
         mapOf(
             // Background and container colors - prefer new structure
-            "csatBackgroundColor" to (s?.appearance?.backgroundColor?.toColor(
-                s?.csatBackgroundColor.toColor(Color.White)
-            ) ?: s?.csatBackgroundColor.toColor(Color.White)),
+            "csatBackgroundColor" to (s?.appearance?.backgroundColor?.toColor(Color.White) ?: (Color.White)),
 
             // Title colors - prefer new structure
-            "csatTitleColor" to (s?.initialFeedback?.title?.colors?.toColor(
-                s?.csatTitleColor.toColor(Color.Black)
-            ) ?: s?.csatTitleColor.toColor(Color.Black)),
+            "csatTitleColor" to (s?.initialFeedback?.title?.colors?.toColor(Color.Black) ?: (Color.Black)),
 
             // Description colors - prefer new structure
-            "csatDescriptionTextColor" to (s?.initialFeedback?.subtitle?.colors?.toColor(
-                s?.csatDescriptionTextColor.toColor(Color(0xFF504F58))
-            ) ?: s?.csatDescriptionTextColor.toColor(Color(0xFF504F58))),
+            "csatDescriptionTextColor" to (s?.initialFeedback?.subtitle?.colors?.toColor(Color(0xFF504F58)) ?: (Color(0xFF504F58))),
 
             // CTA colors - prefer new structure (submit button)
-            "csatCtaBackgroundColor" to (s?.feedbackPage?.submitButton?.colors?.background?.toColor(
-                s?.csatCtaBackgroundColor.toColor(Color(0xFF007AFF))
-            ) ?: s?.csatCtaBackgroundColor.toColor(Color(0xFF007AFF))),
-            "csatCtaTextColor" to (s?.feedbackPage?.submitButton?.colors?.text?.toColor(
-                s?.csatCtaTextColor.toColor(Color.White)
-            ) ?: s?.csatCtaTextColor.toColor(Color.White)),
-            "csatCtaBorderColor" to (s?.feedbackPage?.submitButton?.colors?.border?.toColor(
-                s?.csatCtaBorderColor.toColor(Color.Transparent)
-            ) ?: s?.csatCtaBorderColor.toColor(Color.Transparent)),
+            "csatCtaBackgroundColor" to (s?.feedbackPage?.submitButton?.colors?.background?.toColor(Color(0xFF007AFF)) ?: (Color(0xFF007AFF))),
+            "csatCtaTextColor" to (s?.feedbackPage?.submitButton?.colors?.text?.toColor(Color.White) ?: (Color.White)),
+            "csatCtaBorderColor" to (s?.feedbackPage?.submitButton?.colors?.border?.toColor(Color.Transparent) ?: (Color.Transparent)),
 
             // Option colors - non-selected
-            "csatOptionBoxColour" to (s?.feedbackPage?.options?.nonSelectedOptions?.colors?.background?.toColor(
-                s?.csatOptionBoxColour.toColor(Color.White)
-            ) ?: s?.csatOptionBoxColour.toColor(Color.White)),
-            "csatOptionTextColor" to (s?.feedbackPage?.options?.nonSelectedOptions?.colors?.text?.toColor(
-                s?.csatOptionTextColour.toColor(Color.Black)
-            ) ?: s?.csatOptionTextColour.toColor(Color.Black)),
-            "csatOptionStrokeColor" to (s?.feedbackPage?.options?.nonSelectedOptions?.colors?.border?.toColor(
-                s?.csatOptionStrokeColor.toColor(Color(0xFFCCCCCC))
-            ) ?: s?.csatOptionStrokeColor.toColor(Color(0xFFCCCCCC))),
+            "csatOptionBoxColour" to (s?.feedbackPage?.options?.nonSelectedOptions?.colors?.background?.toColor(Color.White) ?: (Color.White)),
+            "csatOptionTextColor" to (s?.feedbackPage?.options?.nonSelectedOptions?.colors?.text?.toColor(Color.Black) ?: (Color.Black)),
+            "csatOptionStrokeColor" to (s?.feedbackPage?.options?.nonSelectedOptions?.colors?.border?.toColor(Color(0xFFCCCCCC)) ?: (Color(0xFFCCCCCC))),
 
             // Option colors - selected
-            "csatSelectedOptionBackgroundColor" to (s?.feedbackPage?.options?.selectedOptions?.colors?.background?.toColor(
-                s?.csatSelectedOptionBackgroundColor.toColor(Color(0xFFE3F2FD))
-            ) ?: s?.csatSelectedOptionBackgroundColor.toColor(Color(0xFFE3F2FD))),
-            "csatSelectedOptionTextColor" to (s?.feedbackPage?.options?.selectedOptions?.colors?.text?.toColor(
-                s?.csatSelectedOptionTextColor.toColor(Color(0xFF007AFF))
-            ) ?: s?.csatSelectedOptionTextColor.toColor(Color(0xFF007AFF))),
-            "csatSelectedOptionStrokeColor" to (s?.feedbackPage?.options?.selectedOptions?.colors?.border?.toColor(
-                s?.csatSelectedOptionStrokeColor.toColor(Color(0xFF007AFF))
-            ) ?: s?.csatSelectedOptionStrokeColor.toColor(Color(0xFF007AFF))),
+            "csatSelectedOptionBackgroundColor" to (s?.feedbackPage?.options?.selectedOptions?.colors?.background?.toColor(Color(0xFFE3F2FD)) ?: (Color(0xFFE3F2FD))),
+            "csatSelectedOptionTextColor" to (s?.feedbackPage?.options?.selectedOptions?.colors?.text?.toColor(Color(0xFF007AFF)) ?: (Color(0xFF007AFF))),
+            "csatSelectedOptionStrokeColor" to (s?.feedbackPage?.options?.selectedOptions?.colors?.border?.toColor(Color(0xFF007AFF)) ?: (Color(0xFF007AFF))),
 
             // Star colors - prefer new structure
-            "csatLowStarColor" to (s?.rating?.low?.background?.toColor(
-                s?.csatLowStarColor.toColor(Color(0xFFFF6B6B))
-            ) ?: s?.csatLowStarColor.toColor(Color(0xFFFF6B6B))),
-            "csatLowStarBorderColor" to (s?.rating?.low?.border?.toColor(
-                Color.Transparent
-            ) ?: Color.Transparent),
-            "csatHighStarColor" to (s?.rating?.high?.background?.toColor(
-                s?.csatHighStarColor.toColor(Color(0xFFFFD700))
-            ) ?: s?.csatHighStarColor.toColor(Color(0xFFFFD700))),
-            "csatHighStarBorderColor" to (s?.rating?.high?.border?.toColor(
-                Color.Transparent
-            ) ?: Color.Transparent),
-            "csatUnselectedStarColor" to (s?.rating?.unselected?.background?.toColor(
-                s?.csatUnselectedStarColor.toColor(Color(0xFFCCCCCC))
-            ) ?: s?.csatUnselectedStarColor.toColor(Color(0xFFCCCCCC))),
-            "csatUnselectedStarBorderColor" to (s?.rating?.unselected?.border?.toColor(
-                Color.Transparent
-            ) ?: Color.Transparent),
+            "csatLowStarColor" to (s?.rating?.low?.background?.toColor(Color(0xFFFF6B6B)) ?: (Color(0xFFFF6B6B))),
+            "csatLowStarBorderColor" to (s?.rating?.low?.border?.toColor(Color.Transparent) ?: (Color.Transparent)),
+            "csatHighStarColor" to (s?.rating?.high?.background?.toColor(Color(0xFFFFD700)) ?: (Color(0xFFFFD700))),
+            "csatHighStarBorderColor" to (s?.rating?.high?.border?.toColor(Color.Transparent) ?: (Color.Transparent)),
+            "csatUnselectedStarColor" to (s?.rating?.unselected?.background?.toColor(Color(0xFFCCCCCC)) ?: (Color(0xFFCCCCCC))),
+            "csatUnselectedStarBorderColor" to (s?.rating?.unselected?.border?.toColor(Color.Transparent) ?: (Color.Transparent)),
 
             // Additional comments colors
-            "csatAdditionalTextColor" to (s?.feedbackPage?.additionalComments?.colors?.text?.toColor(
-                s?.csatAdditionalTextColor.toColor(Color.Black)
-            ) ?: s?.csatAdditionalTextColor.toColor(Color.Black)),
-            "csatAdditionalBackgroundColor" to (s?.feedbackPage?.additionalComments?.colors?.background?.toColor(
-                Color.White
-            ) ?: Color.White),
-            "csatAdditionalBorderColor" to (s?.feedbackPage?.additionalComments?.colors?.border?.toColor(
-                Color(0xFFCCCCCC)
-            ) ?: Color(0xFFCCCCCC)),
+            "csatAdditionalTextColor" to (s?.feedbackPage?.additionalComments?.colors?.text?.toColor(Color.Black) ?: (Color.Black)),
+            "csatAdditionalBackgroundColor" to (s?.feedbackPage?.additionalComments?.colors?.background?.toColor(Color.White) ?: (Color.White)),
+            "csatAdditionalBorderColor" to (s?.feedbackPage?.additionalComments?.colors?.border?.toColor(Color(0xFFCCCCCC)) ?: (Color(0xFFCCCCCC))),
 
             // Thank you page colors
-            "thankyouTitleColor" to (s?.thankyouPage?.title?.colors?.toColor(
-                s?.csatTitleColor.toColor(Color.Black)
-            ) ?: s?.csatTitleColor.toColor(Color.Black)),
-            "thankyouSubtitleColor" to (s?.thankyouPage?.subtitle?.colors?.toColor(
-                s?.csatDescriptionTextColor.toColor(Color(0xFF504F58))
-            ) ?: s?.csatDescriptionTextColor.toColor(Color(0xFF504F58))),
-            "thankyouButtonBackgroundColor" to (s?.thankyouPage?.doneButton?.colors?.background?.toColor(
-                s?.csatCtaBackgroundColor.toColor(Color(0xFF007AFF))
-            ) ?: s?.csatCtaBackgroundColor.toColor(Color(0xFF007AFF))),
-            "thankyouButtonTextColor" to (s?.thankyouPage?.doneButton?.colors?.text?.toColor(
-                s?.csatCtaTextColor.toColor(Color.White)
-            ) ?: s?.csatCtaTextColor.toColor(Color.White)),
-            "thankyouButtonBorderColor" to (s?.thankyouPage?.doneButton?.colors?.border?.toColor(
-                Color.Transparent
-            ) ?: Color.Transparent)
+            "thankyouTitleColor" to (s?.thankyouPage?.title?.colors?.toColor(Color.Black) ?: (Color.Black)),
+            "thankyouSubtitleColor" to (s?.thankyouPage?.subtitle?.colors?.toColor(Color(0xFF504F58)) ?: (Color(0xFF504F58))),
+            "thankyouButtonBackgroundColor" to (s?.thankyouPage?.doneButton?.colors?.background?.toColor(Color(0xFF007AFF)) ?: (Color(0xFF007AFF))),
+            "thankyouButtonTextColor" to (s?.thankyouPage?.doneButton?.colors?.text?.toColor(Color.White) ?: (Color.White)),
+            "thankyouButtonBorderColor" to (s?.thankyouPage?.doneButton?.colors?.border?.toColor(Color.Transparent) ?: (Color.Transparent))
         )
     }
 
@@ -338,7 +285,7 @@ private fun MainContent(
             modifier = Modifier
                 .padding(end = 18.dp)
                 .fillMaxWidth(),
-            text = localContent["title"]!!,
+            text = localContent["title"].toString(),
             fontSize = (titleTextStyle?.size ?: ((csatDetails.styling?.fontSize ?: 16) + 6)).sp,
             fontWeight = FontWeight.Bold,
             color = styling["csatTitleColor"] ?: Color.Black,
@@ -349,7 +296,7 @@ private fun MainContent(
         Spacer(modifier = Modifier.height(4.dp))
 
         Text(
-            text = localContent["description"]!!,
+            text = localContent["description"].toString(),
             fontSize = (subtitleTextStyle?.size ?: (csatDetails.styling?.fontSize ?: 16)).sp,
             color = styling["csatDescriptionTextColor"] ?: Color(0xFF504F58),
             textAlign = subtitleAlignment,
@@ -822,7 +769,7 @@ private fun ThankYouContent(
         }
 
         Text(
-            text = localContent["thankyouText"]!!,
+            text = localContent["thankyouText"].toString(),
             fontSize = (titleTextStyle?.size ?: ((csatDetails.styling?.fontSize ?: 16) + 6)).sp,
             fontWeight = FontWeight.Bold,
             color = styling["thankyouTitleColor"] ?: Color.Black,
@@ -850,7 +797,7 @@ private fun ThankYouContent(
         }
 
         Text(
-            text = localContent["thankyouDescription"]!!,
+            text = localContent["thankyouDescription"].toString(),
             fontSize = (subtitleTextStyle?.size ?: (csatDetails.styling?.fontSize ?: 16)).sp,
             color = styling["thankyouSubtitleColor"] ?: Color(0xFF504F58),
             textAlign = subtitleAlignment,

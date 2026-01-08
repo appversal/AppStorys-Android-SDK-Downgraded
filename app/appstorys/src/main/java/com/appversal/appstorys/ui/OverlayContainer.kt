@@ -186,11 +186,12 @@ object OverlayContainer {
                                     visible = true,
                                     targetCoordinates = coordinates!!,
                                     highlight = ShowcaseHighlight.Rectangular(
-                                        cornerRadius = tooltip.styling?.highlightRadius?.toIntOrNull()?.dp
+                                        cornerRadius = tooltip.styling?.appearance?.highlight?.radius?.dp
                                             ?: 8.dp,
-                                        padding = tooltip.styling?.highlightPadding?.toIntOrNull()?.dp
+                                        padding = tooltip.styling?.appearance?.highlight?.padding?.dp
                                             ?: 8.dp
-                                    )
+                                    ),
+                                    tooltip = tooltip
                                 )
 
                                 // Renders the tooltip content.

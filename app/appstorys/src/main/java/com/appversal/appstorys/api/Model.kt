@@ -20,6 +20,13 @@ data class ValidateAccountRequest(
 
 @Keep
 @Serializable
+data class ReconcileUserRequest(
+    val anonymous_user_id: String,
+    val identified_user_id: String
+)
+
+@Keep
+@Serializable
 data class EligibleCampaignsResponse(
     val eligibleCampaignList: List<String>,
     val userId: String
@@ -395,67 +402,67 @@ data class FeedbackOption(
 @Keep
 @Serializable
 data class CSATStyling(
-    // Legacy flat fields (keep for backward compatibility)
-    val delayDisplay: Int?,
-    val displayDelay: String?,
-    val csatTitleColor: String?,
-    val csatCtaTextColor: String?,
-    val csatLowStarColor: String?,
-    val csatHighStarColor: String?,
-    val csatUnselectedStarColor: String?,
-    val csatBackgroundColor: String?,
-    val csatOptionBoxColour: String?,
-    val csatOptionTextColour: String?,
-    val csatOptionStrokeColor: String?,
-    val csatCtaBackgroundColor: String?,
-    val csatAdditionalTextColor: String?,
-    val csatDescriptionTextColor: String?,
-    val csatSelectedOptionTextColor: String?,
-    val csatSelectedOptionStrokeColor: String?,
-    val csatSelectedOptionBackgroundColor: String?,
+//    // Legacy flat fields (keep for backward compatibility)
+//    val delayDisplay: Int?,
+//    val displayDelay: String?,
+//    val csatTitleColor: String?,
+//    val csatCtaTextColor: String?,
+//    val csatLowStarColor: String?,
+//    val csatHighStarColor: String?,
+//    val csatUnselectedStarColor: String?,
+//    val csatBackgroundColor: String?,
+//    val csatOptionBoxColour: String?,
+//    val csatOptionTextColour: String?,
+//    val csatOptionStrokeColor: String?,
+//    val csatCtaBackgroundColor: String?,
+//    val csatAdditionalTextColor: String?,
+//    val csatDescriptionTextColor: String?,
+//    val csatSelectedOptionTextColor: String?,
+//    val csatSelectedOptionStrokeColor: String?,
+//    val csatSelectedOptionBackgroundColor: String?,
 
     val fontSize: Int? = null,
 
-    val csatTitleFontSize: Int?,
-    val csatTitleFontDecoration: List<String>?,
-    val csatTitleAlignment: String?,
-    val csatTitleLineHeight: Float?,
-    val csatTitleMargin: Margin?,
-
-    val csatDescriptionFontSize: Int?,
-    val csatDescriptionFontDecoration: List<String>?,
-    val csatDescriptionAlignment: String?,
-    val csatDescriptionLineHeight: Float?,
-    val csatDescriptionMargin: Margin?,
-
-    val csatFeedbackTitleText: String?,
-    val csatFeedbackTitleTextColor: String?,
-    val csatFeedbackTitleFontSize: Int?,
-    val csatFeedbackTitleFontDecoration: List<String>?,
-    val csatFeedbackTitleAlignment: String?,
-    val csatFeedbackTitleLineHeight: Float?,
-    val csatFeedbackTitleMargin: Margin?,
-
-    val csatFeedbackOptionFontSize: Int?,
-    val csatFeedbackOptionFontDecoration: List<String>?,
-    val csatFeedbackOptionAlignment: String?,
-    val csatFeedbackOptionMargin: Margin?,
-
-    val csatAdditionalTextFontSize: Int?,
-    val csatAdditionalTextFontDecoration: List<String>?,
-    val csatAdditionalTextMargin: Margin?,
-
-    val csatCtaFontSize: Int?,
-    val csatCtaFontDecoration: List<String>?,
-    val csatCtaBorderColor: String?,
-    val csatCtaBorderWidth: Int?,
-    val csatCtaBorderRadius: String?,
-    val csatCtaDimensions: Dimensions?,
-    val csatCtaFullWidth: Boolean?,
-    val csatCtaMargin: Margin?,
-    val csatCtaAlignment: String?,
-
-    val csatBottomPadding: String?,
+//    val csatTitleFontSize: Int?,
+//    val csatTitleFontDecoration: List<String>?,
+//    val csatTitleAlignment: String?,
+//    val csatTitleLineHeight: Float?,
+//    val csatTitleMargin: Margin?,
+//
+//    val csatDescriptionFontSize: Int?,
+//    val csatDescriptionFontDecoration: List<String>?,
+//    val csatDescriptionAlignment: String?,
+//    val csatDescriptionLineHeight: Float?,
+//    val csatDescriptionMargin: Margin?,
+//
+//    val csatFeedbackTitleText: String?,
+//    val csatFeedbackTitleTextColor: String?,
+//    val csatFeedbackTitleFontSize: Int?,
+//    val csatFeedbackTitleFontDecoration: List<String>?,
+//    val csatFeedbackTitleAlignment: String?,
+//    val csatFeedbackTitleLineHeight: Float?,
+//    val csatFeedbackTitleMargin: Margin?,
+//
+//    val csatFeedbackOptionFontSize: Int?,
+//    val csatFeedbackOptionFontDecoration: List<String>?,
+//    val csatFeedbackOptionAlignment: String?,
+//    val csatFeedbackOptionMargin: Margin?,
+//
+//    val csatAdditionalTextFontSize: Int?,
+//    val csatAdditionalTextFontDecoration: List<String>?,
+//    val csatAdditionalTextMargin: Margin?,
+//
+//    val csatCtaFontSize: Int?,
+//    val csatCtaFontDecoration: List<String>?,
+//    val csatCtaBorderColor: String?,
+//    val csatCtaBorderWidth: Int?,
+//    val csatCtaBorderRadius: String?,
+//    val csatCtaDimensions: Dimensions?,
+//    val csatCtaFullWidth: Boolean?,
+//    val csatCtaMargin: Margin?,
+//    val csatCtaAlignment: String?,
+//
+//    val csatBottomPadding: String?,
 
     // New nested structure fields
     val appearance: CsatAppearance?,
@@ -668,55 +675,109 @@ data class TooltipsDetails(
 data class Tooltip(
     val type: String?,
     val url: String?,
-    val clickAction: String?,
-    val deepLinkUrl: String?,
+    val link: String?,
+    val enableBackdrop: Boolean?,
     val target: String?,
     val order: Int?,
-    val styling: TooltipStyling?,
-    @SerialName("_id") val id: String?
+    @SerialName("_id") val id: String?,
+    val titleText: String?,
+    val subtitleText: String?,
+    val ctaText: String?,
+    val styling: TooltipStyling?
 )
 
 @Keep
 @Serializable
 data class TooltipStyling(
-    val tooltipDimensions: TooltipDimensions?,
-    val highlightRadius: String?,
-    val highlightPadding: String?,
-    val backgroudColor: String?,
-    val enableBackdrop: Boolean?,
-    val tooltipArrow: TooltipArrow?,
-    val spacing: TooltipSpacing?,
-    val closeButton: Boolean?
+    val appearance: TooltipAppearance?,
+    val cta: TooltipCta?,
+    val subTitle: TooltipText?,
+    val title: TooltipText?
 )
 
 @Keep
 @Serializable
-data class TooltipDimensions(
-    val height: String?,
-    val width: String?,
-    val cornerRadius: String?
+data class TooltipCta(
+    val borderRadius: CornerRadius? = null,
+    val container: TooltipCtaContainer? = null,
+    val margin: TooltipCtaMargin? = null,
+    val text: TooltipCtaText? = null
+)
+
+@Keep
+@Serializable
+data class TooltipCtaContainer(
+    val alignment: String? = null,
+    val backgroundColor: String? = null,
+    val borderColor: String? = null,
+    val borderWidth: Int? = null,
+    val ctaFullWidth: Boolean? = null,
+    val ctaWidth: Int? = null,
+    val height: Int? = null
+)
+
+@Keep
+@Serializable
+data class TooltipCtaMargin(
+    val bottom: Int? = null,
+    val left: Int? = null,
+    val right: Int? = null,
+    val top: Int? = null
+)
+
+@Keep
+@Serializable
+data class TooltipCtaText(
+    val color: String? = null,
+    val fontSize: Int? = null
+)
+
+@Keep
+@Serializable
+data class TooltipText(
+    val color: String?,
+    val fontSize: Int?,
+    val textAlign: String?
+)
+
+@Keep
+@Serializable
+data class TooltipAppearance(
+    val arrowStyle: TooltipArrow?,
+    val backdropOpacity: Int?,
+    val colors: TooltipColors?,
+    val cornerRadius: CornerRadius?,
+    val highlight: TooltipHighlight?,
+    val imageDimensions: TooltipImageDimensions?
 )
 
 @Keep
 @Serializable
 data class TooltipArrow(
-    val arrowHeight: String?,
-    val arrowWidth: String?
+    val height: Int?,
+    val width: Int?
 )
 
 @Keep
 @Serializable
-data class TooltipSpacing(
-    val padding: TooltipPadding?
+data class TooltipColors(
+    val arrow: String?,
+    val backdrop: String?,
+    val tooltip: String?
 )
 
 @Keep
 @Serializable
-data class TooltipPadding(
-    val paddingTop: Int?,
-    val paddingRight: Int?,
-    val paddingBottom: Int?,
-    val paddingLeft: Int?
+data class TooltipHighlight(
+    val padding: Int?,
+    val radius: Int?
+)
+
+@Keep
+@Serializable
+data class TooltipImageDimensions(
+    val height: Int?,
+    val width: Int?
 )
 
 @Keep

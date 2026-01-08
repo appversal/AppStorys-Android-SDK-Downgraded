@@ -307,6 +307,7 @@ fun HomeScreen(
 //                                event = "Login"
                                 event = "dismissed"
                             )
+//                            campaignManager.setUserId("nameisprem")
                         },
                         modifier = Modifier.appstorys("anuridhtest")
                     ) {

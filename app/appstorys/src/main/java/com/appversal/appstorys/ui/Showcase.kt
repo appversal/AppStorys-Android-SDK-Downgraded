@@ -25,7 +25,9 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.appversal.appstorys.api.Tooltip
 import com.appversal.appstorys.utils.AppStorysCoordinates
+import androidx.core.graphics.toColorInt
 
 internal class ShowcaseDuration(val enterMillis: Int, val exitMillis: Int) {
     companion object {
@@ -49,7 +51,8 @@ internal fun ShowcaseView(
     targetCoordinates: AppStorysCoordinates,
     duration: ShowcaseDuration = ShowcaseDuration.Default,
     onDisplayStateChanged: (ShowcaseDisplayState) -> Unit = {},
-    highlight: ShowcaseHighlight = ShowcaseHighlight.Rectangular()
+    highlight: ShowcaseHighlight = ShowcaseHighlight.Rectangular(),
+    tooltip: Tooltip,
 ) {
     val transition = remember { MutableTransitionState(false) }
     val highlightDrawer = highlight.create(targetCoordinates = targetCoordinates)
@@ -62,7 +65,8 @@ internal fun ShowcaseView(
         Box {
             ShowcaseBackground(
                 coordinates = targetCoordinates,
-                drawHighlight = highlightDrawer.drawHighlight
+                drawHighlight = highlightDrawer.drawHighlight,
+                tooltip = tooltip
             )
         }
     }
@@ -83,8 +87,23 @@ internal fun ShowcaseView(
 @Composable
 private fun ShowcaseBackground(
     coordinates: AppStorysCoordinates,
-    drawHighlight: DrawScope.(AppStorysCoordinates) -> Unit
+    drawHighlight: DrawScope.(AppStorysCoordinates) -> Unit,
+    tooltip: Tooltip,
 ) {
+
+    val backdropAlpha: Float =
+        if (tooltip.enableBackdrop == true) {
+            (tooltip.styling?.appearance?.backdropOpacity ?: 0)
+                .coerceIn(0, 100) / 100f
+        } else {
+            0f
+        }
+
+    val backdropColor =
+        tooltip.styling?.appearance?.colors?.backdrop
+            ?.let { Color(it.toColorInt()) }
+            ?: Color.Black
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -99,10 +118,9 @@ private fun ShowcaseBackground(
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
-                .graphicsLayer(alpha = 0.9f)
         ) {
             drawRect(
-                Color.Black.copy(alpha = 0.9f),
+                color = backdropColor.copy(alpha = backdropAlpha),
                 size = Size(size.width, size.height)
             )
             drawHighlight(coordinates)

@@ -39,6 +39,7 @@ internal class ApiRepository(
         return withContext(Dispatchers.IO) {
             when (val result = safeApiCall {
                 webSocketApiService.validateAccount(
+                    accountId = account_id,
                     ValidateAccountRequest(app_id = app_id, account_id = account_id, user_id = user_id)
                 ).access_token
             }) {
@@ -191,6 +192,7 @@ internal class ApiRepository(
                 // Step 1: Call track-user-res to get eligible campaigns
                 val eligibleCampaignsResult = safeApiCall {
                     webSocketApiService.getEligibleCampaigns(
+                        accountId = accountId,
                         token = "Bearer $accessToken",
                         request = TrackUserWebSocketRequest(
                             screenName = screenName,

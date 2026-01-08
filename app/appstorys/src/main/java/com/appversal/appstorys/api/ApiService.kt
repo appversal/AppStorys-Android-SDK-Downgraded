@@ -10,12 +10,14 @@ import retrofit2.http.Header
 import retrofit2.http.Multipart
 import retrofit2.http.POST
 import retrofit2.http.Part
+import retrofit2.http.Path
 import java.io.IOException
 
 internal interface ApiService {
 
-    @POST("validate-account")
+    @POST("{accountId}/validate-account")
     suspend fun validateAccount(
+        @Path("accountId") accountId: String,
         @Body request: ValidateAccountRequest
     ): ValidateAccountResponse
 
@@ -31,8 +33,9 @@ internal interface ApiService {
         @Body request: TrackUserWebSocketRequest
     ): WebSocketConnectionResponse
 
-    @POST("track-user-res")
+    @POST("{accountId}/track-user-res")
     suspend fun getEligibleCampaigns(
+        @Path("accountId") accountId: String,
         @Header("Authorization") token: String,
         @Body request: TrackUserWebSocketRequest
     ): EligibleCampaignsResponse
@@ -42,6 +45,12 @@ internal interface ApiService {
         @Header("Authorization") token: String,
         @Body campaignIds: List<String>
     ): List<Campaign>
+
+    @POST("reconcile-anonymous-user")
+    suspend fun reconcileAnonymousUser(
+        @Header("Authorization") token: String,
+        @Body request: ReconcileUserRequest
+    ): Response<Unit>
 
     @POST("update-user-atr")
     suspend fun updateUserProperties(

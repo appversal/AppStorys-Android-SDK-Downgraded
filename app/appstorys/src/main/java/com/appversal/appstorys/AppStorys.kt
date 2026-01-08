@@ -72,6 +72,7 @@ import com.appversal.appstorys.api.FloaterDetails
 import com.appversal.appstorys.api.MilestoneDetails
 import com.appversal.appstorys.api.ModalDetails
 import com.appversal.appstorys.api.PipDetails
+import com.appversal.appstorys.api.ReconcileUserRequest
 import com.appversal.appstorys.api.ReelStatusRequest
 import com.appversal.appstorys.api.ReelsDetails
 import com.appversal.appstorys.api.RetrofitClient
@@ -140,7 +141,12 @@ object AppStorys {
 
     private lateinit var accountId: String
 
-    private lateinit var userId: String
+    private var userId: String = ""
+
+    private var isAnonymousUser: Boolean = true
+
+    private const val PREFS_USER_ID = "appstorys_user_id"
+    private const val PREFS_IS_ANONYMOUS = "appstorys_is_anonymous"
 
     internal lateinit var navigateToScreen: (String) -> Unit
 
@@ -204,11 +210,59 @@ object AppStorys {
     private val currentMilestoneIndex = MutableStateFlow(0)
     private var showMilestone by mutableStateOf(true)
 
+    private fun generateAnonymousUserId(): String {
+        val timestamp = System.currentTimeMillis()
+        val deviceModel = Build.MODEL.replace(" ", "_").lowercase()
+        return "${timestamp}_${deviceModel}"
+    }
+
+    /**
+     * Gets the stored user ID from SharedPreferences or generates a new one
+     */
+    private fun getOrCreateUserId(): String {
+        val prefs = context.getSharedPreferences("AppStory", Context.MODE_PRIVATE)
+
+        // Check if we have a saved user ID
+        val savedUserId = prefs.getString(PREFS_USER_ID, null)
+        val savedIsAnonymous = prefs.getBoolean(PREFS_IS_ANONYMOUS, true)
+
+        return if (!savedUserId.isNullOrEmpty()) {
+            // Use saved user ID
+            isAnonymousUser = savedIsAnonymous
+            savedUserId
+        } else {
+            // Generate new anonymous user ID
+            val anonymousId = generateAnonymousUserId()
+            isAnonymousUser = true
+
+            // Save to SharedPreferences
+            prefs.edit().apply {
+                putString(PREFS_USER_ID, anonymousId)
+                putBoolean(PREFS_IS_ANONYMOUS, true)
+                apply()
+            }
+
+            anonymousId
+        }
+    }
+
+    /**
+     * Saves user ID to SharedPreferences
+     */
+    private fun saveUserId(userId: String, isAnonymous: Boolean) {
+        val prefs = context.getSharedPreferences("AppStory", Context.MODE_PRIVATE)
+        prefs.edit().apply {
+            putString(PREFS_USER_ID, userId)
+            putBoolean(PREFS_IS_ANONYMOUS, isAnonymous)
+            apply()
+        }
+    }
+
     fun initialize(
         context: Application,
         appId: String,
         accountId: String,
-        userId: String,
+        userId: String = "",
         navigateToScreen: (String) -> Unit
     ) {
         if (::context.isInitialized) {
@@ -219,8 +273,17 @@ object AppStorys {
         this.context = context
         this.appId = appId
         this.accountId = accountId
-        this.userId = userId
         this.navigateToScreen = navigateToScreen
+
+        if (userId.isNotEmpty()) {
+            // User provided an ID
+            this.userId = userId
+            this.isAnonymousUser = false
+            saveUserId(userId, false)
+        } else {
+            // Generate or retrieve anonymous user ID
+            this.userId = getOrCreateUserId()
+        }
 
         this.repository = ApiRepository(context, apiService, webSocketService) {
             currentScreen
@@ -257,7 +320,7 @@ object AppStorys {
         )
         coroutineScope.launch {
             try {
-                val accessToken = repository.getAccessToken(appId, accountId, userId)
+                val accessToken = repository.getAccessToken(appId, accountId, this@AppStorys.userId)
                 if (!accessToken.isNullOrBlank()) {
                     this@AppStorys.accessToken = accessToken
                     sdkState = AppStorysSdkState.Initialized
@@ -395,6 +458,69 @@ object AppStorys {
         }
     }
 
+    fun setUserId(newUserId: String) {
+        if (newUserId.isEmpty()) {
+            Log.w("AppStorys", "Cannot set empty user ID")
+            return
+        }
+
+        coroutineScope.launch {
+            if (!::context.isInitialized) {
+                Log.e("AppStorys", "SDK not initialized. Call initialize() first")
+                return@launch
+            }
+
+            val previousUserId = userId
+            val wasAnonymous = isAnonymousUser
+
+            // If already using this identified user ID, no need to reconcile
+            if (!wasAnonymous && previousUserId == newUserId) {
+                Log.d("AppStorys", "User ID already set to: $newUserId")
+                return@launch
+            }
+
+            try {
+                // Only call reconcile endpoint if we're transitioning from anonymous to identified
+                if (wasAnonymous) {
+                    Log.d("AppStorys", "Reconciling anonymous user $previousUserId with identified user $newUserId")
+
+                    val result = webSocketService.reconcileAnonymousUser(
+
+                        token = "Bearer $accessToken",
+                        request = ReconcileUserRequest(
+                            anonymous_user_id = previousUserId,
+                            identified_user_id = newUserId
+                        )
+                    )
+
+                    when (result) {
+                        else -> {
+                            Log.i(
+                                "AppStorys",
+                                "Successfully reconciled anonymous user with identified user"
+                            )
+                        }
+                    }
+                }
+
+                // Update user ID
+                userId = newUserId
+                isAnonymousUser = false
+                saveUserId(newUserId, false)
+
+                Log.i("AppStorys", "User ID updated to: $newUserId")
+
+                // Refresh campaigns for new user
+//                if (currentScreen.isNotEmpty()) {
+//                    getScreenCampaigns(currentScreen, emptyList())
+//                }
+
+            } catch (e: Exception) {
+                Log.e("AppStorys", "Error setting user ID: ${e.message}", e)
+            }
+        }
+    }
+
     @Composable
     fun overlayElements(
         bottomPadding: Dp = 0.dp,
@@ -456,20 +582,20 @@ object AppStorys {
             if (csatDetails != null && shouldShowCSAT) {
                 val style = csatDetails.styling
                 var isVisibleState by remember { mutableStateOf(false) }
-                val updatedDelay by rememberUpdatedState(
-                    style?.displayDelay?.takeIf { it.isNotBlank() }?.toLongOrNull() ?: 0L
+                val delayMillis by rememberUpdatedState(
+                    ((style?.appearance?.displayDelay ?: 0) * 1000L)
                 )
 
                 LaunchedEffect(Unit) {
                     campaign?.id?.let {
                         trackEvents(it, "viewed")
                     }
-                    delay(updatedDelay?.times(1000) ?: 0)
+                    delay(delayMillis)
                     isVisibleState = true
                 }
 
                 val bottomPaddingValue =
-                    style?.csatBottomPadding?.trim()?.toFloatOrNull()?.dp ?: bottomPadding
+                    (style?.appearance?.margin?.bottom?.dp?.plus(bottomPadding)) ?: bottomPadding
 
                 Box(
                     modifier = Modifier
@@ -1936,18 +2062,18 @@ object AppStorys {
             }
 
             if (isClick) {
-                if (!tooltip.deepLinkUrl.isNullOrEmpty()) {
+                if (!tooltip.link.isNullOrEmpty()) {
                     trackEvents(
                         campaign?.id,
                         "clicked",
                         mapOf("tooltip_id" to tooltipId)
                     )
 
-                    if (tooltip.clickAction == "deepLink") {
-                        if (!isValidUrl(tooltip.deepLinkUrl)) {
-                            navigateToScreen(tooltip.deepLinkUrl)
+                    if (tooltip.link.isNotEmpty()) {
+                        if (!isValidUrl(tooltip.link)) {
+                            navigateToScreen(tooltip.link)
                         } else {
-                            openUrl(tooltip.deepLinkUrl)
+                            openUrl(tooltip.link)
                         }
                     } else {
                         dismissTooltip()
