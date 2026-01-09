@@ -74,8 +74,6 @@ internal fun FullPageCarouselModal(
     val slides: List<ModalContent> = modal.content?.set?.takeIf { it.isNotEmpty() } ?: listOfNotNull(modal.content)
 
     val context = LocalContext.current
-//    val configuration = LocalConfiguration.current
-//    val screenHeight = configuration.screenHeightDp.dp
 
     val pagerState = rememberPagerState(initialPage = 0, pageCount = { slides.size })
 
@@ -87,9 +85,6 @@ internal fun FullPageCarouselModal(
     val currentSlideAppearance = currentSlide?.styling?.appearance
     val effectiveAppearance = currentSlideAppearance ?: modal.styling?.appearance
 
-    // prefer dimentons if provided by backend (some send misspelled field)
-    val effectiveDimension = effectiveAppearance?.dimension ?: effectiveAppearance?.dimentons
-
     // backdrop color/opacity may be provided in multiple forms; prefer structured `backdrop` then fallback to flat fields
     val backdropColorString = effectiveAppearance?.backdrop?.color ?: effectiveAppearance?.backdropColor
     val backdropOpacityString = effectiveAppearance?.backdrop?.opacity ?: effectiveAppearance?.backdropOpacity
@@ -97,23 +92,6 @@ internal fun FullPageCarouselModal(
     val rawBackdropOpacityFinal = backdropOpacityString?.toFloatOrNull() ?: 30f
     val backdropAlphaFinal = if (effectiveAppearance?.enableBackdrop == false) 0f else (rawBackdropOpacityFinal / 100f).coerceIn(0f,1f)
     val backdropColorFinal = parseColorString(backdropColorString) ?: Color.Black
-
-    // compute container corner radius from effective appearance if provided
-    val containerCornerShape = RoundedCornerShape(
-        topStart = (effectiveAppearance?.cornerRadius?.topLeft?.toFloatOrNull() ?: 12f).dp,
-        topEnd = (effectiveAppearance?.cornerRadius?.topRight?.toFloatOrNull() ?: 12f).dp,
-        bottomStart = (effectiveAppearance?.cornerRadius?.bottomLeft?.toFloatOrNull() ?: 12f).dp,
-        bottomEnd = (effectiveAppearance?.cornerRadius?.bottomRight?.toFloatOrNull() ?: 12f).dp,
-    )
-
-    //compute container height: prefer effectiveDimension.height, else fallback to 90% screen
-    //val containerHeight = effectiveDimension?.height?.toFloatOrNull()?.dp ?: (screenHeight * 1f)
-
-    // container padding from effective appearance (fallback to 8.dp)
-    val padStart = (effectiveAppearance?.padding?.left ?: 8).dp
-    val padTop = (effectiveAppearance?.padding?.top ?: 8).dp
-    val padEnd = (effectiveAppearance?.padding?.right ?: 8).dp
-    val padBottom = (effectiveAppearance?.padding?.bottom ?: 8).dp
 
     Dialog(
         onDismissRequest = onCloseClick,

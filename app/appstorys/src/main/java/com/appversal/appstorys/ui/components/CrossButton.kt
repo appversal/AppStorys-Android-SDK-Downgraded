@@ -285,8 +285,8 @@ fun createCrossButtonConfig(
         fillColor = fillColor,
         crossColor = crossColor,
         strokeColor = strokeColor,
-        marginTop = marginTop?.dp ?: 0.dp,  // Changed from 8.dp to 0.dp
-        marginEnd = marginEnd?.dp ?: 0.dp,  // Changed from 8.dp to 0.dp
+        marginTop = marginTop?.dp ?: 0.dp,
+        marginEnd = marginEnd?.dp ?: 0.dp,
         size = size?.dp ?: 18.dp,
         paddingTop = paddingTop?.dp ?: 0.dp,
         paddingEnd = paddingEnd?.dp ?: 0.dp,

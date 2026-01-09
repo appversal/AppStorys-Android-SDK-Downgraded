@@ -1,39 +1,32 @@
 package com.appversal.appstorys.ui.modals
 
-import android.os.Build.VERSION.SDK_INT
-import android.util.Log
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import coil.ImageLoader
-import coil.compose.rememberAsyncImagePainter
-import coil.decode.GifDecoder
-import coil.decode.ImageDecoderDecoder
-import coil.request.CachePolicy
-import coil.request.ImageRequest
-import com.airbnb.lottie.compose.LottieAnimation
-import com.airbnb.lottie.compose.LottieCompositionSpec
-import com.airbnb.lottie.compose.LottieConstants
-import com.airbnb.lottie.compose.rememberLottieComposition
+import com.appversal.appstorys.api.Modal
 import com.appversal.appstorys.api.ModalDetails
+import com.appversal.appstorys.api.isCarousel
+import com.appversal.appstorys.api.isMediaOnly
+import com.appversal.appstorys.api.resolvedMedia
 import com.appversal.appstorys.ui.components.CrossButton
 import com.appversal.appstorys.ui.components.createCrossButtonConfig
-import androidx.compose.ui.draw.clip
-import androidx.compose.foundation.border
+import com.appversal.appstorys.ui.components.parseColorString
 
 @Composable
 internal fun PopupModal(
@@ -43,99 +36,67 @@ internal fun PopupModal(
     onPrimaryCta: ((link: String?) -> Unit)? = null,
     onSecondaryCta: ((link: String?) -> Unit)? = null,
 ) {
-    // Early-return when no modal is provided; simplifies downstream nullability handling
     val modal = modalDetails.modals?.getOrNull(0) ?: return
 
-    // Robust extraction of media across different backend shapes:
-    // 1) modal.content.chooseMediaType
-    // 2) modal.chooseMediaType
-    // 3) modal.content.set -> first element -> chooseMediaType
-    // 4) top-level modal.url
-    val chooseMedia = modal.content?.chooseMediaType
-        ?: modal.chooseMediaType
-        ?: modal.content?.set?.firstOrNull()?.chooseMediaType
-
-    // Use the resolved chooseMedia url if present. The `Modal` data class does not have a `url` field
-    // so referencing `modal.url` causes "Unresolved reference: url" at compile time.
-    val imageUrl = chooseMedia?.url?.takeIf { it.isNotBlank() }
-
-
-    // If backend explicitly sent a carousel modal type, delegate to the FullPageCarousel implementation
-    if (modal.modalType?.trim()?.equals("modal-fullpage-carousel", true) == true) {
-        FullPageCarouselModal(onCloseClick = onCloseClick, modalDetails = modalDetails, onModalClick = onModalClick, onPrimaryCta = onPrimaryCta, onSecondaryCta = onSecondaryCta)
+    // Delegate to specialized modals
+    if (modal.isCarousel() || modal.modalType?.trim()?.equals("modal-fullpage-carousel", true) == true) {
+        FullPageCarouselModal(onCloseClick, modalDetails, onModalClick, onPrimaryCta, onSecondaryCta)
         return
     }
 
-
-    val context = LocalContext.current
-    // appearance (styling) - may be null if backend omits styling
-    val appearance = modal.styling?.appearance
-
-    val mediaType = when {
-        imageUrl?.endsWith(".gif", true) == true -> "gif"
-        imageUrl?.endsWith(".json", true) == true -> "lottie"
-        imageUrl?.endsWith(".mp4", true) == true || imageUrl?.endsWith(".m3u8", true) == true -> "video"
-        else -> "image"
+    if (modal.isMediaOnly()) {
+        MediaOnlyModal(onCloseClick, modal, onModalClick, onPrimaryCta, onSecondaryCta)
+        return
     }
 
+    // Extract styling
+    val appearance = modal.styling?.appearance
+    val dimension = appearance?.dimension
 
-    // appearance values (safe parsing) - wired from ModalAppearance with fallback to flat fields
-    // Prefer styling.appearance fields, fallback to flat fields (for media-only modals)
-    val appearanceHeightDp = appearance?.dimension?.height?.toFloatOrNull()?.dp
-        ?: modal.size?.toFloatOrNull()?.dp
-        ?: 180.dp // default image height
-
-    val appearanceBorderWidth = appearance?.dimension?.borderWidth?.toFloatOrNull()?.dp ?: 0.dp
-
-    // Corner radius: prefer styling.appearance, fallback to flat borderRadius
-    val flatBorderRadius = modal.borderRadius?.toFloat()
-    val containerShape = RoundedCornerShape(
-        topStart = appearance?.cornerRadius?.topLeft?.toFloatOrNull()?.dp ?: flatBorderRadius?.dp ?: 12.dp,
-        topEnd = appearance?.cornerRadius?.topRight?.toFloatOrNull()?.dp ?: flatBorderRadius?.dp ?: 12.dp,
-        bottomStart = appearance?.cornerRadius?.bottomLeft?.toFloatOrNull()?.dp ?: flatBorderRadius?.dp ?: 12.dp,
-        bottomEnd = appearance?.cornerRadius?.bottomRight?.toFloatOrNull()?.dp ?: flatBorderRadius?.dp ?: 12.dp
+    // Corner radius
+    val cornerRadius = appearance?.cornerRadius
+    val cornerShape = RoundedCornerShape(
+        topStart = cornerRadius?.topLeft?.toIntOrNull()?.dp ?: 0.dp,
+        topEnd = cornerRadius?.topRight?.toIntOrNull()?.dp ?: 0.dp,
+        bottomStart = cornerRadius?.bottomLeft?.toIntOrNull()?.dp ?: 0.dp,
+        bottomEnd = cornerRadius?.bottomRight?.toIntOrNull()?.dp ?: 0.dp
     )
 
-    // backdrop opacity: prefer styling.appearance, fallback to flat backgroundOpacity
-    // backdrop opacity percentage (fallback to 30% if missing)
-    val rawBackdropOpacityStr = appearance?.backdrop?.opacity
-        ?: appearance?.backdropOpacity
-        ?: modal.backgroundOpacity
-        ?: "30"
-    val rawBackdropOpacity = rawBackdropOpacityStr.toFloatOrNull() ?: 30f
+    val modalWidth = (dimension?.height?.toFloatOrNull()?.dp ?: 300.dp)
 
-    // enableBackdrop: check both flat field and appearance field
-    val backdropEnabled = modal.enableBackdrop != false && appearance?.enableBackdrop != false
-    val backdropAlpha = if (!backdropEnabled) 0f else (rawBackdropOpacity / 100f).coerceIn(0f, 1f)
+    // Backdrop
+    val backdrop = appearance?.backdrop
+    val backdropOpacity = (backdrop?.opacity ?: appearance?.backdropOpacity ?: "50").toString().toFloatOrNull() ?: 50f
+    val backdropEnabled = appearance?.enableBackdrop ?: true
+    val backdropAlpha = if (backdropEnabled) (backdropOpacity / 100f).coerceIn(0f, 1f) else 0f
 
-    // Prefer uploaded image URL if provided by backend, fallback to default crossButtonImage, then flat crossButtonImage field (for media-only modals)
-    val crossButtonImageUrl = modal.styling?.crossButton?.uploadImage?.url
-        ?: modal.styling?.crossButton?.default?.crossButtonImage
-        ?: modal.crossButtonImage
+    // Content padding
+    val padding = appearance?.padding
+    val contentPaddingStart = padding?.left?.dp ?: 16.dp
+    val contentPaddingEnd = padding?.right?.dp ?: 16.dp
+    val contentPaddingTop = padding?.top?.dp ?: 16.dp
+    val contentPaddingBottom = padding?.bottom?.dp ?: 16.dp
 
-    // Extract spacing to avoid naming conflicts with Modifier.padding
-    // Support both standard structure (default.spacing) and legacy structure (margin directly)
-    val crossButtonSpacing = modal.styling?.crossButton?.default?.spacing
-    val crossButtonColors = modal.styling?.crossButton?.default?.color ?: modal.styling?.crossButton?.colors
-    val crossButtonMargin = crossButtonSpacing?.margin ?: modal.styling?.crossButton?.margin
-    val crossButtonSize = modal.styling?.crossButton?.default?.crossButtonSize ?: modal.styling?.crossButton?.crossButtonSize
+    // Cross button
+    val crossButton = modal.styling?.crossButton
+    val crossEnabled = crossButton?.enableCrossButton ?: true
+    val crossImageUrl = crossButton?.uploadImage?.url ?: crossButton?.default?.crossButtonImage
+    val crossColors = crossButton?.default?.color
+    val crossMargin = crossButton?.default?.spacing?.margin
 
     val crossConfig = createCrossButtonConfig(
-        fillColorString = crossButtonColors?.fill,
-        crossColorString = crossButtonColors?.cross,
-        strokeColorString = crossButtonColors?.stroke,
-        marginTop = crossButtonMargin?.top,
-        marginEnd = crossButtonMargin?.right,
-        paddingTop = crossButtonSpacing?.padding?.top,
-        paddingEnd = crossButtonSpacing?.padding?.right,
-        paddingBottom = crossButtonSpacing?.padding?.bottom,
-        paddingStart = crossButtonSpacing?.padding?.left,
-        size = crossButtonSize,
-        imageUrl = crossButtonImageUrl
+        fillColorString = crossColors?.fill,
+        crossColorString = crossColors?.cross,
+        strokeColorString = crossColors?.stroke,
+        marginTop = crossMargin?.top,
+        marginEnd = crossMargin?.right,
+        paddingTop = null,
+        paddingEnd = null,
+        paddingBottom = null,
+        paddingStart = null,
+        size = null,
+        imageUrl = crossImageUrl
     )
-
-
-
 
     Dialog(
         onDismissRequest = onCloseClick,
@@ -149,90 +110,272 @@ internal fun PopupModal(
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color.Black.copy(alpha = backdropAlpha))
-                .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) {
-                    onCloseClick()
-                },
+                .clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() }
+                ) { onCloseClick() },
             contentAlignment = Alignment.Center
         ) {
-            Box(modifier = Modifier.wrapContentSize()) {
-                // White rounded container
-                // Enforce a minimum bottom padding so CTAs don't sit flush when backend sends 0
-                // Give at least 12.dp bottom inset so CTA borders/rounded corners don't visually overflow
-                val minBottomPadding = 0.dp
-                val containerPaddingStart = appearance?.padding?.left?.dp ?: 0.dp
-                val containerPaddingTop = appearance?.padding?.top?.dp ?: 0.dp
-                val containerPaddingEnd = appearance?.padding?.right?.dp ?: 0.dp
-                val rawBottom = appearance?.padding?.bottom?.dp ?: 0.dp
-                val containerPaddingBottom = if (rawBottom < minBottomPadding) minBottomPadding else rawBottom
+            Box(
+                modifier = Modifier
+                    .width(modalWidth)
+                    .wrapContentHeight()
 
-                Box(
+            ) {
+                Column(
                     modifier = Modifier
-                        .widthIn(max = appearanceHeightDp * 1.2f)
-                        .clip(containerShape)
-                        .background(Color.White)
-                        .then(if (appearanceBorderWidth > 0.dp) Modifier.border(appearanceBorderWidth, Color.LightGray, containerShape) else Modifier)
-                        .padding(
-                            start = containerPaddingStart,
-                            end = containerPaddingEnd,
-                            top = containerPaddingTop,
-                            bottom = containerPaddingBottom
-                        )
+                        .width(modalWidth)
+                        .wrapContentHeight()
+                        .clip(cornerShape)
+                        .background(Color.White),
+                    verticalArrangement = Arrangement.Top
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        // media
-                        Box(
+                    // Media section
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .wrapContentHeight()
+                            .clickable(
+                                indication = null, // Removes the ripple effect
+                                interactionSource = remember { MutableInteractionSource() }
+                            ) {}
+                    ) {
+                        ModalMediaRenderer(
+                            mediaUrl = modal.resolvedMedia()?.url,
                             modifier = Modifier
-                                .wrapContentSize()
-                                .clickable(
-                                    indication = null,
-                                    interactionSource = remember { MutableInteractionSource() }
-                                ) {
-                                    onModalClick()
-                                    // Handle redirection for media-only modals (image-only modals)
-                                    val redirectUrl = modal.redirection?.url ?: modal.link
-                                    if (!redirectUrl.isNullOrBlank()) {
-                                        onPrimaryCta?.invoke(redirectUrl)
-                                    }
-                                }
-                        ) {
-                            // Use the shared ModalMediaRenderer for all media types for consistent behavior
-                            ModalMediaRenderer(
-                                mediaUrl = imageUrl,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(appearanceHeightDp)
-                                    .clip(containerShape),
-                                contentDescription = "Popup Image",
-                                muted = false
-                            )
-                        }
+                                .fillMaxWidth()
+                                .wrapContentHeight(),
+                            contentDescription = "Modal Media",
+                            contentScale = ContentScale.FillWidth,
+                            muted = false
+                        )
+                    }
 
-                        // Replace inline title/subtitle/cta with ModalWithCta for better separation
-                        ModalWithCta(
+                    // Content section (title, subtitle, CTAs)
+                    val hasContent = !modal.content?.titleText.isNullOrBlank() ||
+                            !modal.content?.subtitleText.isNullOrBlank() ||
+                            !modal.content?.primaryCtaText.isNullOrBlank() ||
+                            !modal.content?.secondaryCtaText.isNullOrBlank()
+
+                    if (hasContent) {
+                        ModalContentSection(
                             modal = modal,
+                            paddingStart = contentPaddingStart,
+                            paddingEnd = contentPaddingEnd,
+                            paddingTop = contentPaddingTop,
+                            paddingBottom = contentPaddingBottom,
                             onPrimaryCta = onPrimaryCta,
                             onSecondaryCta = onSecondaryCta
                         )
-
                     }
+                }
 
-                    // Cross button in top-right - only show if enabled (defaults to true for backward compatibility)
-                    // Support both enableCrossButton (standard) and enabled (legacy) fields
-                    val crossButtonEnabled = modal.styling?.crossButton?.enableCrossButton
-                        ?: modal.styling?.crossButton?.enabled
-                        ?: modal.enableCrossButton
-                    val showCrossButton = crossButtonEnabled != false
-
-                    if (showCrossButton) {
-                        Log.d("PopupModal", "Rendering cross button with config=$crossConfig")
-                        Box(modifier = Modifier.align(Alignment.TopEnd)) {
-                            CrossButton(config = crossConfig, onClose = onCloseClick)
-                        }
+                // Cross button overlay
+                if (crossEnabled) {
+                    Box(modifier = Modifier.align(Alignment.TopEnd)) {
+                        CrossButton(config = crossConfig, onClose = onCloseClick)
                     }
                 }
             }
-            }
         }
     }
+}
 
-    // local VideoPlayerInline removed in favor of ModalComponents.VideoPlayerInline
+@Composable
+private fun ModalContentSection(
+    modal: Modal,
+    paddingStart: androidx.compose.ui.unit.Dp,
+    paddingEnd: androidx.compose.ui.unit.Dp,
+    paddingTop: androidx.compose.ui.unit.Dp,
+    paddingBottom: androidx.compose.ui.unit.Dp,
+    onPrimaryCta: ((String?) -> Unit)?,
+    onSecondaryCta: ((String?) -> Unit)?
+) {
+    // Styling
+    val titleColor = parseColorString(modal.styling?.title?.color) ?: Color(0xFF3700FF)
+    val titleSize = modal.styling?.title?.size?.sp ?: 16.sp
+    val titleAlign = when (modal.styling?.title?.alignment?.trim()?.lowercase()) {
+        "left" -> TextAlign.Start
+        "right" -> TextAlign.End
+        else -> TextAlign.Center
+    }
+
+    val subtitleColor = parseColorString(modal.styling?.subTitle?.color) ?: Color.Gray
+    val subtitleSize = modal.styling?.subTitle?.size?.sp ?: 12.sp
+    val subtitleAlign = when (modal.styling?.subTitle?.alignment?.trim()?.lowercase()) {
+        "left" -> TextAlign.Start
+        "right" -> TextAlign.End
+        else -> TextAlign.Center
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(
+                start = paddingStart,
+                end = paddingEnd,
+                top = paddingTop,
+                bottom = paddingBottom
+            ),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        // Title
+        modal.content?.titleText?.let { title ->
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = title,
+                color = titleColor,
+                fontSize = titleSize,
+                textAlign = titleAlign,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+
+        // Subtitle
+        modal.content?.subtitleText?.let { subtitle ->
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = subtitle,
+                color = subtitleColor,
+                fontSize = subtitleSize,
+                textAlign = subtitleAlign,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+
+        // CTAs
+        ModalCtaRow(
+            modal = modal,
+            onPrimaryCta = onPrimaryCta,
+            onSecondaryCta = onSecondaryCta
+        )
+        Spacer(modifier = Modifier.height(2.dp))
+    }
+}
+
+@Composable
+private fun ModalCtaRow(
+    modal: Modal,
+    onPrimaryCta: ((String?) -> Unit)?,
+    onSecondaryCta: ((String?) -> Unit)?
+) {
+    val primaryText = modal.content?.primaryCtaText
+    val secondaryText = modal.content?.secondaryCtaText
+
+    val hasPrimary = !primaryText.isNullOrBlank()
+    val hasSecondary = !secondaryText.isNullOrBlank()
+
+    if (!hasPrimary && !hasSecondary) return
+
+    val primaryStyling = modal.styling?.primaryCta
+    val secondaryStyling = modal.styling?.secondaryCta
+
+    val primaryOccupy = hasPrimary && primaryStyling?.occupyFullWidth?.trim()?.equals("true", true) == true
+    val secondaryOccupy = hasSecondary && secondaryStyling?.occupyFullWidth?.trim()?.equals("true", true) == true
+
+    val alignmentFromBtn = when {
+        hasPrimary && !hasSecondary -> primaryStyling?.containerStyle?.alignment
+        hasSecondary && !hasPrimary -> secondaryStyling?.containerStyle?.alignment
+        else -> primaryStyling?.containerStyle?.alignment // Default if both exist
+    }?.trim()?.lowercase()
+
+    val primaryMargin = primaryStyling?.spacing?.margin
+    val secondaryMargin = secondaryStyling?.spacing?.margin
+
+    // Compute horizontal spacing between CTAs (use primary right or secondary left margin)
+    val ctaBetweenSpacing = if (hasPrimary && hasSecondary) {
+        val right = primaryMargin?.right ?: 0
+        val left = secondaryMargin?.left ?: 0
+        maxOf(right, left).dp
+    } else {
+        0.dp
+    }
+    val rowTopPadding = maxOf(primaryMargin?.top?.dp ?: 0.dp, secondaryMargin?.top?.dp ?: 0.dp)
+    val rowBottomPadding = maxOf(primaryMargin?.bottom?.dp ?: 0.dp, secondaryMargin?.bottom?.dp ?: 0.dp)
+
+
+
+    val arrangement = when {
+        primaryOccupy || secondaryOccupy -> Arrangement.spacedBy(0.dp)
+        alignmentFromBtn == "right" -> Arrangement.spacedBy(ctaBetweenSpacing, Alignment.End)
+        alignmentFromBtn == "left" -> Arrangement.spacedBy(ctaBetweenSpacing, Alignment.Start)
+        else -> Arrangement.spacedBy(ctaBetweenSpacing, Alignment.CenterHorizontally)
+    }
+    Row(
+        modifier = Modifier
+            .padding(top = rowTopPadding, bottom = rowBottomPadding)
+            .fillMaxWidth(),
+        horizontalArrangement = arrangement,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Primary CTA - Only shows if text is not null/blank
+        if (hasPrimary) {
+            ModalCtaButton(
+                text = primaryText!!, // Safe because of hasPrimary check
+                styling = primaryStyling,
+                occupy = primaryOccupy,
+                onClick = {
+                    val link = modal.content?.primaryCtaRedirection?.url
+                        ?: modal.content?.primaryCtaRedirection?.value
+                    onPrimaryCta?.invoke(link)
+                },
+                modifier = if (primaryOccupy) Modifier.weight(1f) else Modifier
+            )
+        }
+
+        // Secondary CTA - Only shows if text is not null/blank
+        if (hasSecondary) {
+            ModalCtaButton(
+                text = secondaryText!!, // Safe because of hasSecondary check
+                styling = secondaryStyling,
+                occupy = secondaryOccupy,
+                onClick = {
+                    val link = modal.content?.secondaryCtaRedirection?.url
+                        ?: modal.content?.secondaryCtaRedirection?.value
+                    onSecondaryCta?.invoke(link)
+                },
+                modifier = if (secondaryOccupy) Modifier.weight(1f) else Modifier
+            )
+        }
+    }
+}
+
+@Composable
+private fun ModalCtaButton(
+    text: String,
+    styling: com.appversal.appstorys.api.ModalCta?,
+    occupy: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val bg = parseColorString(styling?.backgroundColor) ?: Color.Black
+    val textColor = parseColorString(styling?.textColor) ?: Color.White
+    val borderColor = parseColorString(styling?.borderColor) ?: Color.Transparent
+    val minWidth = styling?.containerStyle?.ctaWidth?.dp ?: 120.dp
+
+    val shape = RoundedCornerShape(
+        topStart = (styling?.cornerRadius?.topLeft ?: 12).dp,
+        topEnd = (styling?.cornerRadius?.topRight ?: 12).dp,
+        bottomStart = (styling?.cornerRadius?.bottomLeft ?: 12).dp,
+        bottomEnd = (styling?.cornerRadius?.bottomRight ?: 12).dp
+    )
+
+    BackendCta(
+        text = text,
+        height = (styling?.containerStyle?.height ?: 40).dp,
+        // If not occupying full width, allow it to wrap content so text isn't cut
+        width = if (occupy) null else minWidth,
+        occupyFullWidth = occupy,
+        backgroundColor = bg,
+        textColor = textColor,
+        textSizeSp = styling?.textStyle?.size ?: 14,
+        borderColor = borderColor,
+        borderWidth = (styling?.containerStyle?.borderWidth ?: 0).dp,
+        cornerRadius = shape,
+        textAlign = TextAlign.Center,
+        modifier = modifier.then(
+            if (!occupy) Modifier.widthIn(min = minWidth) else Modifier
+        ),
+        onClick = onClick
+    )
+}

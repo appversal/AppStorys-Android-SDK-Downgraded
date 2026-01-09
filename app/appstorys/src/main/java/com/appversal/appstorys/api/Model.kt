@@ -650,9 +650,12 @@ data class TooltipCtaContainer(
     val alignment: String? = null,
     val backgroundColor: String? = null,
     val borderColor: String? = null,
+    @Serializable(with = NullableIntSerializer::class)
     val borderWidth: Int? = null,
     val ctaFullWidth: Boolean? = null,
+    @Serializable(with = NullableIntSerializer::class)
     val ctaWidth: Int? = null,
+    @Serializable(with = NullableIntSerializer::class)
     val height: Int? = null
 )
 
@@ -949,6 +952,7 @@ data class Modal(
     // ---------- FLAT MEDIA-ONLY MODAL ----------
     val chooseMediaType: ModalMedia? = null,
     val link: String? = null,
+    val url: String? = null,
     val size: String? = null,
     val backgroundOpacity: String? = null,
     val borderRadius: Int? = null,
@@ -1282,13 +1286,37 @@ data class MinimiseButtonStyleConfig(
 )
 
 fun Modal.resolvedMedia(): ModalMedia? {
-    // CTA / Carousel modal
-    content?.chooseMediaType?.let { return it }
+    // Prefer explicit content-level media (including first slide in content.set)
+    content?.chooseMediaType?.takeIf { !it.url.isNullOrBlank() }?.let { return it }
+    content?.set?.firstOrNull()?.chooseMediaType?.takeIf { !it.url.isNullOrBlank() }?.let { return it }
 
-    // Media-only modal
-    chooseMediaType?.let { return it }
+    // Prefer top-level chooseMediaType when it contains a non-blank URL
+    chooseMediaType?.takeIf { !it.url.isNullOrBlank() }?.let { return it }
 
-    // Fallback via link
+    // Support top-level `url` field if backend provides it (some payloads do)
+    url?.takeIf {
+        it.endsWith(".png", true) ||
+                it.endsWith(".jpg", true) ||
+                it.endsWith(".jpeg", true) ||
+                it.endsWith(".gif", true) ||
+                it.endsWith(".mp4", true) ||
+                it.endsWith(".json", true)
+    }?.let {
+        return ModalMedia(type = "auto", url = it)
+    }
+
+    // Fallback via redirection or link
+    redirection?.url?.takeIf {
+        it.endsWith(".png", true) ||
+                it.endsWith(".jpg", true) ||
+                it.endsWith(".jpeg", true) ||
+                it.endsWith(".gif", true) ||
+                it.endsWith(".mp4", true) ||
+                it.endsWith(".json", true)
+    }?.let {
+        return ModalMedia(type = "auto", url = it)
+    }
+
     link?.takeIf {
         it.endsWith(".png", true) ||
                 it.endsWith(".jpg", true) ||

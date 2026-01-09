@@ -1,10 +1,11 @@
 package com.appversal.appstorys.ui.modals
 
 import android.os.Build.VERSION.SDK_INT
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.LifecycleEventObserver
@@ -27,9 +28,6 @@ import com.airbnb.lottie.compose.LottieAnimation
 import com.airbnb.lottie.compose.LottieCompositionSpec
 import com.airbnb.lottie.compose.LottieConstants
 import com.airbnb.lottie.compose.rememberLottieComposition
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.graphics.Color
-import androidx.compose.foundation.Image
 import androidx.compose.ui.layout.ContentScale as UiContentScale
 
 // Determine media type from URL/contents
@@ -44,7 +42,6 @@ internal fun determineMediaType(url: String?): String {
 }
 
 @androidx.annotation.OptIn(UnstableApi::class)
-//@OptIn(UnstableApi::class)
 @Composable
 fun VideoPlayerInline(videoUrl: String, modifier: Modifier = Modifier, muted: Boolean = false) {
     val context = LocalContext.current
@@ -95,7 +92,7 @@ fun ModalMediaRenderer(
     mediaUrl: String?,
     modifier: Modifier = Modifier,
     contentDescription: String? = null,
-    contentScale: ContentScale = UiContentScale.Crop,
+    contentScale: UiContentScale = UiContentScale.Fit,
     muted: Boolean = false
 ) {
     val context = LocalContext.current
@@ -117,7 +114,7 @@ fun ModalMediaRenderer(
             Image(
                 painter = painter,
                 contentDescription = contentDescription,
-                contentScale = UiContentScale.Crop,
+                contentScale = contentScale,
                 modifier = modifier
             )
         }
@@ -138,7 +135,17 @@ fun ModalMediaRenderer(
         }
 
         "video" -> {
-            VideoPlayerInline(videoUrl = mediaUrl ?: "", modifier = modifier, muted = muted)
+            VideoPlayerInline(
+                videoUrl = mediaUrl ?: "",
+                modifier = modifier.then(
+                    if (contentScale == UiContentScale.FillWidth) {
+                        Modifier.aspectRatio(16f / 9f) // 16:9 landscape
+                    } else {
+                        Modifier
+                    }
+                ),
+                muted = muted
+            )
         }
 
         else -> {
@@ -146,7 +153,7 @@ fun ModalMediaRenderer(
                 model = ImageRequest.Builder(context).data(mediaUrl).diskCachePolicy(CachePolicy.ENABLED).memoryCachePolicy(CachePolicy.ENABLED).build(),
                 contentDescription = contentDescription,
                 modifier = modifier,
-                contentScale = UiContentScale.Crop
+                contentScale = contentScale
             )
         }
     }
