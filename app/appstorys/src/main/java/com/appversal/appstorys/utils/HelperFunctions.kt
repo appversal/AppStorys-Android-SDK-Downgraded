@@ -19,6 +19,11 @@ fun isGifUrl(url: String): Boolean {
     return url.lowercase().endsWith(".gif")
 }
 
+fun isLottieUrl(url: String): Boolean {
+    val lower = url.lowercase()
+    return lower.endsWith(".json") || lower.endsWith(".lottie")
+}
+
 fun String?.toColor(defaultColor: Color): Color {
     return try {
         if (this.isNullOrEmpty()){

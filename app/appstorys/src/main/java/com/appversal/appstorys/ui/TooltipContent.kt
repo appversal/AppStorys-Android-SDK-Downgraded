@@ -2,6 +2,8 @@ package com.appversal.appstorys.ui
 
 import android.annotation.SuppressLint
 import android.graphics.Rect
+import android.os.Build.VERSION.SDK_INT
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -27,6 +29,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,14 +47,24 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.ImageLoader
 import coil.compose.AsyncImage
+import coil.compose.rememberAsyncImagePainter
+import coil.decode.GifDecoder
+import coil.decode.ImageDecoderDecoder
 import coil.request.CachePolicy
 import coil.request.ImageRequest
+import com.airbnb.lottie.compose.LottieAnimation
+import com.airbnb.lottie.compose.LottieCompositionSpec
+import com.airbnb.lottie.compose.LottieConstants
+import com.airbnb.lottie.compose.rememberLottieComposition
 import com.appversal.appstorys.AppStorys.dismissTooltip
 import com.appversal.appstorys.AppStorys.handleTooltipAction
 import com.appversal.appstorys.api.Tooltip
 import com.appversal.appstorys.ui.xml.toDp
 import com.appversal.appstorys.utils.AppStorysCoordinates
+import com.appversal.appstorys.utils.isGifUrl
+import com.appversal.appstorys.utils.isLottieUrl
 import com.appversal.appstorys.utils.toColor
 import kotlin.math.roundToInt
 
@@ -197,17 +210,7 @@ internal fun TooltipContent(
 @Composable
 private fun ImageContent(tooltip: Tooltip, modifier: Modifier = Modifier) {
     val context = LocalContext.current
-
-    val imageRequest = remember(tooltip.url) {
-        ImageRequest.Builder(context)
-            .data(tooltip.url)
-            .memoryCacheKey(tooltip.url)
-            .diskCacheKey(tooltip.url)
-            .diskCachePolicy(CachePolicy.ENABLED)
-            .memoryCachePolicy(CachePolicy.ENABLED)
-            .crossfade(true)
-            .build()
-    }
+    val url = tooltip.url.orEmpty()
 
     LaunchedEffect(tooltip) {
         handleTooltipAction(tooltip)
@@ -224,19 +227,80 @@ private fun ImageContent(tooltip: Tooltip, modifier: Modifier = Modifier) {
         modifier =
             modifier.then(
                 tooltip.styling?.let { padding ->
-                    Modifier.background(color = tooltip.styling.appearance?.colors?.tooltip.toColor(Color.Transparent), shape = cornerRadius).clip(cornerRadius)
+                    Modifier.background(color = tooltip.styling.appearance?.colors?.tooltip.toColor(Color.Transparent), shape = cornerRadius)
+                        .clip(cornerRadius)
+                        .clickable { handleTooltipAction(tooltip, true) }
                 } ?:
                 Modifier
             ),
         content = {
-            AsyncImage(
-                model = imageRequest,
-                contentDescription = null,
-                contentScale = ContentScale.Fit,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clickable(onClick = { handleTooltipAction(tooltip, true) })
-            )
+            when {
+                isLottieUrl(url) -> {
+                    val composition by rememberLottieComposition(
+                        LottieCompositionSpec.Url(url)
+                    )
+
+                    LottieAnimation(
+                        composition = composition,
+                        iterations = LottieConstants.IterateForever,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+
+                isGifUrl(url) -> {
+                    val imageLoader = remember {
+                        ImageLoader.Builder(context)
+                            .components {
+                                if (SDK_INT >= 28) {
+                                    add(ImageDecoderDecoder.Factory())
+                                } else {
+                                    add(GifDecoder.Factory())
+                                }
+                            }
+                            .build()
+                    }
+
+                    val painter = rememberAsyncImagePainter(
+                        ImageRequest.Builder(context)
+                            .data(url)
+                            .memoryCacheKey(url)
+                            .diskCacheKey(url)
+                            .diskCachePolicy(CachePolicy.ENABLED)
+                            .memoryCachePolicy(CachePolicy.ENABLED)
+                            .size(coil.size.Size.ORIGINAL)
+                            .crossfade(true)
+                            .build(),
+                        imageLoader = imageLoader
+                    )
+
+                    Image(
+                        painter = painter,
+                        contentDescription = null,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+
+                else -> {
+                    val imageRequest = remember(url) {
+                        ImageRequest.Builder(context)
+                            .data(url)
+                            .memoryCacheKey(url)
+                            .diskCacheKey(url)
+                            .diskCachePolicy(CachePolicy.ENABLED)
+                            .memoryCachePolicy(CachePolicy.ENABLED)
+                            .crossfade(true)
+                            .build()
+                    }
+
+                    AsyncImage(
+                        model = imageRequest,
+                        contentDescription = null,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+            }
         }
     )
 }

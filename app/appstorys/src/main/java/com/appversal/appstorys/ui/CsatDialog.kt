@@ -375,26 +375,6 @@ private fun MainContent(
             }
         }
 
-        // Display subtitle based on rating
-        if (selectedStars > 0) {
-            val subtitle = when {
-                selectedStars >= 4 -> csatDetails.styling?.rating?.high?.highRatingSubtitle
-                else -> csatDetails.styling?.rating?.low?.lowRatingSubtitle
-            }
-
-            subtitle?.let { text ->
-                if (text.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = text,
-                        fontSize = (csatDetails.styling?.fontSize ?: 16).sp,
-                        color = styling["csatDescriptionTextColor"] ?: Color(0xFF504F58),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            }
-        }
-
         AnimatedVisibility(visible = showFeedback) {
             FeedbackContent(
                 localContent = localContent,
@@ -691,7 +671,6 @@ private fun ThankYouContent(
         // Determine image type and render accordingly
         val imageUrl = image.ifEmpty { "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTwlQ-xYqAIcjylz3NUGJ_jcdRmdzk_vMae0w&s" }
         val isLottie = imageUrl.endsWith(".json", ignoreCase = true)
-        val isHtml = imageUrl.endsWith(".html", ignoreCase = true) || imageUrl.endsWith(".htm", ignoreCase = true)
 
         when {
             isLottie -> {
@@ -710,27 +689,6 @@ private fun ThankYouContent(
                             end = (imageMargin?.right ?: 0).dp
                         )
                 )
-            }
-            isHtml -> {
-                // HTML content - would need WebView implementation
-                // For now, show a placeholder or text
-                Box(
-                    modifier = Modifier
-                        .size(width = imageWidth.dp, height = imageHeight.dp)
-                        .padding(
-                            top = (imageMargin?.top ?: 0).dp,
-                            bottom = (imageMargin?.bottom ?: 0).dp,
-                            start = (imageMargin?.left ?: 0).dp,
-                            end = (imageMargin?.right ?: 0).dp
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "✓",
-                        fontSize = 48.sp,
-                        color = Color.Green
-                    )
-                }
             }
             else -> {
                 // Static image (JPEG, PNG, GIF)

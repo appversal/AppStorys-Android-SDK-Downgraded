@@ -328,25 +328,6 @@ data class WidgetImage(
 
 @Keep
 @Serializable
-data class CSATDetails(
-    val id: String?,
-    val title: String?,
-    val height: Int?,
-    val width: Int?,
-    val styling: CSATStyling?,
-    val thankyouImage: String?,
-    val thankyouText: String?,
-    val thankyouDescription: String?,
-    val highStarText: String?,
-    val lowStarText: String?,
-    @SerialName("description_text") val descriptionText: String?,
-    @SerialName("feedback_option") val feedbackOption: FeedbackOption?,
-    val campaign: String?,
-    val link: String?
-) : CampaignDetails()
-
-@Keep
-@Serializable
 data class FloaterDetails(
     val id: String?,
     val image: String?,
@@ -370,6 +351,25 @@ data class FloaterStyling(
     val floaterRightPadding: String?,
     val floaterLeftPadding: String?,
 )
+
+@Keep
+@Serializable
+data class CSATDetails(
+    val id: String?,
+    val title: String?,
+    val height: Int?,
+    val width: Int?,
+    val styling: CSATStyling?,
+    val thankyouImage: String?,
+    val thankyouText: String?,
+    val thankyouDescription: String?,
+    val highStarText: String?,
+    val lowStarText: String?,
+    @SerialName("description_text") val descriptionText: String?,
+    @SerialName("feedback_option") val feedbackOption: FeedbackOption?,
+    val campaign: String?,
+    val link: String?
+) : CampaignDetails()
 
 @Keep
 @Serializable
@@ -402,69 +402,9 @@ data class FeedbackOption(
 @Keep
 @Serializable
 data class CSATStyling(
-//    // Legacy flat fields (keep for backward compatibility)
-//    val delayDisplay: Int?,
-//    val displayDelay: String?,
-//    val csatTitleColor: String?,
-//    val csatCtaTextColor: String?,
-//    val csatLowStarColor: String?,
-//    val csatHighStarColor: String?,
-//    val csatUnselectedStarColor: String?,
-//    val csatBackgroundColor: String?,
-//    val csatOptionBoxColour: String?,
-//    val csatOptionTextColour: String?,
-//    val csatOptionStrokeColor: String?,
-//    val csatCtaBackgroundColor: String?,
-//    val csatAdditionalTextColor: String?,
-//    val csatDescriptionTextColor: String?,
-//    val csatSelectedOptionTextColor: String?,
-//    val csatSelectedOptionStrokeColor: String?,
-//    val csatSelectedOptionBackgroundColor: String?,
 
     val fontSize: Int? = null,
 
-//    val csatTitleFontSize: Int?,
-//    val csatTitleFontDecoration: List<String>?,
-//    val csatTitleAlignment: String?,
-//    val csatTitleLineHeight: Float?,
-//    val csatTitleMargin: Margin?,
-//
-//    val csatDescriptionFontSize: Int?,
-//    val csatDescriptionFontDecoration: List<String>?,
-//    val csatDescriptionAlignment: String?,
-//    val csatDescriptionLineHeight: Float?,
-//    val csatDescriptionMargin: Margin?,
-//
-//    val csatFeedbackTitleText: String?,
-//    val csatFeedbackTitleTextColor: String?,
-//    val csatFeedbackTitleFontSize: Int?,
-//    val csatFeedbackTitleFontDecoration: List<String>?,
-//    val csatFeedbackTitleAlignment: String?,
-//    val csatFeedbackTitleLineHeight: Float?,
-//    val csatFeedbackTitleMargin: Margin?,
-//
-//    val csatFeedbackOptionFontSize: Int?,
-//    val csatFeedbackOptionFontDecoration: List<String>?,
-//    val csatFeedbackOptionAlignment: String?,
-//    val csatFeedbackOptionMargin: Margin?,
-//
-//    val csatAdditionalTextFontSize: Int?,
-//    val csatAdditionalTextFontDecoration: List<String>?,
-//    val csatAdditionalTextMargin: Margin?,
-//
-//    val csatCtaFontSize: Int?,
-//    val csatCtaFontDecoration: List<String>?,
-//    val csatCtaBorderColor: String?,
-//    val csatCtaBorderWidth: Int?,
-//    val csatCtaBorderRadius: String?,
-//    val csatCtaDimensions: Dimensions?,
-//    val csatCtaFullWidth: Boolean?,
-//    val csatCtaMargin: Margin?,
-//    val csatCtaAlignment: String?,
-//
-//    val csatBottomPadding: String?,
-
-    // New nested structure fields
     val appearance: CsatAppearance?,
     val feedbackPage: CsatFeedbackPage?,
     val initialFeedback: CsatInitialFeedback?,
