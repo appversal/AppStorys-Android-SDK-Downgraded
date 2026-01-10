@@ -52,6 +52,8 @@ import coil.compose.rememberAsyncImagePainter
 import com.appversal.appstorys.R
 import com.appversal.appstorys.api.BottomSheetDetails
 import com.appversal.appstorys.api.BottomSheetElement
+import com.appversal.appstorys.ui.components.CrossButton
+import com.appversal.appstorys.ui.components.createCrossButtonConfig
 import com.appversal.appstorys.utils.asInt
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
@@ -162,23 +164,26 @@ internal fun BottomSheetComponent(
                     )
 
                     if (bottomSheetDetails.enableCrossButton == "true") {
-                        IconButton(
-                            onClick = onDismissRequest,
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .padding(8.dp),
-                            content = {
-                                Icon(
-                                    imageVector = Icons.Filled.Close,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier
-                                        .size(32.dp)
-                                        .background(Color(0x4D000000), shape = CircleShape)
-                                        .padding(4.dp)
-                                        .clip(CircleShape)
-                                )
-                            }
+                        CrossButton(
+                            modifier = Modifier.align(Alignment.TopEnd),
+                            config = createCrossButtonConfig(
+                                fillColorString = bottomSheetDetails.styling?.crossButton?.colors?.fill,
+                                crossColorString = bottomSheetDetails.styling?.crossButton?.colors?.cross,
+                                strokeColorString = bottomSheetDetails.styling?.crossButton?.colors?.stroke,
+                                marginTop = bottomSheetDetails.styling?.crossButton?.margin?.top,
+                                marginEnd = bottomSheetDetails.styling?.crossButton?.margin?.right,
+                                size = bottomSheetDetails.styling?.crossButton?.crossButtonSize,
+//                                imageUrl = bannerDetails.crossButtonImage?.takeIf { it.isNotBlank() }?.let { raw ->
+//                                    val trimmed = raw.trim()
+//                                    if (trimmed.startsWith("http", true)) {
+//                                        trimmed
+//                                    } else {
+//                                        val base = "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/"
+//                                        if (trimmed.startsWith("/")) base + trimmed.removePrefix("/") else base + trimmed
+//                                    }
+//                                }
+                            ),
+                            onClose = onDismissRequest
                         )
                     }
                 }

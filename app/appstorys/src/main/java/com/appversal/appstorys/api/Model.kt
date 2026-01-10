@@ -503,6 +503,8 @@ data class CsatRatingStyle(
     val background: String?,
     val border: String?,
     val borderWidth: Int?,
+    val highRatingTitle: String?,
+    val lowRatingTitle: String?,
     val highRatingSubtitle: String?,
     val lowRatingSubtitle: String?
 )
@@ -822,9 +824,16 @@ data class BottomSheetDetails(
     val elements: List<BottomSheetElement>?,
     val cornerRadius: String?,
     val enableCrossButton: String?,
+    val styling: BottomSheetStyling?,
     val triggerType: String?,
     val selectedEvent: String?,
 ) : CampaignDetails()
+
+@Keep
+@Serializable
+data class BottomSheetStyling(
+    val crossButton: BannerStyleConfig?,
+)
 
 @Keep
 @Serializable

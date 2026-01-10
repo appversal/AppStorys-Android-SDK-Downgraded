@@ -32,6 +32,7 @@ import com.appversal.appstorys.utils.toColor
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import kotlin.compareTo
 
 data class CsatFeedback(
     val rating: Int,
@@ -45,12 +46,11 @@ internal fun CsatDialog(
     onSubmitFeedback: (CsatFeedback) -> Unit,
     csatDetails: CSATDetails
 ) {
+
     val localContent: Map<String, String> = remember {
         mapOf(
             "title" to (csatDetails.title ?: "Title"),
-            "description" to (csatDetails.descriptionText ?: "Description"),
-            "thankyouText" to (csatDetails.thankyouText ?: "Thank You"),
-            "thankyouDescription" to (csatDetails.thankyouDescription ?: "Thank you"),
+            "description" to (csatDetails.descriptionText ?: "Description")
         )
     }
 
@@ -110,7 +110,6 @@ internal fun CsatDialog(
             null
         }
     }
-
     var selectedStars by remember { mutableStateOf(0) }
     var showThanks by remember { mutableStateOf(false) }
     var showFeedback by remember { mutableStateOf(false) }
@@ -296,27 +295,29 @@ private fun MainContent(
         Spacer(modifier = Modifier.height(4.dp))
 
         Text(
+            modifier = Modifier
+                .padding(end = 18.dp)
+                .fillMaxWidth(),
             text = localContent["description"].toString(),
             fontSize = (subtitleTextStyle?.size ?: (csatDetails.styling?.fontSize ?: 16)).sp,
             color = styling["csatDescriptionTextColor"] ?: Color(0xFF504F58),
             textAlign = subtitleAlignment,
-            fontFamily = subtitleFontFamily,
-            modifier = Modifier.fillMaxWidth()
+            fontFamily = subtitleFontFamily
         )
 
         Spacer(modifier = Modifier.height(12.dp))
-
-        // Display text for rating
-        csatDetails.styling?.rating?.displayText?.let { displayText ->
-            if (displayText.isNotEmpty() && displayText.lowercase() != "same") {
-                Text(
-                    text = displayText,
-                    fontSize = (csatDetails.styling?.fontSize ?: 16).sp,
-                    color = styling["csatDescriptionTextColor"] ?: Color(0xFF504F58),
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-            }
-        }
+//
+//        // Display text for rating
+//        csatDetails.styling?.rating?.displayText?.let { displayText ->
+//            if (displayText.isNotEmpty() && displayText.lowercase() != "same") {
+//                Text(
+//                    text = displayText,
+//                    fontSize = (csatDetails.styling?.fontSize ?: 16).sp,
+//                    color = styling["csatDescriptionTextColor"] ?: Color(0xFF504F58),
+//                    modifier = Modifier.padding(bottom = 8.dp)
+//                )
+//            }
+//        }
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -645,7 +646,7 @@ private fun ThankYouContent(
     val imageWidth = imageStyle?.width ?: 66
     val imageHeight = imageStyle?.height ?: 66
     val doneButton = csatDetails.styling?.thankyouPage?.doneButton
-    val doneButtonText = doneButton?.text ?:
+    val doneButtonText = doneButton?.text?.takeIf { it.isNotBlank() } ?:
         (if (selectedStars < 4) csatDetails.lowStarText else csatDetails.highStarText) ?: "Done"
     val doneButtonRadius = doneButton?.containerRadius
     val doneButtonBorderWidth = doneButton?.containerStyle?.borderWidth ?: 0
@@ -727,7 +728,14 @@ private fun ThankYouContent(
         }
 
         Text(
-            text = localContent["thankyouText"].toString(),
+            text = csatDetails.thankyouText
+                ?.takeIf { it.isNotBlank() }
+                ?: (
+                        if (selectedStars < 4)
+                            csatDetails.styling?.rating?.low?.lowRatingTitle
+                        else
+                            csatDetails.styling?.rating?.high?.highRatingTitle
+                        ) ?: "Thank You",
             fontSize = (titleTextStyle?.size ?: ((csatDetails.styling?.fontSize ?: 16) + 6)).sp,
             fontWeight = FontWeight.Bold,
             color = styling["thankyouTitleColor"] ?: Color.Black,
@@ -755,7 +763,14 @@ private fun ThankYouContent(
         }
 
         Text(
-            text = localContent["thankyouDescription"].toString(),
+            text = csatDetails.thankyouDescription
+                ?.takeIf { it.isNotBlank() }
+                ?: (
+                        if (selectedStars < 4)
+                            csatDetails.styling?.rating?.low?.lowRatingSubtitle
+                        else
+                            csatDetails.styling?.rating?.high?.highRatingSubtitle
+                        ) ?: "Thank you",
             fontSize = (subtitleTextStyle?.size ?: (csatDetails.styling?.fontSize ?: 16)).sp,
             color = styling["thankyouSubtitleColor"] ?: Color(0xFF504F58),
             textAlign = subtitleAlignment,
