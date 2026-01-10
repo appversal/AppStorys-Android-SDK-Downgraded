@@ -69,6 +69,12 @@ internal fun PopupModal(
     val backdropOpacity = (backdrop?.opacity ?: appearance?.backdropOpacity ?: "50").toString().toFloatOrNull() ?: 50f
     val backdropEnabled = appearance?.enableBackdrop ?: true
     val backdropAlpha = if (backdropEnabled) (backdropOpacity / 100f).coerceIn(0f, 1f) else 0f
+    // Note: some payloads put size under `default.crossButtonSize` or `crossButtonSize` (legacy),
+    // while others use `size`. Normalize all possibilities below after we read `crossButton`.
+
+    // Cross button
+    val crossButton = modal.styling?.crossButton
+    val crossSize = crossButton?.default?.crossButtonSize ?: crossButton?.crossButtonSize ?: crossButton?.size
 
     // Content padding
     val padding = appearance?.padding
@@ -78,7 +84,6 @@ internal fun PopupModal(
     val contentPaddingBottom = padding?.bottom?.dp ?: 16.dp
 
     // Cross button
-    val crossButton = modal.styling?.crossButton
     val crossEnabled = crossButton?.enableCrossButton ?: true
     val crossImageUrl = crossButton?.uploadImage?.url ?: crossButton?.default?.crossButtonImage
     val crossColors = crossButton?.default?.color
@@ -90,11 +95,11 @@ internal fun PopupModal(
         strokeColorString = crossColors?.stroke,
         marginTop = crossMargin?.top,
         marginEnd = crossMargin?.right,
-        paddingTop = null,
-        paddingEnd = null,
-        paddingBottom = null,
-        paddingStart = null,
-        size = null,
+        paddingTop = crossButton?.default?.spacing?.padding?.top,
+        paddingEnd = crossButton?.default?.spacing?.padding?.right,
+        paddingBottom = crossButton?.default?.spacing?.padding?.bottom,
+        paddingStart = crossButton?.default?.spacing?.padding?.left,
+        size = crossSize,
         imageUrl = crossImageUrl
     )
 
@@ -136,7 +141,7 @@ internal fun PopupModal(
                             .fillMaxWidth()
                             .wrapContentHeight()
                             .clickable(
-                                indication = null, // Removes the ripple effect
+                                indication = null,
                                 interactionSource = remember { MutableInteractionSource() }
                             ) {}
                     ) {
@@ -172,7 +177,12 @@ internal fun PopupModal(
 
                 // Cross button overlay
                 if (crossEnabled) {
-                    Box(modifier = Modifier.align(Alignment.TopEnd)) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            //.statusBarsPadding()
+                            //.padding(16.dp)
+                    ) {
                         CrossButton(config = crossConfig, onClose = onCloseClick)
                     }
                 }
@@ -199,7 +209,7 @@ private fun ModalContentSection(
         "right" -> TextAlign.End
         else -> TextAlign.Center
     }
-
+    //Subtitle
     val subtitleColor = parseColorString(modal.styling?.subTitle?.color) ?: Color.Gray
     val subtitleSize = modal.styling?.subTitle?.size?.sp ?: 12.sp
     val subtitleAlign = when (modal.styling?.subTitle?.alignment?.trim()?.lowercase()) {
@@ -249,7 +259,7 @@ private fun ModalContentSection(
             onPrimaryCta = onPrimaryCta,
             onSecondaryCta = onSecondaryCta
         )
-        Spacer(modifier = Modifier.height(2.dp))
+        Spacer(modifier = Modifier.height(1.dp))
     }
 }
 
@@ -270,75 +280,91 @@ private fun ModalCtaRow(
     val primaryStyling = modal.styling?.primaryCta
     val secondaryStyling = modal.styling?.secondaryCta
 
-    val primaryOccupy = hasPrimary && primaryStyling?.occupyFullWidth?.trim()?.equals("true", true) == true
-    val secondaryOccupy = hasSecondary && secondaryStyling?.occupyFullWidth?.trim()?.equals("true", true) == true
-
-    val alignmentFromBtn = when {
-        hasPrimary && !hasSecondary -> primaryStyling?.containerStyle?.alignment
-        hasSecondary && !hasPrimary -> secondaryStyling?.containerStyle?.alignment
-        else -> primaryStyling?.containerStyle?.alignment // Default if both exist
-    }?.trim()?.lowercase()
-
     val primaryMargin = primaryStyling?.spacing?.margin
     val secondaryMargin = secondaryStyling?.spacing?.margin
 
-    // Compute horizontal spacing between CTAs (use primary right or secondary left margin)
-    val ctaBetweenSpacing = if (hasPrimary && hasSecondary) {
-        val right = primaryMargin?.right ?: 0
-        val left = secondaryMargin?.left ?: 0
-        maxOf(right, left).dp
-    } else {
-        0.dp
-    }
-    val rowTopPadding = maxOf(primaryMargin?.top?.dp ?: 0.dp, secondaryMargin?.top?.dp ?: 0.dp)
-    val rowBottomPadding = maxOf(primaryMargin?.bottom?.dp ?: 0.dp, secondaryMargin?.bottom?.dp ?: 0.dp)
+    val primaryOccupy =
+        hasPrimary && primaryStyling?.occupyFullWidth?.equals("true", true) == true
+    val secondaryOccupy =
+        hasSecondary && secondaryStyling?.occupyFullWidth?.equals("true", true) == true
 
 
 
-    val arrangement = when {
-        primaryOccupy || secondaryOccupy -> Arrangement.spacedBy(0.dp)
-        alignmentFromBtn == "right" -> Arrangement.spacedBy(ctaBetweenSpacing, Alignment.End)
-        alignmentFromBtn == "left" -> Arrangement.spacedBy(ctaBetweenSpacing, Alignment.Start)
-        else -> Arrangement.spacedBy(ctaBetweenSpacing, Alignment.CenterHorizontally)
-    }
+    val rowTopPadding =
+        ((primaryMargin?.top ?: 0) + (secondaryMargin?.top ?: 0)).dp / 2
+
+    val rowBottomPadding =
+        ((primaryMargin?.bottom ?: 0) + (secondaryMargin?.bottom ?: 0)).dp / 2
+
     Row(
         modifier = Modifier
-            .padding(top = rowTopPadding, bottom = rowBottomPadding)
-            .fillMaxWidth(),
-        horizontalArrangement = arrangement,
+            .fillMaxWidth()
+            .padding(top = rowTopPadding, bottom = rowBottomPadding),
+        horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Primary CTA - Only shows if text is not null/blank
+
         if (hasPrimary) {
+
+
+            val primarySpacingModifier = Modifier.padding(
+                start = primaryMargin?.left?.dp ?: 0.dp,
+                end = if (hasSecondary) {
+                    primaryMargin?.right?.dp ?: 0.dp // gap contribution
+                } else {
+                    primaryMargin?.right?.dp ?: 0.dp // boundary spacing
+                }
+            )
+
             ModalCtaButton(
-                text = primaryText!!, // Safe because of hasPrimary check
+                text = primaryText!!,
                 styling = primaryStyling,
                 occupy = primaryOccupy,
                 onClick = {
-                    val link = modal.content?.primaryCtaRedirection?.url
-                        ?: modal.content?.primaryCtaRedirection?.value
+                    val link =
+                        modal.content?.primaryCtaRedirection?.url
+                            ?: modal.content?.primaryCtaRedirection?.value
                     onPrimaryCta?.invoke(link)
                 },
-                modifier = if (primaryOccupy) Modifier.weight(1f) else Modifier
+                modifier =
+                    primarySpacingModifier.then(
+                        if (primaryOccupy) Modifier.weight(1f) else Modifier
+                    )
             )
         }
 
-        // Secondary CTA - Only shows if text is not null/blank
+
         if (hasSecondary) {
+
+
+            val secondarySpacingModifier = Modifier.padding(
+                start = if (hasPrimary) {
+                    secondaryMargin?.left?.dp ?: 0.dp
+                } else {
+                    secondaryMargin?.left?.dp ?: 0.dp
+                },
+                end = secondaryMargin?.right?.dp ?: 0.dp
+            )
+
             ModalCtaButton(
-                text = secondaryText!!, // Safe because of hasSecondary check
+                text = secondaryText!!,
                 styling = secondaryStyling,
                 occupy = secondaryOccupy,
                 onClick = {
-                    val link = modal.content?.secondaryCtaRedirection?.url
-                        ?: modal.content?.secondaryCtaRedirection?.value
+                    val link =
+                        modal.content?.secondaryCtaRedirection?.url
+                            ?: modal.content?.secondaryCtaRedirection?.value
                     onSecondaryCta?.invoke(link)
                 },
-                modifier = if (secondaryOccupy) Modifier.weight(1f) else Modifier
+                modifier =
+                    secondarySpacingModifier.then(
+                        if (secondaryOccupy) Modifier.weight(1f) else Modifier
+                    )
             )
         }
     }
 }
+
 
 @Composable
 private fun ModalCtaButton(
@@ -363,7 +389,6 @@ private fun ModalCtaButton(
     BackendCta(
         text = text,
         height = (styling?.containerStyle?.height ?: 40).dp,
-        // If not occupying full width, allow it to wrap content so text isn't cut
         width = if (occupy) null else minWidth,
         occupyFullWidth = occupy,
         backgroundColor = bg,

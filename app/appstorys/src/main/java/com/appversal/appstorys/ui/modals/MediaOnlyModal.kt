@@ -62,7 +62,8 @@ fun MediaOnlyModal(
         ?: modal.crossButtonImage
     val crossColors = crossButton?.default?.color ?: crossButton?.colors
     val crossMargin = crossButton?.default?.spacing?.margin ?: crossButton?.margin
-    val crossSize = crossButton?.default?.crossButtonSize ?: crossButton?.crossButtonSize
+    // Normalize size field — some payloads put it under default.crossButtonSize, some under crossButtonSize, others use legacy `size`.
+    val crossSize = crossButton?.default?.crossButtonSize ?: crossButton?.crossButtonSize ?: crossButton?.size
 
     val crossConfig = createCrossButtonConfig(
         fillColorString = crossColors?.fill,
@@ -134,7 +135,12 @@ fun MediaOnlyModal(
 
                 if (crossEnabled) {
                     Log.d("MediaOnlyModal", "Rendering cross button")
-                    Box(modifier = Modifier.align(Alignment.TopEnd)) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            //.statusBarsPadding()
+                            //.padding(16.dp)
+                    ) {
                         CrossButton(config = crossConfig, onClose = onCloseClick)
                     }
                 }

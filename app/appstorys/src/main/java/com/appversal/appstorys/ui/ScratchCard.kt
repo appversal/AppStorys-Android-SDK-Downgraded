@@ -12,6 +12,7 @@ import android.os.Vibrator
 import android.os.VibratorManager
 import android.util.Log
 import android.widget.Toast
+import androidx.annotation.RequiresApi
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
@@ -73,6 +74,7 @@ import androidx.compose.ui.text.AnnotatedString
 import com.appversal.appstorys.ui.xml.toDp
 import kotlinx.serialization.json.booleanOrNull
 
+@RequiresApi(Build.VERSION_CODES.M)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CardScratch(
@@ -1042,6 +1044,7 @@ fun CashBackInfoView(
     }
 }
 
+@RequiresApi(Build.VERSION_CODES.M)
 @Composable
 fun TermsAndConditionsView(
     onDismiss: () -> Unit,
