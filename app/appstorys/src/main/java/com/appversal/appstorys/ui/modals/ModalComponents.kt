@@ -30,6 +30,93 @@ import com.airbnb.lottie.compose.LottieConstants
 import com.airbnb.lottie.compose.rememberLottieComposition
 import androidx.compose.ui.layout.ContentScale as UiContentScale
 
+/**
+ * Sealed class representing the loading state of modal media
+ */
+sealed class MediaLoadState {
+    object Loading : MediaLoadState()
+    object Success : MediaLoadState()
+    object Error : MediaLoadState()
+}
+
+/**
+ * Preloads media and returns the current loading state.
+ * Uses Coil's execute to actually load and cache the image.
+ */
+@Composable
+fun rememberMediaLoadState(mediaUrl: String?): MediaLoadState {
+    val context = LocalContext.current
+    val mediaType = determineMediaType(mediaUrl)
+
+    var loadState by remember(mediaUrl) { mutableStateOf<MediaLoadState>(MediaLoadState.Loading) }
+
+    when (mediaType) {
+        "video" -> {
+            // For video, we consider it loaded once the player is prepared
+            // We'll mark it as success immediately since ExoPlayer handles buffering
+            LaunchedEffect(mediaUrl) {
+                loadState = MediaLoadState.Success
+            }
+        }
+        "lottie" -> {
+            val composition by rememberLottieComposition(
+                if (mediaUrl?.trimStart()?.startsWith("{") == true || mediaUrl?.trimStart()?.startsWith("[") == true) {
+                    LottieCompositionSpec.JsonString(mediaUrl)
+                } else {
+                    LottieCompositionSpec.Url(mediaUrl ?: "")
+                }
+            )
+            LaunchedEffect(composition) {
+                loadState = if (composition != null) MediaLoadState.Success else MediaLoadState.Loading
+            }
+        }
+        "gif", "image" -> {
+            // Use LaunchedEffect to actually execute the image request
+            LaunchedEffect(mediaUrl) {
+                if (mediaUrl.isNullOrEmpty()) {
+                    loadState = MediaLoadState.Error
+                    return@LaunchedEffect
+                }
+
+                try {
+                    val imageLoader = if (mediaType == "gif") {
+                        ImageLoader.Builder(context)
+                            .components {
+                                if (SDK_INT >= 28) add(ImageDecoderDecoder.Factory()) else add(GifDecoder.Factory())
+                            }
+                            .build()
+                    } else {
+                        ImageLoader.Builder(context).build()
+                    }
+
+                    val request = ImageRequest.Builder(context)
+                        .data(mediaUrl)
+                        .diskCachePolicy(CachePolicy.ENABLED)
+                        .memoryCachePolicy(CachePolicy.ENABLED)
+                        .build()
+
+                    // Execute the request to actually load the image
+                    val result = imageLoader.execute(request)
+                    loadState = if (result.drawable != null) {
+                        MediaLoadState.Success
+                    } else {
+                        MediaLoadState.Error
+                    }
+                } catch (e: Exception) {
+                    loadState = MediaLoadState.Error
+                }
+            }
+        }
+        else -> {
+            LaunchedEffect(mediaUrl) {
+                loadState = if (mediaUrl.isNullOrEmpty()) MediaLoadState.Error else MediaLoadState.Success
+            }
+        }
+    }
+
+    return loadState
+}
+
 // Determine media type from URL/contents
 internal fun determineMediaType(url: String?): String {
     val u = url ?: ""

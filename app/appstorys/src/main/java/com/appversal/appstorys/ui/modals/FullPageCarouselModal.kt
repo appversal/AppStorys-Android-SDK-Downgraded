@@ -13,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
@@ -93,6 +94,15 @@ internal fun FullPageCarouselModal(
     val backdropAlphaFinal = if (effectiveAppearance?.enableBackdrop == false) 0f else (rawBackdropOpacityFinal / 100f).coerceIn(0f,1f)
     val backdropColorFinal = parseColorString(backdropColorString) ?: Color.Black
 
+    // Check if first slide media is loaded before showing the modal
+    // For carousel, we wait for the first slide to load for a smooth initial experience
+    val firstSlideMediaUrl = slides.firstOrNull()?.chooseMediaType?.url
+    val firstSlideLoadState = rememberMediaLoadState(firstSlideMediaUrl)
+    val isFirstSlideLoaded = firstSlideLoadState is MediaLoadState.Success || firstSlideMediaUrl.isNullOrEmpty()
+
+    // Use alpha to control visibility - prevents animation glitches
+    val contentAlpha = if (isFirstSlideLoaded) 1f else 0f
+
     Dialog(
         onDismissRequest = onCloseClick,
         properties = DialogProperties(
@@ -101,10 +111,11 @@ internal fun FullPageCarouselModal(
             usePlatformDefaultWidth = false
         )
     ) {
-
+        // Always render the structure, but control visibility with alpha
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .graphicsLayer { alpha = contentAlpha }
                 .background(backdropColorFinal.copy(alpha = backdropAlphaFinal)),
         ) {
             Column(modifier = Modifier.fillMaxSize()
@@ -112,73 +123,73 @@ internal fun FullPageCarouselModal(
 
                 // 🔵 MEDIA SECTION
                 Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)   // media takes available space
-                ) {
-                    AutoSlidingCarousel(
-                        useDots = false,
-                        autoScrollEnabled = false,
-                        pagerState = pagerState,
-                        itemsCount = slides.size,
-                        modifier = Modifier.fillMaxSize(),
-                        widgetDetails = WidgetDetails(
-                            id = null,
-                            type = null,
-                            width = null,
-                            height = null,
-                            widgetImages = null,
-                            campaign = null,
-                            screen = null,
-                            styling = null
-                        ),
-                        itemContent = { index ->
-                            val slide = slides[index]
-                            ModalMediaRenderer(
-                                mediaUrl = slide.chooseMediaType?.url,
-                                modifier = Modifier.fillMaxSize(),
-                                contentDescription = slide.titleText,
-                                muted = false
-                            )
-                        }
-                    )
-                }
-
-                // 🔵 DOTS — BELOW MEDIA, ABOVE TEXT (NO align())
-                if (slides.size > 1) {
-                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 8.dp),
-                        contentAlignment = Alignment.Center
+                            .weight(1f)   // media takes available space
                     ) {
-                        DotsIndicator(
-                            totalDots = slides.size,
-                            selectedIndex =
-                                if (pagerState.isScrollInProgress)
-                                    pagerState.currentPage
-                                else
-                                    pagerState.targetPage,
-                            selectedColor = Color.White,
-                            unSelectedColor = Color.White.copy(alpha = 0.5f),
-                            dotSize = 8.dp,
-                            selectedLength = 20.dp
+                        AutoSlidingCarousel(
+                            useDots = false,
+                            autoScrollEnabled = false,
+                            pagerState = pagerState,
+                            itemsCount = slides.size,
+                            modifier = Modifier.fillMaxSize(),
+                            widgetDetails = WidgetDetails(
+                                id = null,
+                                type = null,
+                                width = null,
+                                height = null,
+                                widgetImages = null,
+                                campaign = null,
+                                screen = null,
+                                styling = null
+                            ),
+                            itemContent = { index ->
+                                val slide = slides[index]
+                                ModalMediaRenderer(
+                                    mediaUrl = slide.chooseMediaType?.url,
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentDescription = slide.titleText,
+                                    muted = false
+                                )
+                            }
                         )
                     }
-                }
+
+                    // 🔵 DOTS — BELOW MEDIA, ABOVE TEXT (NO align())
+                    if (slides.size > 1) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            DotsIndicator(
+                                totalDots = slides.size,
+                                selectedIndex =
+                                    if (pagerState.isScrollInProgress)
+                                        pagerState.currentPage
+                                    else
+                                        pagerState.targetPage,
+                                selectedColor = Color.White,
+                                unSelectedColor = Color.White.copy(alpha = 0.5f),
+                                dotSize = 8.dp,
+                                selectedLength = 20.dp
+                            )
+                        }
+                    }
 
 
-                currentSlide?.let { slide ->
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .navigationBarsPadding()
-                            .padding(16.dp)
-                    ) {
-                        // Resolve alignment from slide styling if present, else fallback to modal styling.
-                        val titleAlignmentStr = slide.styling?.title?.alignment ?: modal.styling?.title?.alignment
-                        val titleTextAlign = when (titleAlignmentStr?.trim()?.lowercase()) {
-                            "left" -> TextAlign.Start
+                    currentSlide?.let { slide ->
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .navigationBarsPadding()
+                                .padding(16.dp)
+                        ) {
+                            // Resolve alignment from slide styling if present, else fallback to modal styling.
+                            val titleAlignmentStr = slide.styling?.title?.alignment ?: modal.styling?.title?.alignment
+                            val titleTextAlign = when (titleAlignmentStr?.trim()?.lowercase()) {
+                                "left" -> TextAlign.Start
                             "right" -> TextAlign.End
                             "center" -> TextAlign.Center
                             else -> TextAlign.Center

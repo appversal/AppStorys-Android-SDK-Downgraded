@@ -1,8 +1,6 @@
 package com.appversal.appstorys.ui.modals
 
-import android.util.Log
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -13,6 +11,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -44,8 +43,9 @@ fun MediaOnlyModal(
 
     // Modal width from size parameter
     val modalWidth = modal.size?.toFloatOrNull()?.dp ?: 300.dp
-    val borderWidth = dimension?.borderWidth?.toFloatOrNull()?.dp ?: 0.dp
 
+    // For media-only modal, use transparent background so only media shows
+    val backgroundColor = Color.Transparent
 
     // Backdrop
     val backdrop = appearance?.backdrop
@@ -62,6 +62,7 @@ fun MediaOnlyModal(
         ?: modal.crossButtonImage
     val crossColors = crossButton?.default?.color ?: crossButton?.colors
     val crossMargin = crossButton?.default?.spacing?.margin ?: crossButton?.margin
+
     // Normalize size field — some payloads put it under default.crossButtonSize, some under crossButtonSize, others use legacy `size`.
     val crossSize = crossButton?.default?.crossButtonSize ?: crossButton?.crossButtonSize ?: crossButton?.size
 
@@ -80,6 +81,12 @@ fun MediaOnlyModal(
     )
     val resolvedMediaUrl = modal.resolvedMedia()?.url ?: modal.url
 
+    // Check if media is loaded before showing the modal
+    val mediaLoadState = rememberMediaLoadState(resolvedMediaUrl)
+    val isMediaLoaded = mediaLoadState is MediaLoadState.Success
+
+    // Use alpha to control visibility - prevents animation glitches
+    val contentAlpha = if (isMediaLoaded) 1f else 0f
 
     Dialog(
         onDismissRequest = onCloseClick,
@@ -89,13 +96,16 @@ fun MediaOnlyModal(
             usePlatformDefaultWidth = false
         )
     ) {
+        // Always render the structure, but control visibility with alpha
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .graphicsLayer { alpha = contentAlpha }
                 .background(Color.Black.copy(alpha = backdropAlpha))
                 .clickable(
                     indication = null,
-                    interactionSource = remember { MutableInteractionSource() }
+                    interactionSource = remember { MutableInteractionSource() },
+                    enabled = isMediaLoaded
                 ) { onCloseClick() },
             contentAlignment = Alignment.Center
         ) {
@@ -109,10 +119,11 @@ fun MediaOnlyModal(
                         .width(modalWidth)
                         .wrapContentHeight()
                         .clip(cornerShape)
-                        .background(Color.White)
+                        .background(backgroundColor)
                         .clickable(
                             indication = null,
-                            interactionSource = remember { MutableInteractionSource() }
+                            interactionSource = remember { MutableInteractionSource() },
+                            enabled = isMediaLoaded
                         ) {
                             onModalClick()
                             val redirectUrl = modal.redirection?.url ?: modal.link
@@ -134,7 +145,6 @@ fun MediaOnlyModal(
                 }
 
                 if (crossEnabled) {
-                    Log.d("MediaOnlyModal", "Rendering cross button")
                     Box(
                         modifier = Modifier
                             .align(Alignment.TopEnd)

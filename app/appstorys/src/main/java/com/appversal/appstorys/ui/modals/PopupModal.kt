@@ -1,7 +1,6 @@
 package com.appversal.appstorys.ui.modals
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -13,6 +12,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -27,6 +27,7 @@ import com.appversal.appstorys.api.resolvedMedia
 import com.appversal.appstorys.ui.components.CrossButton
 import com.appversal.appstorys.ui.components.createCrossButtonConfig
 import com.appversal.appstorys.ui.components.parseColorString
+import com.appversal.appstorys.utils.noRippleClickable
 
 @Composable
 internal fun PopupModal(
@@ -38,16 +39,26 @@ internal fun PopupModal(
 ) {
     val modal = modalDetails.modals?.getOrNull(0) ?: return
 
-    // Delegate to specialized modals
-    if (modal.isCarousel() || modal.modalType?.trim()?.equals("modal-fullpage-carousel", true) == true) {
-        FullPageCarouselModal(onCloseClick, modalDetails, onModalClick, onPrimaryCta, onSecondaryCta)
-        return
+    when {
+        modal.isCarousel() || modal.modalType?.trim()?.equals("modal-fullpage-carousel", true) == true -> {
+            FullPageCarouselModal(onCloseClick, modalDetails, onModalClick, onPrimaryCta, onSecondaryCta)
+        }
+        modal.isMediaOnly() -> {
+            MediaOnlyModal(onCloseClick, modal, onModalClick, onPrimaryCta, onSecondaryCta)
+        }
+        else -> {
+            ModalWithCTA(onCloseClick, modal, onPrimaryCta, onSecondaryCta)
+        }
     }
+}
 
-    if (modal.isMediaOnly()) {
-        MediaOnlyModal(onCloseClick, modal, onModalClick, onPrimaryCta, onSecondaryCta)
-        return
-    }
+@Composable
+private fun ModalWithCTA(
+    onCloseClick: () -> Unit,
+    modal: Modal,
+    onPrimaryCta: ((String?) -> Unit)?,
+    onSecondaryCta: ((String?) -> Unit)?
+) {
 
     // Extract styling
     val appearance = modal.styling?.appearance
@@ -63,6 +74,9 @@ internal fun PopupModal(
     )
 
     val modalWidth = (dimension?.height?.toFloatOrNull()?.dp ?: 300.dp)
+
+    // Background color for modal content area (default white for CTA modals)
+    val backgroundColor = Color.White
 
     // Backdrop
     val backdrop = appearance?.backdrop
@@ -103,6 +117,14 @@ internal fun PopupModal(
         imageUrl = crossImageUrl
     )
 
+    // Check if media is loaded before showing the modal
+    val mediaUrl = modal.resolvedMedia()?.url
+    val mediaLoadState = rememberMediaLoadState(mediaUrl)
+    val isMediaLoaded = mediaLoadState is MediaLoadState.Success || mediaUrl.isNullOrEmpty()
+
+    // Use alpha to control visibility - prevents animation glitches
+    val contentAlpha = if (isMediaLoaded) 1f else 0f
+
     Dialog(
         onDismissRequest = onCloseClick,
         properties = DialogProperties(
@@ -111,13 +133,16 @@ internal fun PopupModal(
             usePlatformDefaultWidth = false
         )
     ) {
+        // Always render the structure, but control visibility with alpha
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .graphicsLayer { alpha = contentAlpha }
                 .background(Color.Black.copy(alpha = backdropAlpha))
                 .clickable(
                     indication = null,
-                    interactionSource = remember { MutableInteractionSource() }
+                    interactionSource = remember { MutableInteractionSource() },
+                    enabled = isMediaLoaded
                 ) { onCloseClick() },
             contentAlignment = Alignment.Center
         ) {
@@ -132,28 +157,27 @@ internal fun PopupModal(
                         .width(modalWidth)
                         .wrapContentHeight()
                         .clip(cornerShape)
-                        .background(Color.White),
+                        .background(backgroundColor),
                     verticalArrangement = Arrangement.Top
                 ) {
                     // Media section
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .wrapContentHeight()
-                            .clickable(
-                                indication = null,
-                                interactionSource = remember { MutableInteractionSource() }
-                            ) {}
-                    ) {
-                        ModalMediaRenderer(
-                            mediaUrl = modal.resolvedMedia()?.url,
+                    if (!mediaUrl.isNullOrEmpty()) {
+                        Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .wrapContentHeight(),
-                            contentDescription = "Modal Media",
-                            contentScale = ContentScale.FillWidth,
-                            muted = false
-                        )
+                                .wrapContentHeight()
+                                .noRippleClickable(onClick = {})
+                        ) {
+                            ModalMediaRenderer(
+                                mediaUrl = mediaUrl,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .wrapContentHeight(),
+                                contentDescription = "Modal Media",
+                                contentScale = ContentScale.FillWidth,
+                                muted = false
+                            )
+                        }
                     }
 
                     // Content section (title, subtitle, CTAs)
@@ -180,8 +204,8 @@ internal fun PopupModal(
                     Box(
                         modifier = Modifier
                             .align(Alignment.TopEnd)
-                            //.statusBarsPadding()
-                            //.padding(16.dp)
+                        //.statusBarsPadding()
+                        //.padding(16.dp)
                     ) {
                         CrossButton(config = crossConfig, onClose = onCloseClick)
                     }

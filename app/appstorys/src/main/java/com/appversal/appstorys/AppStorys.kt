@@ -12,6 +12,7 @@ import android.util.Patterns
 import android.view.View
 import androidx.activity.compose.BackHandler
 import androidx.annotation.OptIn
+import androidx.annotation.RequiresApi
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
@@ -1736,6 +1737,7 @@ object AppStorys {
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.M)
     @Composable
     fun ScratchCard() {
 
