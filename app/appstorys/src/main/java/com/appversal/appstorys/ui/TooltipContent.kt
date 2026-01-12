@@ -65,6 +65,7 @@ import com.appversal.appstorys.ui.xml.toDp
 import com.appversal.appstorys.utils.AppStorysCoordinates
 import com.appversal.appstorys.utils.isGifUrl
 import com.appversal.appstorys.utils.isLottieUrl
+import com.appversal.appstorys.utils.noRippleClickable
 import com.appversal.appstorys.utils.toColor
 import kotlin.math.roundToInt
 
@@ -229,7 +230,11 @@ private fun ImageContent(tooltip: Tooltip, modifier: Modifier = Modifier) {
                 tooltip.styling?.let { padding ->
                     Modifier.background(color = tooltip.styling.appearance?.colors?.tooltip.toColor(Color.Transparent), shape = cornerRadius)
                         .clip(cornerRadius)
-                        .clickable { handleTooltipAction(tooltip, true) }
+                        .noRippleClickable(
+                            onClick = {
+                                handleTooltipAction(tooltip, true)
+                            }
+                        )
                 } ?:
                 Modifier
             ),

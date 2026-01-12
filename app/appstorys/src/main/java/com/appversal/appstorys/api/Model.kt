@@ -470,7 +470,8 @@ data class CsatButton(
 data class CsatContainerStyle(
     val alignment: String?,
     val borderWidth: Int?,
-    val height: Int?
+    val height: Int?,
+    val width: Int?
 )
 
 @Keep

@@ -32,6 +32,8 @@ import com.appversal.appstorys.utils.toColor
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.graphics.graphicsLayer
+import com.appversal.appstorys.utils.noRippleClickable
 import kotlin.compareTo
 
 data class CsatFeedback(
@@ -350,21 +352,28 @@ private fun MainContent(
                 Box(
                     modifier = Modifier
                         .size(40.dp)
-                        .then(
-                            if (borderWidth > 0) {
-                                Modifier.border(
-                                    width = borderWidth.dp,
-                                    color = borderColor,
-                                    shape = CircleShape
-                                )
-                            } else Modifier
-                        )
                         .clickable(
                             indication = null,
                             interactionSource = remember { MutableInteractionSource() }
                         ) { onStarSelected(index + 1) },
                     contentAlignment = Alignment.Center
                 ) {
+
+                    if (borderWidth > 0) {
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = null,
+                            tint = borderColor,
+                            modifier = Modifier
+                                .size(36.dp)
+                                .graphicsLayer {
+                                    val scale = 1f + (borderWidth * 0.08f)
+                                    scaleX = scale
+                                    scaleY = scale
+                                }
+                        )
+                    }
+
                     Icon(
                         imageVector = Icons.Default.Star,
                         contentDescription = "Star ${index + 1}",
@@ -458,7 +467,7 @@ private fun FeedbackContent(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { onOptionSelected(option) }
-                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
                 ) {
                     Text(
                         text = option,
@@ -651,6 +660,7 @@ private fun ThankYouContent(
     val doneButtonRadius = doneButton?.containerRadius
     val doneButtonBorderWidth = doneButton?.containerStyle?.borderWidth ?: 0
     val doneButtonHeight = doneButton?.containerStyle?.height
+    val doneButtonWidth = doneButton?.containerStyle?.width
     val doneButtonAlignment = doneButton?.containerStyle?.alignment
     val doneButtonFullWidth = doneButton?.fullWidth ?: true
     val doneButtonMargin = doneButton?.margin
@@ -670,7 +680,8 @@ private fun ThankYouContent(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         // Determine image type and render accordingly
-        val imageUrl = image.ifEmpty { "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTwlQ-xYqAIcjylz3NUGJ_jcdRmdzk_vMae0w&s" }
+        val imageUrl =
+            image.ifEmpty { "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTwlQ-xYqAIcjylz3NUGJ_jcdRmdzk_vMae0w&s" }
         val isLottie = imageUrl.endsWith(".json", ignoreCase = true)
 
         when {
@@ -691,6 +702,7 @@ private fun ThankYouContent(
                         )
                 )
             }
+
             else -> {
                 // Static image (JPEG, PNG, GIF)
                 AsyncImage(
@@ -714,12 +726,13 @@ private fun ThankYouContent(
         // Extract title textStyle
         val titleConfig = csatDetails.styling?.thankyouPage?.title
         val titleTextStyle = titleConfig?.textStyle
-        val titleAlignment = when ((titleConfig?.alignment ?: titleTextStyle?.alignment)?.lowercase()) {
-            "left" -> androidx.compose.ui.text.style.TextAlign.Start
-            "right" -> androidx.compose.ui.text.style.TextAlign.End
-            "center" -> androidx.compose.ui.text.style.TextAlign.Center
-            else -> androidx.compose.ui.text.style.TextAlign.Center
-        }
+        val titleAlignment =
+            when ((titleConfig?.alignment ?: titleTextStyle?.alignment)?.lowercase()) {
+                "left" -> androidx.compose.ui.text.style.TextAlign.Start
+                "right" -> androidx.compose.ui.text.style.TextAlign.End
+                "center" -> androidx.compose.ui.text.style.TextAlign.Center
+                else -> androidx.compose.ui.text.style.TextAlign.Center
+            }
         val titleFontFamily = when (titleTextStyle?.font?.lowercase()) {
             "serif" -> androidx.compose.ui.text.font.FontFamily.Serif
             "monospace" -> androidx.compose.ui.text.font.FontFamily.Monospace
@@ -749,12 +762,13 @@ private fun ThankYouContent(
         // Extract subtitle textStyle
         val subtitleConfig = csatDetails.styling?.thankyouPage?.subtitle
         val subtitleTextStyle = subtitleConfig?.textStyle
-        val subtitleAlignment = when ((subtitleConfig?.alignment ?: subtitleTextStyle?.alignment)?.lowercase()) {
-            "left" -> androidx.compose.ui.text.style.TextAlign.Start
-            "right" -> androidx.compose.ui.text.style.TextAlign.End
-            "center" -> androidx.compose.ui.text.style.TextAlign.Center
-            else -> androidx.compose.ui.text.style.TextAlign.Center
-        }
+        val subtitleAlignment =
+            when ((subtitleConfig?.alignment ?: subtitleTextStyle?.alignment)?.lowercase()) {
+                "left" -> androidx.compose.ui.text.style.TextAlign.Start
+                "right" -> androidx.compose.ui.text.style.TextAlign.End
+                "center" -> androidx.compose.ui.text.style.TextAlign.Center
+                else -> androidx.compose.ui.text.style.TextAlign.Center
+            }
         val subtitleFontFamily = when (subtitleTextStyle?.font?.lowercase()) {
             "serif" -> androidx.compose.ui.text.font.FontFamily.Serif
             "monospace" -> androidx.compose.ui.text.font.FontFamily.Monospace
@@ -780,86 +794,85 @@ private fun ThankYouContent(
 
         Spacer(modifier = Modifier.height((doneButtonMargin?.top ?: 16).dp))
 
-        Button(
+        Surface(
             modifier = Modifier
                 .align(buttonAlignment)
                 .padding(
                     start = (doneButtonMargin?.left ?: 0).dp,
                     end = (doneButtonMargin?.right ?: 0).dp
                 )
-                .then(
-                    if (doneButtonFullWidth) Modifier.fillMaxWidth() else Modifier
+                .then(if (doneButtonFullWidth) Modifier.fillMaxWidth() else Modifier.width(doneButtonWidth?.dp ?: 120.dp))
+                .then(if (doneButtonHeight != null) Modifier.height(doneButtonHeight.dp) else Modifier)
+                .border(
+                    width = doneButtonBorderWidth.dp,
+                    color = styling["thankyouButtonBorderColor"] ?: Color.Transparent,
+                    shape = RoundedCornerShape(
+                        topStart = (doneButtonRadius?.topLeft ?: 12).dp,
+                        topEnd = (doneButtonRadius?.topRight ?: 12).dp,
+                        bottomStart = (doneButtonRadius?.bottomLeft ?: 12).dp,
+                        bottomEnd = (doneButtonRadius?.bottomRight ?: 12).dp
+                    )
                 )
-                .then(
-                    if (doneButtonHeight != null) Modifier.height(doneButtonHeight.dp) else Modifier
-                )
-                .then(
-                    if (doneButtonBorderWidth > 0) {
-                        Modifier.border(
-                            width = doneButtonBorderWidth.dp,
-                            color = styling["thankyouButtonBorderColor"] ?: Color.Transparent,
-                            shape = RoundedCornerShape(
-                                topStart = (doneButtonRadius?.topLeft ?: 12).dp,
-                                topEnd = (doneButtonRadius?.topRight ?: 12).dp,
-                                bottomStart = (doneButtonRadius?.bottomLeft ?: 12).dp,
-                                bottomEnd = (doneButtonRadius?.bottomRight ?: 12).dp
-                            )
-                        )
-                    } else Modifier
-                ),
-            onClick = {
-                if(csatDetails.link.isNullOrEmpty() || selectedStars < 4){
-                    onDone()
-                } else {
-                    try {
-                        trackEvents(csatDetails.campaign, "clicked")
-                        val uri = Uri.parse(csatDetails.link)
-                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, uri)
-                        context.startActivity(intent)
-                    } catch (e: Exception) {
-                        android.widget.Toast.makeText(
-                            context,
-                            "Could not open link",
-                            android.widget.Toast.LENGTH_SHORT
-                        ).show()
+                .noRippleClickable(
+                    onClick = {
+                        if (csatDetails.link.isNullOrEmpty() || selectedStars < 4) {
+                            onDone()
+                        } else {
+                            try {
+                                trackEvents(csatDetails.campaign, "clicked")
+                                val uri = Uri.parse(csatDetails.link)
+                                val intent =
+                                    android.content.Intent(android.content.Intent.ACTION_VIEW, uri)
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                android.widget.Toast.makeText(
+                                    context,
+                                    "Could not open link",
+                                    android.widget.Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        }
                     }
-                }
-            },
+                ),
             shape = RoundedCornerShape(
                 topStart = (doneButtonRadius?.topLeft ?: 12).dp,
                 topEnd = (doneButtonRadius?.topRight ?: 12).dp,
                 bottomStart = (doneButtonRadius?.bottomLeft ?: 12).dp,
                 bottomEnd = (doneButtonRadius?.bottomRight ?: 12).dp
             ),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = styling["thankyouButtonBackgroundColor"] ?: Color(0xFF007AFF)
-            )
+            color = styling["thankyouButtonBackgroundColor"] ?: Color(0xFF007AFF)
         ) {
-            // Determine text alignment
-            val textAlign = when (doneButtonTextStyle?.alignment?.lowercase()) {
-                "left" -> androidx.compose.ui.text.style.TextAlign.Start
-                "right" -> androidx.compose.ui.text.style.TextAlign.End
-                else -> androidx.compose.ui.text.style.TextAlign.Center
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                // Determine text alignment
+                val textAlign = when (doneButtonTextStyle?.alignment?.lowercase()) {
+                    "left" -> androidx.compose.ui.text.style.TextAlign.Start
+                    "right" -> androidx.compose.ui.text.style.TextAlign.End
+                    else -> androidx.compose.ui.text.style.TextAlign.Center
+                }
+
+                // Determine font family
+                val fontFamily = when (doneButtonTextStyle?.font?.lowercase()) {
+                    "serif" -> androidx.compose.ui.text.font.FontFamily.Serif
+                    "monospace" -> androidx.compose.ui.text.font.FontFamily.Monospace
+                    "cursive" -> androidx.compose.ui.text.font.FontFamily.Cursive
+                    else -> androidx.compose.ui.text.font.FontFamily.SansSerif
+                }
+
+                Text(
+                    fontSize = (doneButtonTextStyle?.size ?: ((csatDetails.styling?.fontSize
+                        ?: 16) + 2)).sp,
+                    text = doneButtonText,
+                    color = styling["thankyouButtonTextColor"] ?: Color.White,
+                    fontFamily = fontFamily,
+                    textAlign = textAlign,
+                    modifier = if (doneButtonFullWidth) Modifier.fillMaxWidth() else Modifier
+                )
             }
 
-            // Determine font family
-            val fontFamily = when (doneButtonTextStyle?.font?.lowercase()) {
-                "serif" -> androidx.compose.ui.text.font.FontFamily.Serif
-                "monospace" -> androidx.compose.ui.text.font.FontFamily.Monospace
-                "cursive" -> androidx.compose.ui.text.font.FontFamily.Cursive
-                else -> androidx.compose.ui.text.font.FontFamily.SansSerif
-            }
-
-            Text(
-                fontSize = (doneButtonTextStyle?.size ?: ((csatDetails.styling?.fontSize ?: 16) + 2)).sp,
-                text = doneButtonText,
-                color = styling["thankyouButtonTextColor"] ?: Color.White,
-                fontFamily = fontFamily,
-                textAlign = textAlign,
-                modifier = if (doneButtonFullWidth) Modifier.fillMaxWidth() else Modifier
-            )
+            Spacer(modifier = Modifier.height((doneButtonMargin?.bottom ?: 0).dp))
         }
-
-        Spacer(modifier = Modifier.height((doneButtonMargin?.bottom ?: 0).dp))
     }
 }
