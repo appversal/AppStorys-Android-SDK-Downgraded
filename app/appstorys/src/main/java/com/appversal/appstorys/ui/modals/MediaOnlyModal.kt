@@ -20,6 +20,7 @@ import com.appversal.appstorys.api.Modal
 import com.appversal.appstorys.api.resolvedMedia
 import com.appversal.appstorys.ui.components.CrossButton
 import com.appversal.appstorys.ui.components.createCrossButtonConfig
+import com.appversal.appstorys.ui.components.parseColorString
 
 @Composable
 fun MediaOnlyModal(
@@ -47,8 +48,10 @@ fun MediaOnlyModal(
     // For media-only modal, use transparent background so only media shows
     val backgroundColor = Color.Transparent
 
-    // Backdrop
+    // Backdrop - extract color and opacity from styling
     val backdrop = appearance?.backdrop
+    val backdropColorString = backdrop?.color ?: appearance?.backdropColor
+    val backdropColor = parseColorString(backdropColorString) ?: Color.Black
     val backdropOpacity = (backdrop?.opacity ?: appearance?.backdropOpacity
     ?: modal.backgroundOpacity ?: "50").toString().toFloatOrNull() ?: 50f
     val backdropEnabled = (appearance?.enableBackdrop ?: modal.enableBackdrop) != false
@@ -101,7 +104,7 @@ fun MediaOnlyModal(
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer { alpha = contentAlpha }
-                .background(Color.Black.copy(alpha = backdropAlpha))
+                .background(backdropColor.copy(alpha = backdropAlpha))
                 .clickable(
                     indication = null,
                     interactionSource = remember { MutableInteractionSource() },

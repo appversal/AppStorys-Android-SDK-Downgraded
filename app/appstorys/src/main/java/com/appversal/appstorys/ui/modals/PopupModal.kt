@@ -78,8 +78,10 @@ private fun ModalWithCTA(
     // Background color for modal content area (default white for CTA modals)
     val backgroundColor = Color.White
 
-    // Backdrop
+    // Backdrop - extract color and opacity from styling
     val backdrop = appearance?.backdrop
+    val backdropColorString = backdrop?.color ?: appearance?.backdropColor
+    val backdropColor = parseColorString(backdropColorString) ?: Color.Black
     val backdropOpacity = (backdrop?.opacity ?: appearance?.backdropOpacity ?: "50").toString().toFloatOrNull() ?: 50f
     val backdropEnabled = appearance?.enableBackdrop ?: true
     val backdropAlpha = if (backdropEnabled) (backdropOpacity / 100f).coerceIn(0f, 1f) else 0f
@@ -138,7 +140,7 @@ private fun ModalWithCTA(
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer { alpha = contentAlpha }
-                .background(Color.Black.copy(alpha = backdropAlpha))
+                .background(backdropColor.copy(alpha = backdropAlpha))
                 .clickable(
                     indication = null,
                     interactionSource = remember { MutableInteractionSource() },
