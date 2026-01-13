@@ -1033,7 +1033,8 @@ data class ModalCrossButton(
     val margin: ModalMargin? = null,
     val option: String? = null,
     val selectedStyle: String? = null,
-    val crossButtonSize: Int? = null
+    val crossButtonSize: Int? = null,
+    val  size: Int? = null,
 )
 
 @Serializable

@@ -129,7 +129,6 @@
 
 package com.appversal.appstorys.ui.components
 
-import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -143,14 +142,17 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.toColorInt
+import coil.request.ImageRequest
 
 data class CrossButtonConfig(
     val fillColor: Color = Color.Transparent,
@@ -175,6 +177,7 @@ internal fun CrossButton(
     config: CrossButtonConfig = CrossButtonConfig(),
     onClose: () -> Unit
 ) {
+    val context = LocalContext.current
     val safePadding = boundaryPadding ?: 0.dp
     // Use button size from config if available, otherwise use the passed size parameter
     val buttonSize = config.size
@@ -219,15 +222,17 @@ internal fun CrossButton(
             .clickable { onClose() },
         contentAlignment = Alignment.Center
     ) {
-        // Log the image URL for debugging
-        if (!config.imageUrl.isNullOrBlank()) {
-            Log.d("CrossButton", "Attempting to load cross button image: ${config.imageUrl}")
-        }
-
-        // Try to load any non-blank image URL (allow content://, file://, data:, relative paths etc.)
+        // Try to load any non-blank image URL (including full URLs, content://, file://, data: URIs)
         if (!config.imageUrl.isNullOrBlank())  {
+            val imageRequest = remember(config.imageUrl) {
+                ImageRequest.Builder(context)
+                    .data(config.imageUrl)
+                    .crossfade(true)
+                    .build()
+            }
+
             AsyncImage(
-                model = config.imageUrl,
+                model = imageRequest,
                 contentDescription = "Close",
                 contentScale = ContentScale.Crop,
                 modifier = Modifier

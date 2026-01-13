@@ -12,6 +12,7 @@ import android.util.Patterns
 import android.view.View
 import androidx.activity.compose.BackHandler
 import androidx.annotation.OptIn
+import androidx.annotation.RequiresApi
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
@@ -1172,16 +1173,18 @@ object AppStorys {
                         strokeColorString = style?.crossButton?.colors?.stroke,
                         marginTop = style?.crossButton?.margin?.top,
                         marginEnd = style?.crossButton?.margin?.right,
-                        size = style?.crossButton?.crossButtonSize,  // ✅ NEW
-                        imageUrl = bannerDetails.crossButtonImage?.takeIf { it.isNotBlank() }?.let { raw ->
-                            val trimmed = raw.trim()
-                            if (trimmed.startsWith("http", true)) {
-                                trimmed
-                            } else {
-                                val base = "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/"
-                                if (trimmed.startsWith("/")) base + trimmed.removePrefix("/") else base + trimmed
-                            }
-                        }
+                        size = style?.crossButton?.crossButtonSize,
+                        imageUrl = bannerDetails.crossButtonImage
+//                        imageUrl = bannerDetails.crossButtonImage?.takeIf { it.isNotBlank() }?.let { raw ->
+//                            val trimmed = raw.trim()
+//                            if (trimmed.startsWith("http", true)) {
+//                                trimmed
+//                            } else {
+//                                val base = "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/"
+//                                if (trimmed.startsWith("/")) base + trimmed.removePrefix("/") else base + trimmed
+//                            }
+//                        }
+
                     ),
                     onClick = {
                         if(bannerDetails.link.toString().trim().removeSurrounding("\"").isNotEmpty()){
@@ -1736,6 +1739,7 @@ object AppStorys {
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.M)
     @Composable
     fun ScratchCard() {
 

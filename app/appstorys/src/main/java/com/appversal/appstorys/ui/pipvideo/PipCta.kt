@@ -43,13 +43,6 @@ fun PipCta(
 
     val cta = pipStyling?.cta
 
-    // Debug logging
-    Log.d("PipCta", "=== PIP CTA Button Styling ===")
-    Log.d("PipCta", "Button text: $buttonText")
-    Log.d("PipCta", "Link: $link")
-    Log.d("PipCta", "CTA structured data: $cta")
-    Log.d("PipCta", "Flat styling: $pipStyling")
-
     // Margins: prefer structured cta.margin, else fall back to pipStyling margins
     val paddingLeft = if (applyMargins) {
         cta?.margin?.left?.dp ?: pipStyling?.marginLeft?.toIntOrNull()?.dp ?: 0.dp
@@ -150,20 +143,6 @@ fun PipCta(
     ) {
         TextDecoration.Underline
     } else null
-
-    // Debug logging for text styling
-    Log.d("PipCta", "Font family: $fontFamilyName -> $fontFamily")
-    Log.d("PipCta", "Font size: $fontSizeSp")
-    Log.d("PipCta", "Font weight: ${cta?.text?.fontWeight} -> $fontWeight")
-    Log.d("PipCta", "Font style: ${cta?.text?.fontStyle} -> $fontStyle")
-    Log.d("PipCta", "Text decoration: ${pipStyling?.fontDecoration} -> $textDecoration")
-    Log.d("PipCta", "Background color: $buttonColor")
-    Log.d("PipCta", "Text color: $textColor")
-    Log.d("PipCta", "Height: $heightDp")
-    Log.d("PipCta", "Width: fullWidth=$isFullWidth, fixedWidth=$fixedWidth")
-    Log.d("PipCta", "Alignment: $alignmentStr -> $contentAlignment")
-    Log.d("PipCta", "Border: width=$borderWidth, color=$borderColor")
-    Log.d("PipCta", "Corner radius: TL=$cornerTopLeft, TR=$cornerTopRight, BR=$cornerBottomRight, BL=$cornerBottomLeft")
 
     // Determine button container alignment (like ModalBackendCta)
     // When not fullWidth, the button itself needs to be aligned within the parent container

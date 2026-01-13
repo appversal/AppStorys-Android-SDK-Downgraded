@@ -235,11 +235,6 @@ internal fun ExpandButton(
     boundaryPadding: Dp? = null,
     onToggle: () -> Unit
 ) {
-    // Debug logging
-    Log.d("ExpandButton", "isMaximized: $isMaximized")
-    Log.d("ExpandButton", "maximiseImageUrl: $maximiseImageUrl")
-    Log.d("ExpandButton", "minimiseImageUrl: $minimiseImageUrl")
-    Log.d("ExpandButton", "expandControls?.enabled: ${expandControls?.enabled}")
 
     val safePadding = boundaryPadding ?: 0.dp
     val isEnabled = expandControls?.enabled ?: true
