@@ -93,10 +93,6 @@ internal fun PipVideo(
     onButtonClick: () -> Unit,
     onExpandClick: () -> Unit = {}
 ) {
-    // Debug logging
-    Log.d("PipVideo", "maximiseImageUrl received: $maximiseImageUrl")
-    Log.d("PipVideo", "minimiseImageUrl received: $minimiseImageUrl")
-
     var isFullScreen by remember { mutableStateOf(false) }
 
     when {
@@ -350,7 +346,7 @@ fun FullScreenVideoDialog(
                         expandControls = pipStyling?.expandControls,
                         maximiseImageUrl = maximiseImageUrl,
                         minimiseImageUrl = minimiseImageUrl,
-                        applyMargins = false,  // Don't apply backend margins for maximized view
+                        applyMargins = false,
                         onToggle = {
                             onHide(onDismiss)
                         }
@@ -371,7 +367,7 @@ fun FullScreenVideoDialog(
                                 soundToggle = pipStyling?.soundToggle,
                                 muteButtonImageUrl = muteButtonImageUrl,
                                 unmuteButtonImageUrl = unmuteButtonImageUrl,
-                                applyMargins = false,  // Don't apply backend margins for maximized view
+                                applyMargins = false,
                                 onToggleMute = { isMuted = !isMuted }
                             )
 

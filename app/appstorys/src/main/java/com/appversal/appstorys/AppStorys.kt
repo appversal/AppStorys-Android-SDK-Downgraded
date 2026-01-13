@@ -1173,16 +1173,18 @@ object AppStorys {
                         strokeColorString = style?.crossButton?.colors?.stroke,
                         marginTop = style?.crossButton?.margin?.top,
                         marginEnd = style?.crossButton?.margin?.right,
-                        size = style?.crossButton?.crossButtonSize,  // ✅ NEW
-                        imageUrl = bannerDetails.crossButtonImage?.takeIf { it.isNotBlank() }?.let { raw ->
-                            val trimmed = raw.trim()
-                            if (trimmed.startsWith("http", true)) {
-                                trimmed
-                            } else {
-                                val base = "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/"
-                                if (trimmed.startsWith("/")) base + trimmed.removePrefix("/") else base + trimmed
-                            }
-                        }
+                        size = style?.crossButton?.crossButtonSize,
+                        imageUrl = bannerDetails.crossButtonImage
+//                        imageUrl = bannerDetails.crossButtonImage?.takeIf { it.isNotBlank() }?.let { raw ->
+//                            val trimmed = raw.trim()
+//                            if (trimmed.startsWith("http", true)) {
+//                                trimmed
+//                            } else {
+//                                val base = "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/"
+//                                if (trimmed.startsWith("/")) base + trimmed.removePrefix("/") else base + trimmed
+//                            }
+//                        }
+
                     ),
                     onClick = {
                         if(bannerDetails.link.toString().trim().removeSurrounding("\"").isNotEmpty()){
