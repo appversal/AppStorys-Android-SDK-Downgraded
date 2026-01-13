@@ -396,7 +396,6 @@ private fun TextContent(tooltip: Tooltip, modifier: Modifier = Modifier) {
 
                 // CTA button
                 if (!tooltip.ctaText.isNullOrEmpty()) {
-                    Spacer(modifier = Modifier.height(8.dp))
                     Box(
                         modifier = Modifier
                             .then(
@@ -428,8 +427,10 @@ private fun TextContent(tooltip: Tooltip, modifier: Modifier = Modifier) {
                                 } else Modifier
                             )
                             .clip(ctaCornerRadius)
-                            .clickable { handleTooltipAction(tooltip, true) }
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                            .noRippleClickable(
+                                onClick = { handleTooltipAction(tooltip, true) }
+                            )
+                            .padding(horizontal = 16.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(

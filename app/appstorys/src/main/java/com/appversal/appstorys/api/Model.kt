@@ -683,7 +683,8 @@ data class TooltipCtaText(
 data class TooltipText(
     val color: String?,
     val fontSize: Int?,
-    val textAlign: String?
+    val textAlign: String?,
+    val margin: Margin?
 )
 
 @Keep
@@ -694,7 +695,8 @@ data class TooltipAppearance(
     val colors: TooltipColors?,
     val cornerRadius: CornerRadius?,
     val highlight: TooltipHighlight?,
-    val imageDimensions: TooltipImageDimensions?
+    val imageDimensions: TooltipImageDimensions?,
+    val padding: Margin?
 )
 
 @Keep
