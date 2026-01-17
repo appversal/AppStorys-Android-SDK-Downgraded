@@ -33,7 +33,7 @@ internal interface ApiService {
         @Body request: TrackUserWebSocketRequest
     ): WebSocketConnectionResponse
 
-    @POST("{accountId}/track-user-res")
+    @POST("v2/{accountId}/track-user-res")
     suspend fun getEligibleCampaigns(
         @Path("accountId") accountId: String,
         @Header("Authorization") token: String,

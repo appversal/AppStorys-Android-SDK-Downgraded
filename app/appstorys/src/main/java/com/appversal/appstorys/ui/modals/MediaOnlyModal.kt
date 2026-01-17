@@ -67,7 +67,7 @@ fun MediaOnlyModal(
     val crossMargin = crossButton?.default?.spacing?.margin ?: crossButton?.margin
 
     // Normalize size field — some payloads put it under default.crossButtonSize, some under crossButtonSize, others use legacy `size`.
-    val crossSize = crossButton?.default?.crossButtonSize ?: crossButton?.crossButtonSize ?: crossButton?.size
+    val crossSize = crossButton?.default?.size ?: crossButton?.size ?: crossButton?.size
 
     val crossConfig = createCrossButtonConfig(
         fillColorString = crossColors?.fill,
@@ -112,16 +112,11 @@ fun MediaOnlyModal(
                 ) { onCloseClick() },
             contentAlignment = Alignment.Center
         ) {
-            Box(
-                modifier = Modifier
-                    .width(modalWidth)
-                    .wrapContentHeight()
-            ) {
                 Box(
                     modifier = Modifier
                         .width(modalWidth)
-                        .wrapContentHeight()
-                        .clip(cornerShape)
+//                        .wrapContentHeight()
+//                        .clip(cornerShape)
                         .background(backgroundColor)
                         .clickable(
                             indication = null,
@@ -139,25 +134,25 @@ fun MediaOnlyModal(
                         mediaUrl = resolvedMediaUrl,
                         modifier = Modifier
                             .width(modalWidth)
-                            .wrapContentHeight()
+//                            .wrapContentHeight()
                             .clip(cornerShape),
                         contentDescription = "Media Only Modal",
                         contentScale = ContentScale.FillWidth,
                         muted = false
                     )
-                }
 
-                if (crossEnabled) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
+                    if (crossEnabled) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
                             //.statusBarsPadding()
                             //.padding(16.dp)
-                    ) {
-                        CrossButton(config = crossConfig, onClose = onCloseClick)
+                        ) {
+                            CrossButton(config = crossConfig, onClose = onCloseClick)
+                        }
                     }
                 }
-            }
+
         }
     }
 }

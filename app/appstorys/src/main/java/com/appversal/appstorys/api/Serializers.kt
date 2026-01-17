@@ -34,6 +34,12 @@ object CampaignDetailsSerializer : KSerializer<CampaignDetails?> {
 
         val jsonEncoder = encoder as? JsonEncoder ?: error("Only JSON format is supported")
         val element = when (value) {
+
+            is VariantCampaignDetails -> jsonEncoder.json.encodeToJsonElement(
+                VariantCampaignDetails.serializer(),
+                value
+            )
+
             is FloaterDetails -> jsonEncoder.json.encodeToJsonElement(
                 FloaterDetails.serializer(),
                 value
@@ -143,77 +149,87 @@ object CampaignDeserializer : KSerializer<Campaign> {
         val detailsElement = element["details"]
         val details: CampaignDetails? = if (detailsElement != null && detailsElement !is JsonNull) {
             try {
-                when (campaignType) {
-                    "FLT" -> jsonDecoder.json.decodeFromJsonElement(
-                        serializer<FloaterDetails>(),
+                // Check if details contains a "variants" key
+                if (detailsElement is JsonObject && detailsElement.containsKey("variants")) {
+                    Log.d("CampaignDeserializer", "Campaign $id has variants, storing as VariantCampaignDetails")
+                    jsonDecoder.json.decodeFromJsonElement(
+                        serializer<VariantCampaignDetails>(),
                         detailsElement
                     )
+                } else {
 
-                    "CSAT" -> jsonDecoder.json.decodeFromJsonElement(
-                        serializer<CSATDetails>(),
-                        detailsElement
-                    )
-
-                    "WID" -> jsonDecoder.json.decodeFromJsonElement(
-                        serializer<WidgetDetails>(),
-                        detailsElement
-                    )
-
-                    "BAN" -> jsonDecoder.json.decodeFromJsonElement(
-                        serializer<BannerDetails>(),
-                        detailsElement
-                    )
-
-                    "REL" -> jsonDecoder.json.decodeFromJsonElement(
-                        serializer<ReelsDetails>(),
-                        detailsElement
-                    )
-
-                    "TTP" -> jsonDecoder.json.decodeFromJsonElement(
-                        serializer<TooltipsDetails>(),
-                        detailsElement
-                    )
-
-                    "PIP" -> jsonDecoder.json.decodeFromJsonElement(
-                        serializer<PipDetails>(),
-                        detailsElement
-                    )
-
-                    "BTS" -> jsonDecoder.json.decodeFromJsonElement(
-                        serializer<BottomSheetDetails>(),
-                        detailsElement
-                    )
-
-                    "SUR" -> jsonDecoder.json.decodeFromJsonElement(
-                        serializer<SurveyDetails>(),
-                        detailsElement
-                    )
-
-                    "MOD" -> jsonDecoder.json.decodeFromJsonElement(
-                        serializer<ModalDetails>(),
-                        detailsElement
-                    )
-
-                    "STR" -> StoriesDetails(
-                        jsonDecoder.json.decodeFromJsonElement(
-                            serializer<List<StoryGroup>>(),
+                    when (campaignType) {
+                        "FLT" -> jsonDecoder.json.decodeFromJsonElement(
+                            serializer<FloaterDetails>(),
                             detailsElement
                         )
-                    )
 
-                    "SCRT" -> jsonDecoder.json.decodeFromJsonElement(
-                        serializer<ScratchCardDetails>(),
-                        detailsElement
-                    )
+                        "CSAT" -> jsonDecoder.json.decodeFromJsonElement(
+                            serializer<CSATDetails>(),
+                            detailsElement
+                        )
 
-                    "MIL" -> jsonDecoder.json.decodeFromJsonElement(
-                        serializer<MilestoneDetails>(),
-                        detailsElement
-                    )
+                        "WID" -> jsonDecoder.json.decodeFromJsonElement(
+                            serializer<WidgetDetails>(),
+                            detailsElement
+                        )
 
-                    else -> {
-                        Log.e("CampaignDeserializer", "Unknown campaign type: $campaignType")
-                        null
+                        "BAN" -> jsonDecoder.json.decodeFromJsonElement(
+                            serializer<BannerDetails>(),
+                            detailsElement
+                        )
+
+                        "REL" -> jsonDecoder.json.decodeFromJsonElement(
+                            serializer<ReelsDetails>(),
+                            detailsElement
+                        )
+
+                        "TTP" -> jsonDecoder.json.decodeFromJsonElement(
+                            serializer<TooltipsDetails>(),
+                            detailsElement
+                        )
+
+                        "PIP" -> jsonDecoder.json.decodeFromJsonElement(
+                            serializer<PipDetails>(),
+                            detailsElement
+                        )
+
+                        "BTS" -> jsonDecoder.json.decodeFromJsonElement(
+                            serializer<BottomSheetDetails>(),
+                            detailsElement
+                        )
+
+                        "SUR" -> jsonDecoder.json.decodeFromJsonElement(
+                            serializer<SurveyDetails>(),
+                            detailsElement
+                        )
+
+                        "MOD" -> jsonDecoder.json.decodeFromJsonElement(
+                            serializer<ModalDetails>(),
+                            detailsElement
+                        )
+
+                        "STR" -> StoriesDetails(
+                            jsonDecoder.json.decodeFromJsonElement(
+                                serializer<List<StoryGroup>>(),
+                                detailsElement
+                            )
+                        )
+
+                        "SCRT" -> jsonDecoder.json.decodeFromJsonElement(
+                            serializer<ScratchCardDetails>(),
+                            detailsElement
+                        )
+
+                        "MIL" -> jsonDecoder.json.decodeFromJsonElement(
+                            serializer<MilestoneDetails>(),
+                            detailsElement
+                        )
+
+                        else -> {
+                            Log.e("CampaignDeserializer", "Unknown campaign type: $campaignType")
+                            null
+                        }
                     }
                 }
             } catch (e: Exception) {

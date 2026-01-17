@@ -87,6 +87,8 @@ import com.appversal.appstorys.api.StoriesDetails
 import com.appversal.appstorys.api.StoryGroup
 import com.appversal.appstorys.api.StoryGroupStyling
 import com.appversal.appstorys.api.StorySlide
+import com.appversal.appstorys.api.TextStyling
+import com.appversal.appstorys.ui.components.CommonText
 import com.appversal.appstorys.utils.VideoCache
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -120,7 +122,7 @@ internal fun StoryCircles(
                     imageUrl = storyGroup.thumbnail,
                     username = storyGroup.name ?: "",
                     ringColor = Color(android.graphics.Color.parseColor(storyGroup.ringColor)),
-                    nameColor = Color(android.graphics.Color.parseColor(storyGroup.nameColor)),
+                    nameColor = storyGroup.nameColor ?: "#000000",
                     onClick = { onStoryClick(storyGroup) },
                     groupStyling = storyGroup.styling
                 )
@@ -135,7 +137,7 @@ internal fun StoryItem(
     imageUrl: String,
     username: String,
     ringColor: Color,
-    nameColor: Color,
+    nameColor: String,
     onClick: () -> Unit,
     groupStyling: StoryGroupStyling?
 ) {
@@ -159,16 +161,6 @@ internal fun StoryItem(
             currentState?.ringColor?.let { Color(android.graphics.Color.parseColor(it)) } ?: ringColor
         } catch (e: Exception) {
             ringColor
-        }
-    }
-
-    val finalNameColor = if (isStoryGroupViewed) {
-        Color(0xFFCCCCCC) // #666666
-    } else {
-        try {
-            currentState?.fontColor?.let { Color(android.graphics.Color.parseColor(it)) } ?: nameColor
-        } catch (e: Exception) {
-            nameColor
         }
     }
 
@@ -234,18 +226,24 @@ internal fun StoryItem(
                 }
             )
             Spacer(modifier = Modifier.height(4.dp))
-            Text(
+
+            CommonText(
                 modifier = Modifier
                     .width(60.dp)
                     .align(Alignment.CenterHorizontally),
                 text = username,
                 maxLines = 2,
-                fontSize = fontSize,
-                color = finalNameColor,
-                textAlign = TextAlign.Center,
-                lineHeight = fontSize * 1.2f,
-                fontWeight = fontWeight,
-                fontStyle = fontStyle
+                lineHeight = (((currentState?.fontSize ?: groupStyling?.name?.size) ?: 12) * 1.2).toFloat(),
+                styling = TextStyling(
+                    color = if (isStoryGroupViewed) {
+                        "#CCCCCC"
+                    } else {
+                        currentState?.fontColor ?: nameColor
+                    },
+                    fontSize = currentState?.fontSize ?: groupStyling?.name?.size,
+                    fontFamily = "",
+                    fontDecoration = fontDecoration
+                )
             )
         }
     )
@@ -529,15 +527,8 @@ internal fun StoryScreen(
                                     Color.White
                                 }
 
-                                val textColor = try {
-                                    Color(android.graphics.Color.parseColor(styling?.ctaText?.fontColor ?: "#000000"))
-                                } catch (e: Exception) {
-                                    Color.Black
-                                }
-
                                 // Get dimensions and margins
                                 val ctaHeight = (styling?.ctaHeight ?: 32).dp
-                                val fontSize = (styling?.ctaText?.fontSize ?: 12).sp
                                 val borderWidth = (styling?.borderWidth ?: 2).dp
                                 val fullWidth = styling?.fullWidthCta ?: false
 
@@ -583,10 +574,13 @@ internal fun StoryScreen(
                                         color = borderColor
                                     ),
                                     content = {
-                                        Text(
+                                        CommonText(
                                             text = currentSlide.buttonText,
-                                            color = textColor,
-                                            fontSize = fontSize
+                                            styling = TextStyling(
+                                                color = styling?.ctaText?.fontColor,
+                                                fontSize = styling?.ctaText?.fontSize ?: 12,
+                                                fontFamily = "",
+                                            )
                                         )
                                     }
                                 )
@@ -644,10 +638,13 @@ internal fun StoryScreen(
                             Spacer(modifier = Modifier.width(8.dp))
 
                             storyGroup.name?.let {
-                                Text(
+                                CommonText(
                                     text = it,
-                                    color = Color.White,
-                                    fontSize = 14.sp
+                                    styling = TextStyling(
+                                        color = "#FFFFFF",
+                                        fontSize = 14,
+                                        fontFamily = "",
+                                    )
                                 )
                             }
                         }

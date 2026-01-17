@@ -26,6 +26,9 @@ import androidx.compose.ui.unit.sp
 import androidx.core.graphics.toColorInt
 import com.appversal.appstorys.AppStorys
 import com.appversal.appstorys.api.PipStyling
+import com.appversal.appstorys.api.TextStyling
+import com.appversal.appstorys.ui.components.CommonText
+import com.appversal.appstorys.utils.personalizeText
 
 /**
  * Reusable CTA for PIP video. Reads either nested `pipStyling.cta` or falls back to flat `PipStyling` fields.
@@ -62,11 +65,6 @@ fun PipCta(
         val bg = cta?.container?.backgroundColor ?: pipStyling?.ctaButtonBackgroundColor ?: "#F7921C"
         Color(bg.toColorInt())
     }.getOrNull() ?: Color(0xFFF7921C)
-
-    val textColor = runCatching {
-        val tc = cta?.text?.color ?: pipStyling?.ctaButtonTextColor ?: "#FFFFFF"
-        Color(tc.toColorInt())
-    }.getOrNull() ?: Color.White
 
     // Border
     val borderColor = runCatching {
@@ -117,33 +115,6 @@ fun PipCta(
         else -> Alignment.Center
     }
 
-    val textAlign = when (alignmentStr.lowercase()) {
-        "left" -> TextAlign.Start
-        "right" -> TextAlign.End
-        else -> TextAlign.Center
-    }
-
-    // Font
-    val fontFamilyName = cta?.text?.fontFamily ?: pipStyling?.fontFamily
-    val fontFamily = when (fontFamilyName?.lowercase()) {
-        "serif" -> FontFamily.Serif
-        "sans-serif", "sansserif" -> FontFamily.SansSerif
-        "monospace" -> FontFamily.Monospace
-        "cursive" -> FontFamily.Cursive
-        else -> FontFamily.Default // Default for Helvetica, Arial, or any unrecognized font
-    }
-    val fontSizeSp = cta?.text?.fontSize?.sp ?: pipStyling?.fontSize?.toIntOrNull()?.sp ?: 16.sp
-
-    // Font weight, style, and decoration (support from backend if available)
-    val fontWeight = mapFontWeight(cta?.text?.fontWeight)
-    val fontStyle = mapFontStyle(cta?.text?.fontStyle)
-    val textDecoration = if (
-        cta?.text?.textDecoration?.any { it.equals("underline", true) } == true ||
-        pipStyling?.fontDecoration?.any { it.equals("underline", true) } == true
-    ) {
-        TextDecoration.Underline
-    } else null
-
     // Determine button container alignment (like ModalBackendCta)
     // When not fullWidth, the button itself needs to be aligned within the parent container
     val buttonContainerAlignment = when (alignmentStr.lowercase()) {
@@ -187,33 +158,17 @@ fun PipCta(
             modifier = buttonModifier,
             contentAlignment = contentAlignment
         ) {
-            Text(
-                text = buttonText,
-                color = textColor,
-                fontSize = fontSizeSp,
-                textAlign = textAlign,
+            CommonText(
                 modifier = Modifier.padding(horizontal = 8.dp),
-                style = TextStyle(
-                    fontFamily = fontFamily,
-                    fontWeight = fontWeight,
-                    fontStyle = fontStyle,
-                    textDecoration = textDecoration
+                text = buttonText,
+                styling = TextStyling(
+                    color = cta?.text?.color,
+                    fontSize = cta?.text?.fontSize,
+                    fontFamily = "",
+                    textAlign = cta?.container?.alignment,
+                    fontDecoration = cta?.text?.textDecoration
                 )
             )
         }
     }
 }
-
-// Helper functions to map font weight and style (same as ModalBackendCta)
-private fun mapFontWeight(value: String?): FontWeight = when (value?.lowercase()) {
-    "bold", "700", "800" -> FontWeight.Bold
-    "600" -> FontWeight.SemiBold
-    "500" -> FontWeight.Medium
-    else -> FontWeight.Normal
-}
-
-private fun mapFontStyle(value: String?): FontStyle =
-    if (value?.equals("italic", true) == true)
-        FontStyle.Italic
-    else FontStyle.Normal
-

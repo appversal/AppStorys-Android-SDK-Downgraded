@@ -303,10 +303,11 @@ fun HomeScreen(
                 ) {
                     Button(
                         onClick = {
-                            campaignManager.trackEvents(
-//                                event = "Login"
-                                event = "dismissed"
-                            )
+//                            campaignManager.trackEvents(
+////                                event = "Login"
+//                                event = "dismissed"
+//                            )
+                            campaignManager.setUserProperties(mapOf("last_name" to "sharma"))
 //                            campaignManager.setUserId("nameisprem")
                         },
                         modifier = Modifier.appstorys("anuridhtest")

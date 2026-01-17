@@ -33,6 +33,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.graphics.graphicsLayer
+import com.appversal.appstorys.api.TextStyling
+import com.appversal.appstorys.ui.components.CommonText
 import com.appversal.appstorys.utils.noRippleClickable
 import kotlin.compareTo
 
@@ -282,44 +284,36 @@ private fun MainContent(
             else -> androidx.compose.ui.text.font.FontFamily.SansSerif
         }
 
-        Text(
+        CommonText(
             modifier = Modifier
                 .padding(end = 18.dp)
                 .fillMaxWidth(),
             text = localContent["title"].toString(),
-            fontSize = (titleTextStyle?.size ?: ((csatDetails.styling?.fontSize ?: 16) + 6)).sp,
-            fontWeight = FontWeight.Bold,
-            color = styling["csatTitleColor"] ?: Color.Black,
-            textAlign = titleAlignment,
-            fontFamily = titleFontFamily
+            styling = TextStyling(
+                color = csatDetails.styling?.initialFeedback?.title?.colors,
+                fontSize = (titleTextStyle?.size ?: ((csatDetails.styling?.fontSize ?: 16) + 6)),
+                fontFamily = "",
+                textAlign = titleTextStyle?.alignment,
+                fontDecoration = listOf("bold")
+            )
         )
 
         Spacer(modifier = Modifier.height(4.dp))
 
-        Text(
+        CommonText(
             modifier = Modifier
                 .padding(end = 18.dp)
                 .fillMaxWidth(),
             text = localContent["description"].toString(),
-            fontSize = (subtitleTextStyle?.size ?: (csatDetails.styling?.fontSize ?: 16)).sp,
-            color = styling["csatDescriptionTextColor"] ?: Color(0xFF504F58),
-            textAlign = subtitleAlignment,
-            fontFamily = subtitleFontFamily
+            styling = TextStyling(
+                color = csatDetails.styling?.initialFeedback?.subtitle?.colors,
+                fontSize = (subtitleTextStyle?.size ?: (csatDetails.styling?.fontSize ?: 16)),
+                fontFamily = "",
+                textAlign = subtitleTextStyle?.alignment
+            )
         )
 
         Spacer(modifier = Modifier.height(12.dp))
-//
-//        // Display text for rating
-//        csatDetails.styling?.rating?.displayText?.let { displayText ->
-//            if (displayText.isNotEmpty() && displayText.lowercase() != "same") {
-//                Text(
-//                    text = displayText,
-//                    fontSize = (csatDetails.styling?.fontSize ?: 16).sp,
-//                    color = styling["csatDescriptionTextColor"] ?: Color(0xFF504F58),
-//                    modifier = Modifier.padding(bottom = 8.dp)
-//                )
-//            }
-//        }
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -417,15 +411,15 @@ private fun FeedbackContent(
         modifier = Modifier.padding(top = 16.dp)
     ) {
         localContent["feedbackPrompt"]?.let { feedbackPrompt ->
-            Text(
+            CommonText(
                 text = feedbackPrompt,
-                fontSize = (csatDetails.styling?.fontSize ?: 16).sp,
-                color = styling["csatTitleColor"] ?: Color.Black
+                styling = TextStyling(
+                    color = csatDetails.styling?.initialFeedback?.title?.colors,
+                    fontSize = (csatDetails.styling?.fontSize ?: 16),
+                    fontFamily = ""
+                )
             )
         }
-//        if (feedbackOptions?.toList()?.isNotEmpty() == true) {
-//            Spacer(modifier = Modifier.height(4.dp))
-//        }
 
         feedbackOptions?.forEach { option ->
             val isSelected = option == selectedOption
@@ -469,14 +463,16 @@ private fun FeedbackContent(
                         .clickable { onOptionSelected(option) }
                         .padding(horizontal = 16.dp, vertical = 8.dp)
                 ) {
-                    Text(
-                        text = option,
-                        fontSize = optionFontSize,
-                        textAlign = optionAlignment,
-                        fontFamily = optionFontFamily,
+                    CommonText(
                         modifier = Modifier.fillMaxWidth(),
-                        color = if (isSelected) styling["csatSelectedOptionTextColor"] ?: Color(0xFF007AFF)
-                               else styling["csatOptionTextColor"] ?: Color.Black
+                        text = option,
+                        styling = TextStyling(
+                            color = if (isSelected) csatDetails.styling?.feedbackPage?.options?.selectedOptions?.colors?.text
+                            else csatDetails.styling?.feedbackPage?.options?.nonSelectedOptions?.colors?.text,
+                            fontSize = (optionTextStyle?.size ?: csatDetails.styling?.fontSize ?: 16),
+                            fontFamily = "",
+                            textAlign = optionTextStyle?.alignment
+                        )
                     )
                 }
             }
@@ -518,12 +514,15 @@ private fun FeedbackContent(
                     onValueChange = onCommentsChanged,
                     modifier = Modifier.fillMaxSize(),
                     placeholder = {
-                        Text(
-                            "Enter comments",
-                            color = Color.Gray,
-                            fontSize = commentsFontSize,
-                            textAlign = commentsAlignment,
-                            modifier = Modifier.align(Alignment.TopStart)
+                        CommonText(
+                            modifier = Modifier.align(Alignment.TopStart),
+                            text = "Enter comments",
+                            styling = TextStyling(
+                                color = "#808080",
+                                fontSize = commentsTextStyle?.size,
+                                fontFamily = "",
+                                textAlign = commentsTextStyle?.alignment
+                            )
                         )
                     },
                     textStyle = androidx.compose.ui.text.TextStyle(
@@ -624,13 +623,15 @@ private fun FeedbackContent(
                 else -> androidx.compose.ui.text.font.FontFamily.SansSerif
             }
 
-            Text(
+            CommonText(
+                modifier = if (submitButtonFullWidth) Modifier.fillMaxWidth() else Modifier,
                 text = submitButtonText,
-                fontSize = (submitButtonTextStyle?.size ?: ((csatDetails.styling?.fontSize ?: 16) + 2)).sp,
-                color = styling["csatCtaTextColor"] ?: Color.White,
-                textAlign = textAlign,
-                fontFamily = fontFamily,
-                modifier = if (submitButtonFullWidth) Modifier.fillMaxWidth() else Modifier
+                styling = TextStyling(
+                    color = csatDetails.styling?.feedbackPage?.submitButton?.colors?.text,
+                    fontSize = (submitButtonTextStyle?.size ?: ((csatDetails.styling?.fontSize ?: 16) + 2)),
+                    fontFamily = "",
+                    textAlign = submitButtonTextStyle?.alignment
+                )
             )
         }
 
@@ -740,7 +741,8 @@ private fun ThankYouContent(
             else -> androidx.compose.ui.text.font.FontFamily.SansSerif
         }
 
-        Text(
+        CommonText(
+            modifier = Modifier.fillMaxWidth(),
             text = csatDetails.thankyouText
                 ?.takeIf { it.isNotBlank() }
                 ?: (
@@ -749,12 +751,13 @@ private fun ThankYouContent(
                         else
                             csatDetails.styling?.rating?.high?.highRatingTitle
                         ) ?: "Thank You",
-            fontSize = (titleTextStyle?.size ?: ((csatDetails.styling?.fontSize ?: 16) + 6)).sp,
-            fontWeight = FontWeight.Bold,
-            color = styling["thankyouTitleColor"] ?: Color.Black,
-            textAlign = titleAlignment,
-            fontFamily = titleFontFamily,
-            modifier = Modifier.fillMaxWidth()
+            styling = TextStyling(
+                color = csatDetails.styling?.thankyouPage?.title?.colors,
+                fontSize = (titleTextStyle?.size ?: ((csatDetails.styling?.fontSize ?: 16) + 6)),
+                fontFamily = "",
+                textAlign = titleConfig?.alignment ?: titleTextStyle?.alignment,
+                fontDecoration = listOf("bold")
+            )
         )
 
         Spacer(modifier = Modifier.height(4.dp))
@@ -776,7 +779,8 @@ private fun ThankYouContent(
             else -> androidx.compose.ui.text.font.FontFamily.SansSerif
         }
 
-        Text(
+        CommonText(
+            modifier = Modifier.fillMaxWidth(),
             text = csatDetails.thankyouDescription
                 ?.takeIf { it.isNotBlank() }
                 ?: (
@@ -785,11 +789,12 @@ private fun ThankYouContent(
                         else
                             csatDetails.styling?.rating?.high?.highRatingSubtitle
                         ) ?: "Thank you",
-            fontSize = (subtitleTextStyle?.size ?: (csatDetails.styling?.fontSize ?: 16)).sp,
-            color = styling["thankyouSubtitleColor"] ?: Color(0xFF504F58),
-            textAlign = subtitleAlignment,
-            fontFamily = subtitleFontFamily,
-            modifier = Modifier.fillMaxWidth()
+            styling = TextStyling(
+                color = csatDetails.styling?.thankyouPage?.subtitle?.colors,
+                fontSize = (subtitleTextStyle?.size ?: (csatDetails.styling?.fontSize ?: 16)),
+                fontFamily = "",
+                textAlign = subtitleConfig?.alignment ?: subtitleTextStyle?.alignment
+            )
         )
 
         Spacer(modifier = Modifier.height((doneButtonMargin?.top ?: 16).dp))
@@ -802,7 +807,7 @@ private fun ThankYouContent(
                     end = (doneButtonMargin?.right ?: 0).dp
                 )
                 .then(if (doneButtonFullWidth) Modifier.fillMaxWidth() else Modifier.width(doneButtonWidth?.dp ?: 120.dp))
-                .then(if (doneButtonHeight != null) Modifier.height(doneButtonHeight.dp) else Modifier)
+                .then(if (doneButtonHeight != null) Modifier.height(doneButtonHeight.dp) else Modifier.height(50.dp))
                 .border(
                     width = doneButtonBorderWidth.dp,
                     color = styling["thankyouButtonBorderColor"] ?: Color.Transparent,
@@ -861,14 +866,16 @@ private fun ThankYouContent(
                     else -> androidx.compose.ui.text.font.FontFamily.SansSerif
                 }
 
-                Text(
-                    fontSize = (doneButtonTextStyle?.size ?: ((csatDetails.styling?.fontSize
-                        ?: 16) + 2)).sp,
+                CommonText(
+                    modifier = if (doneButtonFullWidth) Modifier.fillMaxWidth() else Modifier,
                     text = doneButtonText,
-                    color = styling["thankyouButtonTextColor"] ?: Color.White,
-                    fontFamily = fontFamily,
-                    textAlign = textAlign,
-                    modifier = if (doneButtonFullWidth) Modifier.fillMaxWidth() else Modifier
+                    styling = TextStyling(
+                        color = csatDetails.styling?.thankyouPage?.doneButton?.colors?.text,
+                        fontSize = (doneButtonTextStyle?.size ?: ((csatDetails.styling?.fontSize
+                            ?: 16) + 2)),
+                        fontFamily = "",
+                        textAlign = doneButtonTextStyle?.alignment
+                    )
                 )
             }
 

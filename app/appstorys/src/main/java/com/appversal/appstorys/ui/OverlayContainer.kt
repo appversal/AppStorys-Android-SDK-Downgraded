@@ -3,8 +3,10 @@ package com.appversal.appstorys.ui
 import android.app.Activity
 import android.content.Context
 import android.graphics.Rect
+import android.os.Build
 import android.util.Log
 import android.view.View
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -90,6 +92,7 @@ object OverlayContainer {
      *
      * @param modifier The `Modifier` to be applied to the overlay container.
      */
+    @RequiresApi(Build.VERSION_CODES.M)
     @Composable
     fun Content(
         modifier: Modifier = Modifier,

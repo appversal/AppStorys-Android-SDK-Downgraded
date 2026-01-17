@@ -19,6 +19,7 @@ import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
 import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.jsonObject
 
 internal class ApiRepository(
     context: Context,
@@ -181,12 +182,72 @@ internal class ApiRepository(
         }
     }
 
+    private fun extractVariantFromCampaign(campaign: Campaign, variantId: String): Campaign {
+        try {
+            val details = campaign.details
+
+            // Check if the campaign has VariantCampaignDetails
+            if (details !is VariantCampaignDetails) {
+                Log.d("ApiRepository", "Campaign ${campaign.id} does not have variants, returning as-is")
+                return campaign
+            }
+
+            // Get the specific variant data from the variants object
+            val variantData = details.variants[variantId]?.jsonObject
+            if (variantData == null) {
+                Log.e("ApiRepository", "Variant $variantId not found in campaign ${campaign.id}")
+                return campaign
+            }
+
+            Log.d("ApiRepository", "Extracting variant $variantId from campaign ${campaign.id}")
+
+            // Deserialize the variant data based on campaign type
+            val variantDetails: CampaignDetails? = when (campaign.campaignType) {
+                "BAN" -> SdkJson.decodeFromJsonElement(BannerDetails.serializer(), variantData)
+                "FLT" -> SdkJson.decodeFromJsonElement(FloaterDetails.serializer(), variantData)
+                "CSAT" -> SdkJson.decodeFromJsonElement(CSATDetails.serializer(), variantData)
+                "WID" -> SdkJson.decodeFromJsonElement(WidgetDetails.serializer(), variantData)
+                "REL" -> SdkJson.decodeFromJsonElement(ReelsDetails.serializer(), variantData)
+                "TTP" -> SdkJson.decodeFromJsonElement(TooltipsDetails.serializer(), variantData)
+                "PIP" -> SdkJson.decodeFromJsonElement(PipDetails.serializer(), variantData)
+                "BTS" -> SdkJson.decodeFromJsonElement(BottomSheetDetails.serializer(), variantData)
+                "SUR" -> SdkJson.decodeFromJsonElement(SurveyDetails.serializer(), variantData)
+                "MOD" -> SdkJson.decodeFromJsonElement(ModalDetails.serializer(), variantData)
+                "STR" -> SdkJson.decodeFromJsonElement(StoriesDetails.serializer(), variantData)
+                "SCRT" -> SdkJson.decodeFromJsonElement(ScratchCardDetails.serializer(), variantData)
+                "MIL" -> SdkJson.decodeFromJsonElement(MilestoneDetails.serializer(), variantData)
+                else -> {
+                    Log.w("ApiRepository", "Campaign type ${campaign.campaignType} does not support variants yet")
+                    null
+                }
+            }
+
+            // Return a new campaign with the variant details
+            return if (variantDetails != null) {
+                campaign.copy(details = variantDetails)
+            } else {
+                campaign
+            }
+
+        } catch (e: Exception) {
+            Log.e("ApiRepository", "Error extracting variant from campaign ${campaign.id}: ${e.message}", e)
+            return campaign
+        }
+    }
+
+    data class ScreenCampaignResult(
+        val campaigns: List<Campaign>?,
+        val variants: List<CampaignVariant>,
+        val personalizationData: Map<String, String>,
+        val testUser: Boolean?
+    )
+
     suspend fun getScreenCampaignsData(
         accessToken: String,
         accountId: String,
         screenName: String,
         userId: String
-    ): List<Campaign>? {
+    ): ScreenCampaignResult {
         return withContext(Dispatchers.IO) {
             try {
                 // Step 1: Call track-user-res to get eligible campaigns
@@ -204,13 +265,23 @@ internal class ApiRepository(
                 when (eligibleCampaignsResult) {
                     is ApiResult.Success -> {
                         val eligibleCampaigns = eligibleCampaignsResult.data.eligibleCampaignList
+                        val variants = eligibleCampaignsResult.data.variants ?: emptyList()
+                        val personalizationData = eligibleCampaignsResult.data.personalization_data ?: emptyMap()
+                        val testUser = eligibleCampaignsResult.data.test_user
 
                         Log.d("ApiRepository", "Eligible campaigns: $eligibleCampaigns")
+                        Log.d("ApiRepository", "Variants: $variants")
+                        Log.d("ApiRepository", "Personalization Data: $personalizationData")
 
                         // Step 2: If eligibleCampaigns is empty, return null
                         if (eligibleCampaigns.isEmpty()) {
                             Log.d("ApiRepository", "No eligible campaigns for screen: $screenName")
-                            return@withContext null
+                            return@withContext ScreenCampaignResult(
+                                campaigns = null,
+                                variants = emptyList(),
+                                personalizationData = emptyMap(),
+                                testUser = false
+                            )
                         }
 
                         // Step 3: Fetch campaigns.json (with caching)
@@ -218,7 +289,12 @@ internal class ApiRepository(
 
                         if (!fetchSuccess) {
                             Log.e("ApiRepository", "Failed to fetch campaigns.json")
-                            return@withContext null
+                            return@withContext ScreenCampaignResult(
+                                campaigns = null,
+                                variants = emptyList(),
+                                personalizationData = emptyMap(),
+                                testUser = false
+                            )
                         }
 
                         val cachedCampaignIds = cachedCampaignsJson?.mapNotNull { it.id }?.toSet() ?: emptySet()
@@ -269,21 +345,44 @@ internal class ApiRepository(
                             val isEligible = campaign.id in eligibleCampaigns
                             val isScreenMatch = campaign.screen?.equals(screenName, ignoreCase = true) == true
                             isEligible && isScreenMatch
+                        }?.map { campaign ->
+                            // Apply variant extraction if this campaign has a variant in the response
+                            val variant = variants.find { it.id == campaign.id }
+                            if (variant != null) {
+                                extractVariantFromCampaign(campaign, variant.v_id)
+                            } else {
+                                campaign
+                            }
                         }
 
                         Log.d("ApiRepository", "Filtered campaigns for screen '$screenName': ${filteredCampaigns?.size ?: 0}")
 
-                        filteredCampaigns
+                        ScreenCampaignResult(
+                            campaigns = filteredCampaigns,
+                            variants = variants,
+                            personalizationData = personalizationData,
+                            testUser = testUser
+                        )
                     }
 
                     is ApiResult.Error -> {
                         Log.e("ApiRepository", "Error getting eligible campaigns: ${eligibleCampaignsResult.message}")
-                        null
+                        return@withContext ScreenCampaignResult(
+                            campaigns = null,
+                            variants = emptyList(),
+                            personalizationData = emptyMap(),
+                            testUser = false
+                        )
                     }
                 }
             } catch (e: Exception) {
                 Log.e("ApiRepository", "Error in getScreenCampaignsData: ${e.message}", e)
-                null
+                return@withContext ScreenCampaignResult(
+                    campaigns = null,
+                    variants = emptyList(),
+                    personalizationData = emptyMap(),
+                    testUser = false
+                )
             }
         }
     }

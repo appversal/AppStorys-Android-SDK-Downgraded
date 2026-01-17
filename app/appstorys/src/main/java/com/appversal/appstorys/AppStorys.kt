@@ -68,6 +68,7 @@ import com.appversal.appstorys.api.BannerDetails
 import com.appversal.appstorys.api.BottomSheetDetails
 import com.appversal.appstorys.api.CSATDetails
 import com.appversal.appstorys.api.Campaign
+import com.appversal.appstorys.api.CampaignVariant
 import com.appversal.appstorys.api.CsatFeedbackPostRequest
 import com.appversal.appstorys.api.FloaterDetails
 import com.appversal.appstorys.api.MilestoneDetails
@@ -200,6 +201,10 @@ object AppStorys {
     private var widgetPositionList = listOf<String>()
 
     private val viewedTooltips = MutableStateFlow<Set<String>>(emptySet())
+
+    private val campaignVariants = MutableStateFlow<List<CampaignVariant>>(emptyList())
+
+    private var personalizationData: Map<String, String>? = null
 
     /**
      * Tells the SDK whether the sdk components are visible to the user,
@@ -367,21 +372,30 @@ object AppStorys {
 
                     ensureActive()
 
-                    val campaignsList = repository.getScreenCampaignsData(
+                    val (campaignsList, variants, personalizationResponse, isTestUser)= repository.getScreenCampaignsData(
                         accessToken = accessToken,
                         accountId = accountId,
                         screenName = currentScreen,
                         userId = userId
                     )
 
+                    isScreenCaptureEnabled = isTestUser ?: false
+
+                    personalizationData = personalizationResponse
+
                     ensureActive()
 
                     campaignsList?.let { campaigns.emit(it) }
+                    campaignVariants.emit(variants ?: emptyList())
                     Log.e("AppStorys", "Campaign: ${campaigns.value}")
                 } catch (exception: Exception) {
                     Log.e("AppStorys", "Error getting campaigns for $screenName", exception)
                 }
         }
+    }
+
+    fun getPersonalizationData(): Map<String, String> {
+        return personalizationData ?: emptyMap()
     }
 
     fun trackEvents(
@@ -395,13 +409,30 @@ object AppStorys {
                     trackedEventNames.add(event)
                 }
                 try {
+                    val variantId = campaign_id?.let { campId ->
+                        campaignVariants.value.find { it.id == campId }?.v_id
+                    }
+
+                    val updatedMetadata = if (variantId != null) {
+                        (metadata ?: emptyMap()) + mapOf("variant_id" to variantId)
+                    } else {
+                        metadata ?: emptyMap()
+                    }
+
                     val deviceInfo = getDeviceInfo(context)
-                    val mergedMetadata = (metadata ?: emptyMap()) + deviceInfo
+
+                    val mergedMetadata = if (event != "viewed" && event != "clicked" && event != "csat captured" && event != "survey captured") {
+                        updatedMetadata + deviceInfo
+                    } else {
+                        updatedMetadata
+                    }
                     val requestBody = JSONObject().apply {
                         put("user_id", userId)
                         campaign_id?.let { put("campaign_id", it) }
                         put("event", event)
-                        metadata?.let { put("metadata", JSONObject(mergedMetadata)) }
+                        if (mergedMetadata.isNotEmpty()) {
+                            put("metadata", JSONObject(mergedMetadata))
+                        }
                     }
                     val client = OkHttpClient()
                     val request = Request.Builder()
@@ -510,11 +541,6 @@ object AppStorys {
                 saveUserId(newUserId, false)
 
                 Log.i("AppStorys", "User ID updated to: $newUserId")
-
-                // Refresh campaigns for new user
-//                if (currentScreen.isNotEmpty()) {
-//                    getScreenCampaigns(currentScreen, emptyList())
-//                }
 
             } catch (e: Exception) {
                 Log.e("AppStorys", "Error setting user ID: ${e.message}", e)
@@ -705,7 +731,7 @@ object AppStorys {
                             }
                         ),
                         onClick = {
-                            if (campaign?.id != null && floaterDetails.link != null) {
+                            if (campaign?.id != null && !floaterDetails.link.isNullOrEmpty()) {
                                 clickEvent(link = floaterDetails.link, campaignId = campaign.id)
                                 trackEvents(campaign.id, "clicked")
                             }
@@ -797,7 +823,7 @@ object AppStorys {
                                 strokeColorString = pipDetails.styling?.crossButton?.colors?.stroke,
                                 marginTop = pipDetails.styling?.crossButton?.margin?.top,
                                 marginEnd = pipDetails.styling?.crossButton?.margin?.right,
-                                size = pipDetails.styling?.crossButton?.crossButtonSize,  // ✅ NEW
+                                size = pipDetails.styling?.crossButton?.size,  // ✅ NEW
                                 imageUrl = (
                                         pipDetails.crossButtonImage?.takeIf { !it.isNullOrBlank() }?.let { raw ->
                                             val trimmed = raw.trim()
@@ -1173,7 +1199,7 @@ object AppStorys {
                         strokeColorString = style?.crossButton?.colors?.stroke,
                         marginTop = style?.crossButton?.margin?.top,
                         marginEnd = style?.crossButton?.margin?.right,
-                        size = style?.crossButton?.crossButtonSize,
+                        size = style?.crossButton?.size,
                         imageUrl = bannerDetails.crossButtonImage
 //                        imageUrl = bannerDetails.crossButtonImage?.takeIf { it.isNotBlank() }?.let { raw ->
 //                            val trimmed = raw.trim()

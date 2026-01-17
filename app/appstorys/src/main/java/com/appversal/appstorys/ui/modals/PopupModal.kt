@@ -21,9 +21,11 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.appversal.appstorys.api.Modal
 import com.appversal.appstorys.api.ModalDetails
+import com.appversal.appstorys.api.TextStyling
 import com.appversal.appstorys.api.isCarousel
 import com.appversal.appstorys.api.isMediaOnly
 import com.appversal.appstorys.api.resolvedMedia
+import com.appversal.appstorys.ui.components.CommonText
 import com.appversal.appstorys.ui.components.CrossButton
 import com.appversal.appstorys.ui.components.createCrossButtonConfig
 import com.appversal.appstorys.ui.components.parseColorString
@@ -90,7 +92,7 @@ private fun ModalWithCTA(
 
     // Cross button
     val crossButton = modal.styling?.crossButton
-    val crossSize = crossButton?.default?.crossButtonSize ?: crossButton?.crossButtonSize ?: crossButton?.size
+    val crossSize = crossButton?.default?.size ?: crossButton?.size ?: crossButton?.size
 
     // Content padding
     val padding = appearance?.padding
@@ -258,24 +260,30 @@ private fun ModalContentSection(
         // Title
         modal.content?.titleText?.let { title ->
             Spacer(modifier = Modifier.height(12.dp))
-            Text(
+            CommonText(
+                modifier = Modifier.fillMaxWidth(),
                 text = title,
-                color = titleColor,
-                fontSize = titleSize,
-                textAlign = titleAlign,
-                modifier = Modifier.fillMaxWidth()
+                styling = TextStyling(
+                    color = modal.styling?.title?.color,
+                    fontSize = modal.styling?.title?.size ?: 16,
+                    fontFamily = "",
+                    textAlign = modal.styling?.title?.alignment?.trim()?.lowercase()
+                )
             )
         }
 
         // Subtitle
         modal.content?.subtitleText?.let { subtitle ->
             Spacer(modifier = Modifier.height(6.dp))
-            Text(
+            CommonText(
+                modifier = Modifier.fillMaxWidth(),
                 text = subtitle,
-                color = subtitleColor,
-                fontSize = subtitleSize,
-                textAlign = subtitleAlign,
-                modifier = Modifier.fillMaxWidth()
+                styling = TextStyling(
+                    color = modal.styling?.subTitle?.color,
+                    fontSize = modal.styling?.subTitle?.size ?: 16,
+                    fontFamily = "",
+                    textAlign = modal.styling?.subTitle?.alignment?.trim()?.lowercase()
+                )
             )
         }
 
@@ -418,12 +426,12 @@ private fun ModalCtaButton(
         width = if (occupy) null else minWidth,
         occupyFullWidth = occupy,
         backgroundColor = bg,
-        textColor = textColor,
+        textColor = styling?.textColor ?: "#FFFFFF",
         textSizeSp = styling?.textStyle?.size ?: 14,
         borderColor = borderColor,
         borderWidth = (styling?.containerStyle?.borderWidth ?: 0).dp,
         cornerRadius = shape,
-        textAlign = TextAlign.Center,
+        textAlign = "center",
         modifier = modifier.then(
             if (!occupy) Modifier.widthIn(min = minWidth) else Modifier
         ),

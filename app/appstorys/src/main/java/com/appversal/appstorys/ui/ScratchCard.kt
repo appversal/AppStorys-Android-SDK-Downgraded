@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -71,7 +72,14 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlin.math.min
 import kotlin.math.sqrt
 import androidx.compose.ui.text.AnnotatedString
+import com.airbnb.lottie.compose.LottieAnimation
+import com.airbnb.lottie.compose.LottieCompositionSpec
+import com.airbnb.lottie.compose.LottieConstants
+import com.airbnb.lottie.compose.rememberLottieComposition
+import com.appversal.appstorys.api.TextStyling
+import com.appversal.appstorys.ui.components.CommonText
 import com.appversal.appstorys.ui.xml.toDp
+import com.appversal.appstorys.utils.isLottieUrl
 import kotlinx.serialization.json.booleanOrNull
 
 @RequiresApi(Build.VERSION_CODES.M)
@@ -432,24 +440,30 @@ fun CardScratch(
                                         containerColor = parseColorSafe(ctaColor, Color(0xFF0066FF))
                                     )
                                 ) {
-                                    Text(
+                                    CommonText(
                                         text = ctaText,
-                                        fontSize = ctaFontSize.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = parseColorSafe(ctaTextColor, Color(0xFF383838))
+                                        styling = TextStyling(
+                                            color = ctaTextColor,
+                                            fontSize = ctaFontSize,
+                                            fontFamily = "",
+                                            fontDecoration = listOf("semibold")
+                                        )
                                     )
                                 }
                             }
 
                             if (termsAndConditionsHtml.isNotEmpty()) {
-                                Text(
-                                    text = "Terms & Conditions*",
-                                    color = Color.White,
-                                    fontSize = 12.sp,
+                                CommonText(
                                     modifier = Modifier
                                         .clickable {
                                             showTerms = true
-                                        }
+                                        },
+                                    text = "Terms & Conditions*",
+                                    styling = TextStyling(
+                                        color = "#FFFFFF",
+                                        fontSize = 12,
+                                        fontFamily = "",
+                                    )
                                 )
                             }
                         }
@@ -843,7 +857,17 @@ fun OnlyImageView(
                     contentScale = ContentScale.FillBounds,
                     modifier = Modifier.fillMaxSize()
                 )
-            } else {
+            } else if(isLottieUrl(bannerImageUrl)){
+                val composition by rememberLottieComposition(
+                    spec = LottieCompositionSpec.Url(bannerImageUrl)
+                )
+                LottieAnimation(
+                    composition = composition,
+                    iterations = LottieConstants.IterateForever,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+             else{
                 SubcomposeAsyncImage(
                     model = bannerImageUrl,
                     contentDescription = "Banner",
@@ -936,7 +960,22 @@ fun CashBackInfoView(
                                 )
                                 .clip(CircleShape)
                         )
-                    } else {
+                    } else if(isLottieUrl(bannerImageUrl)){
+                        val composition by rememberLottieComposition(
+                            spec = LottieCompositionSpec.Url(bannerImageUrl)
+                        )
+                        LottieAnimation(
+                            composition = composition,
+                            iterations = LottieConstants.IterateForever,
+                            modifier = Modifier
+                                .sizeIn(
+                                    maxWidth = maxSize,
+                                    maxHeight = maxSize
+                                )
+                                .clip(CircleShape)
+                        )
+                    }
+                    else{
                         SubcomposeAsyncImage(
                             model = bannerImageUrl,
                             contentDescription = "Banner",
@@ -957,26 +996,28 @@ fun CashBackInfoView(
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 if (offerTitle.isNotEmpty()) {
-                    Text(
+                    CommonText(
                         text = offerTitle,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = parseColorSafe(offerTitleColor, Color.White),
-                        textAlign = TextAlign.Center,
-                        fontSize = titleFontSize.sp
+                        styling = TextStyling(
+                            color = offerTitleColor,
+                            fontSize = titleFontSize,
+                            fontFamily = "",
+                            fontDecoration = listOf("bold")
+                        )
                     )
                 }
 
                 Spacer(Modifier.height((cardHeight * 0.06).toDp()))
 
                 if (offerSubtitle.isNotEmpty()) {
-                    Text(
+                    CommonText(
                         text = offerSubtitle,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = parseColorSafe(offerSubtitleColor, Color.White.copy(alpha = 0.7f)),
-                        textAlign = TextAlign.Center,
-                        fontSize = subtitleFontSize.sp,
-                        letterSpacing = 0.1.sp
+                        letterSpacing = 0.1.toFloat(),
+                        styling = TextStyling(
+                            color = offerSubtitleColor,
+                            fontSize = subtitleFontSize,
+                            fontFamily = "",
+                        )
                     )
                 }
 
@@ -1016,14 +1057,14 @@ fun CashBackInfoView(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.Center
                         ) {
-
-                            // Coupon Text
-                            Text(
+                            CommonText(
                                 text = couponCode,
-                                style = MaterialTheme.typography.bodyLarge,
-                                fontWeight = FontWeight.Normal,
-                                color = parseColorSafe(couponTextColor, Color.White),
-                                letterSpacing = 0.2.sp
+                                letterSpacing = 0.2.toFloat(),
+                                styling = TextStyling(
+                                    color = couponTextColor,
+                                    fontFamily = "",
+                                    fontSize = null
+                                )
                             )
 
                             Spacer(modifier = Modifier.width(8.dp))

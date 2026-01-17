@@ -207,9 +207,9 @@ internal fun MuteUnmuteButton(
 
     // Use button size from config if available, otherwise use the passed size parameter
     val buttonSize = if (isMuted) {
-        muteConfig?.muteButtonSize?.dp ?: size
+        muteConfig?.size?.dp ?: size
     } else {
-        unmuteConfig?.unmuteButtonSize?.dp ?: size
+        unmuteConfig?.size?.dp ?: size
     }
 
     val fillColor = if (isMuted) {

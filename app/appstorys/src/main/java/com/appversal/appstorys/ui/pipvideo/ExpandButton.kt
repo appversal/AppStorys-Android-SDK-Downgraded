@@ -250,7 +250,7 @@ internal fun ExpandButton(
     if (isMaximized) {
         // Minimise state
         val config = expandControls?.minimise
-        buttonSize = config?.minimiseButtonSize?.dp ?: size
+        buttonSize = config?.size?.dp ?: size
         fillColor = parseColor(config?.colors?.fill, Color.Transparent)
         iconColor = parseColor(config?.colors?.cross, Color.White)
         strokeColor = parseStroke(config?.colors?.stroke)
@@ -263,7 +263,7 @@ internal fun ExpandButton(
     } else {
         // Maximise state
         val config = expandControls?.maximise
-        buttonSize = config?.maximiseButtonSize?.dp ?: size
+        buttonSize = config?.size?.dp ?: size
         fillColor = parseColor(config?.colors?.fill, Color.Transparent)
         iconColor = parseColor(config?.colors?.cross, Color.White)
         strokeColor = parseStroke(config?.colors?.stroke)

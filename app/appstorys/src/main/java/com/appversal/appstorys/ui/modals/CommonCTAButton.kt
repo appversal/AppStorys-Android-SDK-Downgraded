@@ -28,6 +28,8 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import com.appversal.appstorys.api.TextStyling
+import com.appversal.appstorys.ui.components.CommonText
 
 @Composable
 fun BackendCta(
@@ -37,7 +39,7 @@ fun BackendCta(
     width: Dp? = null,
     occupyFullWidth: Boolean = false,
     backgroundColor: Color,
-    textColor: Color,
+    textColor: String,
     textSizeSp: Int,
     borderColor: Color = Color.Transparent,
     borderWidth: Dp = Dp.Hairline,
@@ -45,7 +47,7 @@ fun BackendCta(
     fontWeightName: String? = null,
     fontStyleName: String? = null,
     textDecorationList: List<String>? = null,
-    textAlign: TextAlign = TextAlign.Center,
+    textAlign: String? = null,
     rotationDegrees: Float? = null,
     // optional explicit alignment for the CTA container (e.g. "left", "right", "center").
     // if null, we fall back to `textAlign`.
@@ -92,29 +94,23 @@ fun BackendCta(
         "left" -> Alignment.CenterStart
         "right" -> Alignment.CenterEnd
         "center", "middle" -> Alignment.Center
-        else -> when (textAlign) {
-            TextAlign.Left -> Alignment.CenterStart
-            TextAlign.Right -> Alignment.CenterEnd
-            else -> Alignment.Center
-        }
+        else -> Alignment.Center
     }
 
     Box(
         modifier = baseModifier,
         contentAlignment = boxContentAlignment
     ) {
-        Text(
-            text = text,
-            color = textColor,
-            fontSize = textSizeSp.sp,
-            textAlign = textAlign,
-            maxLines = 1,
+        CommonText(
             modifier = Modifier.fillMaxWidth().padding(horizontal = internalHorizontalPadding),
-            style = TextStyle(
-                fontFamily = fontFamily,
-                fontWeight = fontWeight,
-                fontStyle = fontStyle,
-                textDecoration = textDecoration
+            text = text,
+            maxLines = 1,
+            styling = TextStyling(
+                color = textColor,
+                fontSize = textSizeSp,
+                fontFamily = "",
+                textAlign = textAlign,
+                fontDecoration = textDecorationList
             )
         )
     }

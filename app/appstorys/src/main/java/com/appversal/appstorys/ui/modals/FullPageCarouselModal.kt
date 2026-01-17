@@ -54,8 +54,10 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.PlayerView
+import com.appversal.appstorys.api.TextStyling
 import com.appversal.appstorys.api.WidgetDetails
 import com.appversal.appstorys.ui.DotsIndicator
+import com.appversal.appstorys.ui.components.CommonText
 import com.appversal.appstorys.utils.VideoCache
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -205,23 +207,31 @@ internal fun FullPageCarouselModal(
 
                         slide.titleText?.let { title ->
                             Spacer(modifier = Modifier.height(12.dp))
-                            Text(
+
+                            CommonText(
+                                modifier = Modifier.fillMaxWidth(),
                                 text = title,
-                                color = parseColorString(slide.styling?.title?.color) ?: parseColorString(modal.styling?.title?.color) ?: Color.Black,
-                                fontSize = (slide.styling?.title?.size ?: modal.styling?.title?.size ?: 18).sp,
-                                textAlign = titleTextAlign,
-                                modifier = Modifier.fillMaxWidth()
+                                styling = TextStyling(
+                                    color = slide.styling?.title?.color ?: modal.styling?.title?.color,
+                                    fontSize = slide.styling?.title?.size ?: modal.styling?.title?.size ?: 18,
+                                    fontFamily = "",
+                                    textAlign = titleAlignmentStr?.trim()?.lowercase()
+                                )
                             )
                         }
 
                         slide.subtitleText?.let { subtitle ->
                             Spacer(modifier = Modifier.height(6.dp))
-                            Text(
+
+                            CommonText(
+                                modifier = Modifier.fillMaxWidth(),
                                 text = subtitle,
-                                color = parseColorString(slide.styling?.subTitle?.color) ?: parseColorString(modal.styling?.subTitle?.color) ?: Color.Gray,
-                                fontSize = (slide.styling?.subTitle?.size ?: modal.styling?.subTitle?.size ?: 14).sp,
-                                textAlign = subtitleTextAlign,
-                                modifier = Modifier.fillMaxWidth()
+                                styling = TextStyling(
+                                    color = slide.styling?.subTitle?.color ?: modal.styling?.subTitle?.color,
+                                    fontSize = slide.styling?.subTitle?.size ?: modal.styling?.subTitle?.size ?: 14,
+                                    fontFamily = "",
+                                    textAlign = subtitleAlignmentStr?.trim()?.lowercase()
+                                )
                             )
                         }
 
@@ -296,12 +306,12 @@ internal fun FullPageCarouselModal(
                                         width = primaryWidth,
                                         occupyFullWidth = primaryOccupy,
                                         backgroundColor = primaryBg,
-                                        textColor = primaryTextColor,
+                                        textColor = primaryStyling?.textColor ?: "#000000",
                                         textSizeSp = primaryTextSize,
                                         borderColor = primaryBorderColor,
                                         borderWidth = primaryBorderWidth,
                                         cornerRadius = primaryShape,
-                                        textAlign = primaryTextAlign,
+                                        textAlign = primaryAlignment,
                                         buttonAlignment = primaryAlignment,
                                         modifier = Modifier
                                     ) {
@@ -343,12 +353,12 @@ internal fun FullPageCarouselModal(
                                         width = secondaryWidth,
                                         occupyFullWidth = secondaryOccupy,
                                         backgroundColor = secondaryBg,
-                                        textColor = secondaryTextColor,
+                                        textColor = secondaryStyling?.textColor ?: "#000000",
                                         textSizeSp = secondaryTextSize,
                                         borderColor = secondaryBorderColor,
                                         borderWidth = secondaryBorderWidth,
                                         cornerRadius = secondaryShape,
-                                        textAlign = secondaryTextAlign,
+                                        textAlign = secondaryAlignment,
                                         buttonAlignment = secondaryAlignment,
                                         modifier = Modifier
                                     ) {
@@ -369,7 +379,7 @@ internal fun FullPageCarouselModal(
 
             val crossButtonImageUrl = effectiveCrossButton?.uploadImage?.url ?: effectiveCrossButton?.default?.crossButtonImage
             // Normalize size from multiple possible payload shapes (default.crossButtonSize, crossButtonSize, or size)
-            val crossButtonSize = effectiveCrossButton?.default?.crossButtonSize ?: effectiveCrossButton?.crossButtonSize ?: effectiveCrossButton?.size
+            val crossButtonSize = effectiveCrossButton?.default?.size ?: effectiveCrossButton?.size ?: effectiveCrossButton?.size
 
             val crossConfig = createCrossButtonConfig(
                 fillColorString = effectiveCrossButton?.default?.color?.fill,

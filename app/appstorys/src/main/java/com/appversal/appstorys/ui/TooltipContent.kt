@@ -60,7 +60,9 @@ import com.airbnb.lottie.compose.LottieConstants
 import com.airbnb.lottie.compose.rememberLottieComposition
 import com.appversal.appstorys.AppStorys.dismissTooltip
 import com.appversal.appstorys.AppStorys.handleTooltipAction
+import com.appversal.appstorys.api.TextStyling
 import com.appversal.appstorys.api.Tooltip
+import com.appversal.appstorys.ui.components.CommonText
 import com.appversal.appstorys.ui.xml.toDp
 import com.appversal.appstorys.utils.AppStorysCoordinates
 import com.appversal.appstorys.utils.isGifUrl
@@ -375,22 +377,28 @@ private fun TextContent(tooltip: Tooltip, modifier: Modifier = Modifier) {
             ) {
                 // Title text
                 if (!tooltip.titleText.isNullOrEmpty()) {
-                    Text(
+                    CommonText(
                         text = tooltip.titleText,
-                        color = titleColor,
-                        fontSize = titleFontSize,
-                        fontWeight = FontWeight.SemiBold,
-                        textAlign = titleTextAlign
+                        styling = TextStyling(
+                            color = titleStyling?.color,
+                            fontSize = titleStyling?.fontSize ?: 14,
+                            fontFamily = "",
+                            fontDecoration = listOf("semibold"),
+                            textAlign = titleStyling?.textAlign
+                        )
                     )
                 }
 
                 // Subtitle text
                 if (!tooltip.subtitleText.isNullOrEmpty()) {
-                    Text(
+                    CommonText(
                         text = tooltip.subtitleText,
-                        color = subtitleColor,
-                        fontSize = subtitleFontSize,
-                        textAlign = subtitleTextAlign
+                        styling = TextStyling(
+                            color = subtitleStyling?.color,
+                            fontSize = subtitleStyling?.fontSize ?: 14,
+                            fontFamily = "",
+                            textAlign = subtitleStyling?.textAlign
+                        )
                     )
                 }
 
@@ -433,12 +441,14 @@ private fun TextContent(tooltip: Tooltip, modifier: Modifier = Modifier) {
                             .padding(horizontal = 16.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
+                        CommonText(
                             text = tooltip.ctaText,
-                            color = ctaTextColor,
-                            fontSize = ctaTextFontSize,
-                            fontWeight = FontWeight.Medium,
-                            textAlign = TextAlign.Center
+                            styling = TextStyling(
+                                color = ctaStyling?.text?.color,
+                                fontSize = ctaStyling?.text?.fontSize,
+                                fontFamily = "",
+                                fontDecoration = listOf("medium"),
+                            )
                         )
                     }
                 }

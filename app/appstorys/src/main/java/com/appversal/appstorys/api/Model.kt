@@ -27,9 +27,25 @@ data class ReconcileUserRequest(
 
 @Keep
 @Serializable
+data class CampaignVariant(
+    val id: String,
+    val v_id: String
+)
+
+@Keep
+@Serializable
+data class VariantCampaignDetails(
+    val variants: JsonObject
+) : CampaignDetails()
+
+@Keep
+@Serializable
 data class EligibleCampaignsResponse(
     val eligibleCampaignList: List<String>,
-    val userId: String
+    val userId: String,
+    val variants: List<CampaignVariant>? = null,
+    val personalization_data: Map<String, String>? = null,
+    val test_user: Boolean? = null
 )
 
 @Keep
@@ -93,7 +109,7 @@ data class Campaign(
     val details: CampaignDetails?,
     val position: String?,
     val screen: String?,
-    @SerialName("trigger_event") val triggerEvent: String?,
+    @SerialName("trigger_event") val triggerEvent: String?
 )
 
 @Keep
@@ -266,7 +282,7 @@ data class BannerStyling(
 @Serializable
 data class BannerStyleConfig(
     val colors: BannerColors?,
-    val crossButtonSize: Int?,
+    val size: Int?,
     val margin: BannerMargin?,
     val enabled: Boolean? = null,
     val option: String? = null,
@@ -1033,8 +1049,7 @@ data class ModalCrossButton(
     val margin: ModalMargin? = null,
     val option: String? = null,
     val selectedStyle: String? = null,
-    val crossButtonSize: Int? = null,
-    val  size: Int? = null,
+    val size: Int? = null,
 )
 
 @Serializable
@@ -1042,7 +1057,7 @@ data class ModalCrossButtonDefault(
     val color: BannerColors? = null,
     val spacing: ModalSpacing? = null,
     val crossButtonImage: String? = null,
-    val crossButtonSize: Int? = null
+    val size: Int? = null
 )
 
 @Serializable
@@ -1246,7 +1261,7 @@ data class SoundToggle(
 @Serializable
 data class MuteButtonConfig(
     val colors: BannerColors?,
-    val muteButtonSize: Int?,
+    val size: Int?,
     val margin: MuteUnmuteMargin?,
     val selectedStyle: String?
 )
@@ -1255,7 +1270,7 @@ data class MuteButtonConfig(
 @Serializable
 data class UnmuteButtonConfig(
     val colors: BannerColors?,
-    val unmuteButtonSize: Int?,
+    val size: Int?,
     val margin: MuteUnmuteMargin?,
     val selectedStyle: String?
 )
@@ -1284,7 +1299,7 @@ data class ExpandControls(
 @Serializable
 data class MaximiseButtonStyleConfig(
     val colors: BannerColors?,
-    val maximiseButtonSize: Int?,
+    val size: Int?,
     val margin: MuteUnmuteMargin?,
     val selectedStyle: String?
 )
@@ -1293,10 +1308,33 @@ data class MaximiseButtonStyleConfig(
 @Serializable
 data class MinimiseButtonStyleConfig(
     val colors: BannerColors?,
-    val minimiseButtonSize: Int?,
+    val size: Int?,
     val margin: MuteUnmuteMargin?,
     val selectedStyle: String?
 )
+
+// Common Components Start
+@Keep
+@Serializable
+data class TextStyling(
+    val color: String?,
+    val fontFamily: String?,
+    val fontSize: Int?,
+    val margin: CommonMargins? = null,
+    val textAlign: String? = null,
+    val fontDecoration: List<String>? = null
+)
+
+@Keep
+@Serializable
+data class CommonMargins(
+    val bottom: Int?,
+    val left: Int?,
+    val right: Int?,
+    val top: Int?
+)
+// Common Components End
+
 
 fun Modal.resolvedMedia(): ModalMedia? {
     // Prefer explicit content-level media (including first slide in content.set)

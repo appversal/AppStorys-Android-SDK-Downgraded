@@ -37,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -47,18 +48,28 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.toColorInt
+import coil.ImageLoader
 import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
+import coil.decode.GifDecoder
+import coil.decode.ImageDecoderDecoder
+import coil.request.CachePolicy
+import coil.request.ImageRequest
+import com.airbnb.lottie.compose.LottieAnimation
+import com.airbnb.lottie.compose.LottieCompositionSpec
+import com.airbnb.lottie.compose.LottieConstants
+import com.airbnb.lottie.compose.rememberLottieComposition
 import com.appversal.appstorys.R
 import com.appversal.appstorys.api.BottomSheetDetails
 import com.appversal.appstorys.api.BottomSheetElement
+import com.appversal.appstorys.api.TextStyling
+import com.appversal.appstorys.ui.components.CommonText
 import com.appversal.appstorys.ui.components.CrossButton
 import com.appversal.appstorys.ui.components.createCrossButtonConfig
 import com.appversal.appstorys.utils.asInt
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.intOrNull
-
+import com.appversal.appstorys.utils.isGifUrl
+import com.appversal.appstorys.utils.isLottieUrl
+import android.os.Build.VERSION.SDK_INT
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -172,7 +183,7 @@ internal fun BottomSheetComponent(
                                 strokeColorString = bottomSheetDetails.styling?.crossButton?.colors?.stroke,
                                 marginTop = bottomSheetDetails.styling?.crossButton?.margin?.top,
                                 marginEnd = bottomSheetDetails.styling?.crossButton?.margin?.right,
-                                size = bottomSheetDetails.styling?.crossButton?.crossButtonSize,
+                                size = bottomSheetDetails.styling?.crossButton?.size,
 //                                imageUrl = bannerDetails.crossButtonImage?.takeIf { it.isNotBlank() }?.let { raw ->
 //                                    val trimmed = raw.trim()
 //                                    if (trimmed.startsWith("http", true)) {
@@ -225,19 +236,78 @@ private fun ImageElement(
             else -> Alignment.Center
         },
         content = {
-            Image(
-                painter = rememberAsyncImagePainter(element.url, onState = onState),
-                contentDescription = "Image",
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(
-                        topStart = (element.cornerRadius?.topLeft ?: 0).dp,
-                        topEnd = (element.cornerRadius?.topRight ?: 0).dp,
-                        bottomEnd = (element.cornerRadius?.bottomRight ?: 0).dp,
-                        bottomStart = (element.cornerRadius?.bottomLeft ?: 0).dp
-                    )),
-                contentScale = ContentScale.FillWidth
-            )
+            if(isLottieUrl(element.url.orEmpty())){
+                val composition by rememberLottieComposition(
+                    spec = LottieCompositionSpec.Url(element.url.orEmpty())
+                )
+                LottieAnimation(
+                    composition = composition,
+                    iterations = LottieConstants.IterateForever,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(
+                            topStart = (element.cornerRadius?.topLeft ?: 0).dp,
+                            topEnd = (element.cornerRadius?.topRight ?: 0).dp,
+                            bottomEnd = (element.cornerRadius?.bottomRight ?: 0).dp,
+                            bottomStart = (element.cornerRadius?.bottomLeft ?: 0).dp
+                        )),
+                    contentScale = ContentScale.FillWidth
+                )
+            } else if(isGifUrl(element.url.orEmpty())){
+
+                val imageUrl = element.url
+
+                val imageLoader = ImageLoader.Builder(LocalContext.current)
+                    .components {
+                        if (SDK_INT >= 28) {
+                            add(ImageDecoderDecoder.Factory())
+                        } else {
+                            add(GifDecoder.Factory())
+                        }
+                    }
+                    .build()
+
+                val painter = rememberAsyncImagePainter(
+                    ImageRequest.Builder(LocalContext.current)
+                        .data(imageUrl)
+                        .memoryCacheKey(imageUrl)
+                        .diskCacheKey(imageUrl)
+                        .diskCachePolicy(CachePolicy.ENABLED)
+                        .memoryCachePolicy(CachePolicy.ENABLED)
+                        .crossfade(true)
+                        .apply { size(coil.size.Size.ORIGINAL) }
+                        .build(),
+                    imageLoader = imageLoader
+                )
+
+                Image(
+                    painter = painter,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(
+                            topStart = (element.cornerRadius?.topLeft ?: 0).dp,
+                            topEnd = (element.cornerRadius?.topRight ?: 0).dp,
+                            bottomEnd = (element.cornerRadius?.bottomRight ?: 0).dp,
+                            bottomStart = (element.cornerRadius?.bottomLeft ?: 0).dp
+                        )),
+                    contentScale = ContentScale.FillWidth
+                )
+            } else {
+                Image(
+                    painter = rememberAsyncImagePainter(element.url, onState = onState),
+                    contentDescription = "Image",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(
+                            topStart = (element.cornerRadius?.topLeft ?: 0).dp,
+                            topEnd = (element.cornerRadius?.topRight ?: 0).dp,
+                            bottomEnd = (element.cornerRadius?.bottomRight ?: 0).dp,
+                            bottomStart = (element.cornerRadius?.bottomLeft ?: 0).dp
+                        )),
+                    contentScale = ContentScale.FillWidth
+                )
+            }
         }
     )
 }
@@ -253,12 +323,6 @@ private fun BodyElement(element: BottomSheetElement) {
         "left" -> Alignment.Start
         "right" -> Alignment.End
         else -> Alignment.CenterHorizontally
-    }
-
-    val textAlign = when (element.alignment) {
-        "left" -> TextAlign.Start
-        "right" -> TextAlign.End
-        else -> TextAlign.Center
     }
 
     Column(
@@ -278,34 +342,18 @@ private fun BodyElement(element: BottomSheetElement) {
         horizontalAlignment = alignment,
         content = {
             if (!element.titleText.isNullOrBlank()) {
-                val titleColor = try {
-                    Color(
-                        (element.titleFontStyle?.colour ?: "#000000").toColorInt()
-                    )
-                } catch (_: Exception) {
-                    Color.Black
-                }
 
-                val decoration = element.titleFontStyle?.decoration.orEmpty()
-
-                val titleFontWeight =
-                    if (decoration.contains("bold")) FontWeight.Bold else FontWeight.Normal
-                val titleFontStyle =
-                    if (decoration.contains("italic")) FontStyle.Italic else FontStyle.Normal
-                val titleTextDecoration =
-                    if (decoration.contains("underline")) TextDecoration.Underline else null
-
-                Text(
+                CommonText(
+                    modifier = Modifier.fillMaxWidth(),
                     text = element.titleText,
-                    color = titleColor,
-                    fontSize = (element.titleFontSize ?: 16).sp,
-                    fontWeight = titleFontWeight,
-                    fontStyle = titleFontStyle,
-                    textDecoration = titleTextDecoration,
-                    textAlign = textAlign,
-                    lineHeight = ((element.titleLineHeight ?: 1f) * (element.titleFontSize
-                        ?: 16)).sp,
-                    modifier = Modifier.fillMaxWidth()
+                    lineHeight = ((element.titleLineHeight ?: 1f) * (element.titleFontSize ?: 16)),
+                    styling = TextStyling(
+                        color = element.titleFontStyle?.colour,
+                        fontSize = element.titleFontSize,
+                        fontFamily = "",
+                        textAlign = element.alignment,
+                        fontDecoration = element.titleFontStyle?.decoration
+                    )
                 )
             }
 
@@ -315,34 +363,18 @@ private fun BodyElement(element: BottomSheetElement) {
                         (element.spacingBetweenTitleDesc?.toInt() ?: 0).dp
                     )
                 )
-                val descriptionColor = try {
-                    Color(
-                        (element.descriptionFontStyle?.colour ?: "#000000").toColorInt()
-                    )
-                } catch (_: Exception) {
-                    Color.Black
-                }
 
-                val decoration = element.descriptionFontStyle?.decoration.orEmpty()
-                val descriptionFontWeight =
-                    if (decoration.contains("bold")) FontWeight.Bold else FontWeight.Normal
-                val descriptionFontStyle =
-                    if (decoration.contains("italic")) FontStyle.Italic else FontStyle.Normal
-                val descriptionTextDecoration =
-                    if (decoration.contains("underline")) TextDecoration.Underline else null
-
-                Text(
+                CommonText(
+                    modifier = Modifier.fillMaxWidth(),
                     text = element.descriptionText,
-                    color = descriptionColor,
-                    fontSize = (element.descriptionFontSize ?: 14).sp,
-                    fontWeight = descriptionFontWeight,
-                    fontStyle = descriptionFontStyle,
-                    textDecoration = descriptionTextDecoration,
-                    textAlign = textAlign,
-                    lineHeight = ((element.descriptionLineHeight
-                        ?: 1f) * (element.descriptionFontSize
-                        ?: 14)).sp,
-                    modifier = Modifier.fillMaxWidth()
+                    lineHeight = ((element.descriptionLineHeight ?: 1f) * (element.descriptionFontSize ?: 14)),
+                    styling = TextStyling(
+                        color = element.descriptionFontStyle?.colour,
+                        fontSize = element.descriptionFontSize,
+                        fontFamily = "",
+                        textAlign = element.alignment,
+                        fontDecoration = element.descriptionFontStyle?.decoration
+                    )
                 )
             }
         }
@@ -444,14 +476,14 @@ private fun CTAElement(element: BottomSheetElement, onClick: () -> Unit = {}) {
                         FontFamily.Default
                     }
 
-                    Text(
+                    CommonText(
                         text = element.ctaText ?: "Click",
-                        color = textColor,
-                        fontFamily = fontFamily,
-                        fontSize = (element.ctaFontSize?.toFloatOrNull() ?: 14f).sp,
-                        fontWeight = ctaFontWeight,
-                        fontStyle = ctaFontStyle,
-                        textDecoration = ctaTextDecoration
+                        styling = TextStyling(
+                            color = element.ctaTextColour,
+                            fontSize = element.ctaFontSize?.toIntOrNull(),
+                            fontFamily = "",
+                            fontDecoration = element.ctaFontDecoration
+                        )
                     )
                 }
             )
