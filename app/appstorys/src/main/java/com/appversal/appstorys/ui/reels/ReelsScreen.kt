@@ -1,12 +1,11 @@
-package com.appversal.appstorys.ui
+package com.appversal.appstorys.ui.reels
 
-import android.annotation.SuppressLint
-import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
 import android.net.Uri
 import android.view.ViewGroup
 import android.widget.FrameLayout
-import androidx.annotation.OptIn
+import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -15,9 +14,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -27,24 +23,26 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.net.toUri
 import androidx.media3.common.MediaItem
-import androidx.media3.common.util.UnstableApi
-import androidx.media3.database.StandaloneDatabaseProvider
-import androidx.media3.datasource.DefaultDataSource
-import androidx.media3.datasource.cache.CacheDataSource
-import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
-import androidx.media3.datasource.cache.SimpleCache
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import coil.compose.rememberAsyncImagePainter
 import com.appversal.appstorys.api.Reel
 import com.appversal.appstorys.api.ReelsDetails
+import com.appversal.appstorys.ui.common_components.LikeButton
+import com.appversal.appstorys.ui.common_components.createLikeButtonConfig
+import com.appversal.appstorys.ui.common_components.ShareButton
+import com.appversal.appstorys.ui.common_components.createShareButtonConfig
+import com.appversal.appstorys.ui.common_components.ArrowButton
+import com.appversal.appstorys.ui.common_components.createArrowButtonConfig
 import org.json.JSONArray
-import java.io.File
+import kotlin.collections.get
 
 @Composable
 internal fun ReelsRow(
@@ -153,34 +151,52 @@ internal fun FullScreenVideoScreen(
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
+                            // NEW IMPLEMENTATION: Using common LikeButton component
                             Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.clickable {
-                                    if (!likedReels.contains(reels[page].id)) {
-                                        reels[page].id?.let{
-                                            likesState[it] = likesState[reels[page].id]?.plus(1) ?: 1
-                                        }
-
-                                    } else {
-                                        reels[page].id?.let{
-                                            likesState[it] = likesState[reels[page].id]?.minus(1) ?: 1
-                                        }
-                                    }
-
-                                    sendLikesStatus(
-                                        Pair(
-                                            reels[page],
-                                            if (!likedReels.contains(reels[page].id)) "like" else "unlike"
-                                        )
-                                    )
-                                }
+                                horizontalAlignment = Alignment.CenterHorizontally
                             ) {
+                                val isLiked = likedReels.contains(reels[page].id)
+                                val likeButtonConfig = createLikeButtonConfig(
+                                    iconColorString = if (isLiked) reelsDetails.styling?.likeButtonColor else "#FFFFFF",
+                                    size = 32
+                                )
+
+                                LikeButton(
+                                    likedConfig = likeButtonConfig,
+                                    unlikedConfig = createLikeButtonConfig(
+                                        iconColorString = "#FFFFFF",
+                                        size = 32
+                                    ),
+                                    isLiked = isLiked,
+                                    onToggle = {
+                                        if (!likedReels.contains(reels[page].id)) {
+                                            reels[page].id?.let{
+                                                likesState[it] = likesState[reels[page].id]?.plus(1) ?: 1
+                                            }
+                                        } else {
+                                            reels[page].id?.let{
+                                                likesState[it] = likesState[reels[page].id]?.minus(1) ?: 1
+                                            }
+                                        }
+
+                                        sendLikesStatus(
+                                            Pair(
+                                                reels[page],
+                                                if (!likedReels.contains(reels[page].id)) "like" else "unlock"
+                                            )
+                                        )
+                                    }
+                                )
+
+                                /* OLD IMPLEMENTATION: Inline like button (commented out)
                                 Icon(
                                     imageVector = androidx.compose.material.icons.Icons.Default.Favorite,
                                     contentDescription = "Like",
                                     tint = if (likedReels.contains(reels[page].id)) Color(android.graphics.Color.parseColor(reelsDetails.styling?.likeButtonColor)) else Color.White,
                                     modifier = Modifier.size(32.dp)
                                 )
+                                */
+
                                 Text(
                                     text = likesState[reels[page].id].toString(),
                                     color = Color.White,
@@ -190,29 +206,42 @@ internal fun FullScreenVideoScreen(
 
                             Spacer(modifier = Modifier.height(8.dp))
 
+                            // NEW IMPLEMENTATION: Using common ShareButton component
                             if (!reels[page].link.isNullOrEmpty()) {
                                 Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    modifier = Modifier.clickable {
-                                        val sendIntent = android.content.Intent().apply {
-                                            action = android.content.Intent.ACTION_SEND
-                                            putExtra(
-                                                android.content.Intent.EXTRA_TEXT,
-                                                reels[page].link
-                                            )
-                                            type = "text/plain"
-                                        }
-                                        val shareIntent =
-                                            android.content.Intent.createChooser(sendIntent, null)
-                                        context.startActivity(shareIntent)
-                                    }
+                                    horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
+                                    val shareButtonConfig = createShareButtonConfig(
+                                        iconColorString = "#FFFFFF",
+                                        size = 32
+                                    )
+
+                                    ShareButton(
+                                        config = shareButtonConfig,
+                                        onShare = {
+                                            val sendIntent = Intent().apply {
+                                                action = Intent.ACTION_SEND
+                                                putExtra(
+                                                    Intent.EXTRA_TEXT,
+                                                    reels[page].link
+                                                )
+                                                type = "text/plain"
+                                            }
+                                            val shareIntent =
+                                                Intent.createChooser(sendIntent, null)
+                                            context.startActivity(shareIntent)
+                                        }
+                                    )
+
+                                    /* OLD IMPLEMENTATION: Inline share button (commented out)
                                     Icon(
                                         imageVector = androidx.compose.material.icons.Icons.Default.Share,
                                         contentDescription = "Share",
                                         tint = Color.White,
                                         modifier = Modifier.size(32.dp)
                                     )
+                                    */
+
                                     Text(
                                         text = "Share",
                                         color = Color.White,
@@ -243,7 +272,7 @@ internal fun FullScreenVideoScreen(
                                     color = Color(android.graphics.Color.parseColor(reelsDetails.styling?.descriptionTextColor)),
                                     style = MaterialTheme.typography.bodyMedium,
                                     maxLines = 2,
-                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                    overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier.padding(top = 20.dp)
                                 )
                             }
@@ -256,16 +285,16 @@ internal fun FullScreenVideoScreen(
                                         sendEvents(Pair(reels[page], "CLK"))
                                         try {
                                             val uri = Uri.parse(reels[page].link)
-                                            val intent = android.content.Intent(
-                                                android.content.Intent.ACTION_VIEW,
+                                            val intent = Intent(
+                                                Intent.ACTION_VIEW,
                                                 uri
                                             )
                                             context.startActivity(intent)
                                         } catch (e: Exception) {
-                                            android.widget.Toast.makeText(
+                                            Toast.makeText(
                                                 context,
                                                 "Could not open link",
-                                                android.widget.Toast.LENGTH_SHORT
+                                                Toast.LENGTH_SHORT
                                             ).show()
                                         }
                                     },
@@ -281,7 +310,7 @@ internal fun FullScreenVideoScreen(
                                         text = reels[page].buttonText ?: "",
                                         color = Color(android.graphics.Color.parseColor(reelsDetails.styling?.ctaTextColor)),
                                         style = MaterialTheme.typography.labelLarge.copy(
-                                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                                            fontWeight = FontWeight.Bold
                                         )
                                     )
                                 }
@@ -293,6 +322,22 @@ internal fun FullScreenVideoScreen(
             }
         }
 
+        // NEW IMPLEMENTATION: Using common ArrowButton component
+        val arrowButtonConfig = createArrowButtonConfig(
+            iconColorString = "#FFFFFF",
+            fillColorString = null, // Transparent background
+            size = 28
+        )
+
+        ArrowButton(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(12.dp),
+            config = arrowButtonConfig,
+            onBack = onBack
+        )
+
+        /* OLD IMPLEMENTATION: Inline arrow button (commented out)
         IconButton(
             onClick = { onBack() },
             modifier = Modifier
@@ -306,6 +351,7 @@ internal fun FullScreenVideoScreen(
                 modifier = Modifier.size(28.dp)
             )
         }
+        */
     }
 }
 

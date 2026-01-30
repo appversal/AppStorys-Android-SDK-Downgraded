@@ -1,7 +1,6 @@
-package com.appversal.appstorys.ui
+package com.appversal.appstorys.ui.floater
 
 import android.os.Build.VERSION.SDK_INT
-import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -28,6 +27,7 @@ import coil.decode.GifDecoder
 import coil.decode.ImageDecoderDecoder
 import coil.request.CachePolicy
 import coil.request.ImageRequest
+import coil.size.Size
 import com.airbnb.lottie.compose.LottieAnimation
 import com.airbnb.lottie.compose.LottieCompositionSpec
 import com.airbnb.lottie.compose.LottieConstants
@@ -104,7 +104,7 @@ internal fun OverlayFloater(
                             .diskCachePolicy(CachePolicy.ENABLED)
                             .memoryCachePolicy(CachePolicy.ENABLED)
                             .crossfade(true)
-                            .apply { size(coil.size.Size.ORIGINAL) }
+                            .apply { size(Size.ORIGINAL) }
                             .build(),
                         imageLoader = imageLoader
                     )

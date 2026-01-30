@@ -96,10 +96,10 @@ internal fun ImageCard(
 
     Card(
         shape = RoundedCornerShape(
-            topStart = (widgetDetails.styling?.topLeftRadius?.toFloatOrNull() ?: 0f).dp,
-            topEnd = (widgetDetails.styling?.topRightRadius?.toFloatOrNull() ?: 0f).dp,
-            bottomStart = (widgetDetails.styling?.bottomLeftRadius?.toFloatOrNull() ?: 0f).dp,
-            bottomEnd = (widgetDetails.styling?.bottomRightRadius?.toFloatOrNull() ?: 0f).dp,
+            topStart = (widgetDetails.styling?.topLeftRadius ?: 0).dp,
+            topEnd = (widgetDetails.styling?.topRightRadius ?: 0).dp,
+            bottomStart = (widgetDetails.styling?.bottomLeftRadius ?: 0).dp,
+            bottomEnd = (widgetDetails.styling?.bottomRightRadius ?: 0).dp,
         ),
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         modifier = modifier

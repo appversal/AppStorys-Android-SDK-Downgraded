@@ -12,19 +12,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -43,10 +36,8 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.googlefonts.Font
 import androidx.compose.ui.text.googlefonts.GoogleFont
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.core.graphics.toColorInt
 import coil.ImageLoader
 import coil.compose.AsyncImagePainter
@@ -63,9 +54,9 @@ import com.appversal.appstorys.R
 import com.appversal.appstorys.api.BottomSheetDetails
 import com.appversal.appstorys.api.BottomSheetElement
 import com.appversal.appstorys.api.TextStyling
-import com.appversal.appstorys.ui.components.CommonText
-import com.appversal.appstorys.ui.components.CrossButton
-import com.appversal.appstorys.ui.components.createCrossButtonConfig
+import com.appversal.appstorys.ui.common_components.CommonText
+import com.appversal.appstorys.ui.common_components.CrossButton
+import com.appversal.appstorys.ui.common_components.createCrossButtonConfig
 import com.appversal.appstorys.utils.asInt
 import com.appversal.appstorys.utils.isGifUrl
 import com.appversal.appstorys.utils.isLottieUrl
@@ -80,8 +71,6 @@ internal fun BottomSheetComponent(
 ) {
     val elements = bottomSheetDetails.elements?.sortedBy { it.order } ?: emptyList()
     val imageElement = elements.firstOrNull { it.type == "image" }
-    val bodyElements = elements.filter { it.type == "body" }
-    val ctaElements = elements.filter { it.type == "cta" }
 
     var imageActive by remember(imageElement) { mutableStateOf(imageElement != null) }
 
@@ -97,7 +86,9 @@ internal fun BottomSheetComponent(
         }
     }
 
-    val cornerRadius = bottomSheetDetails.cornerRadius?.toFloatOrNull()?.dp ?: 16.dp
+    // Parse corner radius - now it's a CornerRadius object
+    val topLeftRadius = (bottomSheetDetails.cornerRadius?.topLeft ?: 16).dp
+    val topRightRadius = (bottomSheetDetails.cornerRadius?.topRight ?: 16).dp
 
     val onImageState = remember {
         { state: AsyncImagePainter.State ->
@@ -105,10 +96,35 @@ internal fun BottomSheetComponent(
         }
     }
 
+    // Parse backdrop color and opacity from backend
+    val backdropColor = try {
+        Color(bottomSheetDetails.backdropColor?.toColorInt() ?: 0x808080)
+    } catch (e: Exception) {
+        Color(0x808080) // Default gray
+    }
+
+    val backdropOpacity = (bottomSheetDetails.backdropOpacity?.asInt(50)?.toFloat() ?: 50f) / 100f
+
+    // Parse background color from backend (root level or styling)
+    // For imageOnly type, use transparent background to avoid white space around image
+//    val isImageOnly = imageElement?.bottomsheetType == "imageOnly"
+//    val backgroundColor = if (isImageOnly) {
+//        Color.Transparent
+//    } else {
+//        try {
+//            Color((bottomSheetDetails.backgroundColor
+//                ?: bottomSheetDetails.styling?.backgroundColor
+//                ?: "#FFFFFF").toColorInt())
+//        } catch (e: Exception) {
+//            Color.White
+//        }
+//    }
+
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
-        shape = RoundedCornerShape(topStart = cornerRadius, topEnd = cornerRadius),
-        containerColor = Color.Transparent,
+        shape = RoundedCornerShape(topStart = topLeftRadius, topEnd = topRightRadius),
+        containerColor = Color.Transparent, // Use backend background color (transparent for imageOnly)
+        scrimColor = backdropColor.copy(alpha = backdropOpacity), // Apply backdrop with opacity
         dragHandle = null,
         sheetState = sheetState,
         content = {
@@ -133,66 +149,81 @@ internal fun BottomSheetComponent(
                             .fillMaxWidth(),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         content = {
-                            if (!hasOverlayButton && imageElement != null) {
-                                ImageElement(imageElement, onClick, onImageState)
-                            }
-
-                            bodyElements.forEach { BodyElement(it) }
-
-                            val leftCTA = ctaElements.firstOrNull { it.position == "left" }
-                            val rightCTA = ctaElements.firstOrNull { it.position == "right" }
-                            val centerCTAs =
-                                ctaElements.filter { it.position == "center" || it.position.isNullOrEmpty() }
-
-                            if (leftCTA != null || rightCTA != null) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    content = {
-                                        Box(
-                                            modifier = Modifier.weight(1f),
-                                            content = {
-                                                if (leftCTA != null) {
-                                                    CTAElement(leftCTA) { onClick(leftCTA.ctaLink) }
-                                                }
-                                            }
-                                        )
-                                        Box(
-                                            modifier = Modifier.weight(1f),
-                                            content = {
-                                                if (rightCTA != null) {
-                                                    CTAElement(rightCTA) { onClick(rightCTA.ctaLink) }
-                                                }
-                                            }
-                                        )
+                            // Render elements in order, excluding overlay images
+                            elements.forEach { element ->
+                                when (element.type) {
+                                    "image" -> {
+                                        // Only render image here if it's not an overlay
+                                        if (!hasOverlayButton) {
+                                            ImageElement(element, onClick, onImageState)
+                                        }
                                     }
-                                )
-                            }
+                                    "body" -> {
+                                        BodyElement(element)
+                                    }
+                                    "cta" -> {
+                                        // Check if this is part of a left/right pair
+                                        val allCTAs = elements.filter { it.type == "cta" }
+                                        val leftCTA = allCTAs.firstOrNull { it.position == "left" }
+                                        val rightCTA = allCTAs.firstOrNull { it.position == "right" }
 
-                            centerCTAs.forEach { cta ->
-                                CTAElement(cta) { onClick(cta.ctaLink) }
+                                        // If this is the first left or right CTA and both exist, render them together
+                                        if ((element == leftCTA || element == rightCTA) && leftCTA != null && rightCTA != null) {
+                                            if (element == leftCTA) {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    content = {
+                                                        Box(
+                                                            modifier = Modifier.weight(1f),
+                                                            content = {
+                                                                CTAElement(leftCTA) { onClick(leftCTA.ctaLink) }
+                                                            }
+                                                        )
+                                                        Box(
+                                                            modifier = Modifier.weight(1f),
+                                                            content = {
+                                                                CTAElement(rightCTA) { onClick(rightCTA.ctaLink) }
+                                                            }
+                                                        )
+                                                    }
+                                                )
+                                            }
+                                            // Skip rendering the second CTA of the pair (rightCTA when we already rendered both)
+                                        } else if (element.position != "left" && element.position != "right") {
+                                            // Render center or no-position CTAs normally
+                                            CTAElement(element) { onClick(element.ctaLink) }
+                                        } else if ((element.position == "left" && rightCTA == null) ||
+                                                   (element.position == "right" && leftCTA == null)) {
+                                            // Render single left or right CTA
+                                            CTAElement(element) { onClick(element.ctaLink) }
+                                        }
+                                    }
+                                }
                             }
                         }
                     )
 
-                    if (bottomSheetDetails.enableCrossButton == "true") {
+                    // Check the common enabled field first, then fall back to legacy enableCrossButton string
+                    // Prioritize root-level crossButton (new backend format) over styling.crossButton
+                    val crossButton = bottomSheetDetails.crossButton ?: bottomSheetDetails.styling?.crossButton
+                    val crossEnabled = crossButton?.enabled
+                        ?: (bottomSheetDetails.enableCrossButton?.trim()?.equals("true", true) ?: true)
+
+                    if (crossEnabled) {
+                        // Get cross button config with support for new backend format
+                        val crossColors = crossButton?.color ?: crossButton?.colors
+                        val crossImageUrl = crossButton?.image
+
                         CrossButton(
                             modifier = Modifier.align(Alignment.TopEnd),
                             config = createCrossButtonConfig(
-                                fillColorString = bottomSheetDetails.styling?.crossButton?.colors?.fill,
-                                crossColorString = bottomSheetDetails.styling?.crossButton?.colors?.cross,
-                                strokeColorString = bottomSheetDetails.styling?.crossButton?.colors?.stroke,
-                                marginTop = bottomSheetDetails.styling?.crossButton?.margin?.top,
-                                marginEnd = bottomSheetDetails.styling?.crossButton?.margin?.right,
-                                size = bottomSheetDetails.styling?.crossButton?.size,
-//                                imageUrl = bannerDetails.crossButtonImage?.takeIf { it.isNotBlank() }?.let { raw ->
-//                                    val trimmed = raw.trim()
-//                                    if (trimmed.startsWith("http", true)) {
-//                                        trimmed
-//                                    } else {
-//                                        val base = "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/"
-//                                        if (trimmed.startsWith("/")) base + trimmed.removePrefix("/") else base + trimmed
-//                                    }
-//                                }
+                                fillColorString = crossColors?.fill,
+                                crossColorString = crossColors?.cross,
+                                strokeColorString = crossColors?.stroke,
+                                marginTop = crossButton?.margin?.top,
+                                marginEnd = crossButton?.margin?.right,
+                                size = crossButton?.size,
+                                imageUrl = crossImageUrl
                             ),
                             onClose = onDismissRequest
                         )
@@ -319,6 +350,10 @@ private fun BodyElement(element: BottomSheetElement) {
     val paddingTop = element.marginTop?.dp ?: 0.dp
     val paddingBottom = element.marginBottom?.dp ?: 0.dp
 
+    // Add default padding if all margins are 0 to make text visible
+    val hasZeroMargins = paddingLeft == 0.dp && paddingRight == 0.dp && paddingTop == 0.dp && paddingBottom == 0.dp
+    val defaultPadding = if (hasZeroMargins) 12.dp else 0.dp
+
     val alignment = when (element.alignment) {
         "left" -> Alignment.Start
         "right" -> Alignment.End
@@ -329,29 +364,38 @@ private fun BodyElement(element: BottomSheetElement) {
         modifier = Modifier
             .fillMaxWidth()
             .background(
-                color = Color(
-                    (element.bodyBackgroundColor ?: "#FFFFFF").toColorInt()
-                )
+                color = try {
+                    val bgColor = element.bodyBackgroundColor?.takeIf { it.isNotBlank() }
+                    if (bgColor != null) {
+                        Color(bgColor.toColorInt())
+                    } else {
+                        Color.Transparent
+                    }
+                } catch (_: Exception) {
+                    Color.Transparent
+                }
             )
             .padding(
-                start = paddingLeft,
-                end = paddingRight,
-                top = paddingTop,
-                bottom = paddingBottom
+                start = paddingLeft + defaultPadding,
+                end = paddingRight + defaultPadding,
+                top = paddingTop + defaultPadding,
+                bottom = paddingBottom + defaultPadding
             ),
         horizontalAlignment = alignment,
         content = {
             if (!element.titleText.isNullOrBlank()) {
+                // Parse fontSize from JsonElement (can be String or Int)
+                val titleFontSizeValue = element.titleFontStyle?.fontSize?.asInt(element.titleFontSize ?: 16) ?: element.titleFontSize ?: 16
 
                 CommonText(
                     modifier = Modifier.fillMaxWidth(),
                     text = element.titleText,
-                    lineHeight = ((element.titleLineHeight ?: 1f) * (element.titleFontSize ?: 16)),
+                    lineHeight = ((element.titleLineHeight ?: 1f) * titleFontSizeValue),
                     styling = TextStyling(
                         color = element.titleFontStyle?.colour,
-                        fontSize = element.titleFontSize,
+                        fontSize = titleFontSizeValue,
                         fontFamily = "",
-                        textAlign = element.alignment,
+                        textAlign = element.titleFontStyle?.alignment ?: element.alignment, // Use fontStyle alignment first
                         fontDecoration = element.titleFontStyle?.decoration
                     )
                 )
@@ -364,15 +408,18 @@ private fun BodyElement(element: BottomSheetElement) {
                     )
                 )
 
+                // Parse fontSize from JsonElement (can be String or Int)
+                val descFontSizeValue = element.descriptionFontStyle?.fontSize?.asInt(element.descriptionFontSize ?: 14) ?: element.descriptionFontSize ?: 14
+
                 CommonText(
                     modifier = Modifier.fillMaxWidth(),
                     text = element.descriptionText,
-                    lineHeight = ((element.descriptionLineHeight ?: 1f) * (element.descriptionFontSize ?: 14)),
+                    lineHeight = ((element.descriptionLineHeight ?: 1f) * descFontSizeValue),
                     styling = TextStyling(
                         color = element.descriptionFontStyle?.colour,
-                        fontSize = element.descriptionFontSize,
+                        fontSize = descFontSizeValue,
                         fontFamily = "",
-                        textAlign = element.alignment,
+                        textAlign = element.descriptionFontStyle?.alignment ?: element.alignment, // Use fontStyle alignment first
                         fontDecoration = element.descriptionFontStyle?.decoration
                     )
                 )
@@ -383,33 +430,52 @@ private fun BodyElement(element: BottomSheetElement) {
 
 @Composable
 private fun CTAElement(element: BottomSheetElement, onClick: () -> Unit = {}) {
-    val paddingLeft = element.marginLeft?.dp ?: 0.dp
-    val paddingRight = element.marginRight?.dp ?: 0.dp
-    val paddingTop = element.marginTop?.dp ?: 0.dp
-    val paddingBottom = element.marginBottom?.dp ?: 0.dp
+    // Support both nested cta.margin and flat margin fields
+    val marginLeft = element.cta?.margin?.left ?: element.marginLeft
+    val marginRight = element.cta?.margin?.right ?: element.marginRight
+    val marginTop = element.cta?.margin?.top ?: element.marginTop
+    val marginBottom = element.cta?.margin?.bottom ?: element.marginBottom
 
+    val paddingLeft = marginLeft?.dp ?: 0.dp
+    val paddingRight = marginRight?.dp ?: 0.dp
+    val paddingTop = marginTop?.dp ?: 0.dp
+    val paddingBottom = marginBottom?.dp ?: 0.dp
+
+    // Support both nested cta.container.ctaBoxColor and flat ctaBoxColor
     val buttonColor = try {
-        Color((element.ctaBoxColor ?: "#000000").toColorInt())
+        val colorString = element.cta?.container?.ctaBoxColor ?: element.ctaBoxColor ?: "#000000"
+        Color(colorString.toColorInt())
     } catch (_: Exception) {
         Color.Black
     }
 
+    // Support both nested cta.text.color and flat ctaTextColour
     val textColor = try {
-        Color((element.ctaTextColour ?: "#FFFFFF").toColorInt())
+        val colorString = element.cta?.text?.color ?: element.ctaTextColour ?: "#FFFFFF"
+        Color(colorString.toColorInt())
     } catch (_: Exception) {
         Color.White
     }
 
-    val buttonHeight = element.ctaHeight?.asInt(50)?.dp ?: 50.dp
-    val buttonWidth = element.ctaWidth?.asInt(100)?.dp ?: 100.dp
+    // Support both nested and flat height/width
+    val buttonHeight = (element.cta?.container?.height ?: element.ctaHeight?.asInt(50))?.dp ?: 50.dp
+    val buttonWidth = (element.cta?.container?.ctaWidth?.asInt(100) ?: element.ctaWidth?.asInt(100))?.dp ?: 100.dp
 
+    // Support both nested cta.container.backgroundColor and flat ctaBackgroundColor
     val ctaBackgroundColor = try {
-        Color(
-            (element.ctaBackgroundColor ?: "#FFFFFF").toColorInt()
-        )
+        val colorString = element.cta?.container?.backgroundColor?.takeIf { it.isNotBlank() }
+            ?: element.ctaBackgroundColor?.takeIf { it.isNotBlank() }
+        if (colorString != null) {
+            Color(colorString.toColorInt())
+        } else {
+            Color.Transparent
+        }
     } catch (_: Exception) {
-        Color.White
+        Color.Transparent
     }
+
+    // Support both nested cta.container.ctaFullWidth and flat ctaFullWidth
+    val isFullWidth = element.cta?.container?.ctaFullWidth ?: element.ctaFullWidth ?: false
 
     Box(
         modifier = Modifier
@@ -423,7 +489,7 @@ private fun CTAElement(element: BottomSheetElement, onClick: () -> Unit = {}) {
                 top = paddingTop,
                 bottom = paddingBottom
             ),
-        contentAlignment = when (element.alignment) {
+        contentAlignment = when (element.cta?.container?.alignment ?: element.alignment) {
             "left" -> Alignment.CenterStart
             "right" -> Alignment.CenterEnd
             else -> Alignment.Center
@@ -432,20 +498,21 @@ private fun CTAElement(element: BottomSheetElement, onClick: () -> Unit = {}) {
             Button(
                 onClick = onClick,
                 shape = RoundedCornerShape(
-                    topStart = (element.ctaBorderRadius?.topLeft ?: 0).dp,
-                    topEnd = (element.ctaBorderRadius?.topRight ?: 0).dp,
-                    bottomEnd = (element.ctaBorderRadius?.bottomRight ?: 0).dp,
-                    bottomStart = (element.ctaBorderRadius?.bottomLeft ?: 0).dp
+                    topStart = (element.cta?.cornerRadius?.topLeft ?: element.ctaBorderRadius?.topLeft ?: 0).dp,
+                    topEnd = (element.cta?.cornerRadius?.topRight ?: element.ctaBorderRadius?.topRight ?: 0).dp,
+                    bottomEnd = (element.cta?.cornerRadius?.bottomRight ?: element.ctaBorderRadius?.bottomRight ?: 0).dp,
+                    bottomStart = (element.cta?.cornerRadius?.bottomLeft ?: element.ctaBorderRadius?.bottomLeft ?: 0).dp
                 ),
                 colors = ButtonDefaults.buttonColors(containerColor = buttonColor),
                 modifier = Modifier
                     .height(buttonHeight)
                     .then(
-                        if (element.ctaFullWidth == true) Modifier.fillMaxWidth()
+                        if (isFullWidth) Modifier.fillMaxWidth()
                         else Modifier.width(buttonWidth)
                     ),
                 content = {
-                    val decoration = element.ctaFontDecoration.orEmpty()
+                    // Support both nested cta.text.fontDecoration and flat ctaFontDecoration
+                    val decoration = element.cta?.text?.fontDecoration ?: element.ctaFontDecoration ?: emptyList()
 
                     val ctaFontWeight =
                         if (decoration.contains("bold")) FontWeight.Bold else FontWeight.Normal
@@ -454,7 +521,8 @@ private fun CTAElement(element: BottomSheetElement, onClick: () -> Unit = {}) {
                     val ctaTextDecoration =
                         if (decoration.contains("underline")) TextDecoration.Underline else null
 
-                    val fontName = element.ctaFontFamily ?: "Poppins"
+                    // Support both nested cta.text.fontFamily and flat ctaFontFamily
+                    val fontName = element.cta?.text?.fontFamily ?: element.ctaFontFamily ?: "Poppins"
 
                     val fontFamily = try {
                         val provider = GoogleFont.Provider(
@@ -479,10 +547,10 @@ private fun CTAElement(element: BottomSheetElement, onClick: () -> Unit = {}) {
                     CommonText(
                         text = element.ctaText ?: "Click",
                         styling = TextStyling(
-                            color = element.ctaTextColour,
-                            fontSize = element.ctaFontSize?.toIntOrNull(),
+                            color = element.cta?.text?.color ?: element.ctaTextColour,
+                            fontSize = element.cta?.text?.fontSize ?: element.ctaFontSize?.toIntOrNull(),
                             fontFamily = "",
-                            fontDecoration = element.ctaFontDecoration
+                            fontDecoration = decoration
                         )
                     )
                 }

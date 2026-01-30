@@ -6,10 +6,11 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -34,10 +35,8 @@ import com.airbnb.lottie.compose.LottieAnimation
 import com.airbnb.lottie.compose.LottieCompositionSpec
 import com.airbnb.lottie.compose.LottieConstants
 import com.airbnb.lottie.compose.rememberLottieComposition
-import com.appversal.appstorys.api.BannerDetails
-import com.appversal.appstorys.api.CampaignDetails
-import com.appversal.appstorys.ui.components.CrossButton
-import com.appversal.appstorys.ui.components.CrossButtonConfig
+import com.appversal.appstorys.ui.common_components.CrossButton
+import com.appversal.appstorys.ui.common_components.CrossButtonConfig
 import com.appversal.appstorys.utils.isGifUrl
 
 @Composable
@@ -46,138 +45,170 @@ internal fun PinnedBanner(
     imageUrl: String?,
     lottieUrl: String?,
     contentScale: ContentScale,
-    width: Dp? = null,
-    height: Dp?,
+//    width: Dp? = null,
+//    height: Dp?,
     bottomMargin: Dp = 0.dp,
     leftMargin: Dp = 0.dp,
     rightMargin: Dp = 0.dp,
     exitIcon: Boolean = false,
     exitUnit: () -> Unit,
-    shape: RoundedCornerShape = RoundedCornerShape(topEnd = 16.dp, topStart = 16.dp),
+    shape: RoundedCornerShape = RoundedCornerShape(topEnd = 16.dp, topStart = 16.dp, bottomEnd = 16.dp, bottomStart = 16.dp),
     placeHolder: Drawable? = null,
     placeholderContent: (@Composable () -> Unit)? = null,
     onClick: () -> Unit,
     crossButtonConfig: CrossButtonConfig = CrossButtonConfig(),
+    aspectRatio: Float?,
+    forcedHeight: Dp? = null
 ) {
     val context = LocalContext.current
-    Card(
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        modifier = modifier.padding(bottom = bottomMargin, start = leftMargin, end = rightMargin),
-        shape = shape,
-    ) {
-        Box(modifier = Modifier.clickable(
-            interactionSource = remember { MutableInteractionSource() },
-            indication = null,
-            onClick = onClick
-        )) {
+
+    val bannerModifier = Modifier
+        .fillMaxWidth()
+        .then(
             when {
-                !lottieUrl.isNullOrEmpty() -> {
-                    val composition by rememberLottieComposition(
-                        spec = LottieCompositionSpec.Url(lottieUrl)
-                    )
-                    LottieAnimation(
-                        composition = composition,
-                        iterations = LottieConstants.IterateForever,
-                        modifier = Modifier
-                            .height(height ?: Dp.Unspecified)
-                            .width(width ?: Dp.Unspecified)
-                    )
+                forcedHeight != null -> {
+                    Modifier.height(forcedHeight)
                 }
+                aspectRatio != null -> {
+                    Modifier.aspectRatio(1f / aspectRatio)
+                }
+                else -> Modifier
+            }
+        )
 
-                !imageUrl.isNullOrEmpty() -> {
-                    if (isGifUrl(imageUrl)) {
-                        val imageLoader = ImageLoader.Builder(context)
-                            .components {
-                                if (SDK_INT >= 28) {
-                                    add(ImageDecoderDecoder.Factory())
-                                } else {
-                                    add(GifDecoder.Factory())
-                                }
-                            }
-                            .build()
+    Box(
+        modifier = bannerModifier
+            .then(modifier)
+            .padding(bottom = bottomMargin, start = leftMargin, end = rightMargin)
+    ) {
+        Card(
+            shape = shape,
+            colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+            modifier = Modifier.fillMaxSize(),
+        ) {
 
-                        val painter = rememberAsyncImagePainter(
-                            ImageRequest.Builder(context)
-                                .data(imageUrl)
-                                .memoryCacheKey(imageUrl)
-                                .diskCacheKey(imageUrl)
-                                .diskCachePolicy(CachePolicy.ENABLED)
-                                .memoryCachePolicy(CachePolicy.ENABLED)
-                                .crossfade(true)
-                                .apply { size(coil.size.Size.ORIGINAL) }
-                                .build(),
-                            imageLoader = imageLoader
+            Box(modifier = Modifier
+                .fillMaxSize()
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onClick
+            )) {
+                val effectiveContentScale =
+                    if (forcedHeight != null) ContentScale.FillBounds
+                    else ContentScale.FillWidth
+
+                when {
+                    !lottieUrl.isNullOrEmpty() -> {
+                        val composition by rememberLottieComposition(
+                            spec = LottieCompositionSpec.Url(lottieUrl)
                         )
-
-                        Image(
-                            painter = painter,
-                            contentDescription = null,
-                            contentScale = contentScale,
-                            modifier = Modifier
-                                .height(height ?: Dp.Unspecified)
-                                .width(width ?: Dp.Unspecified)
+                        LottieAnimation(
+                            composition = composition,
+                            iterations = LottieConstants.IterateForever,
+                            modifier = bannerModifier
+//                            .height(height ?: Dp.Unspecified)
+//                            .width(width ?: Dp.Unspecified)
                         )
-                    } else {
-                        SubcomposeAsyncImage(
-                            model = imageUrl,
-                            contentDescription = null,
-                            contentScale = contentScale,
-                            modifier = Modifier
-                                .height(height ?: Dp.Unspecified)
-                                .width(width ?: Dp.Unspecified),
-                            loading = {
-                                if (placeholderContent != null) {
-                                    Box(
-                                        modifier = Modifier
-                                            .height(height ?: Dp.Unspecified)
-                                            .width(width ?: Dp.Unspecified)
-                                    ) {
-                                        placeholderContent()
+                    }
+
+                    !imageUrl.isNullOrEmpty() -> {
+                        if (isGifUrl(imageUrl)) {
+                            val imageLoader = ImageLoader.Builder(context)
+                                .components {
+                                    if (SDK_INT >= 28) {
+                                        add(ImageDecoderDecoder.Factory())
+                                    } else {
+                                        add(GifDecoder.Factory())
                                     }
-                                } else if (placeHolder != null) {
-                                    Image(
-                                        painter = rememberAsyncImagePainter(placeHolder),
-                                        contentDescription = null,
-                                        contentScale = contentScale,
-                                        modifier = Modifier
-                                            .height(height ?: Dp.Unspecified)
-                                            .width(width ?: Dp.Unspecified)
-                                    )
                                 }
-                            }
-                        )
-                    }
-                }
+                                .build()
 
-                else -> {
-                    if (placeholderContent != null) {
-                        Box(
-                            modifier = Modifier
-                                .height(height ?: Dp.Unspecified)
-                                .width(width ?: Dp.Unspecified)
-                        ) {
-                            placeholderContent()
+                            val painter = rememberAsyncImagePainter(
+                                ImageRequest.Builder(context)
+                                    .data(imageUrl)
+                                    .memoryCacheKey(imageUrl)
+                                    .diskCacheKey(imageUrl)
+                                    .diskCachePolicy(CachePolicy.ENABLED)
+                                    .memoryCachePolicy(CachePolicy.ENABLED)
+                                    .crossfade(true)
+                                    .apply { size(coil.size.Size.ORIGINAL) }
+                                    .build(),
+                                imageLoader = imageLoader
+                            )
+
+                            Image(
+                                painter = painter,
+                                contentDescription = null,
+                                contentScale = effectiveContentScale,
+                                modifier = bannerModifier
+//                                .height(height ?: Dp.Unspecified)
+//                                .width(width ?: Dp.Unspecified)
+                            )
                         }
-                    } else if (placeHolder != null) {
-                        Image(
-                            painter = rememberAsyncImagePainter(placeHolder),
-                            contentDescription = null,
-                            contentScale = contentScale,
-                            modifier = Modifier
-                                .height(height ?: Dp.Unspecified)
-                                .width(width ?: Dp.Unspecified)
-                        )
+
+                        else {
+                            SubcomposeAsyncImage(
+                                model = imageUrl,
+                                contentDescription = null,
+                                contentScale = effectiveContentScale,
+                                modifier = bannerModifier,
+//                                .height(height ?: Dp.Unspecified)
+//                                .width(width ?: Dp.Unspecified),
+                                loading = {
+                                    if (placeholderContent != null) {
+                                        Box(
+                                            modifier = Modifier.fillMaxSize()
+//                                            .height(height ?: Dp.Unspecified)
+//                                            .width(width ?: Dp.Unspecified)
+                                        ) {
+                                            placeholderContent()
+                                        }
+                                    } else if (placeHolder != null) {
+                                        Image(
+                                            painter = rememberAsyncImagePainter(placeHolder),
+                                            contentDescription = null,
+                                            contentScale = effectiveContentScale,
+                                            modifier = Modifier.fillMaxSize()
+//                                            .height(height ?: Dp.Unspecified)
+//                                            .width(width ?: Dp.Unspecified)
+                                        )
+                                    }
+                                }
+                            )
+                        }
+                    }
+
+                    else -> {
+                        if (placeholderContent != null) {
+                            Box(
+                                modifier = Modifier.fillMaxSize()
+//                                .height(height ?: Dp.Unspecified)
+//                                .width(width ?: Dp.Unspecified)
+                            ) {
+                                placeholderContent()
+                            }
+                        } else if (placeHolder != null) {
+                            Image(
+                                painter = rememberAsyncImagePainter(placeHolder),
+                                contentDescription = null,
+                                contentScale = effectiveContentScale,
+                                modifier = Modifier.fillMaxSize()
+//                                .height(height ?: Dp.Unspecified)
+//                                .width(width ?: Dp.Unspecified)
+                            )
+                        }
                     }
                 }
             }
+        }
 
-            if (exitIcon) {
-                CrossButton(
-                    modifier = Modifier.align(Alignment.TopEnd),
-                    config = crossButtonConfig,
-                    onClose = exitUnit
-                )
-            }
+        if (exitIcon) {
+            CrossButton(
+                modifier = Modifier.align(Alignment.TopEnd),
+                config = crossButtonConfig,
+                onClose = exitUnit
+            )
         }
     }
 }

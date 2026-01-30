@@ -6,7 +6,10 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -17,10 +20,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.appversal.appstorys.api.Modal
-import com.appversal.appstorys.api.resolvedMedia
-import com.appversal.appstorys.ui.components.CrossButton
-import com.appversal.appstorys.ui.components.createCrossButtonConfig
-import com.appversal.appstorys.ui.components.parseColorString
+import com.appversal.appstorys.ui.common_components.CrossButton
+import com.appversal.appstorys.ui.common_components.createCrossButtonConfig
+import com.appversal.appstorys.ui.common_components.parseColorString
 
 @Composable
 fun MediaOnlyModal(
@@ -32,14 +34,15 @@ fun MediaOnlyModal(
 ) {
     val appearance = modal.styling?.appearance
     val dimension = appearance?.dimension
-    // Corner radius
+    // Corner radius - ModalCornerRadius uses Int? fields
+    // When cornerRadius values are provided (even 0), use them. Only fallback if null.
     val cornerRadius = appearance?.cornerRadius
-    val flatBorderRadius = modal.borderRadius
+    val flatBorderRadius = modal.borderRadius ?: 16
     val cornerShape = RoundedCornerShape(
-        topStart = cornerRadius?.topLeft?.toIntOrNull()?.dp ?: flatBorderRadius?.dp ?: 16.dp,
-        topEnd = cornerRadius?.topRight?.toIntOrNull()?.dp ?: flatBorderRadius?.dp ?: 16.dp,
-        bottomStart = cornerRadius?.bottomLeft?.toIntOrNull()?.dp ?: flatBorderRadius?.dp ?: 16.dp,
-        bottomEnd = cornerRadius?.bottomRight?.toIntOrNull()?.dp ?: flatBorderRadius?.dp ?: 16.dp
+        topStart = (cornerRadius?.topLeft ?: flatBorderRadius).dp,
+        topEnd = (cornerRadius?.topRight ?: flatBorderRadius).dp,
+        bottomStart = (cornerRadius?.bottomLeft ?: flatBorderRadius).dp,
+        bottomEnd = (cornerRadius?.bottomRight ?: flatBorderRadius).dp
     )
 
     // Modal width from size parameter
@@ -59,15 +62,19 @@ fun MediaOnlyModal(
 
     // Cross button
     val crossButton = modal.styling?.crossButton
-    val crossEnabled = (crossButton?.enableCrossButton ?: crossButton?.enabled ?: modal.enableCrossButton) != false
+    // The enabled flag comes from styling.crossButton.enabled
+    val crossEnableFlag = crossButton?.enabled ?: crossButton?.enableCrossButton ?: modal.enableCrossButton
+    val crossEnabled = crossEnableFlag != false
     val crossImageUrl = crossButton?.uploadImage?.url
         ?: crossButton?.default?.crossButtonImage
+        ?: crossButton?.image
         ?: modal.crossButtonImage
-    val crossColors = crossButton?.default?.color ?: crossButton?.colors
+    // Support both "color" and "colors" fields, as well as default.color
+    val crossColors = crossButton?.default?.color ?: crossButton?.color ?: crossButton?.colors
     val crossMargin = crossButton?.default?.spacing?.margin ?: crossButton?.margin
 
-    // Normalize size field — some payloads put it under default.crossButtonSize, some under crossButtonSize, others use legacy `size`.
-    val crossSize = crossButton?.default?.size ?: crossButton?.size ?: crossButton?.size
+    // Normalize size field — some payloads put it under default.size, some under size directly
+    val crossSize = crossButton?.default?.size ?: crossButton?.size
 
     val crossConfig = createCrossButtonConfig(
         fillColorString = crossColors?.fill,
@@ -75,18 +82,20 @@ fun MediaOnlyModal(
         strokeColorString = crossColors?.stroke,
         marginTop = crossMargin?.top,
         marginEnd = crossMargin?.right,
-        paddingTop = crossButton?.default?.spacing?.padding?.top,
-        paddingEnd = crossButton?.default?.spacing?.padding?.right,
-        paddingBottom = crossButton?.default?.spacing?.padding?.bottom,
-        paddingStart = crossButton?.default?.spacing?.padding?.left,
         size = crossSize,
         imageUrl = crossImageUrl
     )
-    val resolvedMediaUrl = modal.resolvedMedia()?.url ?: modal.url
+
+    // Resolve media URL using unified utility (see ModalMediaUtils.kt)
+    val resolvedMediaUrl = modal.resolveMediaUrl() ?: modal.url
 
     // Check if media is loaded before showing the modal
     val mediaLoadState = rememberMediaLoadState(resolvedMediaUrl)
     val isMediaLoaded = mediaLoadState is MediaLoadState.Success
+
+    // Track if media has actually been rendered (not just loaded)
+    // This prevents the cross button "jump" glitch
+    var isMediaRendered by remember { mutableStateOf(false) }
 
     // Use alpha to control visibility - prevents animation glitches
     val contentAlpha = if (isMediaLoaded) 1f else 0f
@@ -103,45 +112,52 @@ fun MediaOnlyModal(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .graphicsLayer { alpha = contentAlpha }
+                //.graphicsLayer { alpha = contentAlpha }
                 .background(backdropColor.copy(alpha = backdropAlpha))
                 .clickable(
                     indication = null,
                     interactionSource = remember { MutableInteractionSource() },
-                    enabled = isMediaLoaded
-                ) { onCloseClick() },
+                    enabled = isMediaLoaded)
+                { onCloseClick() },
             contentAlignment = Alignment.Center
         ) {
                 Box(
                     modifier = Modifier
                         .width(modalWidth)
-//                        .wrapContentHeight()
-//                        .clip(cornerShape)
+                        .wrapContentHeight()
                         .background(backgroundColor)
                         .clickable(
                             indication = null,
                             interactionSource = remember { MutableInteractionSource() },
                             enabled = isMediaLoaded
                         ) {
-                            onModalClick()
                             val redirectUrl = modal.redirection?.url ?: modal.link
                             if (!redirectUrl.isNullOrBlank()) {
                                 onPrimaryCta?.invoke(redirectUrl)
                             }
                         }
                 ) {
-                    ModalMediaRenderer(
+                    val mediaType = determineMediaType(resolvedMediaUrl)
+
+                    // For videos, use wrapContentHeight to respect natural aspect ratio
+                    val mediaModifier = Modifier
+                        .width(modalWidth)
+                        .wrapContentHeight()
+                        .clip(cornerShape)
+
+                    ModalMediaRendererWithCallback(
                         mediaUrl = resolvedMediaUrl,
-                        modifier = Modifier
-                            .width(modalWidth)
-//                            .wrapContentHeight()
-                            .clip(cornerShape),
+                        modifier = mediaModifier,
                         contentDescription = "Media Only Modal",
                         contentScale = ContentScale.FillWidth,
-                        muted = false
+                        muted = false,
+                        cornerShape = cornerShape,
+                        onMediaRendered = { isMediaRendered = true }
                     )
 
-                    if (crossEnabled) {
+                    // Only show cross button after media has actually rendered
+                    // This prevents the "jump" glitch where button appears before media
+                    if (crossEnabled && isMediaRendered) {
                         Box(
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
