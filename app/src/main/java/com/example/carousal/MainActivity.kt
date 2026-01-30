@@ -307,7 +307,7 @@ fun HomeScreen(
 ////                                event = "Login"
 //                                event = "dismissed"
 //                            )
-                            campaignManager.setUserProperties(mapOf("last_name" to "sharma"))
+                            campaignManager.setUserProperties(mapOf("first_name" to "prem"))
 //                            campaignManager.setUserId("nameisprem")
                         },
                         modifier = Modifier.appstorys("anuridhtest")
