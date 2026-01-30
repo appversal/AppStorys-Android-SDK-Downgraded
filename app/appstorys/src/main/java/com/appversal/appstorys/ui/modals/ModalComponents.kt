@@ -2,7 +2,9 @@ package com.appversal.appstorys.ui.modals
 
 import android.os.Build.VERSION.SDK_INT
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.runtime.Composable
@@ -117,22 +119,46 @@ fun rememberMediaLoadState(mediaUrl: String?): MediaLoadState {
     return loadState
 }
 
-// Determine media type from URL/contents
-internal fun determineMediaType(url: String?): String {
-    val u = url ?: ""
-    return when {
-        u.endsWith(".gif", ignoreCase = true) -> "gif"
-        u.endsWith(".json", ignoreCase = true) -> "lottie"
-        u.endsWith(".mp4", ignoreCase = true) || u.endsWith(".m3u8", ignoreCase = true) -> "video"
-        else -> "image"
-    }
-}
-
 @androidx.annotation.OptIn(UnstableApi::class)
 @Composable
-fun VideoPlayerInline(videoUrl: String, modifier: Modifier = Modifier, muted: Boolean = false) {
+fun VideoPlayerInline(
+    videoUrl: String,
+    modifier: Modifier = Modifier,
+    muted: Boolean = false,
+    cornerShape: androidx.compose.ui.graphics.Shape? = null
+) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+
+    // Track the video's aspect ratio dynamically
+    var videoAspectRatio by remember { mutableStateOf<Float?>(null) }
+
+    // Extract corner radius values from the shape if it's a RoundedCornerShape
+    // We need this to apply native Android clipping
+    val density = androidx.compose.ui.platform.LocalDensity.current
+
+    // Data class to hold all four corner radii in pixels
+    data class CornerRadii(
+        val topLeft: Float,
+        val topRight: Float,
+        val bottomLeft: Float,
+        val bottomRight: Float
+    )
+
+    val cornerRadii = remember(cornerShape, density) {
+        when (cornerShape) {
+            is androidx.compose.foundation.shape.RoundedCornerShape -> {
+                val size = androidx.compose.ui.geometry.Size(1000f, 1000f) // Arbitrary size for calculation
+                CornerRadii(
+                    topLeft = cornerShape.topStart.toPx(shapeSize = size, density = density),
+                    topRight = cornerShape.topEnd.toPx(shapeSize = size, density = density),
+                    bottomLeft = cornerShape.bottomStart.toPx(shapeSize = size, density = density),
+                    bottomRight = cornerShape.bottomEnd.toPx(shapeSize = size, density = density)
+                )
+            }
+            else -> CornerRadii(0f, 0f, 0f, 0f)
+        }
+    }
 
     val exo = remember(videoUrl) {
         ExoPlayer.Builder(context)
@@ -146,7 +172,21 @@ fun VideoPlayerInline(videoUrl: String, modifier: Modifier = Modifier, muted: Bo
             }
     }
 
-    // The above placeholder for repeatMode will be replaced below with proper Player constants in callers' context if needed.
+    // Listen for video size changes to get the actual aspect ratio
+    DisposableEffect(exo) {
+        val listener = object : Player.Listener {
+            override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
+                if (videoSize.width > 0 && videoSize.height > 0) {
+                    videoAspectRatio = videoSize.width.toFloat() / videoSize.height.toFloat()
+                }
+            }
+        }
+        exo.addListener(listener)
+        onDispose {
+            exo.removeListener(listener)
+        }
+    }
+
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
@@ -162,16 +202,90 @@ fun VideoPlayerInline(videoUrl: String, modifier: Modifier = Modifier, muted: Bo
         }
     }
 
-    AndroidView(factory = { ctx ->
-        PlayerView(ctx).apply {
-            player = exo
-            useController = false
-            layoutParams = android.view.ViewGroup.LayoutParams(
-                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
-                android.view.ViewGroup.LayoutParams.MATCH_PARENT
-            )
-        }
-    }, modifier = modifier)
+    // Apply the detected aspect ratio to the modifier
+    val aspectModifier = videoAspectRatio?.let { ratio ->
+        modifier.aspectRatio(ratio)
+    } ?: modifier
+
+    Box(modifier = aspectModifier) {
+        AndroidView(
+            factory = { ctx ->
+                // Create a custom clipping container with TextureView for video
+                // TextureView (unlike SurfaceView) participates in the normal view hierarchy
+                // and respects canvas clipping operations
+                object : android.widget.FrameLayout(ctx) {
+                    private val path = android.graphics.Path()
+                    private val radiiArray = floatArrayOf(
+                        cornerRadii.topLeft, cornerRadii.topLeft,
+                        cornerRadii.topRight, cornerRadii.topRight,
+                        cornerRadii.bottomRight, cornerRadii.bottomRight,
+                        cornerRadii.bottomLeft, cornerRadii.bottomLeft
+                    )
+                    private var textureView: android.view.TextureView? = null
+
+                    init {
+                        // Create TextureView for video rendering
+                        textureView = android.view.TextureView(ctx).apply {
+                            layoutParams = android.widget.FrameLayout.LayoutParams(
+                                android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                                android.widget.FrameLayout.LayoutParams.MATCH_PARENT
+                            )
+                        }
+                        addView(textureView)
+
+                        // Set the TextureView as the video output for ExoPlayer
+                        exo.setVideoTextureView(textureView)
+
+                        // Set outline provider for clipping
+                        if (cornerRadii.topLeft > 0 || cornerRadii.topRight > 0 ||
+                            cornerRadii.bottomLeft > 0 || cornerRadii.bottomRight > 0) {
+                            outlineProvider = object : android.view.ViewOutlineProvider() {
+                                override fun getOutline(view: android.view.View, outline: android.graphics.Outline) {
+                                    path.reset()
+                                    path.addRoundRect(
+                                        0f, 0f, view.width.toFloat(), view.height.toFloat(),
+                                        radiiArray,
+                                        android.graphics.Path.Direction.CW
+                                    )
+                                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                                        outline.setPath(path)
+                                    } else {
+                                        // For older API, use setRoundRect with average radius
+                                        val avgRadius = (cornerRadii.topLeft + cornerRadii.topRight +
+                                                        cornerRadii.bottomLeft + cornerRadii.bottomRight) / 4f
+                                        outline.setRoundRect(0, 0, view.width, view.height, avgRadius)
+                                    }
+                                }
+                            }
+                            clipToOutline = true
+                        }
+                    }
+
+                    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+                        super.onSizeChanged(w, h, oldw, oldh)
+                        // Update path when size changes
+                        path.reset()
+                        if (cornerRadii.topLeft > 0 || cornerRadii.topRight > 0 ||
+                            cornerRadii.bottomLeft > 0 || cornerRadii.bottomRight > 0) {
+                            path.addRoundRect(
+                                0f, 0f, w.toFloat(), h.toFloat(),
+                                radiiArray,
+                                android.graphics.Path.Direction.CW
+                            )
+                        }
+                        // Invalidate outline when size changes
+                        invalidateOutline()
+                    }
+                }.apply {
+                    layoutParams = android.view.ViewGroup.LayoutParams(
+                        android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                        android.view.ViewGroup.LayoutParams.MATCH_PARENT
+                    )
+                }
+            },
+            modifier = Modifier.fillMaxSize()
+        )
+    }
 }
 
 @Composable
@@ -180,7 +294,34 @@ fun ModalMediaRenderer(
     modifier: Modifier = Modifier,
     contentDescription: String? = null,
     contentScale: UiContentScale = UiContentScale.Fit,
-    muted: Boolean = false
+    muted: Boolean = false,
+    cornerShape: androidx.compose.ui.graphics.Shape? = null
+) {
+    ModalMediaRendererWithCallback(
+        mediaUrl = mediaUrl,
+        modifier = modifier,
+        contentDescription = contentDescription,
+        contentScale = contentScale,
+        muted = muted,
+        cornerShape = cornerShape,
+        onMediaRendered = {}
+    )
+}
+
+/**
+ * Media renderer with callback that fires when media has actually been rendered.
+ * This ensures the cross button only appears after media is in place, preventing
+ * the "jump" visual glitch.
+ */
+@Composable
+fun ModalMediaRendererWithCallback(
+    mediaUrl: String?,
+    modifier: Modifier = Modifier,
+    contentDescription: String? = null,
+    contentScale: UiContentScale = UiContentScale.Fit,
+    muted: Boolean = false,
+    cornerShape: androidx.compose.ui.graphics.Shape? = null,
+    onMediaRendered: () -> Unit
 ) {
     val context = LocalContext.current
     val mediaType = determineMediaType(mediaUrl)
@@ -195,7 +336,12 @@ fun ModalMediaRenderer(
 
             val painter = rememberAsyncImagePainter(
                 ImageRequest.Builder(context).data(mediaUrl).diskCachePolicy(CachePolicy.ENABLED).memoryCachePolicy(CachePolicy.ENABLED).build(),
-                imageLoader = imageLoader
+                imageLoader = imageLoader,
+                onState = { state ->
+                    if (state is coil.compose.AsyncImagePainter.State.Success) {
+                        onMediaRendered()
+                    }
+                }
             )
 
             Image(
@@ -214,6 +360,14 @@ fun ModalMediaRenderer(
                 LottieCompositionSpec.Url(lottieSrc)
             }
             val composition by rememberLottieComposition(compositionSpec)
+
+            // Trigger callback when composition is loaded
+            LaunchedEffect(composition) {
+                if (composition != null) {
+                    onMediaRendered()
+                }
+            }
+
             LottieAnimation(
                 composition = composition,
                 iterations = LottieConstants.IterateForever,
@@ -222,25 +376,30 @@ fun ModalMediaRenderer(
         }
 
         "video" -> {
+            // Video uses ExoPlayer which handles its own buffering state
+            // Trigger callback immediately since ExoPlayer shows loading state internally
+            LaunchedEffect(mediaUrl) {
+                onMediaRendered()
+            }
+
+            // Don't force aspect ratio - let the video player size itself based on actual video dimensions
+            // The video will be constrained by the parent modifier (width) and wrap height
             VideoPlayerInline(
                 videoUrl = mediaUrl ?: "",
-                modifier = modifier.then(
-                    if (contentScale == UiContentScale.FillWidth) {
-                        Modifier.aspectRatio(16f / 9f) // 16:9 landscape
-                    } else {
-                        Modifier
-                    }
-                ),
-                muted = muted
+                modifier = modifier,
+                muted = muted,
+                cornerShape = cornerShape
             )
         }
 
         else -> {
+            // For regular images (PNG, JPG, WebP), use AsyncImage with onSuccess
             AsyncImage(
                 model = ImageRequest.Builder(context).data(mediaUrl).diskCachePolicy(CachePolicy.ENABLED).memoryCachePolicy(CachePolicy.ENABLED).build(),
                 contentDescription = contentDescription,
                 modifier = modifier,
-                contentScale = contentScale
+                contentScale = contentScale,
+                onSuccess = { onMediaRendered() }
             )
         }
     }

@@ -62,7 +62,7 @@ import com.appversal.appstorys.AppStorys.dismissTooltip
 import com.appversal.appstorys.AppStorys.handleTooltipAction
 import com.appversal.appstorys.api.TextStyling
 import com.appversal.appstorys.api.Tooltip
-import com.appversal.appstorys.ui.components.CommonText
+import com.appversal.appstorys.ui.common_components.CommonText
 import com.appversal.appstorys.ui.xml.toDp
 import com.appversal.appstorys.utils.AppStorysCoordinates
 import com.appversal.appstorys.utils.isGifUrl

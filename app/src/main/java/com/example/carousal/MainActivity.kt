@@ -245,6 +245,9 @@ fun HomeScreen(
                     contentScale = ContentScale.Fit
                 )
 
+                // Stories component with personalization support
+                // Use setUserProperties() to set values that can be used in story content
+                // Example: If you set "firstName" to "John", use {{firstName | Guest}} in stories
                 campaignManager.Stories()
 
                 CopyUserIdText()
@@ -307,12 +310,12 @@ fun HomeScreen(
 ////                                event = "Login"
 //                                event = "dismissed"
 //                            )
-                            campaignManager.setUserProperties(mapOf("first_name" to "prem"))
+                            campaignManager.setUserProperties(mapOf("first_name" to "sharma"))
 //                            campaignManager.setUserId("nameisprem")
                         },
                         modifier = Modifier.appstorys("anuridhtest")
                     ) {
-                        Text("Open Bottom Sheet")
+                        Text("Set Story User Properties")
                     }
                 }
 
