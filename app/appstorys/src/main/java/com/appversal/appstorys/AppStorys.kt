@@ -42,7 +42,6 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.LayoutCoordinates
@@ -59,8 +58,6 @@ import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
 import androidx.media3.common.util.UnstableApi
 import com.appversal.appstorys.api.ApiRepository
 import com.appversal.appstorys.api.ApiResult
@@ -83,7 +80,6 @@ import com.appversal.appstorys.api.StoriesDetails
 import com.appversal.appstorys.api.SurveyDetails
 import com.appversal.appstorys.api.Tooltip
 import com.appversal.appstorys.api.TooltipsDetails
-import com.appversal.appstorys.api.TrackUserWebSocketRequest
 import com.appversal.appstorys.api.UpdateUserPropertiesRequest
 import com.appversal.appstorys.api.WidgetDetails
 import com.appversal.appstorys.api.WidgetImage
@@ -94,22 +90,24 @@ import com.appversal.appstorys.ui.CardScratch
 import com.appversal.appstorys.ui.CarousalImage
 import com.appversal.appstorys.ui.CsatDialog
 import com.appversal.appstorys.ui.DoubleWidgets
-import com.appversal.appstorys.ui.FullScreenVideoScreen
+import com.appversal.appstorys.ui.reels.FullScreenVideoScreen
 import com.appversal.appstorys.ui.ImageCard
 import com.appversal.appstorys.ui.MilestoneBanner
 import com.appversal.appstorys.ui.MilestoneModal
 import com.appversal.appstorys.ui.MilestoneWidgets
 import com.appversal.appstorys.ui.OverlayContainer
-import com.appversal.appstorys.ui.OverlayFloater
+import com.appversal.appstorys.ui.floater.OverlayFloater
 import com.appversal.appstorys.ui.pipvideo.PipVideo
 import com.appversal.appstorys.ui.modals.PopupModal
-import com.appversal.appstorys.ui.ReelsRow
-import com.appversal.appstorys.ui.StoryAppMain
+import com.appversal.appstorys.ui.reels.ReelsRow
+import com.appversal.appstorys.ui.stories.StoryAppMain
 import com.appversal.appstorys.ui.SurveyBottomSheet
-import com.appversal.appstorys.ui.components.createCrossButtonConfig
-import com.appversal.appstorys.ui.getLikedReels
+import com.appversal.appstorys.ui.common_components.createCrossButtonConfig
+import com.appversal.appstorys.ui.reels.getLikedReels
 import com.appversal.appstorys.ui.getScratchedCampaigns
-import com.appversal.appstorys.ui.saveLikedReels
+import com.appversal.appstorys.ui.common_components.createExpandButtonConfig
+import com.appversal.appstorys.ui.common_components.createSoundToggleButtonConfig
+import com.appversal.appstorys.ui.reels.saveLikedReels
 import com.appversal.appstorys.ui.saveScratchedCampaigns
 import com.appversal.appstorys.utils.AppStorysSdkState
 import com.appversal.appstorys.utils.ViewTreeAnalyzer
@@ -394,6 +392,19 @@ object AppStorys {
         }
     }
 
+    /**
+     * Get the personalization data for the current user.
+     *
+     * This data is fetched from the backend when campaigns are loaded and includes
+     * user properties that can be used to personalize campaign content.
+     * This data is automatically used by CommonText components to replace placeholders
+     * like {{propertyName | fallbackValue}} with actual user property values.
+     *
+     * Note: This returns data from the server response. To SET user properties,
+     * use setUserProperties() method.
+     *
+     * @return Map of personalization key-value pairs
+     */
     fun getPersonalizationData(): Map<String, String> {
         return personalizationData ?: emptyMap()
     }
@@ -463,12 +474,48 @@ object AppStorys {
         }
     }
 
+    /**
+     * Set user properties/attributes that can be used for personalization in campaigns.
+     *
+     * These properties will be sent to the backend and can also be used to personalize
+     * campaign content using placeholders. For example, if you set a property "name" to "John",
+     * you can use {{name | Guest}} in your campaign content (stories, modals, etc.)
+     * and it will be replaced with "John". If the property is not set, it will fall back to "Guest".
+     *
+     * Usage example for Stories:
+     * ```kotlin
+     * // Set user properties before showing stories
+     * AppStorys.setUserProperties(mapOf(
+     *     "userName" to "John Doe",
+     *     "city" to "New York",
+     *     "memberLevel" to "Gold"
+     * ))
+     *
+     * // Then in your story content, you can use:
+     * // Story Title: "Welcome {{userName | Guest}}!"
+     * // Button Text: "Explore {{city | your city}}"
+     * // Story Name: "{{memberLevel | Member}} Benefits"
+     * ```
+     *
+     * Personalization works in:
+     * - Story group names
+     * - Story slide button text
+     * - Modal content
+     * - Banner text
+     * - Tooltip text
+     * - And any other text content in campaigns
+     *
+     * @param attributes Map of attribute key-value pairs to set for the user
+     */
     fun setUserProperties(attributes: Map<String, Any>) {
         coroutineScope.launch {
             if (userId.isBlank() || !checkIfInitialized()) {
-                Log.e("AppStorys", "Credentials not available")
+                Log.e("AppStorys", "Cannot set user properties: SDK not initialized or user ID not available")
                 return@launch
             }
+
+            Log.d("AppStorys", "Setting user properties: ${attributes.keys.joinToString(", ")}")
+
             val result = safeApiCall {
                 webSocketService.updateUserProperties(
                     token = "Bearer $accessToken",
@@ -480,7 +527,7 @@ object AppStorys {
             }
             when (result) {
                 is ApiResult.Success -> {
-                    Log.i("AppStorys", "User properties updated successfully")
+                    Log.i("AppStorys", "User properties updated successfully: ${attributes.keys.joinToString(", ")}")
                 }
 
                 is ApiResult.Error -> {
@@ -552,12 +599,22 @@ object AppStorys {
     fun overlayElements(
         bottomPadding: Dp = 0.dp,
         topPadding: Dp = 0.dp,
-        activity: Activity? = null
+        activity: Activity? = null,
+        bannerBottomPadding: Dp = 0.dp,
+        floaterBottomPadding: Dp = 0.dp,
+        pipTopPadding: Dp = 0.dp,
+        pipBottomPadding: Dp = 0.dp,
+        csatBottomPadding: Dp = 0.dp,
     ) {
         OverlayContainer.Content(
             bottomPadding = bottomPadding,
             topPadding = topPadding,
-            activity = activity
+            activity = activity,
+            bannerBottomPadding = bannerBottomPadding,
+            floaterBottomPadding = floaterBottomPadding,
+            pipTopPadding = pipTopPadding,
+            pipBottomPadding = pipBottomPadding,
+            csatBottomPadding = csatBottomPadding
         )
     }
 
@@ -609,15 +666,21 @@ object AppStorys {
             if (csatDetails != null && shouldShowCSAT) {
                 val style = csatDetails.styling
                 var isVisibleState by remember { mutableStateOf(false) }
-                val delayMillis by rememberUpdatedState(
-                    ((style?.appearance?.displayDelay ?: 0) * 1000L)
-                )
+                val delaySeconds = remember(style) {
+                    style?.appearance?.displayDelay?.let { element ->
+                        if (element is kotlinx.serialization.json.JsonPrimitive) {
+                            element.content.toIntOrNull() ?: 0
+                        } else {
+                            0
+                        }
+                    } ?: 0
+                }
 
                 LaunchedEffect(Unit) {
                     campaign?.id?.let {
                         trackEvents(it, "viewed")
                     }
-                    delay(delayMillis)
+                    delay(delaySeconds * 1000L)
                     isVisibleState = true
                 }
 
@@ -797,6 +860,12 @@ object AppStorys {
                         Log.d("AppStorys", "PIP Details - maximiseImage: ${pipDetails.maximiseImage}")
                         Log.d("AppStorys", "PIP Details - minimiseImage: ${pipDetails.minimiseImage}")
 
+                        // Use appearance dimensions if available, otherwise fall back to root-level dimensions
+                        val pipHeight = pipDetails.styling?.appearance?.pipHeight?.toIntOrNull()?.dp
+                            ?: pipDetails.height?.dp ?: 200.dp
+                        val pipWidth = pipDetails.styling?.appearance?.pipWidth?.toIntOrNull()?.dp
+                            ?: pipDetails.width?.dp ?: 113.dp
+
                         PipVideo(
                             videoUri = pipDetails.small_video,
                             fullScreenVideoUri = if (!pipDetails.large_video.isNullOrEmpty()) {
@@ -808,8 +877,8 @@ object AppStorys {
                                 showPip = false
                                 triggerEventValue?.let { trackedEventNames.remove(it) }
                             },
-                            height = pipDetails.height?.dp ?: 180.dp,
-                            width = pipDetails.width?.dp ?: 120.dp,
+                            height = pipHeight,
+                            width = pipWidth,
                             button_text = pipDetails.button_text.toString(),
                             link = pipDetails.link.toString(),
                             position = pipDetails.position.toString(),
@@ -817,32 +886,106 @@ object AppStorys {
                             topPadding = topPadding,
                             isMovable = pipDetails.styling?.isMovable ?: false,
                             pipStyling = pipDetails.styling,
-                            crossButtonConfig = createCrossButtonConfig(
-                                fillColorString = pipDetails.styling?.crossButton?.colors?.fill,
-                                crossColorString = pipDetails.styling?.crossButton?.colors?.cross,
-                                strokeColorString = pipDetails.styling?.crossButton?.colors?.stroke,
-                                marginTop = pipDetails.styling?.crossButton?.margin?.top,
-                                marginEnd = pipDetails.styling?.crossButton?.margin?.right,
-                                size = pipDetails.styling?.crossButton?.size,  // ✅ NEW
-                                imageUrl = (
-                                        pipDetails.crossButtonImage?.takeIf { !it.isNullOrBlank() }?.let { raw ->
-                                            val trimmed = raw.trim()
-                                            if (trimmed.startsWith("http", true)) {
-                                                trimmed
-                                            } else {
-                                                // Backend sometimes sends relative paths like "pip/<file>.jpg" -- prefix with S3 base
-                                                val base = "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/"
-                                                // Avoid double slashes
-                                                if (trimmed.startsWith("/")) base + trimmed.removePrefix("/") else base + trimmed
-                                            }
-                                        }
-                                        )
-                            ),
 
-                            muteButtonImageUrl = pipDetails.muteImage,
-                            unmuteButtonImageUrl = pipDetails.unmuteImage,
-                            maximiseImageUrl = pipDetails.maximiseImage,
-                            minimiseImageUrl = pipDetails.minimiseImage,
+                            crossButtonConfig = run {
+                                // Support new backend format with "color" (singular) instead of "colors"
+                                val pipCrossButton = pipDetails.styling?.crossButton
+                                val pipCrossColors = pipCrossButton?.color ?: pipCrossButton?.colors
+                                val pipCrossImageUrl = pipCrossButton?.image
+                                val pipCrossMargin = pipCrossButton?.margin
+
+                                createCrossButtonConfig(
+                                    fillColorString = pipCrossColors?.fill,
+                                    crossColorString = pipCrossColors?.cross,
+                                    strokeColorString = pipCrossColors?.stroke,
+                                    marginTop = pipCrossButton?.margin?.top,
+                                    marginEnd = pipCrossButton?.margin?.right,
+                                    size = pipCrossButton?.size,
+                                    imageUrl = pipCrossImageUrl
+                                )
+                            },
+
+                            maximiseButtonConfig = run {
+                                val expandControls = pipDetails.styling?.expandControls
+                                val maximise = expandControls?.maximise
+                                // Check color (singular) first, then fall back to colors (plural) for legacy support
+                                val maximiseColors = maximise?.color ?: maximise?.colors
+                                val maximiseMargin = maximise?.margin
+
+                                createExpandButtonConfig(
+                                    fillColorString = maximiseColors?.fill,
+                                    iconColorString = maximiseColors?.cross,
+                                    strokeColorString = maximiseColors?.stroke,
+                                    marginTop = maximiseMargin?.top,
+                                    marginEnd = maximiseMargin?.right,
+                                    marginBottom = maximiseMargin?.bottom,
+                                    marginStart = maximiseMargin?.left,
+                                    size = maximise?.size,
+                                    imageUrl = maximise?.image ?: pipDetails.maximiseImage
+                                )
+                            },
+
+                            minimiseButtonConfig = run {
+                                val expandControls = pipDetails.styling?.expandControls
+                                val minimise = expandControls?.minimise
+                                // Check color (singular) first, then fall back to colors (plural) for legacy support
+                                val minimiseColors = minimise?.color ?: minimise?.colors
+                                val minimiseMargin = minimise?.margin
+
+                                createExpandButtonConfig(
+                                    fillColorString = minimiseColors?.fill,
+                                    iconColorString = minimiseColors?.cross,
+                                    strokeColorString = minimiseColors?.stroke,
+                                    marginTop = minimiseMargin?.top,
+                                    marginEnd = minimiseMargin?.right,
+                                    marginBottom = minimiseMargin?.bottom,
+                                    marginStart = minimiseMargin?.left,
+                                    size = minimise?.size,
+                                    imageUrl = minimise?.image ?: pipDetails.minimiseImage
+                                )
+                            },
+
+                            muteButtonConfig = run {
+                                val soundToggle = pipDetails.styling?.soundToggle
+                                val mute = soundToggle?.mute
+                                // Check color (singular) first, then fall back to colors (plural) for legacy support
+                                val muteColors = mute?.color ?: mute?.colors
+                                val muteMargin = mute?.margin
+
+                                createSoundToggleButtonConfig(
+                                    fillColorString = muteColors?.fill,
+                                    iconColorString = muteColors?.cross,
+                                    strokeColorString = muteColors?.stroke,
+                                    marginTop = muteMargin?.top,
+                                    marginEnd = muteMargin?.right,
+                                    marginBottom = muteMargin?.bottom,
+                                    marginStart = muteMargin?.left,
+                                    size = mute?.size,
+                                    imageUrl = mute?.image ?: pipDetails.muteImage
+                                )
+                            },
+
+                            unmuteButtonConfig = run {
+                                val soundToggle = pipDetails.styling?.soundToggle
+                                val unmute = soundToggle?.unmute
+                                // Check color (singular) first, then fall back to colors (plural) for legacy support
+                                val unmuteColors = unmute?.color ?: unmute?.colors
+                                val unmuteMargin = unmute?.margin
+
+                                createSoundToggleButtonConfig(
+                                    fillColorString = unmuteColors?.fill,
+                                    iconColorString = unmuteColors?.cross,
+                                    strokeColorString = unmuteColors?.stroke,
+                                    marginTop = unmuteMargin?.top,
+                                    marginEnd = unmuteMargin?.right,
+                                    marginBottom = unmuteMargin?.bottom,
+                                    marginStart = unmuteMargin?.left,
+                                    size = unmute?.size,
+                                    imageUrl = unmute?.image ?: pipDetails.unmuteImage
+                                )
+                            },
+
+
                             onButtonClick = {
                                 campaign?.id?.let { campaignId ->
                                     trackEvents(campaignId, "clicked")
@@ -1139,19 +1282,34 @@ object AppStorys {
             val style = bannerDetails.styling
             val bannerUrl = bannerDetails.image
 
-            val calculatedHeight =
-                if (bannerDetails.width != null && bannerDetails.height != null) {
-                    val aspectRatio = bannerDetails.height.toFloat() / bannerDetails.width.toFloat()
+            val aspectRatio: Float? = remember(bannerDetails) {
+                val w = bannerDetails.width
+                val h = bannerDetails.height
+                if (w != null && h != null && w > 0 && h > 0) {
+                    h.toFloat() / w.toFloat()
+                } else null
+            }
 
-                    val marginLeft = style?.marginLeft?.dp ?: 0.dp
-                    val marginRight = style?.marginRight?.dp ?: 0.dp
+            val forcedHeight: Dp? = remember(bannerDetails) {
+                if (bannerDetails.width == null && bannerDetails.height != null) {
+                    bannerDetails.height.dp   // 👈 explicit stretch intent
+                } else null
+            }
 
-                    val actualWidth = screenWidth - marginLeft - marginRight
-
-                    (actualWidth.value * aspectRatio).dp
-                } else {
-                    bannerDetails.height?.dp
-                }
+//
+//            val calculatedHeight =
+//                if (bannerDetails.width != null && bannerDetails.height != null) {
+//                    val aspectRatio = bannerDetails.height.toFloat() / bannerDetails.width.toFloat()
+//
+//                    val marginLeft = style?.marginLeft?.dp ?: 0.dp
+//                    val marginRight = style?.marginRight?.dp ?: 0.dp
+//
+//                    val actualWidth = screenWidth - marginLeft - marginRight
+//
+//                    (actualWidth.value * aspectRatio).dp
+//                } else {
+//                    bannerDetails.height?.dp
+//                }
 
             LaunchedEffect(Unit) {
                 campaign.id?.let {
@@ -1166,11 +1324,12 @@ object AppStorys {
             ) {
                 com.appversal.appstorys.ui.PinnedBanner(
                     modifier = modifier
-                        .align(Alignment.BottomCenter),
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth(),
                     imageUrl = bannerUrl ?: "",
                     lottieUrl = bannerDetails.lottie_data,
-                    width = bannerDetails.width?.dp ?: screenWidth,
-                    exitIcon = style?.enableCloseButton ?: false,
+                    //width = bannerDetails.width?.dp ?: screenWidth,
+                    exitIcon = (style?.crossButton?.enabled ?: style?.enableCloseButton) != false,
                     exitUnit = {
                         val ids: ArrayList<String> = ArrayList(disabledCampaigns.value)
                         campaign.id?.let {
@@ -1189,29 +1348,26 @@ object AppStorys {
                     bottomMargin = style?.marginBottom?.dp ?: 0.dp,
                     leftMargin = style?.marginLeft?.dp ?: 0.dp,
                     rightMargin = style?.marginRight?.dp ?: 0.dp,
-                    contentScale = ContentScale.Fit,
-                    height = calculatedHeight,
+                    contentScale = ContentScale.FillWidth,
+                    //height = null,
+                    aspectRatio = aspectRatio,
+                    forcedHeight = forcedHeight,
                     placeHolder = placeholder,
                     placeholderContent = placeholderContent,
-                    crossButtonConfig = createCrossButtonConfig(
-                        fillColorString = style?.crossButton?.colors?.fill,
-                        crossColorString = style?.crossButton?.colors?.cross,
-                        strokeColorString = style?.crossButton?.colors?.stroke,
-                        marginTop = style?.crossButton?.margin?.top,
-                        marginEnd = style?.crossButton?.margin?.right,
-                        size = style?.crossButton?.size,
-                        imageUrl = bannerDetails.crossButtonImage
-//                        imageUrl = bannerDetails.crossButtonImage?.takeIf { it.isNotBlank() }?.let { raw ->
-//                            val trimmed = raw.trim()
-//                            if (trimmed.startsWith("http", true)) {
-//                                trimmed
-//                            } else {
-//                                val base = "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/"
-//                                if (trimmed.startsWith("/")) base + trimmed.removePrefix("/") else base + trimmed
-//                            }
-//                        }
-
-                    ),
+                    crossButtonConfig = run {
+                        // Support new backend format with "color" (singular) instead of "colors"
+                        val crossColors = style?.crossButton?.color ?: style?.crossButton?.colors
+                        val crossImageUrl = style?.crossButton?.image ?: bannerDetails.crossButtonImage
+                        createCrossButtonConfig(
+                            fillColorString = crossColors?.fill,
+                            crossColorString = crossColors?.cross,
+                            strokeColorString = crossColors?.stroke,
+                            marginTop = style?.crossButton?.margin?.top,
+                            marginEnd = style?.crossButton?.margin?.right,
+                            size = style?.crossButton?.size,
+                            imageUrl = crossImageUrl
+                        )
+                    },
                     onClick = {
                         if(bannerDetails.link.toString().trim().removeSurrounding("\"").isNotEmpty()){
                             campaign.id?.let {
@@ -1303,8 +1459,9 @@ object AppStorys {
                 campaign.id
             ) && widgetDetails.type == "full"
         ) {
+            val sortedWidgetImages = widgetDetails.widgetImages.sortedBy { it.order }
             val pagerState = rememberPagerState(pageCount = {
-                widgetDetails.widgetImages.count()
+                sortedWidgetImages.count()
             })
             val widthInDp: Dp? = widgetDetails.width?.dp
 
@@ -1312,9 +1469,8 @@ object AppStorys {
                 if (widgetDetails.width != null && widgetDetails.height != null) {
                     val aspectRatio = widgetDetails.height.toFloat() / widgetDetails.width.toFloat()
 
-                    val marginLeft = widgetDetails.styling?.leftMargin?.toFloatOrNull()?.dp ?: 0.dp
-                    val marginRight =
-                        widgetDetails.styling?.rightMargin?.toFloatOrNull()?.dp ?: 0.dp
+                    val marginLeft = (widgetDetails.styling?.leftMargin ?: 0).dp
+                    val marginRight = (widgetDetails.styling?.rightMargin ?: 0).dp
 
                     val actualWidth = (staticWidth ?: screenWidth) - marginLeft - marginRight
                     (actualWidth.value.minus( 0
@@ -1329,7 +1485,7 @@ object AppStorys {
             LaunchedEffect(pagerState.currentPage, isVisible) {
                 if (isVisible) {
                     campaign?.id?.let {
-                        val currentWidgetId = widgetDetails.widgetImages[pagerState.currentPage].id
+                        val currentWidgetId = sortedWidgetImages[pagerState.currentPage].id
 
                         if (currentWidgetId != null && !impressions.value.contains(currentWidgetId)) {
                             val impressions = ArrayList(impressions.value)
@@ -1349,10 +1505,10 @@ object AppStorys {
             AutoSlidingCarousel(
                 modifier = modifier
                     .padding(
-                        top = (widgetDetails.styling?.topMargin?.toFloatOrNull() ?: 0f).dp,
-                        bottom = (widgetDetails.styling?.bottomMargin?.toFloatOrNull() ?: 0f).dp,
-                        start = (widgetDetails.styling?.leftMargin?.toFloatOrNull() ?: 0f).dp,
-                        end = (widgetDetails.styling?.rightMargin?.toFloatOrNull() ?: 0f).dp,
+                        top = (widgetDetails.styling?.topMargin ?: 0).dp,
+                        bottom = (widgetDetails.styling?.bottomMargin ?: 0).dp,
+                        start = (widgetDetails.styling?.leftMargin ?: 0).dp,
+                        end = (widgetDetails.styling?.rightMargin ?: 0).dp,
                     )
                     .onGloballyPositioned { layoutCoordinates ->
                         val visibilityRect = layoutCoordinates.boundsInWindow()
@@ -1367,11 +1523,11 @@ object AppStorys {
                     },
                 widgetDetails = widgetDetails,
                 pagerState = pagerState,
-                itemsCount = widgetDetails.widgetImages.count(),
+                itemsCount = sortedWidgetImages.count(),
                 width = staticWidth,
                 itemContent = { index ->
 
-                    widgetDetails.widgetImages[index].takeIf {
+                    sortedWidgetImages[index].takeIf {
                         it.image != null || it.lottie_data != null
                     }?.let {
 
@@ -1380,23 +1536,23 @@ object AppStorys {
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
                             ) {
-                                if(widgetDetails.widgetImages[index].link.toString().trim().removeSurrounding("\"").isNotEmpty()){
+                                if(sortedWidgetImages[index].link.toString().trim().removeSurrounding("\"").isNotEmpty()){
                                     clickEvent(
-                                        link = widgetDetails.widgetImages[index].link.toString().trim().removeSurrounding("\""),
+                                        link = sortedWidgetImages[index].link.toString().trim().removeSurrounding("\""),
                                         campaignId = campaign.id,
-                                        widgetImageId = widgetDetails.widgetImages[index].id
+                                        widgetImageId = sortedWidgetImages[index].id
                                     )
 
                                     trackEvents(
                                         campaign.id,
                                         "clicked",
-                                        mapOf("widget_image" to widgetDetails.widgetImages[index].id!!)
+                                        mapOf("widget_image" to sortedWidgetImages[index].id!!)
                                     )
                                 }
                             },
                             contentScale = contentScale,
-                            imageUrl = widgetDetails.widgetImages[index].image ?: "",
-                            lottieUrl = widgetDetails.widgetImages[index].lottie_data ?: "",
+                            imageUrl = sortedWidgetImages[index].image ?: "",
+                            lottieUrl = sortedWidgetImages[index].lottie_data ?: "",
                             placeHolder = placeHolder,
                             height = calculatedHeight,
                             width = widthInDp ?: staticWidth,
@@ -1440,9 +1596,8 @@ object AppStorys {
                 if (widgetDetails.width != null && widgetDetails.height != null) {
                     val aspectRatio = widgetDetails.height.toFloat() / widgetDetails.width.toFloat()
 
-                    val marginLeft = widgetDetails.styling?.leftMargin?.toFloatOrNull()?.dp ?: 0.dp
-                    val marginRight =
-                        widgetDetails.styling?.rightMargin?.toFloatOrNull()?.dp ?: 0.dp
+                    val marginLeft = (widgetDetails.styling?.leftMargin ?: 0).dp
+                    val marginRight = (widgetDetails.styling?.rightMargin ?: 0).dp
 
                     val horizontalMargin = marginLeft + marginRight
 
@@ -1497,10 +1652,10 @@ object AppStorys {
             DoubleWidgets(
                 modifier = modifier
                     .padding(
-                        top = (widgetDetails.styling?.topMargin?.toFloatOrNull() ?: 0f).dp,
-                        bottom = (widgetDetails.styling?.bottomMargin?.toFloatOrNull() ?: 0f).dp,
-                        start = (widgetDetails.styling?.leftMargin?.toFloatOrNull() ?: 0f).dp,
-                        end = (widgetDetails.styling?.rightMargin?.toFloatOrNull() ?: 0f).dp,
+                        top = (widgetDetails.styling?.topMargin ?: 0).dp,
+                        bottom = (widgetDetails.styling?.bottomMargin ?: 0).dp,
+                        start = (widgetDetails.styling?.leftMargin ?: 0).dp,
+                        end = (widgetDetails.styling?.rightMargin ?: 0).dp,
                     )
                     .onGloballyPositioned { layoutCoordinates ->
                         val visibilityRect = layoutCoordinates.boundsInWindow()

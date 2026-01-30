@@ -1,6 +1,5 @@
 package com.appversal.appstorys.api
 
-import android.os.Parcelable
 import androidx.annotation.Keep
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -170,8 +169,13 @@ data class StoryGroupState(
 @Keep
 @Serializable
 data class StoryButtonConfig(
-    val colors: StoryButtonColors?,
-    val margin: StoryButtonMargin?
+    val colors: StoryButtonColors?,    // Legacy field (plural)
+    val color: StoryButtonColors?,     // New backend format (singular)
+    val margin: StoryButtonMargin?,
+    val image: String? = null,         // New backend format for button image
+    val enabled: Boolean? = null,      // Whether button is enabled
+    val selectedStyle: String? = null, // Style identifier (e.g., "cross4", "share4")
+    val size: Int? = null              // Button size
 )
 
 @Keep
@@ -200,7 +204,9 @@ data class StoryNameConfig(
 @Serializable
 data class StorySoundToggleConfig(
     val mute: StoryButtonConfig?,
-    val unmute: StoryButtonConfig?
+    val unmute: StoryButtonConfig?,
+    val defaultSound: String? = null,  // Default sound state: "yes" or "no"
+    val enabled: Boolean? = null       // Whether sound toggle is enabled
 )
 
 @Keep
@@ -219,13 +225,56 @@ data class StorySlide(
 @Keep
 @Serializable
 data class StorySlideStyling(
+    // Legacy fields (for backward compatibility)
     val borderWidth: Int?,
     val ctaAlignment: String?,
     val ctaBackground: StoryCtaBackground?,
     val ctaHeight: Int?,
     val ctaMargins: StoryCtaMargins?,
     val ctaText: StoryCtaText?,
-    val fullWidthCta: Boolean?
+    val fullWidthCta: Boolean?,
+
+    // New nested CTA structure from backend
+    val cta: StoryCtaConfig? = null
+)
+
+@Keep
+@Serializable
+data class StoryCtaConfig(
+    val container: StoryCtaContainer?,
+    val cornerRadius: StoryCtaCornerRadius?,
+    val margin: StoryCtaMargins?,
+    val text: StoryCtaTextConfig?
+)
+
+@Keep
+@Serializable
+data class StoryCtaContainer(
+    val alignment: String?,
+    val backgroundColor: String?,
+    val borderColor: String?,
+    val borderWidth: Int?,
+    val ctaFullWidth: Boolean?,
+    val ctaWidth: Int?,
+    val height: Int?
+)
+
+@Keep
+@Serializable
+data class StoryCtaCornerRadius(
+    val topLeft: Int?,
+    val topRight: Int?,
+    val bottomLeft: Int?,
+    val bottomRight: Int?
+)
+
+@Keep
+@Serializable
+data class StoryCtaTextConfig(
+    val color: String?,
+    val fontDecoration: List<String>?,
+    val fontFamily: String?,
+    val fontSize: Int?
 )
 
 @Keep
@@ -281,10 +330,12 @@ data class BannerStyling(
 @Keep
 @Serializable
 data class BannerStyleConfig(
-    val colors: BannerColors?,
+    val colors: BannerColors?,      // Legacy field (plural)
+    val color: BannerColors?,       // New backend format (singular)
     val size: Int?,
     val margin: BannerMargin?,
     val enabled: Boolean? = null,
+    val image: String? = null,      // New backend format for cross button image
     val option: String? = null,
     val selectedStyle: String? = null
 )
@@ -322,14 +373,14 @@ data class WidgetDetails(
 @Keep
 @Serializable
 data class WidgetStyling(
-    val topMargin: String?,
-    val leftMargin: String?,
-    val rightMargin: String?,
-    val bottomMargin: String?,
-    val topLeftRadius: String?,
-    val topRightRadius: String?,
-    val bottomLeftRadius: String?,
-    val bottomRightRadius: String?,
+    val topMargin: Int?,
+    val leftMargin: Int?,
+    val rightMargin: Int?,
+    val bottomMargin: Int?,
+    val topLeftRadius: Int?,
+    val topRightRadius: Int?,
+    val bottomLeftRadius: Int?,
+    val bottomRightRadius: Int?,
 )
 
 @Keep
@@ -420,8 +471,10 @@ data class FeedbackOption(
 data class CSATStyling(
 
     val fontSize: Int? = null,
-
     val appearance: CsatAppearance?,
+    val csatCrossButton: BannerStyleConfig? = null,
+    @SerialName("crossButton")
+    val crossButton: BannerStyleConfig? = null,
     val feedbackPage: CsatFeedbackPage?,
     val initialFeedback: CsatInitialFeedback?,
     val rating: CsatRating?,
@@ -433,7 +486,7 @@ data class CSATStyling(
 data class CsatAppearance(
     val backgroundColor: String?,
     val borderRadius: Int?,
-    val displayDelay: Int?,
+    val displayDelay: JsonElement?,
     val margin: Margin?,
     val padding: Margin?
 )
@@ -471,14 +524,47 @@ data class CsatOptionStyle(
 @Keep
 @Serializable
 data class CsatButton(
-    val colors: CsatColors?,
-    val containerRadius: CornerRadius?,
-    val containerStyle: CsatContainerStyle?,
-    val fullWidth: Boolean?,
+    val colors: CsatColors? = null,
+    val containerRadius: CornerRadius? = null,
+    val containerStyle: CsatContainerStyle? = null,
+    val fullWidth: Boolean? = null,
+    val margin: Margin? = null,
+    val padding: Margin? = null,
+    val text: String? = null,
+    val textStyle: CsatTextStyle? = null,
+    // Nested cta structure from JSON
+    val cta: CsatCtaConfig? = null,
+    val enabled: Boolean? = null
+)
+
+@Keep
+@Serializable
+data class CsatCtaConfig(
+    val container: CsatCtaContainer?,
+    val cornerRadius: CornerRadius?,
     val margin: Margin?,
-    val padding: Margin?,
-    val text: String?,
-    val textStyle: CsatTextStyle?
+    val text: CsatCtaText?
+)
+
+@Keep
+@Serializable
+data class CsatCtaContainer(
+    val alignment: String?,
+    val backgroundColor: String?,
+    val borderColor: String?,
+    val borderWidth: Int?,
+    val ctaFullWidth: Boolean?,
+    val ctaWidth: Int?,
+    val height: Int?
+)
+
+@Keep
+@Serializable
+data class CsatCtaText(
+    val color: String?,
+    val fontDecoration: List<String>?,
+    val fontFamily: String?,
+    val fontSize: Int?
 )
 
 @Keep
@@ -500,18 +586,51 @@ data class CsatInitialFeedback(
 @Keep
 @Serializable
 data class CsatTextElement(
-    val alignment: String?,
-    val colors: String?,
-    val textStyle: CsatTextStyle?
+    val alignment: String? = null,
+    val colors: String? = null,
+    val textStyle: CsatTextStyle? = null
 )
 
 @Keep
 @Serializable
 data class CsatRating(
-    val displayText: String?,
-    val high: CsatRatingStyle?,
-    val low: CsatRatingStyle?,
-    val unselected: CsatRatingStyle?
+    val displayText: String? = null,
+    val high: CsatRatingStyle? = null,
+    val low: CsatRatingStyle? = null,
+    val unselected: CsatRatingStyle? = null,
+    // Nested star structure from JSON
+    val alignment: String? = null,
+    val ratingType: String? = null,
+    val star: CsatStarConfig? = null,
+    val emoji: JsonElement? = null,
+    val number: JsonElement? = null,
+    val highRatingSubtitle: String? = null,
+    val highRatingTitle: String? = null,
+    val lowRatingSubtitle: String? = null,
+    val lowRatingTitle: String? = null
+)
+
+@Keep
+@Serializable
+data class CsatStarConfig(
+    val high: CsatStarStyle?,
+    val low: CsatStarStyle?,
+    val unselected: CsatStarStyle?
+)
+
+@Keep
+@Serializable
+data class CsatStarStyle(
+    val stylingContainer: CsatStylingStar?,
+    val stylingStar: CsatStylingStar?
+)
+
+@Keep
+@Serializable
+data class CsatStylingStar(
+    val background: String?,
+    val border: String?,
+    val borderWidth: Int?
 )
 
 @Keep
@@ -555,9 +674,15 @@ data class CsatColors(
 @Keep
 @Serializable
 data class CsatTextStyle(
-    val alignment: String?,
-    val font: String?,
-    val size: Int?
+    val alignment: String? = null,
+    val font: String? = null,
+    val size: Int? = null,
+    // Additional fields from JSON structure
+    val color: String? = null,
+    val fontFamily: String? = null,
+    val fontSize: Int? = null,
+    val textAlign: String? = null,
+    val fontDecoration: List<String>? = null
 )
 
 @Keep
@@ -783,20 +908,29 @@ data class PipStyling(
     val fontDecoration: List<String>?,
     val ctaButtonTextColor: String?,
     val ctaButtonBackgroundColor: String?,
-    val pipTopPadding: String?,
-    val pipBottomPadding: String?,
+    val pipTopPadding: JsonElement?,  // Can be Int or String
+    val pipBottomPadding: JsonElement?,  // Can be Int or String
     val expandablePip: String?,
     val videoSelection: String?,
     val soundToggle: SoundToggle?,
     val crossButton: BannerStyleConfig?,
     val expandControls: ExpandControls?,
-    val cta: PipCta? // structured CTA object (new)
+    val cta: PipCta?, // structured CTA object (new)
+    val appearance: PipAppearance? // appearance object with dimensions and default sound
+)
+
+@Keep
+@Serializable
+data class PipAppearance(
+    val defaultSound: String?,
+    val pipHeight: String?,
+    val pipWidth: String?
 )
 
 @Keep
 @Serializable
 data class PipCta(
-    val borderRadius: CornerRadius? = null,
+    val cornerRadius: CornerRadius? = null,
     val container: PipCtaContainer? = null,
     val margin: PipCtaMargin? = null,
     val text: PipCtaText? = null
@@ -808,10 +942,10 @@ data class PipCtaContainer(
     val alignment: String? = null,
     val backgroundColor: String? = null,
     val borderColor: String? = null,
-    val borderWidth: String? = null,
+    val borderWidth: JsonElement? = null,  // Can be Int or String
     val ctaFullWidth: Boolean? = null,
     val ctaWidth: Int? = null,
-    val height: String? = null
+    val height: JsonElement? = null  // Can be Int or String
 )
 
 @Keep
@@ -831,7 +965,8 @@ data class PipCtaText(
     val fontSize: Int? = null,
     val fontWeight: String? = null,
     val fontStyle: String? = null,
-    val textDecoration: List<String>? = null
+    val textDecoration: List<String>? = null,
+    val fontDecoration: List<String>? = null  // Alternative field name from backend
 )
 
 @Keep
@@ -840,8 +975,25 @@ data class BottomSheetDetails(
     @SerialName("_id") val id: String?,
     val campaign: String?,
     val name: String?,
+    val type: String?,
+    val bottomsheetType: String? = null,  // "basic", "imageOnly", etc.
+    val created_at: String?,
+
+    // Backdrop styling (root level)
+    val backdropColor: String?,
+    val backdropOpacity: JsonElement? = null,  // Can be Int or String from backend
+
+    // Container styling (root level)
+    val backgroundColor: String?,
+
+    // Cross button configuration (root level - new backend format)
+    val crossButton: BannerStyleConfig?,
+
+    // Elements
     val elements: List<BottomSheetElement>?,
-    val cornerRadius: String?,
+    val cornerRadius: CornerRadius? = null,  // Can be an object with topLeft, topRight, etc.
+
+    // Legacy fields
     val enableCrossButton: String?,
     val styling: BottomSheetStyling?,
     val triggerType: String?,
@@ -852,12 +1004,54 @@ data class BottomSheetDetails(
 @Serializable
 data class BottomSheetStyling(
     val crossButton: BannerStyleConfig?,
+    val backgroundColor: String?,
+)
+
+@Keep
+@Serializable
+data class BottomSheetCta(
+    val container: BottomSheetCtaContainer?,
+    val cornerRadius: CornerRadius?,
+    val margin: BottomSheetCtaMargin?,
+    val text: BottomSheetCtaText?
+)
+
+@Keep
+@Serializable
+data class BottomSheetCtaContainer(
+    val alignment: String?,
+    val backgroundColor: String?,
+    val borderColor: String?,
+    val borderWidth: JsonElement? = null,  // Can be Int or empty string
+    val ctaBoxColor: String?,
+    val ctaFullWidth: Boolean?,
+    val ctaWidth: JsonElement? = null,  // Can be Int or empty string
+    val height: Int?
+)
+
+@Keep
+@Serializable
+data class BottomSheetCtaMargin(
+    val bottom: Int?,
+    val left: Int?,
+    val right: Int?,
+    val top: Int?
+)
+
+@Keep
+@Serializable
+data class BottomSheetCtaText(
+    val color: String?,
+    val fontDecoration: List<String>?,
+    val fontFamily: String?,
+    val fontSize: Int?
 )
 
 @Keep
 @Serializable
 data class BottomSheetElement(
     val type: String?,
+    val bottomsheetType: String?, // Backend field for element type (e.g., "imageOnly")
     val alignment: String?,
     val order: Int?,
     val id: String?,
@@ -865,6 +1059,7 @@ data class BottomSheetElement(
     // Image-specific
     val url: String? = null,
     val imageLink: String? = null,
+    val imageBackgroundColor: String? = null,
     val overlayButton: Boolean? = null,
     val cornerRadius: CornerRadius? = null,
 
@@ -884,6 +1079,11 @@ data class BottomSheetElement(
     val ctaText: String? = null,
     val ctaLink: String? = null,
     val position: String? = null,
+
+    // New nested CTA structure from backend
+    val cta: BottomSheetCta? = null,
+
+    // Legacy flat CTA fields (still supported)
     val ctaBorderRadius: CornerRadius?,
     val ctaHeight: JsonElement? = null,
     val ctaWidth: JsonElement? = null,
@@ -950,8 +1150,10 @@ data class SurveyFeedbackPostRequest(
 @Serializable
 data class FontStyle(
     val fontFamily: String?,
+    val fontSize: JsonElement? = null,  // Can be String or Int from backend
     val colour: String?,
-    val decoration: List<String>?
+    val decoration: List<String>?,
+    val alignment: String?  // Text alignment (center, left, right)
 )
 
 
@@ -1044,11 +1246,14 @@ data class ModalCrossButton(
     val enableCrossButton: Boolean? = null,
     val uploadImage: ModalUploadImage? = null,
     // Alternative structure support (for legacy/image-only modals)
-    val colors: BannerColors? = null,
+    val color: BannerColors? = null,  // Some payloads use "color" directly
+    val colors: BannerColors? = null, // Some payloads use "colors"
     val enabled: Boolean? = null,
+    val image: String? = null,        // Some payloads use "image" for cross button image
     val margin: ModalMargin? = null,
     val option: String? = null,
     val selectedStyle: String? = null,
+    @Serializable(with = NullableIntSerializer::class)
     val size: Int? = null,
 )
 
@@ -1101,11 +1306,17 @@ data class ModalCta(
     val backgroundColor: String? = null,
     val borderColor: String? = null,
     val containerStyle: ModalCtaContainer? = null,
+    // Alternate field name used by some backends
+    val container: ModalCtaContainer? = null,
     val cornerRadius: ModalCtaCornerRadius? = null,
     val occupyFullWidth: String? = null,
     val spacing: ModalSpacing? = null,
+    // Alternate: some backends send margin directly instead of spacing.margin
+    val margin: ModalMargin? = null,
     val textColor: String? = null,
-    val textStyle: ModalTextStyle? = null
+    val textStyle: ModalTextStyle? = null,
+    // Alternate field name used by some backends
+    val text: ModalCtaText? = null
 )
 
 @Serializable
@@ -1113,7 +1324,11 @@ data class ModalCtaContainer(
     val alignment: String? = null,
     val borderWidth: Int? = null,
     val ctaWidth: Int? = null,
-    val height: Int? = null
+    val height: Int? = null,
+    // Additional fields that some backends put inside container
+    val backgroundColor: String? = null,
+    val borderColor: String? = null,
+    val ctaFullWidth: Boolean? = null
 )
 
 @Serializable
@@ -1130,13 +1345,26 @@ data class ModalTextStyle(
     val size: Int? = null
 )
 
+// Alternate text styling format used by some backends (inside "text" key)
+@Serializable
+data class ModalCtaText(
+    val color: String? = null,
+    val fontSize: Int? = null,
+    val fontFamily: String? = null,
+    val fontDecoration: List<String>? = null
+)
+
 @Serializable
 data class ModalTextStyling(
     val alignment: String? = null,
+    val textAlign: String? = null,  // Alternate field name
     val color: String? = null,
     val font: String? = null,
+    val fontFamily: String? = null,  // Alternate field name
     val fontStyle: String? = null,
-    val size: Int? = null
+    val size: Int? = null,
+    val fontSize: Int? = null,  // Alternate field name
+    val fontDecoration: List<String>? = null  // Support bold, italic, underline
 )
 
 @Serializable
@@ -1147,11 +1375,11 @@ data class ModalAppearance(
     val enableBackdrop: Boolean? = null,
     val padding: ModalPadding? = null,
     val ctaDisplay: String? = null,
+    // Background color for modal content area
+    val backgroundColor: String? = null,
     // Accept alternate flat keys used by some backends
     val backdropColor: String? = null,
     val backdropOpacity: String? = null,
-    // Some payloads use misspelled "dimentons" instead of "dimension"
-    val dimentons: ModalDimension? = null
 )
 
 @Serializable
@@ -1169,10 +1397,14 @@ data class ModalDimension(
 
 @Serializable
 data class ModalCornerRadius(
-    val topLeft: String? = null,
-    val topRight: String? = null,
-    val bottomLeft: String? = null,
-    val bottomRight: String? = null
+    @Serializable(with = NullableIntSerializer::class)
+    val topLeft: Int? = null,
+    @Serializable(with = NullableIntSerializer::class)
+    val topRight: Int? = null,
+    @Serializable(with = NullableIntSerializer::class)
+    val bottomLeft: Int? = null,
+    @Serializable(with = NullableIntSerializer::class)
+    val bottomRight: Int? = null
 )
 
 @Keep
@@ -1261,27 +1493,31 @@ data class SoundToggle(
 @Serializable
 data class MuteButtonConfig(
     val colors: BannerColors?,
+    val color: BannerColors?,
     val size: Int?,
     val margin: MuteUnmuteMargin?,
-    val selectedStyle: String?
+    val selectedStyle: String?,
+    val image: String?
 )
 
 @Keep
 @Serializable
 data class UnmuteButtonConfig(
     val colors: BannerColors?,
+    val color: BannerColors?,
     val size: Int?,
     val margin: MuteUnmuteMargin?,
-    val selectedStyle: String?
+    val selectedStyle: String?,
+    val image: String?
 )
 
 @Keep
 @Serializable
 data class MuteUnmuteMargin(
-    val top: String?,
-    val right: String?,
-    val bottom: String?,
-    val left: String?
+    val top: Int? = null,
+    val right: Int? = null,
+    val bottom: Int? = null,
+    val left: Int? = null
 )
 
 @Keep
@@ -1299,18 +1535,22 @@ data class ExpandControls(
 @Serializable
 data class MaximiseButtonStyleConfig(
     val colors: BannerColors?,
+    val color: BannerColors?,
     val size: Int?,
     val margin: MuteUnmuteMargin?,
-    val selectedStyle: String?
+    val selectedStyle: String?,
+    val image: String?
 )
 
 @Keep
 @Serializable
 data class MinimiseButtonStyleConfig(
     val colors: BannerColors?,
+    val color: BannerColors?,
     val size: Int?,
     val margin: MuteUnmuteMargin?,
-    val selectedStyle: String?
+    val selectedStyle: String?,
+    val image: String?
 )
 
 // Common Components Start
@@ -1335,57 +1575,3 @@ data class CommonMargins(
 )
 // Common Components End
 
-
-fun Modal.resolvedMedia(): ModalMedia? {
-    // Prefer explicit content-level media (including first slide in content.set)
-    content?.chooseMediaType?.takeIf { !it.url.isNullOrBlank() }?.let { return it }
-    content?.set?.firstOrNull()?.chooseMediaType?.takeIf { !it.url.isNullOrBlank() }?.let { return it }
-
-    // Prefer top-level chooseMediaType when it contains a non-blank URL
-    chooseMediaType?.takeIf { !it.url.isNullOrBlank() }?.let { return it }
-
-    // Support top-level `url` field if backend provides it (some payloads do)
-    url?.takeIf {
-        it.endsWith(".png", true) ||
-                it.endsWith(".jpg", true) ||
-                it.endsWith(".jpeg", true) ||
-                it.endsWith(".gif", true) ||
-                it.endsWith(".mp4", true) ||
-                it.endsWith(".json", true)
-    }?.let {
-        return ModalMedia(type = "auto", url = it)
-    }
-
-    // Fallback via redirection or link
-    redirection?.url?.takeIf {
-        it.endsWith(".png", true) ||
-                it.endsWith(".jpg", true) ||
-                it.endsWith(".jpeg", true) ||
-                it.endsWith(".gif", true) ||
-                it.endsWith(".mp4", true) ||
-                it.endsWith(".json", true)
-    }?.let {
-        return ModalMedia(type = "auto", url = it)
-    }
-
-    link?.takeIf {
-        it.endsWith(".png", true) ||
-                it.endsWith(".jpg", true) ||
-                it.endsWith(".jpeg", true) ||
-                it.endsWith(".gif", true) ||
-                it.endsWith(".mp4", true) ||
-                it.endsWith(".json", true)
-    }?.let {
-        return ModalMedia(type = "auto", url = it)
-    }
-
-    return null
-}
-
-
-fun Modal.isCarousel(): Boolean =
-    content?.set?.isNotEmpty() == true
-
-fun Modal.isMediaOnly(): Boolean =
-    resolvedMedia() != null &&
-            content == null

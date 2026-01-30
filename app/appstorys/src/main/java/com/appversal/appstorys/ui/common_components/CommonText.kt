@@ -1,4 +1,4 @@
-package com.appversal.appstorys.ui.components
+package com.appversal.appstorys.ui.common_components
 
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable

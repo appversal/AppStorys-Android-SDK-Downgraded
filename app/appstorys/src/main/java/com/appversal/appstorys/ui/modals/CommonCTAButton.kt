@@ -4,80 +4,194 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.ripple.rememberRipple
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontStyle
-import androidx.compose.ui.text.font.FontWeight
+import com.appversal.appstorys.api.ModalCta
 import com.appversal.appstorys.api.TextStyling
-import com.appversal.appstorys.ui.components.CommonText
+import com.appversal.appstorys.ui.common_components.CommonText
+import com.appversal.appstorys.ui.common_components.parseColorString
 
-@Composable
-fun BackendCta(
+/**
+ * Configuration for a modal CTA button.
+ * Contains all styling information extracted from ModalCta.
+ */
+data class ModalCTAButtonConfig(
+    val text: String,
+    val backgroundColor: Color,
+    val textColor: String,
+    val textSize: Int,
+    val fontFamily: String?,
+    val fontDecoration: List<String>?,
+    val height: Dp,
+    val width: Dp?,
+    val occupyFullWidth: Boolean,
+    val marginStart: Dp,
+    val marginEnd: Dp,
+    val marginTop: Dp,
+    val marginBottom: Dp,
+    val borderColor: Color,
+    val borderWidth: Dp,
+    val cornerRadiusTopLeft: Dp,
+    val cornerRadiusTopRight: Dp,
+    val cornerRadiusBottomLeft: Dp,
+    val cornerRadiusBottomRight: Dp,
+    val alignment: String,
+    val redirectionUrl: String?
+)
+
+/**
+ * Creates a ModalCTAButtonConfig from ModalCta styling with all edge case handling.
+ *
+ * Handles:
+ * - containerStyle vs container field
+ * - backgroundColor at root level or inside container
+ * - textColor at root level or inside text object
+ * - borderColor at root level or inside container
+ * - textStyle.size or text.fontSize
+ * - occupyFullWidth or container.ctaFullWidth
+ * - spacing.margin or margin directly
+ */
+fun createModalCTAButtonConfig(
     text: String,
-    modifier: Modifier = Modifier,
-    height: Dp,
-    width: Dp? = null,
-    occupyFullWidth: Boolean = false,
-    backgroundColor: Color,
-    textColor: String,
-    textSizeSp: Int,
-    borderColor: Color = Color.Transparent,
-    borderWidth: Dp = Dp.Hairline,
-    cornerRadius: RoundedCornerShape,
-    fontWeightName: String? = null,
-    fontStyleName: String? = null,
-    textDecorationList: List<String>? = null,
-    textAlign: String? = null,
-    rotationDegrees: Float? = null,
-    // optional explicit alignment for the CTA container (e.g. "left", "right", "center").
-    // if null, we fall back to `textAlign`.
-    buttonAlignment: String? = null,
+    styling: ModalCta?,
+    redirectionUrl: String?,
+    defaultHeight: Dp = 40.dp,
+    defaultWidth: Dp? = 120.dp,
+    defaultBackgroundColor: Color = Color.Black,
+    defaultTextColor: String = "#FFFFFF",
+    defaultTextSize: Int = 14,
+    defaultCornerRadius: Int = 12
+): ModalCTAButtonConfig {
+    // Support both container and containerStyle
+    val container = styling?.containerStyle ?: styling?.container
+
+    // Support backgroundColor at root level or inside container
+    val backgroundColor = parseColorString(styling?.backgroundColor ?: container?.backgroundColor)
+        ?: defaultBackgroundColor
+
+    // Support textColor at root level or inside text object
+    val textColorString = styling?.textColor ?: styling?.text?.color ?: defaultTextColor
+
+    // Support borderColor at root level or inside container
+    val borderColor = parseColorString(styling?.borderColor ?: container?.borderColor)
+        ?: Color.Transparent
+
+    // Support textStyle.size or text.fontSize
+    val textSizeSp = styling?.textStyle?.size ?: styling?.text?.fontSize ?: defaultTextSize
+
+    // Support both occupyFullWidth and container.ctaFullWidth
+    val occupyFullWidth = styling?.occupyFullWidth?.trim()?.equals("true", true) == true ||
+        container?.ctaFullWidth == true
+
+    // Margins - support both spacing.margin and margin directly
+    val margin = styling?.spacing?.margin ?: styling?.margin
+    val marginStart = (margin?.left ?: 0).dp
+    val marginEnd = (margin?.right ?: 0).dp
+    val marginTop = (margin?.top ?: 0).dp
+    val marginBottom = (margin?.bottom ?: 0).dp
+
+    // Corner radius
+    val cornerRadiusTL = (styling?.cornerRadius?.topLeft ?: defaultCornerRadius).dp
+    val cornerRadiusTR = (styling?.cornerRadius?.topRight ?: defaultCornerRadius).dp
+    val cornerRadiusBL = (styling?.cornerRadius?.bottomLeft ?: defaultCornerRadius).dp
+    val cornerRadiusBR = (styling?.cornerRadius?.bottomRight ?: defaultCornerRadius).dp
+
+    // Height and width
+    val height = (container?.height ?: defaultHeight.value.toInt()).dp
+    val width = if (occupyFullWidth) null else (container?.ctaWidth ?: defaultWidth?.value?.toInt())?.dp
+
+    // Button alignment
+    val buttonAlignment = container?.alignment ?: "center"
+
+    // Border width
+    val borderWidth = (container?.borderWidth ?: 0).dp
+
+    return ModalCTAButtonConfig(
+        text = text,
+        backgroundColor = backgroundColor,
+        textColor = textColorString,
+        textSize = textSizeSp,
+        fontFamily = styling?.text?.fontFamily,
+        fontDecoration = styling?.text?.fontDecoration,
+        height = height,
+        width = width,
+        occupyFullWidth = occupyFullWidth,
+        marginStart = marginStart,
+        marginEnd = marginEnd,
+        marginTop = marginTop,
+        marginBottom = marginBottom,
+        borderColor = borderColor,
+        borderWidth = borderWidth,
+        cornerRadiusTopLeft = cornerRadiusTL,
+        cornerRadiusTopRight = cornerRadiusTR,
+        cornerRadiusBottomLeft = cornerRadiusBL,
+        cornerRadiusBottomRight = cornerRadiusBR,
+        alignment = buttonAlignment,
+        redirectionUrl = redirectionUrl
+    )
+}
+
+/**
+ * Internal composable that renders a single CTA button within a RowScope.
+ * Uses Row as the button container which allows weight() modifier directly.
+ *
+ * Margins are applied directly from config (default is 0 if not provided by backend).
+ * User configures margins via dashboard to create spacing.
+ */
+@Composable
+private fun RowScope.ModalCTAButtonInRow(
+    config: ModalCTAButtonConfig,
+    useWeight: Boolean,
     onClick: () -> Unit
 ) {
-    // map weight/style using shared helpers
-    val fontWeight = mapFontWeight(fontWeightName)
-    val fontStyle = mapFontStyle(fontStyleName)
+    val cornerRadius = RoundedCornerShape(
+        topStart = config.cornerRadiusTopLeft,
+        topEnd = config.cornerRadiusTopRight,
+        bottomStart = config.cornerRadiusBottomLeft,
+        bottomEnd = config.cornerRadiusBottomRight
+    )
 
-    // use default font family for now (no backend resolver)
-    val fontFamily = FontFamily.Default
-
-    val textDecoration = if (textDecorationList?.any { it.equals("underline", true) } == true) TextDecoration.Underline else null
-
-    // internal horizontal padding to give text breathing room inside the button
-    val internalHorizontalPadding = 0.dp
-
-    var baseModifier = modifier
+    // Build modifier chain for the Row (which IS the button)
+    // Margins are applied directly from config (0 if not set by backend)
+    val buttonModifier = (if (useWeight) Modifier.weight(1f) else Modifier)
+        .padding(
+            start = config.marginStart,
+            end = config.marginEnd,
+            top = config.marginTop,
+            bottom = config.marginBottom
+        )
         .then(
             when {
-                occupyFullWidth -> Modifier.fillMaxWidth()
-                width != null -> Modifier.width(width)
-                else -> Modifier
+                config.occupyFullWidth -> Modifier.fillMaxWidth()
+                config.width != null -> Modifier.width(config.width)
+                else -> Modifier.wrapContentWidth()
             }
         )
-        .height(height)
-        .padding(horizontal = internalHorizontalPadding)
-        .background(backgroundColor, cornerRadius)
-        .then(if (borderWidth.value > 0f) Modifier.border(borderWidth, borderColor, cornerRadius) else Modifier)
+        .height(config.height)
+        .background(config.backgroundColor, cornerRadius)
+        .then(
+            if (config.borderWidth.value > 0f) {
+                Modifier.border(config.borderWidth, config.borderColor, cornerRadius)
+            } else {
+                Modifier
+            }
+        )
         .clickable(
             role = Role.Button,
             interactionSource = remember { MutableInteractionSource() },
@@ -85,46 +199,198 @@ fun BackendCta(
             onClick = onClick
         )
 
-    if (rotationDegrees != null && rotationDegrees != 0f) {
-        baseModifier = baseModifier.rotate(rotationDegrees)
-    }
-
-    // determine box content alignment from explicit buttonAlignment or fallback to textAlign
-    val boxContentAlignment = when (buttonAlignment?.lowercase()) {
-        "left" -> Alignment.CenterStart
-        "right" -> Alignment.CenterEnd
-        "center", "middle" -> Alignment.Center
-        else -> Alignment.Center
-    }
-
-    Box(
-        modifier = baseModifier,
-        contentAlignment = boxContentAlignment
+    // Row as the button - centers content horizontally and vertically
+    Row(
+        modifier = buttonModifier,
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
     ) {
         CommonText(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = internalHorizontalPadding),
-            text = text,
+            modifier = Modifier.fillMaxWidth(),
+            text = config.text,
             maxLines = 1,
             styling = TextStyling(
-                color = textColor,
-                fontSize = textSizeSp,
-                fontFamily = "",
-                textAlign = textAlign,
-                fontDecoration = textDecorationList
+                color = config.textColor,
+                fontSize = config.textSize,
+                fontFamily = config.fontFamily ?: "",
+                textAlign = "center",
+                fontDecoration = config.fontDecoration
             )
         )
     }
 }
 
-// Move map helpers here so callers don't need the resolver file
-fun mapFontWeight(value: String?): FontWeight = when (value?.lowercase()) {
-    "bold", "700", "800" -> FontWeight.Bold
-    "600" -> FontWeight.SemiBold
-    "500" -> FontWeight.Medium
-    else -> FontWeight.Normal
+/**
+ * Common Modal CTA Button composable for single button use.
+ * Wraps in a Row for alignment support.
+ */
+@Composable
+fun ModalCTAButton(
+    config: ModalCTAButtonConfig,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    // Determine horizontal arrangement from alignment
+    val horizontalArrangement = when (config.alignment.lowercase()) {
+        "left" -> Arrangement.Start
+        "right" -> Arrangement.End
+        "center", "middle" -> Arrangement.Center
+        else -> Arrangement.Center
+    }
+
+    val cornerRadius = RoundedCornerShape(
+        topStart = config.cornerRadiusTopLeft,
+        topEnd = config.cornerRadiusTopRight,
+        bottomStart = config.cornerRadiusBottomLeft,
+        bottomEnd = config.cornerRadiusBottomRight
+    )
+
+    // Outer Row for alignment
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = horizontalArrangement,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Button Row with styling
+        Row(
+            modifier = Modifier
+                .padding(
+                    start = config.marginStart,
+                    end = config.marginEnd,
+                    top = config.marginTop,
+                    bottom = config.marginBottom
+                )
+                .then(
+                    when {
+                        config.occupyFullWidth -> Modifier.fillMaxWidth()
+                        config.width != null -> Modifier.width(config.width)
+                        else -> Modifier.wrapContentWidth()
+                    }
+                )
+                .height(config.height)
+                .background(config.backgroundColor, cornerRadius)
+                .then(
+                    if (config.borderWidth.value > 0f) {
+                        Modifier.border(config.borderWidth, config.borderColor, cornerRadius)
+                    } else {
+                        Modifier
+                    }
+                )
+                .clickable(
+                    role = Role.Button,
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = rememberRipple(bounded = true),
+                    onClick = onClick
+                ),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            CommonText(
+                modifier = Modifier.fillMaxWidth(),
+                text = config.text,
+                maxLines = 1,
+                styling = TextStyling(
+                    color = config.textColor,
+                    fontSize = config.textSize,
+                    fontFamily = config.fontFamily ?: "",
+                    textAlign = "center",
+                    fontDecoration = config.fontDecoration
+                )
+            )
+        }
+    }
 }
 
-fun mapFontStyle(value: String?): FontStyle =
-    if (value?.equals("italic", true) == true)
-        FontStyle.Italic
-    else FontStyle.Normal
+/**
+ * Common Modal CTA Row that handles row layout for primary and secondary buttons.
+ *
+ * MARGIN BEHAVIOR:
+ * - Margins come directly from backend config (default is 0)
+ * - User configures margins via dashboard to create spacing from container edges
+ *   and between buttons
+ *
+ * Layout behavior:
+ *
+ * 1. BOTH buttons with ctaFullWidth=true:
+ *    ┌────────────────────────────────────────┐
+ *    │[Primary Button     ][Secondary Button ]│
+ *    └────────────────────────────────────────┘
+ *    Each button takes 50% width (weight)
+ *
+ * 2. BOTH buttons with ctaFullWidth=false (fixed width):
+ *    ┌────────────────────────────────────────┐
+ *    │      [Primary]  [Secondary]            │  (if alignment=center)
+ *    │[Primary]  [Secondary]                  │  (if alignment=left)
+ *    │            [Primary]  [Secondary]      │  (if alignment=right)
+ *    └────────────────────────────────────────┘
+ *
+ * 3. Single button with ctaFullWidth=true:
+ *    ┌────────────────────────────────────────┐
+ *    │[         Full Width Button            ]│
+ *    └────────────────────────────────────────┘
+ *
+ * 4. Single button with ctaFullWidth=false:
+ *    ┌────────────────────────────────────────┐
+ *    │            [Button]                    │  (if alignment=center)
+ *    │[Button]                                │  (if alignment=left)
+ *    │                            [Button]    │  (if alignment=right)
+ *    └────────────────────────────────────────┘
+ *
+ * @param primaryConfig Configuration for primary CTA (null if no primary button)
+ * @param secondaryConfig Configuration for secondary CTA (null if no secondary button)
+ * @param onPrimaryCta Callback when primary CTA is clicked
+ * @param onSecondaryCta Callback when secondary CTA is clicked
+ */
+@Composable
+fun ModalCTARow(
+    primaryConfig: ModalCTAButtonConfig?,
+    secondaryConfig: ModalCTAButtonConfig?,
+    onPrimaryCta: ((link: String?) -> Unit)?,
+    onSecondaryCta: ((link: String?) -> Unit)?
+) {
+    if (primaryConfig == null && secondaryConfig == null) return
+
+    val hasBothButtons = primaryConfig != null && secondaryConfig != null
+
+    // Check if buttons use full width
+    val primaryFullWidth = primaryConfig?.occupyFullWidth == true
+    val secondaryFullWidth = secondaryConfig?.occupyFullWidth == true
+
+    // Determine row alignment (only matters when buttons don't fill full width)
+    val containerAlignment = primaryConfig?.alignment ?: secondaryConfig?.alignment ?: "center"
+    val rowArrangement = when (containerAlignment.lowercase()) {
+        "left" -> Arrangement.Start
+        "right" -> Arrangement.End
+        "center", "middle" -> Arrangement.Center
+        else -> Arrangement.Center  // Default to center
+    }
+
+    // When both buttons use full width, they split equally (weight)
+    val useWeightForPrimary = hasBothButtons && primaryFullWidth
+    val useWeightForSecondary = hasBothButtons && secondaryFullWidth
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        // When using weights, start from left; otherwise use alignment
+        horizontalArrangement = if (useWeightForPrimary || useWeightForSecondary) Arrangement.Start else rowArrangement,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Primary button
+        primaryConfig?.let { config ->
+            ModalCTAButtonInRow(
+                config = config,
+                useWeight = useWeightForPrimary,
+                onClick = { onPrimaryCta?.invoke(config.redirectionUrl) }
+            )
+        }
+
+        // Secondary button
+        secondaryConfig?.let { config ->
+            ModalCTAButtonInRow(
+                config = config,
+                useWeight = useWeightForSecondary,
+                onClick = { onSecondaryCta?.invoke(config.redirectionUrl) }
+            )
+        }
+    }
+}
