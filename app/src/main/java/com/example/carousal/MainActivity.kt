@@ -232,7 +232,7 @@ fun HomeScreen(
                 .padding(
                     top = padding.calculateTopPadding(),
                     bottom = padding.calculateBottomPadding()
-                ), // Add this line,
+                ), // Add this line,s
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             item {

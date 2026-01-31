@@ -483,6 +483,51 @@ data class CSATStyling(
 
 @Keep
 @Serializable
+data class CsatEmojiConfig(
+    val selected: CsatEmojiState?,
+    val unselected: CsatEmojiState?,
+    val values: List<String>?
+)
+
+@Keep
+@Serializable
+data class CsatEmojiState(
+    val stylingContainer: CsatStylingContainer?
+)
+
+@Keep
+@Serializable
+data class CsatStylingContainer(
+    val border: String?,
+    val borderWidth: Int?,
+    val fill: String?
+)
+
+@Keep
+@Serializable
+data class CsatNumberConfig(
+    val high: CsatNumberState?,
+    val low: CsatNumberState?,
+    val unselected: CsatNumberState?,
+    val stylingNumber: CsatNumberTextStyle?
+)
+
+@Keep
+@Serializable
+data class CsatNumberState(
+    val stylingContainer: CsatStylingContainer?,
+    val stylingNumber: CsatNumberTextStyle?
+)
+
+@Keep
+@Serializable
+data class CsatNumberTextStyle(
+    val text: String?,
+    val textSize: Int?
+)
+
+@Keep
+@Serializable
 data class CsatAppearance(
     val backgroundColor: String?,
     val borderRadius: Int?,
@@ -587,7 +632,7 @@ data class CsatInitialFeedback(
 @Serializable
 data class CsatTextElement(
     val alignment: String? = null,
-    val colors: String? = null,
+    val color: String? = null,
     val textStyle: CsatTextStyle? = null
 )
 
@@ -602,8 +647,8 @@ data class CsatRating(
     val alignment: String? = null,
     val ratingType: String? = null,
     val star: CsatStarConfig? = null,
-    val emoji: JsonElement? = null,
-    val number: JsonElement? = null,
+    val emoji: CsatEmojiConfig? = null,
+    val number: CsatNumberConfig? = null,
     val highRatingSubtitle: String? = null,
     val highRatingTitle: String? = null,
     val lowRatingSubtitle: String? = null,
@@ -783,6 +828,7 @@ data class TooltipStyling(
 @Serializable
 data class TooltipCta(
     val borderRadius: CornerRadius? = null,
+    val cornerRadius: CornerRadius? = null,
     val container: TooltipCtaContainer? = null,
     val margin: TooltipCtaMargin? = null,
     val text: TooltipCtaText? = null
@@ -816,7 +862,9 @@ data class TooltipCtaMargin(
 @Serializable
 data class TooltipCtaText(
     val color: String? = null,
-    val fontSize: Int? = null
+    val fontSize: Int? = null,
+    val fontFamily: String? = null,
+    val fontDecoration: List<String>? = null
 )
 
 @Keep
@@ -825,7 +873,9 @@ data class TooltipText(
     val color: String?,
     val fontSize: Int?,
     val textAlign: String?,
-    val margin: Margin?
+    val margin: Margin?,
+    val fontFamily: String?,
+    val fontDecoration: List<String>?
 )
 
 @Keep
