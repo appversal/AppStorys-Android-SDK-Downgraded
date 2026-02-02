@@ -1,0 +1,41 @@
+﻿> Task :app:appstorys:preBuild UP-TO-DATE
+> Task :app:appstorys:preDebugBuild UP-TO-DATE
+> Task :app:appstorys:generateDebugResValues UP-TO-DATE
+> Task :app:appstorys:generateDebugResources UP-TO-DATE
+> Task :app:appstorys:packageDebugResources UP-TO-DATE
+> Task :app:appstorys:parseDebugLocalResources UP-TO-DATE
+> Task :app:appstorys:generateDebugRFile UP-TO-DATE
+
+> Task :app:appstorys:compileDebugKotlin FAILED
+.\gradlew : e: file:///E:/AndroidStudioProjects/AppStorys%20-%20Deploy/AppStorys-Android-SDK-Downgraded/app/appstorys/src/main/java/com/appversal/appstorys/ui/stories/StoryComponents.kt:1234:5 Expecting a top level declaration
+At line:1 char:85
++ ... wngraded" ; .\gradlew :app:appstorys:compileDebugKotlin --console=pla ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (e: file:///E:/A...vel declaration:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+e: file:///E:/AndroidStudioProjects/AppStorys%20-%20Deploy/AppStorys-Android-SDK-Downgraded/app/appstorys/src/main/java/com/appversal/appstorys/ui/stories/StoryComponents.kt:1235:1 Expecting a top level declaration
+
+[Incubating] Problems report is available at: file:///E:/AndroidStudioProjects/AppStorys%20-%20Deploy/AppStorys-Android-SDK-Downgraded/build/reports/problems/problems-report.html
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:appstorys:compileDebugKotlin'.
+> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
+   > Compilation error. See log for more details
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/8.13/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD FAILED in 12s
+6 actionable tasks: 1 executed, 5 up-to-date

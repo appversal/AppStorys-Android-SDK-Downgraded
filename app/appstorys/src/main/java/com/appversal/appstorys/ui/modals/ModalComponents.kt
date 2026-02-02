@@ -5,10 +5,14 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -368,10 +372,47 @@ fun ModalMediaRendererWithCallback(
                 }
             }
 
+            // Get screen configuration for dynamic height constraints
+            val configuration = LocalConfiguration.current
+            val screenHeightDp = configuration.screenHeightDp
+
+            // Maximum height: 50% of screen height to keep modal proportionate
+            val maxHeightDp = (screenHeightDp * 0.5f).dp
+
+            // Calculate Lottie's intrinsic aspect ratio from composition bounds
+            val lottieAspectRatio = composition?.bounds?.let { bounds ->
+                if (bounds.height() > 0) {
+                    bounds.width().toFloat() / bounds.height().toFloat()
+                } else null
+            }
+
+            // Apply dynamic sizing:
+            // - If Lottie is tall (aspect ratio < 1), constrain by max height and use aspectRatio
+            // - If Lottie is wide or square (aspect ratio >= 1), let it fill width naturally
+            val lottieModifier = when {
+                lottieAspectRatio != null && lottieAspectRatio < 1f -> {
+                    // Tall Lottie: constrain height, maintain aspect ratio
+                    modifier
+                        .fillMaxWidth()
+                        .heightIn(max = maxHeightDp)
+                        .aspectRatio(lottieAspectRatio, matchHeightConstraintsFirst = true)
+                }
+                lottieAspectRatio != null -> {
+                    // Wide or square Lottie: fill width, aspect ratio determines height
+                    modifier
+                        .fillMaxWidth()
+                        .aspectRatio(lottieAspectRatio)
+                }
+                else -> {
+                    // Composition not loaded yet, use modifier with max height constraint
+                    modifier.heightIn(max = maxHeightDp)
+                }
+            }
+
             LottieAnimation(
                 composition = composition,
                 iterations = LottieConstants.IterateForever,
-                modifier = modifier
+                modifier = lottieModifier
             )
         }
 
