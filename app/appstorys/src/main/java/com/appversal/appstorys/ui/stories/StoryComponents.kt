@@ -7,6 +7,11 @@ import android.os.Build.VERSION.SDK_INT
 import android.util.Log
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.widget.FrameLayout
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -18,8 +23,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.runtime.key
-
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -27,6 +30,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -38,12 +42,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -58,19 +63,18 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.text.font.FontStyle
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.edit
 import androidx.core.net.toUri
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
@@ -105,7 +109,17 @@ import com.appversal.appstorys.utils.isLottieUrl
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.json.JSONArray
-import kotlin.math.abs
+
+private const val PROGRESS_UPDATE_INTERVAL_MS = 16L // ~60fps
+private const val TAP_DURATION_THRESHOLD_MS = 200L
+private const val VERTICAL_SWIPE_THRESHOLD = 30
+private const val TOP_TAP_EXCLUSION_ZONE = 100
+
+// ExoPlayer buffer configuration for smooth playback
+private const val MIN_BUFFER_MS = 2000
+private const val MAX_BUFFER_MS = 8000
+private const val BUFFER_FOR_PLAYBACK_MS = 1000
+private const val BUFFER_FOR_REBUFFER_MS = 2000
 
 @Composable
 internal fun StoryCircles(
@@ -113,7 +127,7 @@ internal fun StoryCircles(
     onStoryClick: (StoryGroup) -> Unit,
     viewedStories: List<String>
 ) {
-
+    // Sort groups: unviewed first, then by order
     val sortedStoryGroups = remember(storyGroups, viewedStories) {
         storyGroups.sortedWith(
             compareByDescending<StoryGroup> { it.id !in viewedStories }
@@ -127,14 +141,22 @@ internal fun StoryCircles(
             .padding(8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        items(sortedStoryGroups.size) { index ->
-            val storyGroup = sortedStoryGroups[index]
+        items(
+            items = sortedStoryGroups,
+            key = { storyGroup -> storyGroup.id ?: storyGroup.hashCode() }
+        ) { storyGroup ->
             if (storyGroup.thumbnail != null) {
                 StoryItem(
                     isStoryGroupViewed = viewedStories.contains(storyGroup.id),
                     imageUrl = storyGroup.thumbnail,
                     username = storyGroup.name ?: "",
-                    ringColor = Color(android.graphics.Color.parseColor(storyGroup.ringColor)),
+                    ringColor = remember(storyGroup.ringColor) {
+                        try {
+                            Color(android.graphics.Color.parseColor(storyGroup.ringColor))
+                        } catch (_: Exception) {
+                            Color.Gray
+                        }
+                    },
                     nameColor = storyGroup.nameColor ?: "#000000",
                     onClick = { onStoryClick(storyGroup) },
                     groupStyling = storyGroup.styling
@@ -172,17 +194,13 @@ internal fun StoryItem(
     } else {
         try {
             currentState?.ringColor?.let { Color(android.graphics.Color.parseColor(it)) } ?: ringColor
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             ringColor
         }
     }
 
-    val fontSize = (currentState?.fontSize ?: groupStyling?.name?.size ?: 12).sp
-
     // Font decoration
     val fontDecoration = currentState?.fontDecoration ?: emptyList()
-    val fontWeight = if (fontDecoration.contains("bold")) FontWeight.Bold else FontWeight.Normal
-    val fontStyle = if (fontDecoration.contains("italic")) FontStyle.Italic else FontStyle.Normal
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -261,15 +279,17 @@ internal fun StoryItem(
 
                         // GIF images
                         isGifUrl(imageUrl) -> {
-                            val imageLoader = ImageLoader.Builder(context)
-                                .components {
-                                    if (SDK_INT >= 28) {
-                                        add(ImageDecoderDecoder.Factory())
-                                    } else {
-                                        add(GifDecoder.Factory())
+                            val imageLoader = remember(context) {
+                                ImageLoader.Builder(context)
+                                    .components {
+                                        if (SDK_INT >= 28) {
+                                            add(ImageDecoderDecoder.Factory())
+                                        } else {
+                                            add(GifDecoder.Factory())
+                                        }
                                     }
-                                }
-                                .build()
+                                    .build()
+                            }
 
                             val painter = rememberAsyncImagePainter(
                                 ImageRequest.Builder(context)
@@ -338,7 +358,64 @@ internal fun StoryScreen(
     onDismiss: () -> Unit,
     slides: List<StorySlide>,
     onStoryGroupEnd: () -> Unit,
-    onStoryGroupBack: () -> Unit, // 🔴 NAVIGATION PATCH
+    onStoryGroupBack: () -> Unit,
+    sendEvent: (Pair<StorySlide, String>) -> Unit,
+    sendClickEvent: (Pair<StorySlide, String>) -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
+
+    DisposableEffect(Unit) {
+        AppStorys.isVisible = false
+
+        onDispose {
+            AppStorys.isVisible = true
+        }
+    }
+
+    ModalBottomSheet(
+        modifier = Modifier
+            .fillMaxSize(),
+        shape = RectangleShape,
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = Color.Black,
+        contentColor = Color.White,
+        dragHandle = null,
+        content = {
+            StoryScreenContent(
+                storyGroup = storyGroup,
+                slides = slides,
+                sheetState = sheetState,
+                onDismiss = {
+                    scope.launch {
+                        sheetState.hide()
+                        onDismiss()
+                    }
+                },
+                onStoryGroupEnd = onStoryGroupEnd,
+                onStoryGroupBack = onStoryGroupBack,
+                sendEvent = sendEvent,
+                sendClickEvent = sendClickEvent
+            )
+        }
+    )
+}
+
+/**
+ * The actual content of the story screen, separated from ModalBottomSheet
+ * to allow for smooth transitions between story groups using AnimatedContent.
+ */
+@UnstableApi
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun StoryScreenContent(
+    storyGroup: StoryGroup,
+    slides: List<StorySlide>,
+    sheetState: androidx.compose.material3.SheetState,
+    onDismiss: () -> Unit,
+    onStoryGroupEnd: () -> Unit,
+    onStoryGroupBack: () -> Unit,
     sendEvent: (Pair<StorySlide, String>) -> Unit,
     sendClickEvent: (Pair<StorySlide, String>) -> Unit
 ) {
@@ -346,31 +423,138 @@ internal fun StoryScreen(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
-
     var isHolding by remember { mutableStateOf(false) }
-    var isMuted by remember { mutableStateOf(false) }
+    var isMuted by rememberSaveable { mutableStateOf(false) }
     var isDismissing by remember { mutableStateOf(false) }
-    var currentSlideIndex by remember(storyGroup, slides) { mutableIntStateOf(0) }
-    val currentSlide = slides[currentSlideIndex]
-    var progress by remember(currentSlideIndex) { mutableFloatStateOf(0f) }
 
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    // Transition state to prevent flicker when switching slides (especially video -> image)
+    var isTransitioning by remember { mutableStateOf(false) }
+
+    // Reset slide index when story group changes - use remember with storyGroup.id as key
+    var currentSlideIndex by remember(storyGroup.id) { mutableIntStateOf(0) }
+    val currentSlide = remember(currentSlideIndex, slides) { slides.getOrNull(currentSlideIndex) ?: slides.first() }
+
+    // Reset progress when story group changes
+    var progress by remember(storyGroup.id) { mutableFloatStateOf(0f) }
+
+    // Track video ready state to prevent progress bar issues
+    // Don't key by storyGroup.id - we reset these in LaunchedEffect when needed
+    var isVideoReady by remember { mutableStateOf(false) }
+    var videoDuration by remember { mutableStateOf(0L) }
+    var isBuffering by remember { mutableStateOf(false) }
+
     val scope = rememberCoroutineScope()
 
-    val completedSlides = remember { mutableStateListOf<Int>() }
+    // Use a set for O(1) lookup instead of list - reset on story group change
+    val completedSlides = remember(storyGroup.id) { mutableSetOf<Int>() }
 
     val isImage = currentSlide.image != null
     // Use slideShowTime from styling if available, otherwise default to 5 seconds
     val storyDuration = if (isImage) (storyGroup.styling?.slideShowTime ?: 5) * 1000 else 0
 
+    // Optimized ExoPlayer with LoadControl for smooth playback
+    val loadControl = remember {
+        DefaultLoadControl.Builder()
+            .setBufferDurationsMs(
+                MIN_BUFFER_MS,
+                MAX_BUFFER_MS,
+                BUFFER_FOR_PLAYBACK_MS,
+                BUFFER_FOR_REBUFFER_MS
+            )
+            .setTargetBufferBytes(C.LENGTH_UNSET)
+            .setPrioritizeTimeOverSizeThresholds(true)
+            .build()
+    }
+
+    // Create a single player instance that persists across story group changes
+    // We'll manually reset it when story group changes instead of recreating
     val player = remember(context) {
-        ExoPlayer
-            .Builder(context)
+        ExoPlayer.Builder(context)
             .setMediaSourceFactory(DefaultMediaSourceFactory(VideoCache.getFactory(context)))
+            .setLoadControl(loadControl)
             .build().apply {
                 repeatMode = Player.REPEAT_MODE_OFF
                 playWhenReady = true
+                videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT
             }
+    }
+
+    // Properly stop and reset player when story group changes
+    DisposableEffect(storyGroup.id) {
+        onDispose {
+            // Stop and clear when switching story groups
+            player.stop()
+            player.clearMediaItems()
+        }
+    }
+
+    // Preload next slide images for smoother transitions
+    LaunchedEffect(currentSlideIndex, slides) {
+        val nextIndex = currentSlideIndex + 1
+        if (nextIndex < slides.size) {
+            val nextSlide = slides[nextIndex]
+            nextSlide.image?.let { imageUrl ->
+                val request = ImageRequest.Builder(context)
+                    .data(imageUrl)
+                    .memoryCacheKey(imageUrl)
+                    .diskCacheKey(imageUrl)
+                    .diskCachePolicy(CachePolicy.ENABLED)
+                    .memoryCachePolicy(CachePolicy.ENABLED)
+                    .build()
+                coil.Coil.imageLoader(context).enqueue(request)
+            }
+        }
+    }
+
+    // Listen for player state changes
+    DisposableEffect(player) {
+        val listener = object : Player.Listener {
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                when (playbackState) {
+                    Player.STATE_READY -> {
+                        isVideoReady = true
+                        isBuffering = false
+                        videoDuration = player.duration.coerceAtLeast(1L)
+                    }
+                    Player.STATE_ENDED -> {
+                        // Video ended naturally
+                        isBuffering = false
+                    }
+                    Player.STATE_BUFFERING -> {
+                        // Only show buffering if we haven't received first frame yet
+                        // Once video is ready, don't show buffering indicator for rebuffering
+                        if (!isVideoReady) {
+                            isBuffering = true
+                        }
+                    }
+                    Player.STATE_IDLE -> {
+                        isVideoReady = false
+                        isBuffering = false
+                    }
+                }
+            }
+        }
+        player.addListener(listener)
+
+        // Check current state immediately in case player is already ready
+        when (player.playbackState) {
+            Player.STATE_READY -> {
+                isVideoReady = true
+                isBuffering = false
+                videoDuration = player.duration.coerceAtLeast(1L)
+            }
+            Player.STATE_BUFFERING -> {
+                if (!isVideoReady) {
+                    isBuffering = true
+                }
+            }
+        }
+
+        onDispose {
+            player.removeListener(listener)
+            // Release player only when the entire StoryScreenContent is disposed
+            player.release()
+        }
     }
 
     DisposableEffect(lifecycleOwner) {
@@ -387,24 +571,33 @@ internal fun StoryScreen(
 
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
-            player.release()
         }
     }
 
-    LaunchedEffect(currentSlideIndex) {
+    // Reset and initialize media when slide or story group changes
+    LaunchedEffect(storyGroup.id, currentSlideIndex) {
         progress = 0f
+        isVideoReady = false
+        isBuffering = false
+        videoDuration = 0L
         sendEvent(Pair(currentSlide, "IMP"))
 
         player.stop()
         player.clearMediaItems()
 
         if (!isImage && currentSlide.video != null) {
+            isBuffering = true  // Set buffering true before prepare
             player.setMediaItem(MediaItem.fromUri(currentSlide.video.toUri()))
             player.prepare()
         }
+
+        // Brief delay to allow content to settle, then hide transition overlay
+        delay(50)
+        isTransitioning = false
     }
 
-    LaunchedEffect(currentSlideIndex, isHolding, isDismissing) {
+    // Optimized progress tracking with better video duration handling
+    LaunchedEffect(storyGroup.id, currentSlideIndex, isHolding, isDismissing, isVideoReady) {
         if (isHolding || isDismissing) {
             return@LaunchedEffect
         }
@@ -418,14 +611,21 @@ internal fun StoryScreen(
                 while (progress < 1f) {
                     val elapsedTime = System.currentTimeMillis() - startTime
                     progress = (elapsedTime.toFloat() / storyDuration).coerceIn(0f, 1f)
-                    delay(16)
+                    delay(PROGRESS_UPDATE_INTERVAL_MS)
                 }
             }
 
             currentSlide.video != null -> {
-                while (progress < 1) {
-                    progress = (player.currentPosition.toFloat() / player.duration).coerceIn(0f, 1f)
-                    delay(16)
+                // Wait for video to be ready before tracking progress
+                if (!isVideoReady || videoDuration <= 0L) {
+                    return@LaunchedEffect
+                }
+
+                while (progress < 1f && isVideoReady) {
+                    val currentPos = player.currentPosition.coerceAtLeast(0L)
+                    val duration = videoDuration.coerceAtLeast(1L)
+                    progress = (currentPos.toFloat() / duration).coerceIn(0f, 1f)
+                    delay(PROGRESS_UPDATE_INTERVAL_MS)
                 }
             }
         }
@@ -433,6 +633,10 @@ internal fun StoryScreen(
         if (!completedSlides.contains(currentSlideIndex)) {
             completedSlides.add(currentSlideIndex)
         }
+
+        // Stop player and show transition overlay before changing slide to prevent flicker
+        player.stop()
+        isTransitioning = true
 
         currentSlideIndex = when {
             currentSlideIndex < slides.lastIndex -> currentSlideIndex + 1
@@ -455,291 +659,293 @@ internal fun StoryScreen(
         }
     }
 
-    DisposableEffect(Unit) {
-        AppStorys.isVisible = false
-
-        onDispose {
-            AppStorys.isVisible = true
-        }
-    }
-
-    ModalBottomSheet(
+    Box(
         modifier = Modifier
-            .fillMaxSize(),
-        shape = RectangleShape,
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = Color.Black,
-        contentColor = Color.White,
-        dragHandle = null,
-        content = {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .statusBarsPadding()
-                    .pointerInput(storyGroup.id, slides, currentSlideIndex) {
-                        var startPosition: Offset? = null
-                        var startTime = 0L
-                        var hasMovedVertically = false
-                        var isCurrentlyHolding = false
+            .fillMaxSize()
+            .statusBarsPadding()
+            .pointerInput(storyGroup.id, slides.size, currentSlideIndex) {
+                var startPosition: Offset? = null
+                var startTime = 0L
+                var hasMovedVertically = false
+                var isCurrentlyHolding = false
 
-                        awaitPointerEventScope {
-                            while (true) {
-                                val event = awaitPointerEvent(PointerEventPass.Main)
-                                val change = event.changes.first()
+                awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent(PointerEventPass.Main)
+                        val change = event.changes.firstOrNull() ?: continue
 
-                                when {
-                                    change.changedToDown() -> {
-                                        startPosition = change.position
-                                        startTime = System.currentTimeMillis()
-                                        hasMovedVertically = false
-                                        isCurrentlyHolding = true
-                                        isHolding = true
-                                        change.consume()
-                                    }
+                        when {
+                            change.changedToDown() -> {
+                                startPosition = change.position
+                                startTime = System.currentTimeMillis()
+                                hasMovedVertically = false
+                                isCurrentlyHolding = true
+                                isHolding = true
+                                change.consume()
+                            }
 
-                                    change.pressed && startPosition != null -> {
-                                        val currentPosition = change.position
-                                        val deltaY =
-                                            kotlin.math.abs(currentPosition.y - startPosition!!.y)
-                                        val deltaX =
-                                            kotlin.math.abs(currentPosition.x - startPosition!!.x)
+                            change.pressed && startPosition != null -> {
+                                val currentPosition = change.position
+                                val deltaY = kotlin.math.abs(currentPosition.y - startPosition!!.y)
+                                val deltaX = kotlin.math.abs(currentPosition.x - startPosition!!.x)
 
-                                        // If there's significant vertical movement, it's likely a dismiss gesture
-                                        if (deltaY > 30 && deltaY > deltaX) {
-                                            hasMovedVertically = true
-                                        }
-                                    }
+                                // If there's significant vertical movement, it's likely a dismiss gesture
+                                if (deltaY > VERTICAL_SWIPE_THRESHOLD && deltaY > deltaX) {
+                                    hasMovedVertically = true
+                                }
+                            }
 
-                                    change.changedToUp() && isCurrentlyHolding -> {
-                                        isCurrentlyHolding = false
-                                        isHolding = false
+                            change.changedToUp() && isCurrentlyHolding -> {
+                                isCurrentlyHolding = false
+                                isHolding = false
 
-                                        val duration = System.currentTimeMillis() - startTime
-                                        val tapPosition = startPosition ?: change.position
+                                val duration = System.currentTimeMillis() - startTime
+                                val tapPosition = startPosition ?: change.position
 
-                                        // Only navigate if:
-                                        // 1. Quick tap (< 200ms)
-                                        // 2. No vertical movement (not a swipe down)
-                                        // 3. Not in top area
-                                        if (duration < 200 && !hasMovedVertically && tapPosition.y > 100) {
-                                            val screenWidth = size.width
-                                            val isLeftTap = tapPosition.x < screenWidth / 2
-                                            val isRightTap = tapPosition.x >= screenWidth / 2
-                                            val lastSlideIndex = slides.lastIndex
+                                // Only navigate if:
+                                // 1. Quick tap (< TAP_DURATION_THRESHOLD_MS)
+                                // 2. No vertical movement (not a swipe down)
+                                // 3. Not in top area (progress bar region)
+                                if (duration < TAP_DURATION_THRESHOLD_MS &&
+                                    !hasMovedVertically &&
+                                    tapPosition.y > TOP_TAP_EXCLUSION_ZONE) {
 
-                                            // 🔴 NAVIGATION PATCH (ported 1:1)
-                                            when {
-                                                // ⬅️ Left tap → previous slide
-                                                isLeftTap && currentSlideIndex > 0 -> {
-                                                    completedSlides.remove(currentSlideIndex)
-                                                    currentSlideIndex--
-                                                }
+                                    val screenWidth = size.width
+                                    val isLeftTap = tapPosition.x < screenWidth / 2
+                                    val isRightTap = !isLeftTap
+                                    val lastSlideIndex = slides.lastIndex
 
-                                                // ⬅️ Left tap on first slide → previous story group
-                                                isLeftTap && currentSlideIndex == 0 -> {
-                                                    onStoryGroupBack()
-                                                }
-
-                                                // ➡️ Right tap → next slide
-                                                isRightTap && currentSlideIndex < lastSlideIndex -> {
-                                                    completedSlides.add(currentSlideIndex)
-                                                    currentSlideIndex++
-                                                }
-
-                                                // ➡️ Right tap on last slide → next story group
-                                                isRightTap && currentSlideIndex == lastSlideIndex -> {
-                                                    onStoryGroupEnd()
-                                                }
-
-                                                else -> currentSlideIndex
-                                            }
+                                    when {
+                                        // ⬅️ Left tap → previous slide
+                                        isLeftTap && currentSlideIndex > 0 -> {
+                                            completedSlides.remove(currentSlideIndex)
+                                            // Stop player and show transition overlay immediately to prevent flicker
+                                            player.stop()
+                                            isTransitioning = true
+                                            progress = 0f  // Reset progress immediately before changing slide
+                                            currentSlideIndex--
                                         }
 
-                                        startPosition = null
-                                        change.consume()
+                                        // ⬅️ Left tap on first slide → previous story group
+                                        isLeftTap && currentSlideIndex == 0 -> {
+                                            onStoryGroupBack()
+                                        }
+
+                                        // ➡️ Right tap → next slide
+                                        isRightTap && currentSlideIndex < lastSlideIndex -> {
+                                            completedSlides.add(currentSlideIndex)
+                                            // Stop player and show transition overlay immediately to prevent flicker
+                                            player.stop()
+                                            isTransitioning = true
+                                            progress = 0f  // Reset progress immediately before changing slide
+                                            currentSlideIndex++
+                                        }
+
+                                        // ➡️ Right tap on last slide → next story group
+                                        isRightTap && currentSlideIndex == lastSlideIndex -> {
+                                            onStoryGroupEnd()
+                                        }
                                     }
                                 }
+
+                                startPosition = null
+                                change.consume()
                             }
                         }
-                    },
-                content = {
+                    }
+                }
+            },
+        content = {
+            // Story Content with optimized image loading
                     Box(
                         modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center,
-                        content = {
-                            if (currentSlide.image != null) {
-                                Image(
-                                    painter = rememberAsyncImagePainter(currentSlide.image),
-                                    contentDescription = null,
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentScale = ContentScale.Fit
-                                )
-                            }
+                        contentAlignment = Alignment.Center
+                    ) {
+                        // Image content with support for Lottie, GIF, and regular images
+                        if (currentSlide.image != null) {
+                            val imageUrl = currentSlide.image
 
-                            if (currentSlide.video != null) {
-                                AndroidView(
-                                    factory = { ctx ->
-                                        PlayerView(ctx).apply {
-                                            this.player = player
-                                            layoutParams =
-                                                FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT)
-                                            useController = false
-                                        }
-                                    },
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                            }
-
-                            if (currentSlide.link?.isNotEmpty() == true && currentSlide.buttonText?.isNotEmpty() == true) {
-                                val styling = currentSlide.styling
-
-                                // NEW IMPLEMENTATION: Using common CTAButton component
-                                // Support both new nested cta structure and legacy fields
-                                val ctaConfig = styling?.cta
-                                val container = ctaConfig?.container
-                                val cornerRadius = ctaConfig?.cornerRadius
-                                val ctaMargin = ctaConfig?.margin ?: styling?.ctaMargins
-                                val ctaText = ctaConfig?.text
-
-                                // Determine alignment for Box positioning
-                                // Check new structure first, then legacy
-                                val alignmentStr = container?.alignment ?: styling?.ctaAlignment
-                                val alignment = when (alignmentStr?.lowercase()) {
-                                    "left" -> Alignment.BottomStart
-                                    "right" -> Alignment.BottomEnd
-                                    else -> Alignment.BottomCenter
+                            when {
+                                // Lottie animation (.json or .lottie files)
+                                isLottieUrl(imageUrl) -> {
+                                    val composition by rememberLottieComposition(
+                                        spec = LottieCompositionSpec.Url(imageUrl)
+                                    )
+                                    Box(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        LottieAnimation(
+                                            composition = composition,
+                                            iterations = LottieConstants.IterateForever,
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentScale = ContentScale.Fit
+                                        )
+                                    }
                                 }
 
-                                val ctaButtonConfig = createCTAButtonConfig(
-                                    // Text styling - new structure first, then legacy
-                                    textColor = ctaText?.color ?: styling?.ctaText?.fontColor ?: "#FFFFFF",
-                                    textSize = ctaText?.fontSize ?: styling?.ctaText?.fontSize ?: 12,
-                                    fontFamily = ctaText?.fontFamily,
-                                    fontDecoration = ctaText?.fontDecoration,
-
-                                    // Margins - new structure first, then legacy
-                                    marginTop = ctaMargin?.top ?: 12,
-                                    marginEnd = ctaMargin?.right ?: 12,
-                                    marginBottom = ctaMargin?.bottom ?: 12,
-                                    marginStart = ctaMargin?.left ?: 12,
-
-                                    // Container - new structure first, then legacy
-                                    height = container?.height ?: styling?.ctaHeight ?: 32,
-                                    width = container?.ctaWidth,
-                                    borderColorString = container?.borderColor ?: styling?.ctaBackground?.borderColor,
-                                    borderWidth = container?.borderWidth ?: styling?.borderWidth ?: 2,
-                                    fullWidth = container?.ctaFullWidth ?: styling?.fullWidthCta ?: false,
-                                    backgroundColorString = container?.backgroundColor ?: styling?.ctaBackground?.backgroundColor ?: "#FFFFFF",
-                                    alignment = alignmentStr ?: "center",
-
-                                    // Corner radius - new structure
-                                    borderRadiusTopLeft = cornerRadius?.topLeft ?: 12,
-                                    borderRadiusTopRight = cornerRadius?.topRight ?: 12,
-                                    borderRadiusBottomLeft = cornerRadius?.bottomLeft ?: 12,
-                                    borderRadiusBottomRight = cornerRadius?.bottomRight ?: 12
-                                )
-
-                                Box(
-                                    modifier = Modifier.align(alignment)
-                                ) {
-                                    CTAButton(
-                                        text = currentSlide.buttonText ?: "",
-                                        config = ctaButtonConfig,
-                                        onClick = {
-                                            try {
-                                                uriHandler.openUri(currentSlide.link)
-                                            } catch (e: Exception) {
-                                                Log.i("Click", "Link has $e")
+                                // GIF images
+                                isGifUrl(imageUrl) -> {
+                                    val imageLoader = remember(context) {
+                                        ImageLoader.Builder(context)
+                                            .components {
+                                                if (SDK_INT >= 28) {
+                                                    add(ImageDecoderDecoder.Factory())
+                                                } else {
+                                                    add(GifDecoder.Factory())
+                                                }
                                             }
-                                            sendEvent(Pair(currentSlide, "CLK"))
-                                            sendClickEvent(Pair(currentSlide, "clicked"))
-                                        }
+                                            .build()
+                                    }
+
+                                    val painter = rememberAsyncImagePainter(
+                                        ImageRequest.Builder(context)
+                                            .data(imageUrl)
+                                            .memoryCacheKey(imageUrl)
+                                            .diskCacheKey(imageUrl)
+                                            .diskCachePolicy(CachePolicy.ENABLED)
+                                            .memoryCachePolicy(CachePolicy.ENABLED)
+                                            .crossfade(true)
+                                            .apply { size(coil.size.Size.ORIGINAL) }
+                                            .build(),
+                                        imageLoader = imageLoader
+                                    )
+
+                                    Image(
+                                        painter = painter,
+                                        contentDescription = null,
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Fit
                                     )
                                 }
 
-                                /* OLD IMPLEMENTATION: Inline Button (commented out)
-                                // Parse colors from styling or use defaults
-                                val backgroundColor = try {
-                                    Color(android.graphics.Color.parseColor(styling?.ctaBackground?.backgroundColor ?: "#FFFFFF"))
-                                } catch (e: Exception) {
-                                    Color.White
+                                // Regular images (JPEG, PNG, etc.)
+                                else -> {
+                                    val imageRequest = remember(imageUrl) {
+                                        ImageRequest.Builder(context)
+                                            .data(imageUrl)
+                                            .memoryCacheKey(imageUrl)
+                                            .diskCacheKey(imageUrl)
+                                            .diskCachePolicy(CachePolicy.ENABLED)
+                                            .memoryCachePolicy(CachePolicy.ENABLED)
+                                            .crossfade(true)
+                                            .build()
+                                    }
+                                    Image(
+                                        painter = rememberAsyncImagePainter(imageRequest),
+                                        contentDescription = null,
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Fit
+                                    )
                                 }
+                            }
+                        }
 
-                                val borderColor = try {
-                                    Color(android.graphics.Color.parseColor(styling?.ctaBackground?.borderColor ?: "#FFFFFF"))
-                                } catch (e: Exception) {
-                                    Color.White
+                        // Video content
+                        if (currentSlide.video != null) {
+                            AndroidView(
+                                factory = { ctx ->
+                                    PlayerView(ctx).apply {
+                                        this.player = player
+                                        layoutParams = FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT)
+                                        useController = false
+                                    }
+                                },
+                                modifier = Modifier.fillMaxSize()
+                            )
+
+                            // Show loading indicator only while initially buffering
+                            if (isBuffering) {
+                                Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    androidx.compose.material3.CircularProgressIndicator(
+                                        color = Color.White,
+                                        modifier = Modifier.size(48.dp)
+                                    )
                                 }
+                            }
+                        }
 
-                                // Get dimensions and margins
-                                val ctaHeight = (styling?.ctaHeight ?: 32).dp
-                                val borderWidth = (styling?.borderWidth ?: 2).dp
-                                val fullWidth = styling?.fullWidthCta ?: false
+                        // CTA Button
+                        if (currentSlide.link?.isNotEmpty() == true && currentSlide.buttonText?.isNotEmpty() == true) {
+                            val styling = currentSlide.styling
+                            val ctaConfig = styling?.cta
+                            val container = ctaConfig?.container
+                            val cornerRadius = ctaConfig?.cornerRadius
+                            val ctaMargin = ctaConfig?.margin ?: styling?.ctaMargins
+                            val ctaText = ctaConfig?.text
 
-                                val marginLeft = (styling?.ctaMargins?.left ?: 12).dp
-                                val marginRight = (styling?.ctaMargins?.right ?: 12).dp
-                                val marginTop = (styling?.ctaMargins?.top ?: 12).dp
-                                val marginBottom = (styling?.ctaMargins?.bottom ?: 12).dp
+                            val alignmentStr = container?.alignment ?: styling?.ctaAlignment
+                            val alignment = when (alignmentStr?.lowercase()) {
+                                "left" -> Alignment.BottomStart
+                                "right" -> Alignment.BottomEnd
+                                else -> Alignment.BottomCenter
+                            }
 
-                                // Determine alignment
-                                val alignment = when (styling?.ctaAlignment?.lowercase()) {
-                                    "left" -> Alignment.BottomStart
-                                    "right" -> Alignment.BottomEnd
-                                    else -> Alignment.BottomCenter
-                                }
+                            val ctaButtonConfig = createCTAButtonConfig(
+                                textColor = ctaText?.color ?: styling?.ctaText?.fontColor ?: "#FFFFFF",
+                                textSize = ctaText?.fontSize ?: styling?.ctaText?.fontSize ?: 12,
+                                fontFamily = ctaText?.fontFamily,
+                                fontDecoration = ctaText?.fontDecoration,
+                                marginTop = ctaMargin?.top ?: 12,
+                                marginEnd = ctaMargin?.right ?: 12,
+                                marginBottom = ctaMargin?.bottom ?: 12,
+                                marginStart = ctaMargin?.left ?: 12,
+                                height = container?.height ?: styling?.ctaHeight ?: 32,
+                                width = container?.ctaWidth,
+                                borderColorString = container?.borderColor ?: styling?.ctaBackground?.borderColor,
+                                borderWidth = container?.borderWidth ?: styling?.borderWidth ?: 2,
+                                fullWidth = container?.ctaFullWidth ?: styling?.fullWidthCta ?: false,
+                                backgroundColorString = container?.backgroundColor ?: styling?.ctaBackground?.backgroundColor ?: "#FFFFFF",
+                                alignment = alignmentStr ?: "center",
+                                borderRadiusTopLeft = cornerRadius?.topLeft ?: 12,
+                                borderRadiusTopRight = cornerRadius?.topRight ?: 12,
+                                borderRadiusBottomLeft = cornerRadius?.bottomLeft ?: 12,
+                                borderRadiusBottomRight = cornerRadius?.bottomRight ?: 12
+                            )
 
-                                Button(
+                            Box(modifier = Modifier.align(alignment)) {
+                                CTAButton(
+                                    text = currentSlide.buttonText ?: "",
+                                    config = ctaButtonConfig,
                                     onClick = {
                                         try {
                                             uriHandler.openUri(currentSlide.link)
                                         } catch (e: Exception) {
-                                            Log.i("Click", "Link has $e")
+                                            Log.e("StoryScreen", "Failed to open link: ${e.message}")
                                         }
                                         sendEvent(Pair(currentSlide, "CLK"))
                                         sendClickEvent(Pair(currentSlide, "clicked"))
-                                    },
-                                    modifier = Modifier
-                                        .align(alignment)
-                                        .padding(
-                                            start = marginLeft,
-                                            end = marginRight,
-                                            top = marginTop,
-                                            bottom = marginBottom
-                                        )
-                                        .height(ctaHeight)
-                                        .then(
-                                            if (fullWidth) Modifier.fillMaxWidth() else Modifier
-                                        ),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = backgroundColor
-                                    ),
-                                    border = androidx.compose.foundation.BorderStroke(
-                                        width = borderWidth,
-                                        color = borderColor
-                                    ),
-                                    content = {
-                                        CommonText(
-                                            text = currentSlide.buttonText,
-                                            styling = TextStyling(
-                                                color = styling?.ctaText?.fontColor,
-                                                fontSize = styling?.ctaText?.fontSize ?: 12,
-                                                fontFamily = "",
-                                            )
-                                        )
                                     }
                                 )
-                                */
                             }
                         }
-                    )
 
-                    // Progress indicator row
-                    Row(
+                        // Transition overlay to mask content swap and prevent flicker
+                        if (isTransitioning) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color.Black)
+                            )
+                        }
+                    }
+
+                    // Header overlay - Fixed at top with Column for proper layout
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .align(Alignment.TopStart)
+                    ) {
+                        // Progress indicator row - Instagram-style with rounded corners
+                        Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(4.dp)
-                                .padding(horizontal = 8.dp),
+                                //.height(4.dp)
+                                .padding(horizontal = 8.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                             content = {
                                 slides.forEachIndexed { index, _ ->
@@ -747,44 +953,105 @@ internal fun StoryScreen(
                                         progress = {
                                             when {
                                                 index == currentSlideIndex -> progress
-                                                index < currentSlideIndex || completedSlides.contains(
-                                                    index
-                                                ) -> 1f
-
+                                                index < currentSlideIndex || completedSlides.contains(index) -> 1f
                                                 else -> 0f
                                             }
                                         },
                                         modifier = Modifier
                                             .weight(1f)
-                                            .height(4.dp),
+                                            .height(4.dp)
+                                            .clip(RoundedCornerShape(1.dp)),
                                         color = Color.White,
-                                        trackColor = Color.Gray.copy(alpha = 0.5f),
+                                        trackColor = Color.White.copy(alpha = 0.3f),
                                     )
                                 }
                             }
                         )
 
                         // Header row with user info and action buttons
+                        // Use Alignment.Top so button margins don't push the entire row down
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(start = 8.dp, end = 8.dp, top = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
+                                .padding(start = 8.dp, end = 8.dp, top = 0.dp),
+                            verticalAlignment = Alignment.Top,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            // Left side: Thumbnail + Name
+                            // Left side: Thumbnail + Name - centered vertically within itself
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(top = 4.dp), // Small padding to align with default button position
                                 content = {
-                                    Image(
-                                        painter = rememberAsyncImagePainter(storyGroup.thumbnail),
-                                        contentDescription = null,
-                                        modifier = Modifier
-                                            .size(32.dp)
-                                            .clip(CircleShape)
-                                            .background(Color.LightGray),
-                                        contentScale = ContentScale.Crop
-                                    )
+                                    // Thumbnail with support for Lottie, GIF, and regular images
+                                    val thumbnailUrl = storyGroup.thumbnail
+                                    val thumbnailModifier = Modifier
+                                        .size(32.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.LightGray)
+
+                                    when {
+                                        // Lottie animation (.json or .lottie files)
+                                        thumbnailUrl != null && isLottieUrl(thumbnailUrl) -> {
+                                            val composition by rememberLottieComposition(
+                                                spec = LottieCompositionSpec.Url(thumbnailUrl)
+                                            )
+                                            Box(
+                                                modifier = thumbnailModifier,
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                LottieAnimation(
+                                                    composition = composition,
+                                                    iterations = LottieConstants.IterateForever,
+                                                    modifier = Modifier.fillMaxSize()
+                                                )
+                                            }
+                                        }
+
+                                        // GIF images
+                                        thumbnailUrl != null && isGifUrl(thumbnailUrl) -> {
+                                            val imageLoader = remember(context) {
+                                                ImageLoader.Builder(context)
+                                                    .components {
+                                                        if (SDK_INT >= 28) {
+                                                            add(ImageDecoderDecoder.Factory())
+                                                        } else {
+                                                            add(GifDecoder.Factory())
+                                                        }
+                                                    }
+                                                    .build()
+                                            }
+
+                                            val painter = rememberAsyncImagePainter(
+                                                ImageRequest.Builder(context)
+                                                    .data(thumbnailUrl)
+                                                    .memoryCacheKey(thumbnailUrl)
+                                                    .diskCacheKey(thumbnailUrl)
+                                                    .diskCachePolicy(CachePolicy.ENABLED)
+                                                    .memoryCachePolicy(CachePolicy.ENABLED)
+                                                    .crossfade(true)
+                                                    .apply { size(coil.size.Size.ORIGINAL) }
+                                                    .build(),
+                                                imageLoader = imageLoader
+                                            )
+
+                                            Image(
+                                                painter = painter,
+                                                contentDescription = null,
+                                                modifier = thumbnailModifier,
+                                                contentScale = ContentScale.Crop
+                                            )
+                                        }
+
+                                        // Regular images (JPEG, PNG, etc.)
+                                        else -> {
+                                            Image(
+                                                painter = rememberAsyncImagePainter(thumbnailUrl),
+                                                contentDescription = null,
+                                                modifier = thumbnailModifier,
+                                                contentScale = ContentScale.Crop
+                                            )
+                                        }
+                                    }
 
                                     Spacer(modifier = Modifier.width(8.dp))
 
@@ -802,8 +1069,10 @@ internal fun StoryScreen(
                             )
 
                             // Right side: Action buttons (mute, share, close)
+                            // Align to top so each button's marginTop works independently
                             Row(
                                 horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End),
+                                verticalAlignment = Alignment.Top,
                                 content = {
                                     if (!isImage) {
                                         // NEW IMPLEMENTATION: Using common SoundToggleButton component
@@ -1104,8 +1373,103 @@ internal fun StoryScreen(
                                 }
                             )
                         }
+                    } // End of Column (header overlay)
                 }
             )
+        }
+
+@UnstableApi
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun StoryScreenWrapper(
+    storyGroups: List<StoryGroup>,
+    initialStoryGroup: StoryGroup,
+    onDismiss: () -> Unit,
+    onStoryGroupChange: (StoryGroup?) -> Unit,
+    sendEvent: (Pair<StorySlide, String>) -> Unit,
+    sendClickEvent: (Pair<StorySlide, String>) -> Unit
+) {
+    // Track current story group internally for smooth transitions
+    var currentStoryGroup by remember { mutableStateOf(initialStoryGroup) }
+
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
+
+    // Update internal state when external changes (e.g., from StoriesApp)
+    LaunchedEffect(initialStoryGroup.id) {
+        currentStoryGroup = initialStoryGroup
+    }
+
+    DisposableEffect(Unit) {
+        AppStorys.isVisible = false
+        onDispose {
+            AppStorys.isVisible = true
+        }
+    }
+
+    ModalBottomSheet(
+        modifier = Modifier.fillMaxSize(),
+        shape = RectangleShape,
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = Color.Black,
+        contentColor = Color.White,
+        dragHandle = null,
+        content = {
+            // Use AnimatedContent for smooth transitions between story groups
+            AnimatedContent(
+                targetState = currentStoryGroup,
+                transitionSpec = {
+                    fadeIn(animationSpec = tween(150)) togetherWith
+                    fadeOut(animationSpec = tween(150))
+                },
+                label = "StoryGroupTransition"
+            ) { storyGroup ->
+                if (!storyGroup.slides.isNullOrEmpty()) {
+                    StoryScreenContent(
+                        storyGroup = storyGroup,
+                        slides = storyGroup.slides,
+                        sheetState = sheetState,
+                        onDismiss = {
+                            scope.launch {
+                                sheetState.hide()
+                                onDismiss()
+                            }
+                        },
+                        onStoryGroupEnd = {
+                            // Use currentStoryGroup instead of storyGroup from AnimatedContent
+                            // to avoid stale reference issues during animation
+                            val currentIndex = storyGroups.indexOfFirst { it.id == currentStoryGroup.id }
+                            Log.d("StoryScreenWrapper", "onStoryGroupEnd called - currentIndex: $currentIndex, storyGroups.size: ${storyGroups.size}, storyGroups.lastIndex: ${storyGroups.lastIndex}, currentStoryGroup.id: ${currentStoryGroup.id}")
+                            Log.d("StoryScreenWrapper", "storyGroups IDs: ${storyGroups.map { it.id }}")
+                            if (currentIndex >= 0 && currentIndex < storyGroups.lastIndex) {
+                                val nextGroup = storyGroups[currentIndex + 1]
+                                Log.d("StoryScreenWrapper", "Navigating to next group: ${nextGroup.id}")
+                                currentStoryGroup = nextGroup
+                                onStoryGroupChange(nextGroup)
+                            } else {
+                                Log.d("StoryScreenWrapper", "No more groups, dismissing. currentIndex: $currentIndex, lastIndex: ${storyGroups.lastIndex}")
+                                scope.launch {
+                                    sheetState.hide()
+                                    onDismiss()
+                                }
+                            }
+                        },
+                        onStoryGroupBack = {
+                            // Use currentStoryGroup instead of storyGroup from AnimatedContent
+                            val currentIndex = storyGroups.indexOfFirst { it.id == currentStoryGroup.id }
+                            if (currentIndex > 0) {
+                                val prevGroup = storyGroups[currentIndex - 1]
+                                currentStoryGroup = prevGroup
+                                onStoryGroupChange(prevGroup)
+                            }
+                            // If at first story group, do nothing (stay on current story)
+                        },
+                        sendEvent = sendEvent,
+                        sendClickEvent = sendClickEvent
+                    )
+                }
+            }
         }
     )
 }
@@ -1122,6 +1486,13 @@ internal fun StoriesApp(
     var selectedStoryGroup by remember { mutableStateOf<StoryGroup?>(null) }
     val storyGroups = storiesDetails.groups ?: emptyList()
 
+    // Capture the story groups list when opening a story viewer
+    // This prevents re-sorting from affecting navigation while viewing
+    var activeStoryGroups by remember { mutableStateOf<List<StoryGroup>>(emptyList()) }
+
+    // Track the initial story group that was clicked
+    var initialClickedGroup by remember { mutableStateOf<StoryGroup?>(null) }
+
     Box(
         modifier = Modifier.fillMaxSize(),
         content = {
@@ -1129,38 +1500,36 @@ internal fun StoriesApp(
                 viewedStories = viewedStories,
                 storyGroups = storyGroups,
                 onStoryClick = { storyGroup ->
+                    // Capture current order of groups when opening
+                    activeStoryGroups = storyGroups.toList()
+                    initialClickedGroup = storyGroup
                     selectedStoryGroup = storyGroup
                 }
             )
 
             val storyGroup = selectedStoryGroup
-            if (storyGroup != null && !storyGroup.slides.isNullOrEmpty()) {
-                StoryScreen(
-                    storyGroup = storyGroup,
-                    slides = storyGroup.slides,
-                    onDismiss = { selectedStoryGroup = null },
-                    onStoryGroupEnd = {
-                        val currentIndex = storyGroups.indexOf(storyGroup)
-                        if (currentIndex < storyGroups.lastIndex) {
-                            selectedStoryGroup = storyGroups[currentIndex + 1]
-                            // Mark the new story group as viewed
-                            selectedStoryGroup?.id?.let { storyViewed(it) }
-                        } else {
+            val capturedGroups = activeStoryGroups
+            if (storyGroup != null && !storyGroup.slides.isNullOrEmpty() && capturedGroups.isNotEmpty()) {
+                // Use key to ensure StoryScreenWrapper gets the correct list
+                key(initialClickedGroup?.id) {
+                    StoryScreenWrapper(
+                        // Use the captured list for stable navigation
+                        storyGroups = capturedGroups,
+                        initialStoryGroup = storyGroup,
+                        onDismiss = {
                             selectedStoryGroup = null
-                        }
-                    },
-                    onStoryGroupBack = {
-                        val currentIndex = storyGroups.indexOf(storyGroup)
-                        if (currentIndex > 0) {
-                            selectedStoryGroup = storyGroups[currentIndex - 1]
-                            // Mark the new story group as viewed when going back
-                            selectedStoryGroup?.id?.let { storyViewed(it) }
-                        }
-                        // If at first story group, do nothing (stay on current story)
-                    },
-                    sendEvent = sendEvent,
-                    sendClickEvent = sendClickEvent
-                )
+                            activeStoryGroups = emptyList()
+                            initialClickedGroup = null
+                        },
+                        onStoryGroupChange = { newGroup ->
+                            selectedStoryGroup = newGroup
+                            // Mark the new story group as viewed
+                            newGroup?.id?.let { storyViewed(it) }
+                        },
+                        sendEvent = sendEvent,
+                        sendClickEvent = sendClickEvent
+                    )
+                }
             }
         }
     )
@@ -1176,25 +1545,15 @@ internal fun StoryAppMain(
     val context = LocalContext.current
     val storyGroups = apiStoriesDetails.groups ?: emptyList()
 
-    // Track viewed slides instead of just groups
-//    var viewedSlides by remember {
-//        mutableStateOf(
-//            getViewedSlides(
-//                context.getSharedPreferences(
-//                    "AppStory",
-//                    Context.MODE_PRIVATE
-//                )
-//            )
-//        )
-//    }
-
-    var viewedSlides by remember { mutableStateOf(emptyList<String>()) }
-
-    LaunchedEffect(Unit) {
-        viewedSlides = getViewedSlides(
-            context.getSharedPreferences(
-                "AppStory",
-                Context.MODE_PRIVATE
+    // Load viewed slides synchronously to prevent flicker on app reopen
+    // Using remember with context ensures it loads immediately on first composition
+    var viewedSlides by remember {
+        mutableStateOf(
+            getViewedSlides(
+                context.getSharedPreferences(
+                    "AppStory",
+                    Context.MODE_PRIVATE
+                )
             )
         )
     }
