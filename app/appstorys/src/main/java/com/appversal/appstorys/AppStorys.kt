@@ -447,7 +447,7 @@ object AppStorys {
                     }
                     val client = OkHttpClient()
                     val request = Request.Builder()
-                        .url("https://tracking.appstorys.co/capture-event")
+                        .url("https://tracking.appstorys.com/capture-event")
                         .post(
                             requestBody.toString()
                                 .toRequestBody("application/json".toMediaTypeOrNull())
@@ -474,39 +474,6 @@ object AppStorys {
         }
     }
 
-    /**
-     * Set user properties/attributes that can be used for personalization in campaigns.
-     *
-     * These properties will be sent to the backend and can also be used to personalize
-     * campaign content using placeholders. For example, if you set a property "name" to "John",
-     * you can use {{name | Guest}} in your campaign content (stories, modals, etc.)
-     * and it will be replaced with "John". If the property is not set, it will fall back to "Guest".
-     *
-     * Usage example for Stories:
-     * ```kotlin
-     * // Set user properties before showing stories
-     * AppStorys.setUserProperties(mapOf(
-     *     "userName" to "John Doe",
-     *     "city" to "New York",
-     *     "memberLevel" to "Gold"
-     * ))
-     *
-     * // Then in your story content, you can use:
-     * // Story Title: "Welcome {{userName | Guest}}!"
-     * // Button Text: "Explore {{city | your city}}"
-     * // Story Name: "{{memberLevel | Member}} Benefits"
-     * ```
-     *
-     * Personalization works in:
-     * - Story group names
-     * - Story slide button text
-     * - Modal content
-     * - Banner text
-     * - Tooltip text
-     * - And any other text content in campaigns
-     *
-     * @param attributes Map of attribute key-value pairs to set for the user
-     */
     fun setUserProperties(attributes: Map<String, Any>) {
         coroutineScope.launch {
             if (userId.isBlank() || !checkIfInitialized()) {
@@ -1687,7 +1654,8 @@ object AppStorys {
                                         indication = null,
                                     ) {
                                         if (leftImage.link.toString().trim()
-                                                .removeSurrounding("\"").isNotEmpty()) {
+                                                .removeSurrounding("\"").isNotEmpty()
+                                        ) {
                                             clickEvent(
                                                 link = leftImage.link.toString().trim()
                                                     .removeSurrounding("\""),
@@ -1720,7 +1688,8 @@ object AppStorys {
                                         indication = null,
                                     ) {
                                         if (rightImage.link.toString().trim()
-                                                .removeSurrounding("\"").isNotEmpty()) {
+                                                .removeSurrounding("\"").isNotEmpty()
+                                        ) {
                                             clickEvent(
                                                 link = rightImage.link.toString().trim()
                                                     .removeSurrounding("\""),

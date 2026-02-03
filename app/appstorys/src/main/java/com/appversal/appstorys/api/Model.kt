@@ -40,7 +40,7 @@ data class VariantCampaignDetails(
 @Keep
 @Serializable
 data class EligibleCampaignsResponse(
-    val eligibleCampaignList: List<String>,
+    val eligibleCampaignList: List<String>?,
     val userId: String,
     val variants: List<CampaignVariant>? = null,
     val personalization_data: Map<String, String>? = null,

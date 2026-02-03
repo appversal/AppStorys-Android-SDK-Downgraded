@@ -40,8 +40,6 @@ internal fun MilestoneBanner(
     onClose: () -> Unit,
     onClick: () -> Unit
 ) {
-//        val configuration = LocalConfiguration.current
-//        val screenWidth = configuration.screenWidthDp.dp
 
     val bannerStyling = styling?.banner
 

@@ -55,18 +55,6 @@ data class ModalCTAButtonConfig(
     val redirectionUrl: String?
 )
 
-/**
- * Creates a ModalCTAButtonConfig from ModalCta styling with all edge case handling.
- *
- * Handles:
- * - containerStyle vs container field
- * - backgroundColor at root level or inside container
- * - textColor at root level or inside text object
- * - borderColor at root level or inside container
- * - textStyle.size or text.fontSize
- * - occupyFullWidth or container.ctaFullWidth
- * - spacing.margin or margin directly
- */
 fun createModalCTAButtonConfig(
     text: String,
     styling: ModalCta?,
@@ -147,13 +135,6 @@ fun createModalCTAButtonConfig(
     )
 }
 
-/**
- * Internal composable that renders a single CTA button within a RowScope.
- * Uses Row as the button container which allows weight() modifier directly.
- *
- * Margins are applied directly from config (default is 0 if not provided by backend).
- * User configures margins via dashboard to create spacing.
- */
 @Composable
 private fun RowScope.ModalCTAButtonInRow(
     config: ModalCTAButtonConfig,
@@ -301,46 +282,6 @@ fun ModalCTAButton(
     }
 }
 
-/**
- * Common Modal CTA Row that handles row layout for primary and secondary buttons.
- *
- * MARGIN BEHAVIOR:
- * - Margins come directly from backend config (default is 0)
- * - User configures margins via dashboard to create spacing from container edges
- *   and between buttons
- *
- * Layout behavior:
- *
- * 1. BOTH buttons with ctaFullWidth=true:
- *    ┌────────────────────────────────────────┐
- *    │[Primary Button     ][Secondary Button ]│
- *    └────────────────────────────────────────┘
- *    Each button takes 50% width (weight)
- *
- * 2. BOTH buttons with ctaFullWidth=false (fixed width):
- *    ┌────────────────────────────────────────┐
- *    │      [Primary]  [Secondary]            │  (if alignment=center)
- *    │[Primary]  [Secondary]                  │  (if alignment=left)
- *    │            [Primary]  [Secondary]      │  (if alignment=right)
- *    └────────────────────────────────────────┘
- *
- * 3. Single button with ctaFullWidth=true:
- *    ┌────────────────────────────────────────┐
- *    │[         Full Width Button            ]│
- *    └────────────────────────────────────────┘
- *
- * 4. Single button with ctaFullWidth=false:
- *    ┌────────────────────────────────────────┐
- *    │            [Button]                    │  (if alignment=center)
- *    │[Button]                                │  (if alignment=left)
- *    │                            [Button]    │  (if alignment=right)
- *    └────────────────────────────────────────┘
- *
- * @param primaryConfig Configuration for primary CTA (null if no primary button)
- * @param secondaryConfig Configuration for secondary CTA (null if no secondary button)
- * @param onPrimaryCta Callback when primary CTA is clicked
- * @param onSecondaryCta Callback when secondary CTA is clicked
- */
 @Composable
 fun ModalCTARow(
     primaryConfig: ModalCTAButtonConfig?,

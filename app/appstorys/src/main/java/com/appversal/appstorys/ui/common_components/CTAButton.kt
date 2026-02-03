@@ -26,39 +26,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.appversal.appstorys.api.TextStyling
 
-/**
- * Config model for CTAButton
- * JSON structure:
- * "cta": {
- *   "text": {
- *     "color": "#FFFFFF",
- *     "fontSize": 12,
- *     "fontFamily": "Arial",
- *     "fontDecoration": ["bold", "italic", "underline"]
- *   },
- *   "margin": {
- *     "top": 4,
- *     "left": 4,
- *     "right": 4,
- *     "bottom": 4
- *   },
- *   "container": {
- *     "height": 0,
- *     "ctaWidth": 120,
- *     "alignment": "center",
- *     "borderColor": "#FE6B35",
- *     "borderWidth": "",
- *     "ctaFullWidth": false,
- *     "backgroundColor": "#F7921C"
- *   },
- *   "borderRadius": {
- *     "topLeft": 0,
- *     "topRight": 0,
- *     "bottomLeft": 0,
- *     "bottomRight": 0
- *   }
- * }
- */
 data class CTAButtonConfig(
     // Text styling
     val textColor: String = "#FFFFFF",
