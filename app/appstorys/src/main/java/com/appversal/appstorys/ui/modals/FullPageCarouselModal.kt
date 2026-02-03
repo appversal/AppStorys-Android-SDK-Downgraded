@@ -63,8 +63,6 @@ internal fun FullPageCarouselModal(
     val backdropColorFinal = parseColorString(backdropColorString) ?: Color.Black
 
     // Check if first slide media is loaded before showing the modal
-    // For carousel, we wait for the first slide to load for a smooth initial experience
-    // Uses resolveMediaUrl() from ModalMediaUtils.kt
     val firstSlideMediaUrl = slides.firstOrNull()?.resolveMediaUrl()
     val firstSlideLoadState = rememberMediaLoadState(firstSlideMediaUrl)
     val isFirstSlideLoaded = firstSlideLoadState is MediaLoadState.Success || firstSlideMediaUrl.isNullOrEmpty()

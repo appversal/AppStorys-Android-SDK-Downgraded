@@ -182,11 +182,19 @@ internal fun TooltipContent(
             } else {
                 TextContent(
                     modifier = Modifier
-                        .widthIn(max = 280.dp)
                         .layout { measurable, constraints ->
-                            val placeable = measurable.measure(constraints)
+                            // Measure with unlimited width constraints to get natural size
+                            val placeable = measurable.measure(
+                                constraints.copy(
+                                    minWidth = 0,
+                                    maxWidth = constraints.maxWidth
+                                )
+                            )
                             layout(placeable.width, placeable.height) {
                                 val actualWidth = placeable.width.toFloat()
+                                val actualHeight = placeable.height.toFloat()
+
+                                // Calculate X position to keep tooltip on screen
                                 val tooltipXDynamic = when {
                                     targetBounds.center.x - actualWidth / 2 < visibleBounds.left -> {
                                         visibleBounds.left.toFloat()
@@ -196,9 +204,24 @@ internal fun TooltipContent(
                                     }
                                     else -> targetBounds.center.x - actualWidth / 2
                                 }
+
+                                // Calculate Y position based on available space
+                                val spaceBelow = visibleBounds.bottom - targetBounds.bottom
+                                val spaceAbove = targetBounds.top - visibleBounds.top
+                                val arrowHeight = (tooltip.styling?.appearance?.arrowStyle?.height ?: 8) * density
+                                val elementArrowGap = 5 * density
+
+                                val showBelowDynamic = spaceBelow >= actualHeight + arrowHeight + elementArrowGap ||
+                                        spaceBelow > spaceAbove
+
+                                val tooltipYDynamic = when (showBelowDynamic) {
+                                    true -> targetBounds.bottom + elementArrowGap + arrowHeight
+                                    else -> targetBounds.top - arrowHeight - actualHeight - elementArrowGap
+                                }
+
                                 placeable.placeRelative(
                                     tooltipXDynamic.roundToInt(),
-                                    tooltipYAdjusted.roundToInt()
+                                    tooltipYDynamic.roundToInt()
                                 )
                             }
                         },
@@ -326,30 +349,37 @@ private fun TextContent(tooltip: Tooltip, modifier: Modifier = Modifier) {
         bottomEnd = (tooltip.styling?.appearance?.cornerRadius?.bottomRight ?: 8f).toDp(),
     )
 
-    // Title styling from TooltipText
+    // Get padding from appearance
+    val appearancePadding = tooltip.styling?.appearance?.padding
+    val paddingTop = (appearancePadding?.top ?: 12).dp
+    val paddingBottom = (appearancePadding?.bottom ?: 12).dp
+    val paddingLeft = (appearancePadding?.left ?: 16).dp
+    val paddingRight = (appearancePadding?.right ?: 16).dp
+
+    // Title styling
     val titleStyling = tooltip.styling?.title
-    val titleColor = titleStyling?.color.toColor(Color.Black)
-    val titleFontSize = (titleStyling?.fontSize ?: 14).sp
-    val titleTextAlign = parseTextAlign(titleStyling?.textAlign)
+    val titleMargin = titleStyling?.margin
+    val titleFontFamily = titleStyling?.fontFamily
+    val titleFontDecoration = titleStyling?.fontDecoration ?: emptyList()
 
-    // Subtitle styling from TooltipText
+    // Subtitle styling
     val subtitleStyling = tooltip.styling?.subTitle
-    val subtitleColor = subtitleStyling?.color.toColor(Color.Gray)
-    val subtitleFontSize = (subtitleStyling?.fontSize ?: 12).sp
-    val subtitleTextAlign = parseTextAlign(subtitleStyling?.textAlign)
+    val subtitleMargin = subtitleStyling?.margin
+    val subtitleFontFamily = subtitleStyling?.fontFamily
+    val subtitleFontDecoration = subtitleStyling?.fontDecoration ?: emptyList()
 
-    // CTA styling from TooltipCta
+    // CTA styling
     val ctaStyling = tooltip.styling?.cta
-    val ctaTextColor = ctaStyling?.text?.color.toColor(Color.White)
-    val ctaTextFontSize = (ctaStyling?.text?.fontSize ?: 12).sp
     val ctaBackgroundColor = ctaStyling?.container?.backgroundColor.toColor(Color.Blue)
     val ctaBorderColor = ctaStyling?.container?.borderColor.toColor(Color.Transparent)
     val ctaBorderWidth = (ctaStyling?.container?.borderWidth ?: 0).dp
+
+    // Use cta.cornerRadius instead of borderRadius
     val ctaCornerRadius = RoundedCornerShape(
-        topStart = (ctaStyling?.borderRadius?.topLeft ?: 8f).toDp(),
-        topEnd = (ctaStyling?.borderRadius?.topRight ?: 8f).toDp(),
-        bottomStart = (ctaStyling?.borderRadius?.bottomLeft ?: 8f).toDp(),
-        bottomEnd = (ctaStyling?.borderRadius?.bottomRight ?: 8f).toDp(),
+        topStart = (ctaStyling?.cornerRadius?.topLeft ?: 8f).toDp(),
+        topEnd = (ctaStyling?.cornerRadius?.topRight ?: 8f).toDp(),
+        bottomStart = (ctaStyling?.cornerRadius?.bottomLeft ?: 8f).toDp(),
+        bottomEnd = (ctaStyling?.cornerRadius?.bottomRight ?: 8f).toDp(),
     )
     val ctaMargin = ctaStyling?.margin
     val ctaHeight = ctaStyling?.container?.height?.dp
@@ -365,38 +395,57 @@ private fun TextContent(tooltip: Tooltip, modifier: Modifier = Modifier) {
         modifier = modifier
             .wrapContentSize()
             .background(
-                color = tooltip.styling?.appearance?.colors?.tooltip.toColor(Color.White),
+                color = tooltip.styling?.appearance?.colors?.tooltip.toColor(Color.Transparent),
                 shape = cornerRadius
             )
             .clip(cornerRadius)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(
+                top = paddingTop,
+                bottom = paddingBottom,
+                start = paddingLeft,
+                end = paddingRight
+            ),
         contentAlignment = Alignment.Center,
         content = {
             Column(
+                modifier = Modifier.width(androidx.compose.foundation.layout.IntrinsicSize.Max),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Title text
+                // Title text with margin
                 if (!tooltip.titleText.isNullOrEmpty()) {
                     CommonText(
+                        modifier = Modifier.padding(
+                            top = (titleMargin?.top ?: 0).dp,
+                            bottom = (titleMargin?.bottom ?: 0).dp,
+                            start = (titleMargin?.left ?: 0).dp,
+                            end = (titleMargin?.right ?: 0).dp
+                        ),
                         text = tooltip.titleText,
                         styling = TextStyling(
                             color = titleStyling?.color,
                             fontSize = titleStyling?.fontSize ?: 14,
-                            fontFamily = "",
-                            fontDecoration = listOf("semibold"),
+                            fontFamily = titleFontFamily ?: "",
+                            fontDecoration = titleFontDecoration,
                             textAlign = titleStyling?.textAlign
                         )
                     )
                 }
 
-                // Subtitle text
+                // Subtitle text with margin
                 if (!tooltip.subtitleText.isNullOrEmpty()) {
                     CommonText(
+                        modifier = Modifier.padding(
+                            top = (subtitleMargin?.top ?: 0).dp,
+                            bottom = (subtitleMargin?.bottom ?: 0).dp,
+                            start = (subtitleMargin?.left ?: 0).dp,
+                            end = (subtitleMargin?.right ?: 0).dp
+                        ),
                         text = tooltip.subtitleText,
                         styling = TextStyling(
                             color = subtitleStyling?.color,
-                            fontSize = subtitleStyling?.fontSize ?: 14,
-                            fontFamily = "",
+                            fontSize = subtitleStyling?.fontSize ?: 12,
+                            fontFamily = subtitleFontFamily ?: "",
+                            fontDecoration = subtitleFontDecoration,
                             textAlign = subtitleStyling?.textAlign
                         )
                     )
@@ -406,6 +455,7 @@ private fun TextContent(tooltip: Tooltip, modifier: Modifier = Modifier) {
                 if (!tooltip.ctaText.isNullOrEmpty()) {
                     Box(
                         modifier = Modifier
+                            .align(ctaAlignment)
                             .then(
                                 if (ctaFullWidth) Modifier.fillMaxWidth()
                                 else if (ctaWidth != null) Modifier.width(ctaWidth)
@@ -438,7 +488,7 @@ private fun TextContent(tooltip: Tooltip, modifier: Modifier = Modifier) {
                             .noRippleClickable(
                                 onClick = { handleTooltipAction(tooltip, true) }
                             )
-                            .padding(horizontal = 16.dp),
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         CommonText(
@@ -446,8 +496,8 @@ private fun TextContent(tooltip: Tooltip, modifier: Modifier = Modifier) {
                             styling = TextStyling(
                                 color = ctaStyling?.text?.color,
                                 fontSize = ctaStyling?.text?.fontSize,
-                                fontFamily = "",
-                                fontDecoration = listOf("medium"),
+                                fontFamily = ctaStyling?.text?.fontFamily ?: "",
+                                fontDecoration = ctaStyling?.text?.fontDecoration ?: emptyList(),
                             )
                         )
                     }

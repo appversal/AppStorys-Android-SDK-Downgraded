@@ -23,26 +23,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
-/**
- * Config model for LikeButton
- * JSON structure:
- * "likeButton": {
- *   "size": "24",
- *   "image": "",
- *   "colors": {
- *     "fill": "#E6A04C",
- *     "arrow": "#E85D26",
- *     "stroke": "#E6A04C"
- *   },
- *   "margin": {
- *     "top": 12,
- *     "left": 12,
- *     "right": 12,
- *     "bottom": 12
- *   },
- *   "selectedStyle": "like1"
- * }
- */
 data class LikeButtonConfig(
     val fillColor: Color = Color.Transparent,
     val iconColor: Color = Color.White,  // Maps to "arrow" color in JSON

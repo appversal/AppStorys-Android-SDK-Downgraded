@@ -27,12 +27,6 @@ internal interface ApiService {
         @Body request: IdentifyPositionsRequest
     ): Nullable
 
-    @POST("track-user")
-    suspend fun getWebSocketConnectionDetails(
-        @Header("Authorization") token: String,
-        @Body request: TrackUserWebSocketRequest
-    ): WebSocketConnectionResponse
-
     @POST("v2/{accountId}/track-user-res")
     suspend fun getEligibleCampaigns(
         @Path("accountId") accountId: String,
@@ -62,12 +56,6 @@ internal interface ApiService {
     suspend fun sendCSATResponse(
         @Header("Authorization") token: String,
         @Body request: CsatFeedbackPostRequest
-    )
-
-    @POST("api/v1/campaigns/capture-survey-response/")
-    suspend fun sendSurveyResponse(
-        @Header("Authorization") token: String,
-        @Body request: SurveyFeedbackPostRequest
     )
 
     @POST("api/v1/campaigns/reel-like/")

@@ -22,26 +22,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
-/**
- * Config model for ArrowButton (Back button)
- * JSON structure:
- * "arrowButton": {
- *   "selectedStyle": "cross4",
- *   "size": 1,
- *   "color": {
- *     "cross": "#FFFFFF",
- *     "fill": "#000000",
- *     "stroke": "#FFFFFF"
- *   },
- *   "margin": {
- *     "top": 4,
- *     "left": 4,
- *     "right": 4,
- *     "bottom": 4
- *   },
- *   "image": ""
- * }
- */
 data class ArrowButtonConfig(
     val fillColor: Color = Color.Transparent,
     val iconColor: Color = Color.White,  // Maps to "cross" color in JSON

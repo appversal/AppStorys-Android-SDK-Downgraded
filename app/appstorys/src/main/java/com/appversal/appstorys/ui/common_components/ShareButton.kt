@@ -22,26 +22,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.appversal.appstorys.R
 
-/**
- * Config model for ShareButton
- * JSON structure:
- * "shareButton": {
- *   "selectedStyle": "cross4",
- *   "size": 1,
- *   "color": {
- *     "cross": "#FFFFFF",
- *     "fill": "#000000",
- *     "stroke": "#FFFFFF"
- *   },
- *   "margin": {
- *     "top": 4,
- *     "left": 4,
- *     "right": 4,
- *     "bottom": 4
- *   },
- *   "image": ""
- * }
- */
 data class ShareButtonConfig(
     val fillColor: Color = Color.Transparent,
     val iconColor: Color = Color.White,

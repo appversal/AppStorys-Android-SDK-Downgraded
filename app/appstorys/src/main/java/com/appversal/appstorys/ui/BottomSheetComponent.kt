@@ -105,21 +105,6 @@ internal fun BottomSheetComponent(
 
     val backdropOpacity = (bottomSheetDetails.backdropOpacity?.asInt(50)?.toFloat() ?: 50f) / 100f
 
-    // Parse background color from backend (root level or styling)
-    // For imageOnly type, use transparent background to avoid white space around image
-//    val isImageOnly = imageElement?.bottomsheetType == "imageOnly"
-//    val backgroundColor = if (isImageOnly) {
-//        Color.Transparent
-//    } else {
-//        try {
-//            Color((bottomSheetDetails.backgroundColor
-//                ?: bottomSheetDetails.styling?.backgroundColor
-//                ?: "#FFFFFF").toColorInt())
-//        } catch (e: Exception) {
-//            Color.White
-//        }
-//    }
-
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
         shape = RoundedCornerShape(topStart = topLeftRadius, topEnd = topRightRadius),

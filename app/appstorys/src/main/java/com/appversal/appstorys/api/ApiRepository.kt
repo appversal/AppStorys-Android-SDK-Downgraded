@@ -3,16 +3,9 @@ package com.appversal.appstorys.api
 import android.content.Context
 import android.util.Log
 import androidx.core.content.edit
-import com.appversal.appstorys.api.RetrofitClient.webSocketApiService
 import com.appversal.appstorys.utils.SdkJson
-import com.appversal.appstorys.utils.toJsonElementMap
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
@@ -88,10 +81,10 @@ internal class ApiRepository(
                 }
 
                 // Below link is for prod
-//                            val campaignsJsonUrl = "https://s3.ap-south-1.amazonaws.com/cdn-campaigns.appstorys.com/clients/$accountId/campaigns.json"
+                            val campaignsJsonUrl = "https://s3.ap-south-1.amazonaws.com/cdn-campaigns.appstorys.com/clients/$accountId/campaigns.json"
 
                 // Below link is for dev
-                val campaignsJsonUrl = "https://dev-cdn-campaign-appstorys.s3.ap-south-1.amazonaws.com/clients/$accountId/campaigns.json"
+//                val campaignsJsonUrl = "https://dev-cdn-campaign-appstorys.s3.ap-south-1.amazonaws.com/clients/$accountId/campaigns.json"
 
                 val savedETag = sharedPreferences.getString(PREF_ETAG, null)
 
@@ -274,13 +267,13 @@ internal class ApiRepository(
                         Log.d("ApiRepository", "Personalization Data: $personalizationData")
 
                         // Step 2: If eligibleCampaigns is empty, return null
-                        if (eligibleCampaigns.isEmpty()) {
+                        if (eligibleCampaigns.isNullOrEmpty()) {
                             Log.d("ApiRepository", "No eligible campaigns for screen: $screenName")
                             return@withContext ScreenCampaignResult(
                                 campaigns = null,
                                 variants = emptyList(),
                                 personalizationData = emptyMap(),
-                                testUser = false
+                                testUser = eligibleCampaignsResult.data.test_user
                             )
                         }
 
