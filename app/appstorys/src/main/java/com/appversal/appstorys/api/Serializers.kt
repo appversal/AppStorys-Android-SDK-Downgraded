@@ -45,7 +45,11 @@ object CampaignDetailsSerializer : KSerializer<CampaignDetails?> {
                 value
             )
 
-            is CSATDetails -> jsonEncoder.json.encodeToJsonElement(CSATDetails.serializer(), value)
+            is CSATDetails -> jsonEncoder.json.encodeToJsonElement(
+                CSATDetails.serializer(),
+                value
+            )
+
             is WidgetDetails -> jsonEncoder.json.encodeToJsonElement(
                 WidgetDetails.serializer(),
                 value
@@ -91,12 +95,15 @@ object CampaignDetailsSerializer : KSerializer<CampaignDetails?> {
                 ScratchCardDetails.serializer(),
                 value
             )
+            is SpinTheWheelDetails -> jsonEncoder.json.encodeToJsonElement(
+                SpinTheWheelDetails.serializer(),
+                value
+            )
 
             is MilestoneDetails -> jsonEncoder.json.encodeToJsonElement(
                 MilestoneDetails.serializer(),
                 value
             )
-
         }
         jsonEncoder.encodeJsonElement(element)
     }
@@ -223,6 +230,11 @@ object CampaignDeserializer : KSerializer<Campaign> {
 
                         "MIL" -> jsonDecoder.json.decodeFromJsonElement(
                             serializer<MilestoneDetails>(),
+                            detailsElement
+                        )
+
+                        "STW" -> jsonDecoder.json.decodeFromJsonElement(
+                            serializer<SpinTheWheelDetails>(),
                             detailsElement
                         )
 

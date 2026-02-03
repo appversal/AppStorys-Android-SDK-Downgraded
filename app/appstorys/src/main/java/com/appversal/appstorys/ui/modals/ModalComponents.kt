@@ -41,13 +41,35 @@ import androidx.compose.ui.layout.ContentScale as UiContentScale
  */
 sealed class MediaLoadState {
     object Loading : MediaLoadState()
-    object Success : MediaLoadState()
+    data class Success(
+        val intrinsicWidth: Int? = null,
+        val intrinsicHeight: Int? = null
+    ) : MediaLoadState()
     object Error : MediaLoadState()
 }
 
 /**
- * Preloads media and returns the current loading state.
- * Uses Coil's execute to actually load and cache the image.
+ * Computes aspect ratio from MediaLoadState if dimensions are available
+ */
+fun MediaLoadState.getAspectRatio(): Float? {
+    return when (this) {
+        is MediaLoadState.Success -> {
+            if (intrinsicWidth != null && intrinsicHeight != null && intrinsicHeight > 0) {
+                intrinsicWidth.toFloat() / intrinsicHeight.toFloat()
+            } else null
+        }
+        else -> null
+    }
+}
+
+/**
+ * Preloads media and returns the current loading state WITH dimensions.
+ * This ensures we know the media's intrinsic size BEFORE rendering,
+ * preventing layout shifts where the modal structure appears before content.
+ *
+ * For images/gifs: Loads the drawable and extracts intrinsic dimensions
+ * For videos: Uses MediaMetadataRetriever to get video dimensions before playing
+ * For Lottie: Uses composition bounds for dimensions
  */
 @Composable
 fun rememberMediaLoadState(mediaUrl: String?): MediaLoadState {
@@ -58,10 +80,42 @@ fun rememberMediaLoadState(mediaUrl: String?): MediaLoadState {
 
     when (mediaType) {
         "video" -> {
-            // For video, we consider it loaded once the player is prepared
-            // We'll mark it as success immediately since ExoPlayer handles buffering
+            // For video, we need to get the actual dimensions BEFORE showing the modal
+            // Use MediaMetadataRetriever to extract video dimensions
             LaunchedEffect(mediaUrl) {
-                loadState = MediaLoadState.Success
+                if (mediaUrl.isNullOrEmpty()) {
+                    loadState = MediaLoadState.Error
+                    return@LaunchedEffect
+                }
+
+                try {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        val retriever = android.media.MediaMetadataRetriever()
+                        try {
+                            retriever.setDataSource(mediaUrl, HashMap())
+                            val width = retriever.extractMetadata(
+                                android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH
+                            )?.toIntOrNull()
+                            val height = retriever.extractMetadata(
+                                android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT
+                            )?.toIntOrNull()
+
+                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                loadState = if (width != null && height != null && width > 0 && height > 0) {
+                                    MediaLoadState.Success(intrinsicWidth = width, intrinsicHeight = height)
+                                } else {
+                                    // Fallback: allow rendering without dimensions
+                                    MediaLoadState.Success()
+                                }
+                            }
+                        } finally {
+                            retriever.release()
+                        }
+                    }
+                } catch (e: Exception) {
+                    // Fallback on error - still show video, just without pre-known dimensions
+                    loadState = MediaLoadState.Success()
+                }
             }
         }
         "lottie" -> {
@@ -73,11 +127,19 @@ fun rememberMediaLoadState(mediaUrl: String?): MediaLoadState {
                 }
             )
             LaunchedEffect(composition) {
-                loadState = if (composition != null) MediaLoadState.Success else MediaLoadState.Loading
+                loadState = if (composition != null) {
+                    val bounds = composition!!.bounds
+                    MediaLoadState.Success(
+                        intrinsicWidth = bounds.width(),
+                        intrinsicHeight = bounds.height()
+                    )
+                } else {
+                    MediaLoadState.Loading
+                }
             }
         }
         "gif", "image" -> {
-            // Use LaunchedEffect to actually execute the image request
+            // Use LaunchedEffect to actually execute the image request and get dimensions
             LaunchedEffect(mediaUrl) {
                 if (mediaUrl.isNullOrEmpty()) {
                     loadState = MediaLoadState.Error
@@ -103,8 +165,12 @@ fun rememberMediaLoadState(mediaUrl: String?): MediaLoadState {
 
                     // Execute the request to actually load the image
                     val result = imageLoader.execute(request)
-                    loadState = if (result.drawable != null) {
-                        MediaLoadState.Success
+                    val drawable = result.drawable
+                    loadState = if (drawable != null) {
+                        MediaLoadState.Success(
+                            intrinsicWidth = drawable.intrinsicWidth,
+                            intrinsicHeight = drawable.intrinsicHeight
+                        )
                     } else {
                         MediaLoadState.Error
                     }
@@ -115,7 +181,7 @@ fun rememberMediaLoadState(mediaUrl: String?): MediaLoadState {
         }
         else -> {
             LaunchedEffect(mediaUrl) {
-                loadState = if (mediaUrl.isNullOrEmpty()) MediaLoadState.Error else MediaLoadState.Success
+                loadState = if (mediaUrl.isNullOrEmpty()) MediaLoadState.Error else MediaLoadState.Success()
             }
         }
     }
@@ -123,13 +189,61 @@ fun rememberMediaLoadState(mediaUrl: String?): MediaLoadState {
     return loadState
 }
 
+/**
+ * A Composable function for playing a video inline using ExoPlayer.
+ *
+ * This player is designed to handle video playback within a Compose UI, including features
+ * like lifecycle management (pausing/resuming automatically), muting, video caching,
+ * and applying custom corner rounding that works with video surfaces.
+ *
+ * It uses a `TextureView` wrapped in an `AndroidView` to ensure that UI transformations
+ * like clipping to a shape are correctly applied, which is not always possible with the
+ * more performant but window-based `SurfaceView`. The video's aspect ratio is detected
+ * dynamically and applied to the layout to prevent letterboxing or stretching.
+ *
+ * @param videoUrl The URL of the video to be played.
+ * @param modifier The modifier to be applied to the video player container. This modifier
+ *                 is used as a base, and the video's own aspect ratio will be applied on top of it.
+ * @param muted A boolean flag to control whether the video should be played with sound.
+ *              Defaults to `false`.
+ * @param cornerShape An optional `Shape` to apply rounded corners to the video player.
+ *                    It's specifically designed to work with `RoundedCornerShape` by translating
+ *                    Compose corner radii into native Android view clipping. If null, the video will be rectangular.
+ * @param preloadedAspectRatio If provided, this aspect ratio will be used immediately to size
+ *                             the video container, preventing layout shifts while ExoPlayer loads.
+ */
 @androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 fun VideoPlayerInline(
     videoUrl: String,
     modifier: Modifier = Modifier,
     muted: Boolean = false,
-    cornerShape: androidx.compose.ui.graphics.Shape? = null
+    cornerShape: androidx.compose.ui.graphics.Shape? = null,
+    preloadedAspectRatio: Float? = null
+) {
+    VideoPlayerInlineWithCallback(
+        videoUrl = videoUrl,
+        modifier = modifier,
+        muted = muted,
+        cornerShape = cornerShape,
+        preloadedAspectRatio = preloadedAspectRatio,
+        onVideoRendered = null
+    )
+}
+
+/**
+ * Video player with callback that fires when the first video frame is actually rendered.
+ * This prevents the cross button from appearing before the video is visible.
+ */
+@androidx.annotation.OptIn(UnstableApi::class)
+@Composable
+fun VideoPlayerInlineWithCallback(
+    videoUrl: String,
+    modifier: Modifier = Modifier,
+    muted: Boolean = false,
+    cornerShape: androidx.compose.ui.graphics.Shape? = null,
+    preloadedAspectRatio: Float? = null,
+    onVideoRendered: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -177,12 +291,18 @@ fun VideoPlayerInline(
     }
 
     // Listen for video size changes to get the actual aspect ratio
-    DisposableEffect(exo) {
+    // Also listen for first frame rendered to trigger the callback
+    DisposableEffect(exo, onVideoRendered) {
         val listener = object : Player.Listener {
             override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
                 if (videoSize.width > 0 && videoSize.height > 0) {
                     videoAspectRatio = videoSize.width.toFloat() / videoSize.height.toFloat()
                 }
+            }
+
+            override fun onRenderedFirstFrame() {
+                // Video has actually rendered its first frame - now safe to show UI
+                onVideoRendered?.invoke()
             }
         }
         exo.addListener(listener)
@@ -207,7 +327,10 @@ fun VideoPlayerInline(
     }
 
     // Apply the detected aspect ratio to the modifier
-    val aspectModifier = videoAspectRatio?.let { ratio ->
+    // Prioritize preloaded aspect ratio (from MediaMetadataRetriever) to prevent layout shifts,
+    // then fall back to dynamically detected ratio from ExoPlayer
+    val effectiveAspectRatio = preloadedAspectRatio ?: videoAspectRatio
+    val aspectModifier = effectiveAspectRatio?.let { ratio ->
         modifier.aspectRatio(ratio)
     } ?: modifier
 
@@ -292,30 +415,13 @@ fun VideoPlayerInline(
     }
 }
 
-@Composable
-fun ModalMediaRenderer(
-    mediaUrl: String?,
-    modifier: Modifier = Modifier,
-    contentDescription: String? = null,
-    contentScale: UiContentScale = UiContentScale.Fit,
-    muted: Boolean = false,
-    cornerShape: androidx.compose.ui.graphics.Shape? = null
-) {
-    ModalMediaRendererWithCallback(
-        mediaUrl = mediaUrl,
-        modifier = modifier,
-        contentDescription = contentDescription,
-        contentScale = contentScale,
-        muted = muted,
-        cornerShape = cornerShape,
-        onMediaRendered = {}
-    )
-}
-
 /**
  * Media renderer with callback that fires when media has actually been rendered.
  * This ensures the cross button only appears after media is in place, preventing
  * the "jump" visual glitch.
+ *
+ * @param preloadedAspectRatio If provided from rememberMediaLoadState, this aspect ratio
+ *        will be used to pre-size the container, preventing layout shifts.
  */
 @Composable
 fun ModalMediaRendererWithCallback(
@@ -325,10 +431,19 @@ fun ModalMediaRendererWithCallback(
     contentScale: UiContentScale = UiContentScale.Fit,
     muted: Boolean = false,
     cornerShape: androidx.compose.ui.graphics.Shape? = null,
+    preloadedAspectRatio: Float? = null,
     onMediaRendered: () -> Unit
 ) {
     val context = LocalContext.current
     val mediaType = determineMediaType(mediaUrl)
+
+    // If we have a preloaded aspect ratio, apply it to the modifier to prevent layout shifts
+    // This ensures the container is correctly sized BEFORE the media renders
+    val aspectModifier = if (preloadedAspectRatio != null && preloadedAspectRatio > 0) {
+        modifier.aspectRatio(preloadedAspectRatio)
+    } else {
+        modifier
+    }
 
     when (mediaType) {
         "gif" -> {
@@ -351,8 +466,8 @@ fun ModalMediaRendererWithCallback(
             Image(
                 painter = painter,
                 contentDescription = contentDescription,
-                contentScale = contentScale,
-                modifier = modifier
+                contentScale = if (preloadedAspectRatio != null) UiContentScale.Crop else contentScale,
+                modifier = aspectModifier
             )
         }
 
@@ -379,8 +494,8 @@ fun ModalMediaRendererWithCallback(
             // Maximum height: 50% of screen height to keep modal proportionate
             val maxHeightDp = (screenHeightDp * 0.5f).dp
 
-            // Calculate Lottie's intrinsic aspect ratio from composition bounds
-            val lottieAspectRatio = composition?.bounds?.let { bounds ->
+            // Use preloaded aspect ratio if available, otherwise calculate from composition
+            val lottieAspectRatio = preloadedAspectRatio ?: composition?.bounds?.let { bounds ->
                 if (bounds.height() > 0) {
                     bounds.width().toFloat() / bounds.height().toFloat()
                 } else null
@@ -417,19 +532,14 @@ fun ModalMediaRendererWithCallback(
         }
 
         "video" -> {
-            // Video uses ExoPlayer which handles its own buffering state
-            // Trigger callback immediately since ExoPlayer shows loading state internally
-            LaunchedEffect(mediaUrl) {
-                onMediaRendered()
-            }
-
-            // Don't force aspect ratio - let the video player size itself based on actual video dimensions
-            // The video will be constrained by the parent modifier (width) and wrap height
-            VideoPlayerInline(
+            // Use preloaded aspect ratio to size the video container correctly from the start
+            VideoPlayerInlineWithCallback(
                 videoUrl = mediaUrl ?: "",
-                modifier = modifier,
+                modifier = aspectModifier,
                 muted = muted,
-                cornerShape = cornerShape
+                cornerShape = cornerShape,
+                preloadedAspectRatio = preloadedAspectRatio,
+                onVideoRendered = onMediaRendered
             )
         }
 
@@ -438,8 +548,8 @@ fun ModalMediaRendererWithCallback(
             AsyncImage(
                 model = ImageRequest.Builder(context).data(mediaUrl).diskCachePolicy(CachePolicy.ENABLED).memoryCachePolicy(CachePolicy.ENABLED).build(),
                 contentDescription = contentDescription,
-                modifier = modifier,
-                contentScale = contentScale,
+                modifier = aspectModifier,
+                contentScale = if (preloadedAspectRatio != null) UiContentScale.Crop else contentScale,
                 onSuccess = { onMediaRendered() }
             )
         }

@@ -273,6 +273,30 @@ fun HomeScreen(
 
 //                campaignManager.Streaks()
 
+                // Spin The Wheel Component (requires API 23+)
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                    campaignManager.SpinTheWheel()
+                }
+
+                // Spin The Wheel Test Button - triggers via event
+                Box(
+                    modifier = Modifier.padding(top = 12.dp, start = 16.dp, end = 16.dp)
+                        .fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Button(
+                        onClick = {
+                            campaignManager.trackEvents(event = "triggerSpinWheel")
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF9C27B0)
+                        )
+                    ) {
+                        Text("🎡 Open Spin The Wheel")
+                    }
+                }
+
                 // NEW: Scratch Card Button
 //                Box(
 //                    modifier = Modifier.padding(top = 12.dp, start = 16.dp, end = 16.dp)
@@ -496,8 +520,6 @@ fun HomeScreen(
                     }
                 }
 
-
-
                 campaignManager.Reels()
 
                 Image(
@@ -507,7 +529,6 @@ fun HomeScreen(
                         .fillMaxWidth().appstorys("app_logo"),
                     contentScale = ContentScale.Fit
                 )
-
             }
         }
     }

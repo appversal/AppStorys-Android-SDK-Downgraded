@@ -1575,3 +1575,133 @@ data class CommonMargins(
 )
 // Common Components End
 
+
+// Spin the Wheel Models
+@Keep
+@Serializable
+data class SpinTheWheelDetails(
+    val id: String?,
+    val name: String?,
+    val visualAndTextCommunication: WheelVisualTextCommunication?,
+    val wheelConfiguration: WheelConfiguration?,
+    val slices: List<WheelSlice>?,
+    val userInteraction: WheelUserInteraction?,
+    val styling: SpinWheelStyling? = null  // Structured styling from dashboard
+) : CampaignDetails()
+
+@Keep
+@Serializable
+data class WheelVisualTextCommunication(
+    val popupTitle: String?,
+    val popupDescription: String?,
+    val buttonCtaText: String?,
+    val buttonRedirectTo: WheelRedirection?
+)
+
+@Keep
+@Serializable
+data class WheelRedirection(
+    val type: String?, // "url", "pageName", "customKeyValue", "appstorys"
+    val url: String?,
+    val pageName: String?,
+    val key: String?,
+    val value: String?
+)
+
+@Keep
+@Serializable
+data class WheelConfiguration(
+    val totalSliceCount: Int?,
+    val spinDirection: String?, // "clockwise" or "anti-clockwise"
+    val backgroundColor: String?,
+    val wheelImage: String?
+)
+
+@Keep
+@Serializable
+data class WheelSlice(
+    val id: String?,
+    val sliceNumber: Int?,
+    val enableNoPrize: Boolean?,
+    val noPrizeText: String?,        // Label for no-prize slices (from dashboard)
+    val prizeLabel: String?,          // Prize Label / Name (shown on wheel and popup)
+    val couponCode: String?,          // Coupon / Prize Code
+    val probabilityWeight: Int?,      // Probability weight for each prize
+    val image: String?,               // Image shown on wheel slice
+    val backgroundColor: String?,     // Slice background color
+    val textColor: String?,           // Text color on slice
+    val styling: WheelSliceStyling?   // Per-slice styling from dashboard
+)
+
+@Keep
+@Serializable
+data class WheelUserInteraction(
+    val availableSpins: Int?,
+    val enableHapticFeedback: Boolean?
+)
+
+// Styling Models (from Dashboard Styling Tab)
+
+@Keep
+@Serializable
+data class SpinWheelStyling(
+    val visualAndTextCommunication: WheelVisualTextStyling?,
+    val wheelConfiguration: WheelConfigurationStyling?,
+    val defaultSliceStyling: WheelSliceStyling?  // Default styling applied to all slices
+)
+
+@Keep
+@Serializable
+data class WheelVisualTextStyling(
+    val popupTitle: WheelTextStyle?,
+    val popupDescription: WheelTextStyle?,
+    val availableSpinText: WheelTextStyle?,
+    val buttonCTA: WheelButtonStyle?,
+    val ctaBackgroundImage: String?,
+    val ctaBackgroundImageOpacity: Float?  // 0.0 to 1.0
+)
+
+@Keep
+@Serializable
+data class WheelTextStyle(
+    val textColor: String?,
+    val font: String?,           // Font family (e.g., "Helvetica")
+    val size: Int?,              // Font size
+    val alignment: String?       // "left", "center", "right"
+)
+
+@Keep
+@Serializable
+data class WheelButtonStyle(
+    val textColor: String?,
+    val backgroundColor: String?,
+    val font: String?,
+    val size: Int?,
+    val alignment: String?
+)
+
+@Keep
+@Serializable
+data class WheelConfigurationStyling(
+    val backgroundColor: String?,
+    val strokeColor: String?,
+    val backgroundImage: String?,
+    val backgroundImageOpacity: Float?  // 0.0 to 1.0
+)
+
+@Keep
+@Serializable
+data class WheelSliceStyling(
+    val backgroundColor: String?,
+    val cornerRadius: Int?,          // Roundness value
+    val text: WheelSliceTextStyle?,
+    val useImageAsBackground: Boolean?  // Toggle for "Image as Background"
+)
+
+@Keep
+@Serializable
+data class WheelSliceTextStyle(
+    val font: String?,
+    val size: Int?,
+    val color: String?
+)
