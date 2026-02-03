@@ -10,10 +10,7 @@ pluginManagement {
         mavenCentral()
         maven {
             url = uri("https://jitpack.io")
-            credentials {
-                username = "jp_bj3d32o7qm68rsvspu9bi04dsr"
-                password = ""
-            }
+            credentials.username = "jp_bj3d32o7qm68rsvspu9bi04dsr"
         }
         gradlePluginPortal()
     }
@@ -25,10 +22,7 @@ dependencyResolutionManagement {
         mavenCentral()
         maven {
             url = uri("https://jitpack.io")
-            credentials {
-                username = "jp_bj3d32o7qm68rsvspu9bi04dsr"
-                password = ""
-            }
+            credentials.username = "jp_bj3d32o7qm68rsvspu9bi04dsr"
         }
     }
 }
