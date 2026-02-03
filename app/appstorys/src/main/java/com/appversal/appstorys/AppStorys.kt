@@ -416,7 +416,7 @@ object AppStorys {
     ) {
         coroutineScope.launch {
             if (accessToken.isNotEmpty()) {
-                if (event != "viewed" && event != "clicked" && event != "csat captured" && event != "survey captured") {
+                if (event != "viewed" && event != "clicked" && event != "csat captured" && event != "survey captured" && event != "shared") {
                     trackedEventNames.add(event)
                 }
                 try {
@@ -432,7 +432,7 @@ object AppStorys {
 
                     val deviceInfo = getDeviceInfo(context)
 
-                    val mergedMetadata = if (event != "viewed" && event != "clicked" && event != "csat captured" && event != "survey captured") {
+                    val mergedMetadata = if (event != "viewed" && event != "clicked" && event != "csat captured" && event != "survey captured" && event != "shared") {
                         updatedMetadata + deviceInfo
                     } else {
                         updatedMetadata
@@ -1028,7 +1028,8 @@ object AppStorys {
                 },
                 sendClickEvent = {
                     trackEvents(campaign.id, it.second, mapOf("story_slide" to it.first.id!!))
-                }
+                },
+                campaignId = campaign.id ?: ""
             )
         }
     }

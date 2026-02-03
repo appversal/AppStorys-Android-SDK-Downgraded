@@ -90,6 +90,7 @@ import com.airbnb.lottie.compose.LottieCompositionSpec
 import com.airbnb.lottie.compose.LottieConstants
 import com.airbnb.lottie.compose.rememberLottieComposition
 import com.appversal.appstorys.AppStorys
+import com.appversal.appstorys.AppStorys.trackEvents
 import com.appversal.appstorys.api.StoriesDetails
 import com.appversal.appstorys.api.StoryGroup
 import com.appversal.appstorys.api.StoryGroupStyling
@@ -376,7 +377,8 @@ internal fun StoryScreenContent(
     onStoryGroupEnd: () -> Unit,
     onStoryGroupBack: () -> Unit,
     sendEvent: (Pair<StorySlide, String>) -> Unit,
-    sendClickEvent: (Pair<StorySlide, String>) -> Unit
+    sendClickEvent: (Pair<StorySlide, String>) -> Unit,
+    campaignId: String
 ) {
     val uriHandler = LocalUriHandler.current
     val context = LocalContext.current
@@ -1137,7 +1139,7 @@ internal fun StoryScreenContent(
                                                     "Share via"
                                                 )
                                             )
-                                            sendEvent(Pair(currentSlide, "SHR"))
+                                            trackEvents(campaignId, "shared", mapOf("story_slide" to (currentSlide.id ?: "")))
                                         }
                                     )
                                 }
@@ -1188,7 +1190,8 @@ internal fun StoryScreenWrapper(
     onDismiss: () -> Unit,
     onStoryGroupChange: (StoryGroup?) -> Unit,
     sendEvent: (Pair<StorySlide, String>) -> Unit,
-    sendClickEvent: (Pair<StorySlide, String>) -> Unit
+    sendClickEvent: (Pair<StorySlide, String>) -> Unit,
+    campaignId: String
 ) {
     // Track current story group internally for smooth transitions
     var currentStoryGroup by remember { mutableStateOf(initialStoryGroup) }
@@ -1281,7 +1284,8 @@ internal fun StoryScreenWrapper(
                             // If at first story group, do nothing (stay on current story)
                         },
                         sendEvent = sendEvent,
-                        sendClickEvent = sendClickEvent
+                        sendClickEvent = sendClickEvent,
+                        campaignId = campaignId
                     )
                 }
             }
@@ -1296,7 +1300,8 @@ internal fun StoriesApp(
     sendEvent: (Pair<StorySlide, String>) -> Unit,
     viewedStories: List<String>,
     storyViewed: (String) -> Unit,
-    sendClickEvent: (Pair<StorySlide, String>) -> Unit
+    sendClickEvent: (Pair<StorySlide, String>) -> Unit,
+    campaignId: String
 ) {
     var selectedStoryGroup by remember { mutableStateOf<StoryGroup?>(null) }
     val storyGroups = storiesDetails.groups ?: emptyList()
@@ -1342,7 +1347,8 @@ internal fun StoriesApp(
                             newGroup?.id?.let { storyViewed(it) }
                         },
                         sendEvent = sendEvent,
-                        sendClickEvent = sendClickEvent
+                        sendClickEvent = sendClickEvent,
+                        campaignId = campaignId
                     )
                 }
             }
@@ -1355,7 +1361,8 @@ internal fun StoriesApp(
 internal fun StoryAppMain(
     apiStoriesDetails: StoriesDetails,
     sendEvent: (Pair<StorySlide, String>) -> Unit,
-    sendClickEvent: (Pair<StorySlide, String>) -> Unit
+    sendClickEvent: (Pair<StorySlide, String>) -> Unit,
+    campaignId: String
 ) {
     val context = LocalContext.current
     val storyGroups = apiStoriesDetails.groups ?: emptyList()
@@ -1416,7 +1423,8 @@ internal fun StoryAppMain(
         },
         viewedStories = viewedGroups,
         storyViewed = { /* No-op, tracking at slide level now */ },
-        sendClickEvent = sendClickEvent
+        sendClickEvent = sendClickEvent,
+        campaignId = campaignId
     )
 }
 
