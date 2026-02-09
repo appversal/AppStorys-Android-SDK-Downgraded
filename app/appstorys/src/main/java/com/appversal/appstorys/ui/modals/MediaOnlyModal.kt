@@ -126,13 +126,13 @@ fun MediaOnlyModal(
                 Modifier
                     .width(modalWidth)
                     .aspectRatio(preloadedAspectRatio)
-                    .clip(cornerShape)
+                    //.clip(cornerShape)
                     .background(backgroundColor)
             } else {
                 Modifier
                     .width(modalWidth)
                     .wrapContentHeight()
-                    .clip(cornerShape)
+                    //.clip(cornerShape)
                     .background(backgroundColor)
             }
 
@@ -156,16 +156,23 @@ fun MediaOnlyModal(
                         .wrapContentHeight()
                 }
 
-                ModalMediaRendererWithCallback(
-                    mediaUrl = resolvedMediaUrl,
-                    modifier = mediaModifier,
-                    contentDescription = "Media Only Modal",
-                    contentScale = ContentScale.FillWidth,
-                    muted = false,
-                    cornerShape = if (preloadedAspectRatio != null) null else cornerShape,
-                    preloadedAspectRatio = preloadedAspectRatio,
-                    onMediaRendered = { } // No-op, media is already preloaded
-                )
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .clip(cornerShape)   // 👈 clip ONLY media
+                ) {
+                    ModalMediaRendererWithCallback(
+                        mediaUrl = resolvedMediaUrl,
+                        modifier = Modifier.fillMaxSize(),
+                        contentDescription = "Media Only Modal",
+                        contentScale = ContentScale.FillWidth,
+                        muted = false,
+                        cornerShape = null,
+                        preloadedAspectRatio = preloadedAspectRatio,
+                        onMediaRendered = {}
+                    )
+                }
+
 
                 // Cross button
                 if (crossEnabled) {

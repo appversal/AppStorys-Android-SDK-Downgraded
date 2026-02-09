@@ -140,7 +140,8 @@ internal fun StoryCircles(
     LazyRow(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(8.dp),
+            .padding(8.dp)
+            .background(Color.Transparent),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         items(
@@ -965,7 +966,7 @@ internal fun StoryScreenContent(
                             val thumbnailModifier = Modifier
                                 .size(40.dp)
                                 .clip(CircleShape)
-                                .background(Color.LightGray)
+                                .background(Color.Transparent)
 
                             when {
                                 // Lottie animation (.json or .lottie files)
@@ -1314,7 +1315,7 @@ internal fun StoriesApp(
     var initialClickedGroup by remember { mutableStateOf<StoryGroup?>(null) }
 
     Box(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize().background(Color.Transparent),
         content = {
             StoryCircles(
                 viewedStories = viewedStories,

@@ -76,6 +76,7 @@ import com.appversal.appstorys.api.ReelStatusRequest
 import com.appversal.appstorys.api.ReelsDetails
 import com.appversal.appstorys.api.RetrofitClient
 import com.appversal.appstorys.api.ScratchCardDetails
+import com.appversal.appstorys.api.SpinTheWheelDetails
 import com.appversal.appstorys.api.StoriesDetails
 import com.appversal.appstorys.api.SurveyDetails
 import com.appversal.appstorys.api.Tooltip
@@ -124,7 +125,9 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
@@ -447,7 +450,7 @@ object AppStorys {
                     }
                     val client = OkHttpClient()
                     val request = Request.Builder()
-                        .url("https://tracking.appstorys.com/capture-event")
+                        .url("https://tracking.appstorys.co/capture-event")
                         .post(
                             requestBody.toString()
                                 .toRequestBody("application/json".toMediaTypeOrNull())
@@ -1959,10 +1962,7 @@ object AppStorys {
                 }
             }
 
-            val ctaUrl = scratchCardDetails.content?.get("cta")
-                ?.jsonObject?.get("url")
-                ?.jsonPrimitive
-                ?.contentOrNull ?: ""
+            val ctaUrl = scratchCardDetails.link ?: ""
 
             CardScratch(
                 isPresented = isPresented,
@@ -1974,11 +1974,127 @@ object AppStorys {
                 },
                 wasFullyScratched = wasFullyScratched,
                 onWasFullyScratched = { wasFullyScratched = it },
+
+                crossButtonConfig = run {
+
+                    val crossObj = scratchCardDetails.content
+                        ?.get("crossButton")
+                        ?.takeIf { it !is kotlinx.serialization.json.JsonNull }
+                        ?.jsonObject
+
+                    val colors = crossObj
+                        ?.get("color")
+                        ?.takeIf { it !is kotlinx.serialization.json.JsonNull }
+                        ?.jsonObject
+
+                    val margin = crossObj
+                        ?.get("margin")
+                        ?.takeIf { it !is kotlinx.serialization.json.JsonNull }
+                        ?.jsonObject
+
+                    createCrossButtonConfig(
+                        fillColorString = colors?.get("fill")?.jsonPrimitive?.contentOrNull,
+                        crossColorString = colors?.get("cross")?.jsonPrimitive?.contentOrNull,
+                        strokeColorString = colors?.get("stroke")?.jsonPrimitive?.contentOrNull,
+                        marginTop = margin?.get("top")?.jsonPrimitive?.intOrNull,
+                        marginEnd = margin?.get("right")?.jsonPrimitive?.intOrNull,
+                        size = crossObj?.get("size")?.jsonPrimitive?.intOrNull,
+                        imageUrl = crossObj?.get("image")?.jsonPrimitive?.contentOrNull
+                    )
+                },
+                crossButtonMarginBottom = run {
+                    val crossObj = scratchCardDetails.content
+                        ?.get("crossButton")
+                        ?.takeIf { it !is kotlinx.serialization.json.JsonNull }
+                        ?.jsonObject
+                    val margin = crossObj
+                        ?.get("margin")
+                        ?.takeIf { it !is kotlinx.serialization.json.JsonNull }
+                        ?.jsonObject
+                    margin?.get("bottom")?.jsonPrimitive?.intOrNull?.dp ?: 0.dp
+                },
+                crossButtonAlignment = run {
+                    val crossObj = scratchCardDetails.content
+                        ?.get("crossButton")
+                        ?.takeIf { it !is kotlinx.serialization.json.JsonNull }
+                        ?.jsonObject
+                    crossObj?.get("alignment")?.jsonPrimitive?.contentOrNull ?: "center"
+                },
                 scratchCardDetails = scratchCardDetails,
                 onCtaClick = {
                     campaign?.id?.let {
                         clickEvent(link = ctaUrl, campaignId = it)
                         trackEvents(it, "clicked")
+                    }
+                }
+            )
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.M)
+    @Composable
+    fun SpinTheWheel() {
+        val campaignsData = campaigns.collectAsStateWithLifecycle()
+
+        val campaign = campaignsData.value.firstOrNull {
+            it.campaignType == "STW" && it.details is SpinTheWheelDetails
+        }
+
+        val spinTheWheelDetails = when (val details = campaign?.details) {
+            is SpinTheWheelDetails -> details
+            else -> null
+        }
+
+        val triggerEventValue = when (val event = campaign?.triggerEvent) {
+            "viaAppStorys" -> "viaAppStorys${campaign?.id}"
+            null, "" -> null
+            else -> event
+        }
+
+        val shouldShowSpinWheel = remember(triggerEventValue, trackedEventNames.size) {
+            triggerEventValue.isNullOrEmpty() || trackedEventNames.contains(triggerEventValue)
+        }
+
+        var isPresented by remember(campaign?.id) { mutableStateOf(true) }
+
+        LaunchedEffect(shouldShowSpinWheel) {
+            if (shouldShowSpinWheel && !isPresented) {
+                isPresented = true
+            }
+        }
+
+        if (spinTheWheelDetails != null && shouldShowSpinWheel && isPresented) {
+
+            LaunchedEffect(Unit) {
+                campaign?.id?.let {
+                    trackEvents(it, "viewed")
+                }
+            }
+
+            val redirectUrl = spinTheWheelDetails.visualAndTextCommunication?.buttonRedirectTo?.url
+                ?: spinTheWheelDetails.visualAndTextCommunication?.buttonRedirectTo?.pageName ?: ""
+
+            com.appversal.appstorys.ui.spinwheel.SpinTheWheel(
+                isPresented = isPresented,
+                onDismiss = {
+                    isPresented = false
+                    triggerEventValue?.let { trackedEventNames.remove(it) }
+                },
+                spinTheWheelDetails = spinTheWheelDetails,
+                onCtaClick = { link ->
+                    campaign?.id?.let { campaignId ->
+                        clickEvent(link = link ?: redirectUrl, campaignId = campaignId)
+                        trackEvents(campaignId, "clicked")
+                    }
+                },
+                onSpinComplete = { prizeLabel, couponCode ->
+                    campaign?.id?.let { campaignId ->
+                        trackEvents(
+                            campaignId, "spin_completed", mapOf(
+                                "prize_label" to (prizeLabel ?: ""),
+                                "coupon_code" to (couponCode ?: "")
+                            )
+                        )
                     }
                 }
             )

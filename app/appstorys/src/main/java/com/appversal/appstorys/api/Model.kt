@@ -1467,7 +1467,10 @@ data class ScratchCardDetails(
     val width: Int?,
     val soundFile: String?,
     val content: JsonObject? = null,
-    val styling: JsonObject? = null
+    val styling: JsonObject? = null,
+    val button_text: String? = null,
+    val link: String? = null,
+    val coupon_code: String? = null
 ) : CampaignDetails()
 
 @Keep
