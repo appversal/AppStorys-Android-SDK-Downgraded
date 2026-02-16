@@ -1267,7 +1267,7 @@ fun CashBackInfoView(
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Spacer(modifier = Modifier.weight(1f))
+            //Spacer(modifier = Modifier.weight(1f))
                 if (bannerImageUrl.isNotEmpty()) {
 
                     val maxSize = cardHeight * 0.3f
@@ -1337,7 +1337,7 @@ fun CashBackInfoView(
                     }
                 }
 
-            Spacer(modifier = Modifier.weight(1f))
+            //Spacer(modifier = Modifier.weight(1f))
 
             Column(
                 modifier = Modifier.fillMaxWidth(),
@@ -1363,7 +1363,7 @@ fun CashBackInfoView(
                     )
                 }
 
-                Spacer(Modifier.height(cardHeight * 0.06f))
+                //Spacer(Modifier.height(cardHeight * 0.06f))
 
                 if (offerSubtitle.isNotEmpty()) {
                     CommonText(
@@ -1386,7 +1386,7 @@ fun CashBackInfoView(
                     )
                 }
 
-                Spacer(Modifier.height(cardHeight * 0.2f))
+                //Spacer(Modifier.height(cardHeight * 0.2f))
 
                 // Coupon code display
                 if (couponCode.isNotEmpty()) {
@@ -1476,7 +1476,7 @@ fun CashBackInfoView(
                     }
                 }
             }
-            Spacer(modifier = Modifier.weight(1f))
+            //Spacer(modifier = Modifier.weight(1f))
         }
     }
 }

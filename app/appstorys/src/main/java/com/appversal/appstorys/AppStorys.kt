@@ -1467,7 +1467,6 @@ object AppStorys {
                                 "viewed",
                                 mapOf("widget_image" to currentWidgetId)
                             )
-
                         }
                     }
                 }
@@ -2071,8 +2070,8 @@ object AppStorys {
                 }
             }
 
-            val redirectUrl = spinTheWheelDetails.visualAndTextCommunication?.buttonRedirectTo?.url
-                ?: spinTheWheelDetails.visualAndTextCommunication?.buttonRedirectTo?.pageName ?: ""
+            // Get redirect URL from model - can come from link field or be empty
+            val redirectUrl = spinTheWheelDetails.link ?: ""
 
             com.appversal.appstorys.ui.spinwheel.SpinTheWheel(
                 isPresented = isPresented,
@@ -2083,8 +2082,12 @@ object AppStorys {
                 spinTheWheelDetails = spinTheWheelDetails,
                 onCtaClick = { link ->
                     campaign?.id?.let { campaignId ->
-                        clickEvent(link = link ?: redirectUrl, campaignId = campaignId)
-                        trackEvents(campaignId, "clicked")
+                        // Use provided link, or fall back to model's redirect URL
+                        val targetLink = link?.takeIf { it.isNotEmpty() } ?: redirectUrl
+                        if (targetLink.isNotEmpty()) {
+                            clickEvent(link = targetLink, campaignId = campaignId)
+                            trackEvents(campaignId, "clicked")
+                        }
                     }
                 },
                 onSpinComplete = { prizeLabel, couponCode ->

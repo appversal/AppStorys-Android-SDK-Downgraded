@@ -1633,64 +1633,63 @@ data class CommonMargins(
 @Keep
 @Serializable
 data class SpinTheWheelDetails(
-    val id: String?,
-    val name: String?,
-    val visualAndTextCommunication: WheelVisualTextCommunication?,
-    val wheelConfiguration: WheelConfiguration?,
-    val slices: List<WheelSlice>?,
-    val userInteraction: WheelUserInteraction?,
-    val styling: SpinWheelStyling? = null  // Structured styling from dashboard
+    val id: String? = null,
+    // Direct fields from backend
+    val popupTitle: String? = null,
+    val popupDescription: String? = null,
+    val spinButtonText: String? = null,
+    val availableSpins: Int? = null,
+    val enableBackdrop: Boolean? = null,
+    val rewardDisplayMode: String? = null, // "pop-up" or other modes
+    val slices: List<WheelSlice>? = null,
+    val content: SpinWheelContent? = null,
+    val styling: SpinWheelStyling? = null,
+    val link: String? = null, // Redirect link for CTA button
+    val button_text: String? = null // Alternative button text field
 ) : CampaignDetails()
 
 @Keep
 @Serializable
-data class WheelVisualTextCommunication(
-    val popupTitle: String?,
-    val popupDescription: String?,
-    val buttonCtaText: String?,
-    val buttonRedirectTo: WheelRedirection?
+data class SpinWheelContent(
+    val rewardConfiguration: SpinWheelRewardConfig? = null,
+    val userInteraction: SpinWheelUserInteraction? = null,
+    val wheelConfiguration: SpinWheelWheelConfig? = null
 )
 
 @Keep
 @Serializable
-data class WheelRedirection(
-    val type: String?, // "url", "pageName", "customKeyValue", "appstorys"
-    val url: String?,
-    val pageName: String?,
-    val key: String?,
-    val value: String?
+data class SpinWheelRewardConfig(
+    val rewardEnableBackdrop: Boolean? = null,
+    val rewardPopupDescription: String? = null,
+    val rewardPopupTitle: String? = null
 )
 
 @Keep
 @Serializable
-data class WheelConfiguration(
-    val totalSliceCount: Int?,
-    val spinDirection: String?, // "clockwise" or "anti-clockwise"
-    val backgroundColor: String?,
-    val wheelImage: String?
+data class SpinWheelUserInteraction(
+    val hapticFeedback: Boolean? = null,
+    val numberSpin: Int? = null
+)
+
+@Keep
+@Serializable
+data class SpinWheelWheelConfig(
+    val spinDirection: String? = null, // "clockwise" or "anti-clockwise"
+    val totalSliceCount: Int? = null
 )
 
 @Keep
 @Serializable
 data class WheelSlice(
-    val id: String?,
-    val sliceNumber: Int?,
-    val enableNoPrize: Boolean?,
-    val noPrizeText: String?,        // Label for no-prize slices (from dashboard)
-    val prizeLabel: String?,          // Prize Label / Name (shown on wheel and popup)
-    val couponCode: String?,          // Coupon / Prize Code
-    val probabilityWeight: Int?,      // Probability weight for each prize
-    val image: String?,               // Image shown on wheel slice
-    val backgroundColor: String?,     // Slice background color
-    val textColor: String?,           // Text color on slice
-    val styling: WheelSliceStyling?   // Per-slice styling from dashboard
-)
-
-@Keep
-@Serializable
-data class WheelUserInteraction(
-    val availableSpins: Int?,
-    val enableHapticFeedback: Boolean?
+    val id: String? = null,
+    val parent: String? = null,
+    val coupon: String? = null,
+    val noPrize: Boolean? = null,
+    val prizeLabel: String? = null,
+    val sliceMedia: String? = null,
+    val weight: Int? = null,
+    val styling: WheelSliceStyling? = null,
+    val link: String? = null // Redirect link for this specific prize
 )
 
 // Styling Models (from Dashboard Styling Tab)
@@ -1698,63 +1697,187 @@ data class WheelUserInteraction(
 @Keep
 @Serializable
 data class SpinWheelStyling(
-    val visualAndTextCommunication: WheelVisualTextStyling?,
-    val wheelConfiguration: WheelConfigurationStyling?,
-    val defaultSliceStyling: WheelSliceStyling?  // Default styling applied to all slices
+    val spinTheWheel: SpinTheWheelMainStyling? = null,
+    val rewardConfiguration: WheelRewardStyling? = null
+)
+
+@Keep
+@Serializable
+data class SpinTheWheelMainStyling(
+    val crossButton: WheelCrossButtonConfig? = null,
+    val visualTextCommunication: WheelVisualTextStyling? = null,
+    val wheelConfiguration: WheelConfigurationStyling? = null
 )
 
 @Keep
 @Serializable
 data class WheelVisualTextStyling(
-    val popupTitle: WheelTextStyle?,
-    val popupDescription: WheelTextStyle?,
-    val availableSpinText: WheelTextStyle?,
-    val buttonCTA: WheelButtonStyle?,
-    val ctaBackgroundImage: String?,
-    val ctaBackgroundImageOpacity: Float?  // 0.0 to 1.0
+    val title: WheelTextStyleConfig? = null,
+    val subtitle: WheelTextStyleConfig? = null,
+    val availableSpinText: WheelAvailableSpinTextStyle? = null,
+    val spinButton: WheelSpinButtonStyle? = null,
+    val backdropColor: String? = null,
+    val backdropOpacity: Int? = null
 )
 
 @Keep
 @Serializable
-data class WheelTextStyle(
-    val textColor: String?,
-    val font: String?,           // Font family (e.g., "Helvetica")
-    val size: Int?,              // Font size
-    val alignment: String?       // "left", "center", "right"
+data class WheelAvailableSpinTextStyle(
+    val textStyle: WheelTextStyleDetails? = null
 )
 
 @Keep
 @Serializable
-data class WheelButtonStyle(
-    val textColor: String?,
-    val backgroundColor: String?,
-    val font: String?,
-    val size: Int?,
-    val alignment: String?
+data class WheelSpinButtonStyle(
+    val container: WheelButtonContainerStyle? = null,
+    val text: WheelButtonTextStyle? = null,
+    val margin: WheelMargin? = null
+)
+
+@Keep
+@Serializable
+data class WheelButtonContainerStyle(
+    val alignment: String? = null,
+    val backgroundColor: String? = null,
+    val borderColor: String? = null,
+    val borderWidth: Int? = null,
+    val cornerRadius: CornerRadius? = null,
+    val fullWidth: Boolean? = null,
+    val height: Int? = null,
+    val width: Int? = null
+)
+
+@Keep
+@Serializable
+data class WheelButtonTextStyle(
+    val color: String? = null,
+    val fontFamily: String? = null,
+    val fontSize: Int? = null,
+    val fontWeight: String? = null,
+    val fontStyle: String? = null,
+    val fontDecoration: List<String>? = null
 )
 
 @Keep
 @Serializable
 data class WheelConfigurationStyling(
-    val backgroundColor: String?,
-    val strokeColor: String?,
-    val backgroundImage: String?,
-    val backgroundImageOpacity: Float?  // 0.0 to 1.0
+    val backgroundColor: String? = null,
+    val borderColor: String? = null,
+    val borderWidth: Int? = null,
+    val backgroundImage: String? = null,
+    val backgroundImageOpacity: Float? = null
+)
+
+@Keep
+@Serializable
+data class WheelRewardStyling(
+    val backdropColor: String? = null,
+    val confetti: WheelConfettiConfig? = null,
+    val crossButton: WheelCrossButtonConfig? = null,
+    val title: WheelTextStyleConfig? = null,
+    val subtitle: WheelTextStyleConfig? = null
+)
+
+@Keep
+@Serializable
+data class WheelConfettiConfig(
+    val selectedStyle: String? = null,
+    val color: WheelButtonColors? = null,
+    val image: String? = null,
+    val margin: WheelMargin? = null,
+    val padding: WheelMargin? = null
+)
+
+@Keep
+@Serializable
+data class WheelCrossButtonConfig(
+    val enabled: Boolean? = null,
+    val selectedStyle: String? = null,
+    val size: Int? = null,
+    val color: WheelButtonColors? = null,
+    val image: String? = null,
+    val margin: WheelMargin? = null,
+    val alignment: String? = null
+)
+
+@Keep
+@Serializable
+data class WheelButtonColors(
+    val cross: String? = null,
+    val fill: String? = null,
+    val stroke: String? = null
+)
+
+@Keep
+@Serializable
+data class WheelMargin(
+    val top: Int? = null,
+    val bottom: Int? = null,
+    val left: Int? = null,
+    val right: Int? = null
+)
+
+@Keep
+@Serializable
+data class WheelTextStyleConfig(
+    val textStyle: WheelTextStyleDetails? = null
+)
+
+@Keep
+@Serializable
+data class WheelTextStyleDetails(
+    val color: String? = null,
+    val fontFamily: String? = null,
+    val fontSize: Int? = null,
+    val fontWeight: String? = null,
+    val fontStyle: String? = null,
+    val fontDecoration: List<String>? = null,
+    val textAlign: String? = null,
+    val margin: WheelMargin? = null
 )
 
 @Keep
 @Serializable
 data class WheelSliceStyling(
-    val backgroundColor: String?,
-    val cornerRadius: Int?,          // Roundness value
-    val text: WheelSliceTextStyle?,
-    val useImageAsBackground: Boolean?  // Toggle for "Image as Background"
+    val wheelStyling: WheelSliceWheelStyling? = null
+)
+
+@Keep
+@Serializable
+data class WheelSliceWheelStyling(
+    val color: WheelSliceColors? = null,
+    val cornerRadius: CornerRadius? = null,
+    val strokeWidth: Int? = null,
+    val margin: WheelMargin? = null,
+    val image: WheelSliceImageStyling? = null,
+    val priceLabel: WheelSlicePriceLabelStyling? = null
+)
+
+@Keep
+@Serializable
+data class WheelSliceColors(
+    val background: String? = null,
+    val stroke: String? = null
+)
+
+@Keep
+@Serializable
+data class WheelSliceImageStyling(
+    val cornerRadius: CornerRadius? = null,
+    val rotation: Int? = null
+)
+
+@Keep
+@Serializable
+data class WheelSlicePriceLabelStyling(
+    val margin: WheelMargin? = null,
+    val textStyle: WheelSliceTextStyle? = null
 )
 
 @Keep
 @Serializable
 data class WheelSliceTextStyle(
-    val font: String?,
-    val size: Int?,
-    val color: String?
+    val font: String? = null,
+    val fontSize: Int? = null,
+    val color: String? = null
 )

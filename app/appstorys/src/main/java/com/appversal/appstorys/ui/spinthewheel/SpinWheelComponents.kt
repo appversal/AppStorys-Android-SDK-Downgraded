@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,6 +21,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.SubcomposeAsyncImage
@@ -35,6 +37,8 @@ fun WheelView(
     rotation: Float,
     wheelImage: String?,
     @Suppress("UNUSED_PARAMETER") backgroundColor: String?,
+    borderColor: Color = Color.White,
+    borderWidth: Int = 5,
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -78,12 +82,48 @@ fun WheelView(
                     val radius = size.minDimension / 2
                     val centerOffset = center
 
+                    // Draw wheel base background color from backend
+                    backgroundColor?.let { bg ->
+                        try {
+                            val parsed = Color(
+                                android.graphics.Color.parseColor(
+                                    if (bg.startsWith("#")) bg else "#$bg"
+                                )
+                            )
+                            drawCircle(
+                                color = parsed,
+                                radius = radius,
+                                center = centerOffset
+                            )
+                        } catch (_: Exception) {
+                            // ignore invalid color
+                        }
+                    }
+
                     slices.forEachIndexed { index, slice ->
                         val startAngle = index * sliceAngle - 90f
                         val sweepAngle = sliceAngle
 
-                        // Parse slice color from backend
-                        val sliceColor = parseSliceColor(slice.backgroundColor, index, slices.size)
+                        // Parse slice color from backend styling
+                        val sliceStylingColor = slice.styling?.wheelStyling?.color?.background
+                        val sliceColor = parseSliceColor(
+                            sliceStylingColor,
+                            index,
+                            slices.size
+                        )
+
+                        // Get slice stroke color and width from styling
+                        val sliceStrokeColor = try {
+                            val strokeColorString = slice.styling?.wheelStyling?.color?.stroke
+                            strokeColorString?.let {
+                                Color(android.graphics.Color.parseColor(
+                                    if (it.startsWith("#")) it else "#$it"
+                                ))
+                            } ?: Color.White
+                        } catch (_: Exception) {
+                            Color.White
+                        }
+                        val sliceStrokeWidth = slice.styling?.wheelStyling?.strokeWidth ?: 2
 
                         // Draw slice with gradient for 3D effect
                         drawArc(
@@ -102,23 +142,23 @@ fun WheelView(
                             size = size
                         )
 
-                        // Draw slice border (white separators)
+                        // Draw slice border using stroke color and width from backend
                         drawArc(
-                            color = Color.White,
+                            color = sliceStrokeColor,
                             startAngle = startAngle,
                             sweepAngle = sweepAngle,
                             useCenter = true,
                             size = size,
-                            style = Stroke(width = 4f)
+                            style = Stroke(width = sliceStrokeWidth.toFloat())
                         )
                     }
 
-                    // Draw outer ring for premium look
+                    // Draw outer ring for premium look (using border styling from backend)
                     drawCircle(
-                        color = Color(0xFFFFD700), // Gold ring
+                        color = borderColor,
                         radius = radius,
                         center = centerOffset,
-                        style = Stroke(width = 8f)
+                        style = Stroke(width = borderWidth.toFloat() * 2)
                     )
 
                     // Draw inner decorative ring
@@ -138,7 +178,7 @@ fun WheelView(
 
                     // Draw center circle border
                     drawCircle(
-                        color = Color(0xFFFFD700),
+                        color = borderColor,
                         radius = radius * 0.2f,
                         center = centerOffset,
                         style = Stroke(width = 3f)
@@ -158,8 +198,10 @@ fun WheelView(
                         slice = slice,
                         index = index,
                         totalSlices = slices.size,
+                        wheelSizeDp = 300.dp,
                         modifier = Modifier.fillMaxSize()
                     )
+
                 }
             }
         }
@@ -183,6 +225,7 @@ private fun WheelSliceContent(
     slice: WheelSlice,
     index: Int,
     totalSlices: Int,
+    wheelSizeDp: Dp,
     modifier: Modifier = Modifier
 ) {
     Box(modifier = modifier) {
@@ -194,9 +237,17 @@ private fun WheelSliceContent(
         val angleInRadians = Math.toRadians((sliceMiddleAngle - 90).toDouble())
         val contentRadiusPercent = 0.65f
 
-        // Text color from backend or default white
+        val radius = wheelSizeDp.value / 2f
+
+
+        // Get styling from backend
+        val sliceStyling = slice.styling?.wheelStyling
+        val priceLabelStyle = sliceStyling?.priceLabel?.textStyle
+
+        // Text color from backend styling or default white
         val textColor = try {
-            slice.textColor?.let {
+            val colorString = priceLabelStyle?.color
+            colorString?.let {
                 Color(android.graphics.Color.parseColor(
                     if (it.startsWith("#")) it else "#$it"
                 ))
@@ -205,13 +256,16 @@ private fun WheelSliceContent(
             Color.White
         }
 
+        // Font size from backend styling
+        val fontSize = priceLabelStyle?.fontSize ?: 10
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .wrapContentSize(Alignment.Center)
                 .offset(
-                    x = (contentRadiusPercent * 150 * kotlin.math.cos(angleInRadians)).dp,
-                    y = (contentRadiusPercent * 150 * kotlin.math.sin(angleInRadians)).dp
+                    x = (contentRadiusPercent * radius * kotlin.math.cos(angleInRadians)).dp,
+                    y = (contentRadiusPercent * radius * kotlin.math.sin(angleInRadians)).dp
                 )
                 .size(80.dp)
                 .rotate(sliceMiddleAngle), // Rotate to middle angle
@@ -222,24 +276,42 @@ private fun WheelSliceContent(
                 verticalArrangement = Arrangement.Center,
                 modifier = Modifier.fillMaxSize()
             ) {
-                // Render image if available
-                if (!slice.image.isNullOrBlank()) {
+                // Get image styling from backend
+                val imageStyling = sliceStyling?.image
+                val imageCornerRadius = imageStyling?.cornerRadius
+                val imageRotation = imageStyling?.rotation ?: 0
+
+                // Determine the shape based on corner radius
+                val imageShape = if (imageCornerRadius != null) {
+                    RoundedCornerShape(
+                        topStart = (imageCornerRadius.topLeft ?: 12).dp,
+                        topEnd = (imageCornerRadius.topRight ?: 12).dp,
+                        bottomStart = (imageCornerRadius.bottomLeft ?: 12).dp,
+                        bottomEnd = (imageCornerRadius.bottomRight ?: 12).dp
+                    )
+                } else {
+                    RoundedCornerShape(8.dp)
+                }
+
+                // Render image if available (using sliceMedia field from backend)
+                if (!slice.sliceMedia.isNullOrBlank()) {
                     SubcomposeAsyncImage(
                         model = ImageRequest.Builder(LocalContext.current)
-                            .data(slice.image)
+                            .data(slice.sliceMedia)
                             .crossfade(true)
                             .build(),
-                        contentDescription = slice.prizeLabel ?: slice.noPrizeText,
+                        contentDescription = slice.prizeLabel,
                         modifier = Modifier
-                            .size(32.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.3f), CircleShape),
+                            .size(36.dp)
+                            .rotate(imageRotation.toFloat())
+                            .clip(imageShape)
+                            .background(Color.White.copy(alpha = 0.2f), imageShape),
                         contentScale = ContentScale.Crop,
                         loading = {
                             Box(
                                 modifier = Modifier
-                                    .size(32.dp)
-                                    .background(Color.White.copy(alpha = 0.2f), CircleShape),
+                                    .size(36.dp)
+                                    .background(Color.White.copy(alpha = 0.2f), imageShape),
                                 contentAlignment = Alignment.Center
                             ) {
                                 CircularProgressIndicator(
@@ -253,46 +325,35 @@ private fun WheelSliceContent(
                             // Show placeholder emoji if image fails to load
                             Box(
                                 modifier = Modifier
-                                    .size(32.dp)
-                                    .background(Color.White.copy(alpha = 0.15f), CircleShape),
+                                    .size(36.dp)
+                                    .background(Color.White.copy(alpha = 0.15f), imageShape),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = if (slice.enableNoPrize == true) "😔" else "🎁",
+                                    text = if (slice.noPrize == true) "😔" else "🎁",
                                     fontSize = 18.sp
                                 )
                             }
                         }
                     )
 
-                    // Determine which label to show
-                    val labelToShow = if (slice.enableNoPrize == true) {
-                        slice.noPrizeText ?: slice.prizeLabel
-                    } else {
-                        slice.prizeLabel
-                    }
-
-                    if (!labelToShow.isNullOrBlank()) {
+                    if (!slice.prizeLabel.isNullOrBlank()) {
                         Spacer(modifier = Modifier.height(4.dp))
                     }
                 }
 
-                // Render label (either prize label or no-prize text)
-                val displayLabel = if (slice.enableNoPrize == true) {
-                    slice.noPrizeText ?: slice.prizeLabel ?: "Better Luck"
-                } else {
-                    slice.prizeLabel
-                }
+                // Render label (prizeLabel is used for both prize and no-prize text from backend)
+                val displayLabel = slice.prizeLabel ?: if (slice.noPrize == true) "Better Luck" else null
 
                 if (!displayLabel.isNullOrBlank()) {
                     Text(
                         text = displayLabel,
                         color = textColor,
-                        fontSize = 10.sp,
+                        fontSize = fontSize.sp,
                         fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center,
                         maxLines = 2,
-                        lineHeight = 11.sp,
+                        lineHeight = (fontSize + 1).sp,
                         modifier = Modifier.width(70.dp),
                         style = TextStyle(
                             shadow = Shadow(
