@@ -367,7 +367,7 @@ private fun MainContent(
             styling = TextStyling(
                 color = csatDetails.styling?.initialFeedback?.title?.color,
                 fontSize = (titleTextStyle?.size ?: ((csatDetails.styling?.fontSize ?: 16) + 6)),
-                fontFamily = "",
+                fontFamily = titleTextStyle?.fontFamily ?: "",
                 textAlign = titleTextStyle?.alignment,
                 fontDecoration = listOf("bold")
             )
@@ -383,7 +383,7 @@ private fun MainContent(
             styling = TextStyling(
                 color = csatDetails.styling?.initialFeedback?.subtitle?.color,
                 fontSize = (subtitleTextStyle?.size ?: (csatDetails.styling?.fontSize ?: 16)),
-                fontFamily = "",
+                fontFamily = subtitleTextStyle?.fontFamily ?: "",
                 textAlign = subtitleTextStyle?.alignment
             )
         )
@@ -435,7 +435,7 @@ private fun FeedbackContent(
                 styling = TextStyling(
                     color = csatDetails.styling?.initialFeedback?.title?.color,
                     fontSize = (csatDetails.styling?.fontSize ?: 16),
-                    fontFamily = ""
+                    fontFamily = csatDetails.styling?.initialFeedback?.title?.textStyle?.fontFamily ?: "",
                 )
             )
         }
@@ -494,7 +494,7 @@ private fun FeedbackContent(
                             else csatDetails.styling?.feedbackPage?.options?.nonSelectedOptions?.colors?.text,
                             fontSize = (optionTextStyle?.size ?: csatDetails.styling?.fontSize
                             ?: 16),
-                            fontFamily = "",
+                            fontFamily = optionTextStyle?.fontFamily ?: "",
                             textAlign = optionTextStyle?.alignment
                         )
                     )
@@ -546,7 +546,7 @@ private fun FeedbackContent(
                             styling = TextStyling(
                                 color = "#808080",
                                 fontSize = commentsTextStyle?.size,
-                                fontFamily = "",
+                                fontFamily = commentsTextStyle?.fontFamily ?: "",
                                 textAlign = commentsTextStyle?.alignment
                             )
                         )
@@ -671,7 +671,7 @@ private fun FeedbackContent(
                     color = csatDetails.styling?.feedbackPage?.submitButton?.colors?.text,
                     fontSize = (submitButtonTextStyle?.size ?: submitButtonTextStyle?.fontSize
                     ?: ((csatDetails.styling?.fontSize ?: 16) + 2)),
-                    fontFamily = "",
+                    fontFamily = submitButtonTextStyle?.fontFamily ?: "",
                     textAlign = submitButtonTextStyle?.alignment ?: submitButtonTextStyle?.textAlign
                 )
             )
@@ -807,7 +807,7 @@ private fun ThankYouContent(
             styling = TextStyling(
                 color = csatDetails.styling?.thankyouPage?.title?.color,
                 fontSize = (titleTextStyle?.size ?: ((csatDetails.styling?.fontSize ?: 16) + 6)),
-                fontFamily = "",
+                fontFamily = titleTextStyle?.fontFamily ?: "",
                 textAlign = titleConfig?.alignment ?: titleTextStyle?.alignment,
                 fontDecoration = listOf("bold")
             )
@@ -847,7 +847,7 @@ private fun ThankYouContent(
             styling = TextStyling(
                 color = csatDetails.styling?.thankyouPage?.subtitle?.color,
                 fontSize = (subtitleTextStyle?.size ?: (csatDetails.styling?.fontSize ?: 16)),
-                fontFamily = "",
+                fontFamily = subtitleTextStyle?.fontFamily ?: "",
                 textAlign = subtitleConfig?.alignment ?: subtitleTextStyle?.alignment
             )
         )
@@ -939,7 +939,7 @@ private fun ThankYouContent(
                         fontSize = (doneButtonTextStyle?.size ?: doneButtonTextStyle?.fontSize
                         ?: ((csatDetails.styling?.fontSize
                             ?: 16) + 2)),
-                        fontFamily = "",
+                        fontFamily = doneButtonTextStyle?.fontFamily ?: "",
                         textAlign = doneButtonTextStyle?.alignment ?: doneButtonTextStyle?.textAlign
                     )
                 )

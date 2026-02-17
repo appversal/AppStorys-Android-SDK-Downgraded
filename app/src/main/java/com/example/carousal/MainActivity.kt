@@ -381,7 +381,8 @@ fun HomeScreen(
                 Button(
                     onClick = {
                         campaignManager.trackEvents(
-                            event = "accounts"
+                            event = "Login",
+                            metadata = mapOf("age" to 34)
                         )
                     },
                     modifier = Modifier.appstorys("toolbar")

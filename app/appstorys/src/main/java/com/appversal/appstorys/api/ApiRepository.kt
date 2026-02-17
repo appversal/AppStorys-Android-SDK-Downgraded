@@ -4,6 +4,8 @@ import android.content.Context
 import android.util.Log
 import androidx.core.content.edit
 import com.appversal.appstorys.utils.SdkJson
+import com.appversal.appstorys.utils.getDeviceInfo
+import com.appversal.appstorys.utils.toJsonElementMap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
@@ -29,12 +31,12 @@ internal class ApiRepository(
         private const val PREF_ETAG = "campaigns_etag"
     }
 
-    suspend fun getAccessToken(app_id: String, account_id: String, user_id: String): String? {
+    suspend fun getAccessToken(app_id: String, account_id: String, user_id: String, context: Context): String? {
         return withContext(Dispatchers.IO) {
             when (val result = safeApiCall {
                 webSocketApiService.validateAccount(
                     accountId = account_id,
-                    ValidateAccountRequest(app_id = app_id, account_id = account_id, user_id = user_id)
+                    ValidateAccountRequest(app_id = app_id, account_id = account_id, user_id = user_id, attributes = getDeviceInfo(context = context).toJsonElementMap())
                 ).access_token
             }) {
                 is ApiResult.Success -> result.data
@@ -81,10 +83,10 @@ internal class ApiRepository(
                 }
 
                 // Below link is for prod
-                            val campaignsJsonUrl = "https://s3.ap-south-1.amazonaws.com/cdn-campaigns.appstorys.com/clients/$accountId/campaigns.json"
+//                            val campaignsJsonUrl = "https://s3.ap-south-1.amazonaws.com/cdn-campaigns.appstorys.com/clients/$accountId/campaigns.json"
 
                 // Below link is for dev
-//                val campaignsJsonUrl = "https://dev-cdn-campaign-appstorys.s3.ap-south-1.amazonaws.com/clients/$accountId/campaigns.json"
+                val campaignsJsonUrl = "https://dev-cdn-campaign-appstorys.s3.ap-south-1.amazonaws.com/clients/$accountId/campaigns.json"
 
                 val savedETag = sharedPreferences.getString(PREF_ETAG, null)
 

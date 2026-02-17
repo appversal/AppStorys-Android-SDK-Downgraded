@@ -379,7 +379,7 @@ private fun BodyElement(element: BottomSheetElement) {
                     styling = TextStyling(
                         color = element.titleFontStyle?.colour,
                         fontSize = titleFontSizeValue,
-                        fontFamily = "",
+                        fontFamily = element.titleFontStyle?.fontFamily ?: "",
                         textAlign = element.titleFontStyle?.alignment ?: element.alignment, // Use fontStyle alignment first
                         fontDecoration = element.titleFontStyle?.decoration
                     )
@@ -403,7 +403,7 @@ private fun BodyElement(element: BottomSheetElement) {
                     styling = TextStyling(
                         color = element.descriptionFontStyle?.colour,
                         fontSize = descFontSizeValue,
-                        fontFamily = "",
+                        fontFamily = element.descriptionFontStyle?.fontFamily ?: "",
                         textAlign = element.descriptionFontStyle?.alignment ?: element.alignment, // Use fontStyle alignment first
                         fontDecoration = element.descriptionFontStyle?.decoration
                     )
@@ -534,7 +534,7 @@ private fun CTAElement(element: BottomSheetElement, onClick: () -> Unit = {}) {
                         styling = TextStyling(
                             color = element.cta?.text?.color ?: element.ctaTextColour,
                             fontSize = element.cta?.text?.fontSize ?: element.ctaFontSize?.toIntOrNull(),
-                            fontFamily = "",
+                            fontFamily = element.cta?.text?.fontFamily ?: "",
                             fontDecoration = decoration
                         )
                     )

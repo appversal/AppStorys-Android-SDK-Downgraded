@@ -14,7 +14,8 @@ sealed class CampaignDetails
 data class ValidateAccountRequest(
     val app_id: String?,
     val account_id: String?,
-    val user_id: String?
+    val user_id: String?,
+    val attributes: Map<String, JsonElement>? = null
 )
 
 @Keep
@@ -108,7 +109,7 @@ data class Campaign(
     val details: CampaignDetails?,
     val position: String?,
     val screen: String?,
-    @SerialName("trigger_event") val triggerEvent: String?
+    @SerialName("trigger_event") val triggerEvent: TriggerEvent?
 )
 
 @Keep
@@ -451,7 +452,7 @@ data class FeedbackOption(
     val option8: String?,
     val option9: String?,
     val option10: String?,
-    ) {
+) {
     fun toList(): List<String> = listOf(
         option1 ?: "",
         option2 ?: "",
@@ -463,7 +464,7 @@ data class FeedbackOption(
         option8 ?: "",
         option9 ?: "",
         option10 ?: "",
-        ).filter { it.isNotBlank() }
+    ).filter { it.isNotBlank() }
 }
 
 @Keep
@@ -939,7 +940,7 @@ data class PipDetails(
     val maximiseImage: String?,
     val minimiseImage: String?,
 
-) : CampaignDetails()
+    ) : CampaignDetails()
 
 @Keep
 @Serializable
@@ -1205,7 +1206,6 @@ data class FontStyle(
     val decoration: List<String>?,
     val alignment: String?  // Text alignment (center, left, right)
 )
-
 
 
 @Keep
@@ -1625,3 +1625,22 @@ data class CommonMargins(
 )
 // Common Components End
 
+@Serializable
+sealed class TriggerEvent {
+    @Serializable
+    data class StringTrigger(val event: String) : TriggerEvent()
+
+    @Serializable
+    data class ObjectTrigger(
+        val event: String,
+        @SerialName("event_config") val eventConfig: List<TriggerEventConfig>
+    ) : TriggerEvent()
+}
+
+@Keep
+@Serializable
+data class TriggerEventConfig(
+    val key: String,
+    val operator: String, // "eq", "neq", "gt", "gte", "lt", "lte"
+    val value: String
+)

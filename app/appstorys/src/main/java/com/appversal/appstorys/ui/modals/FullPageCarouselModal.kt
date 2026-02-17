@@ -188,7 +188,7 @@ internal fun FullPageCarouselModal(
                                     styling = TextStyling(
                                         color = titleStyling?.color,
                                         fontSize = titleStyling?.fontSize ?: titleStyling?.size ?: 18,
-                                        fontFamily = titleStyling?.fontFamily ?: titleStyling?.font ?: "",
+                                        fontFamily = titleStyling?.fontFamily ?: "",
                                         textAlign = titleStyling?.textAlign ?: titleStyling?.alignment?.trim()?.lowercase(),
                                         fontDecoration = titleStyling?.fontDecoration
                                     )
@@ -204,7 +204,7 @@ internal fun FullPageCarouselModal(
                                     styling = TextStyling(
                                         color = subtitleStyling?.color,
                                         fontSize = subtitleStyling?.fontSize ?: subtitleStyling?.size ?: 14,
-                                        fontFamily = subtitleStyling?.fontFamily ?: subtitleStyling?.font ?: "",
+                                        fontFamily = subtitleStyling?.fontFamily ?: "",
                                         textAlign = subtitleStyling?.textAlign ?: subtitleStyling?.alignment?.trim()?.lowercase(),
                                         fontDecoration = subtitleStyling?.fontDecoration
                                     )

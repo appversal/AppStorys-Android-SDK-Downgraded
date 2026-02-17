@@ -12,6 +12,7 @@ import kotlinx.serialization.json.JsonDecoder
 import kotlinx.serialization.json.JsonEncoder
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
@@ -20,104 +21,6 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.serializer
-
-object CampaignDetailsSerializer : KSerializer<CampaignDetails?> {
-    override val descriptor: SerialDescriptor =
-        PrimitiveSerialDescriptor("CampaignDetails", PrimitiveKind.STRING)
-
-    @OptIn(ExperimentalSerializationApi::class)
-    override fun serialize(encoder: Encoder, value: CampaignDetails?) {
-        if (value == null) {
-            encoder.encodeNull()
-            return
-        }
-
-        val jsonEncoder = encoder as? JsonEncoder ?: error("Only JSON format is supported")
-        val element = when (value) {
-
-            is VariantCampaignDetails -> jsonEncoder.json.encodeToJsonElement(
-                VariantCampaignDetails.serializer(),
-                value
-            )
-
-            is FloaterDetails -> jsonEncoder.json.encodeToJsonElement(
-                FloaterDetails.serializer(),
-                value
-            )
-
-            is CSATDetails -> jsonEncoder.json.encodeToJsonElement(CSATDetails.serializer(), value)
-            is WidgetDetails -> jsonEncoder.json.encodeToJsonElement(
-                WidgetDetails.serializer(),
-                value
-            )
-
-            is BannerDetails -> jsonEncoder.json.encodeToJsonElement(
-                BannerDetails.serializer(),
-                value
-            )
-
-            is ReelsDetails -> jsonEncoder.json.encodeToJsonElement(
-                ReelsDetails.serializer(),
-                value
-            )
-
-            is TooltipsDetails -> jsonEncoder.json.encodeToJsonElement(
-                TooltipsDetails.serializer(),
-                value
-            )
-
-            is PipDetails -> jsonEncoder.json.encodeToJsonElement(PipDetails.serializer(), value)
-            is BottomSheetDetails -> jsonEncoder.json.encodeToJsonElement(
-                BottomSheetDetails.serializer(),
-                value
-            )
-
-            is SurveyDetails -> jsonEncoder.json.encodeToJsonElement(
-                SurveyDetails.serializer(),
-                value
-            )
-
-            is ModalDetails -> jsonEncoder.json.encodeToJsonElement(
-                ModalDetails.serializer(),
-                value
-            )
-
-            is StoriesDetails -> jsonEncoder.json.encodeToJsonElement(
-                serializer<List<StoryGroup>>(),
-                value.groups.orEmpty()
-            )
-
-            is ScratchCardDetails -> jsonEncoder.json.encodeToJsonElement(
-                ScratchCardDetails.serializer(),
-                value
-            )
-
-            is MilestoneDetails -> jsonEncoder.json.encodeToJsonElement(
-                MilestoneDetails.serializer(),
-                value
-            )
-
-        }
-        jsonEncoder.encodeJsonElement(element)
-    }
-
-    override fun deserialize(decoder: Decoder): CampaignDetails? {
-        val jsonDecoder = decoder as? JsonDecoder ?: error("Only JSON format is supported")
-        val element = jsonDecoder.decodeJsonElement()
-
-        if (element is JsonNull || element == JsonNull) {
-            return null
-        }
-
-        if (element !is JsonObject) {
-            Log.e("CampaignDetailsSer", "Expected JsonObject but got: ${element::class.simpleName}")
-            return null
-        }
-
-        // This will be called by the custom Campaign deserializer which has access to campaign_type
-        return null
-    }
-}
 
 object CampaignDeserializer : KSerializer<Campaign> {
     override val descriptor: SerialDescriptor =
@@ -130,8 +33,20 @@ object CampaignDeserializer : KSerializer<Campaign> {
             value.campaignType?.let { put("campaign_type", it) }
             value.position?.let { put("position", it) }
             value.screen?.let { put("screen", it) }
-            value.triggerEvent?.let { put("trigger_event", it) }
-            // details will be handled separately
+            value.triggerEvent?.let { trigger ->
+                when (trigger) {
+                    is TriggerEvent.StringTrigger -> put("trigger_event", trigger.event)
+                    is TriggerEvent.ObjectTrigger -> {
+                        put("trigger_event", buildJsonObject {
+                            put("event", trigger.event)
+                            put("event_config", jsonEncoder.json.encodeToJsonElement(
+                                serializer<List<TriggerEventConfig>>(),
+                                trigger.eventConfig
+                            ))
+                        })
+                    }
+                }
+            }
         }
         jsonEncoder.encodeJsonElement(element)
     }
@@ -144,7 +59,37 @@ object CampaignDeserializer : KSerializer<Campaign> {
         val campaignType = element["campaign_type"]?.jsonPrimitive?.contentOrNull ?: ""
         val position = element["position"]?.jsonPrimitive?.contentOrNull
         val screen = element["screen"]?.jsonPrimitive?.contentOrNull ?: ""
-        val triggerEvent = element["trigger_event"]?.jsonPrimitive?.contentOrNull
+
+        val triggerEvent: TriggerEvent? = element["trigger_event"]?.let { triggerElement ->
+            when (triggerElement) {
+                is JsonPrimitive -> {
+                    // String trigger event
+                    triggerElement.contentOrNull?.let { TriggerEvent.StringTrigger(it) }
+                }
+                is JsonObject -> {
+                    // Object trigger event with conditions
+                    try {
+                        val event = triggerElement["event"]?.jsonPrimitive?.contentOrNull
+                        val eventConfig = triggerElement["event_config"]?.let { configElement ->
+                            jsonDecoder.json.decodeFromJsonElement(
+                                serializer<List<TriggerEventConfig>>(),
+                                configElement
+                            )
+                        }
+
+                        if (event != null && eventConfig != null) {
+                            TriggerEvent.ObjectTrigger(event, eventConfig)
+                        } else {
+                            null
+                        }
+                    } catch (e: Exception) {
+                        Log.e("CampaignDeserializer", "Error parsing trigger_event object: ${e.message}", e)
+                        null
+                    }
+                }
+                else -> null
+            }
+        }
 
         val detailsElement = element["details"]
         val details: CampaignDetails? = if (detailsElement != null && detailsElement !is JsonNull) {
