@@ -29,17 +29,38 @@ internal class ApiRepository(
     companion object {
         private const val PREF_CAMPAIGNS_JSON = "campaigns_json"
         private const val PREF_ETAG = "campaigns_etag"
+        private const val PREF_DEVICE_INFO_SENT = "device_info_sent"
     }
 
     suspend fun getAccessToken(app_id: String, account_id: String, user_id: String, context: Context): String? {
         return withContext(Dispatchers.IO) {
+
+            val deviceInfoAlreadySent = sharedPreferences.getBoolean(PREF_DEVICE_INFO_SENT, false)
+
+            val attributes = if (!deviceInfoAlreadySent) {
+                Log.d("ApiRepository", "Sending device info for the first time")
+                getDeviceInfo(context = context).toJsonElementMap()
+            } else {
+                Log.d("ApiRepository", "Device info already sent, skipping")
+                null
+            }
+
             when (val result = safeApiCall {
                 webSocketApiService.validateAccount(
                     accountId = account_id,
-                    ValidateAccountRequest(app_id = app_id, account_id = account_id, user_id = user_id, attributes = getDeviceInfo(context = context).toJsonElementMap())
+                    ValidateAccountRequest(app_id = app_id, account_id = account_id, user_id = user_id, attributes = attributes)
                 ).access_token
             }) {
-                is ApiResult.Success -> result.data
+                is ApiResult.Success -> {
+                    // Mark device info as sent after successful API call
+                    if (!deviceInfoAlreadySent) {
+                        sharedPreferences.edit {
+                            putBoolean(PREF_DEVICE_INFO_SENT, true)
+                        }
+                        Log.d("ApiRepository", "Device info sent successfully, flag saved")
+                    }
+                    result.data
+                }
                 is ApiResult.Error -> {
                     Log.e("ApiRepository", "Error getting access token: ${result.message}")
                     null
