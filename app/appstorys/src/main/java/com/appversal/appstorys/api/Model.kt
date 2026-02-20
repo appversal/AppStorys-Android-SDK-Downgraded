@@ -1686,10 +1686,89 @@ data class WheelSlice(
     val coupon: String? = null,
     val noPrize: Boolean? = null,
     val prizeLabel: String? = null,
+    @SerialName("subText") val subText: String? = null, // Optional supporting text shown below the prize name
     val sliceMedia: String? = null,
     val weight: Int? = null,
     val styling: WheelSliceStyling? = null,
-    val link: String? = null // Redirect link for this specific prize
+    val link: String? = null, // Redirect link for this specific prize (Button Redirect To)
+    @SerialName("buttonCtaText") val buttonCtaText: String? = null, // Custom text for primary CTA button
+    @SerialName("tncCtaText") val tncCtaText: String? = null, // Custom text for Terms & Conditions link
+    @SerialName("termsAndConditions") val termsAndConditions: String? = null, // Content displayed when user clicks "Know More to Claim"
+    val rewards: List<SliceReward>? = null // Array of reward configurations for this slice
+)
+
+// Slice Reward Configuration (per-slice reward display settings)
+
+@Keep
+@Serializable
+data class SliceReward(
+    val id: String? = null,
+    val sliceId: String? = null,
+    val prizeName: String? = null,
+    val couponCode: String? = null,
+    val subText: String? = null,
+    val buttonCta: String? = null,
+    @SerialName("tNcCta") val tNcCta: String? = null,
+    @SerialName("termsNConditions") val termsNConditions: String? = null,
+    val link: String? = null,
+    val sliceRewardMedia: String? = null,
+    val styling: SliceRewardStyling? = null
+)
+
+@Keep
+@Serializable
+data class SliceRewardStyling(
+    val couponCodeCta: SliceRewardCtaStyling? = null,
+    val cta: SliceRewardCtaStyling? = null,
+    val priceLabel: SliceRewardTextConfig? = null,
+    val subtitleText: SliceRewardTextConfig? = null
+)
+
+@Keep
+@Serializable
+data class SliceRewardCtaStyling(
+    val container: SliceRewardCtaContainer? = null,
+    val cornerRadius: CornerRadius? = null,
+    val margin: WheelMargin? = null,
+    val text: SliceRewardCtaText? = null
+)
+
+@Keep
+@Serializable
+data class SliceRewardCtaContainer(
+    val alignment: String? = null,
+    val backgroundColor: String? = null,
+    val borderColor: String? = null,
+    val borderWidth: Int? = null,
+    val ctaFullWidth: Boolean? = null,
+    val ctaWidth: Int? = null,
+    val height: Int? = null
+)
+
+@Keep
+@Serializable
+data class SliceRewardCtaText(
+    val color: String? = null,
+    val fontDecoration: List<String>? = null,
+    val fontFamily: String? = null,
+    val fontSize: Int? = null
+)
+
+@Keep
+@Serializable
+data class SliceRewardTextConfig(
+    val textStyle: SliceRewardTextStyle? = null
+)
+
+@Keep
+@Serializable
+data class SliceRewardTextStyle(
+    val color: String? = null,
+    val fontDecoration: List<String>? = null,
+    val fontFamily: String? = null,
+    val fontSize: Int? = null,
+    val margin: WheelMargin? = null,
+    val textAlign: String? = null
 )
 
 // Styling Models (from Dashboard Styling Tab)

@@ -12,9 +12,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -27,19 +31,20 @@ import androidx.compose.ui.unit.sp
 import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
 import com.appversal.appstorys.api.WheelSlice
+import kotlin.math.min
 
 /**
  * Composable to render the spinning wheel with slices including text and images
  */
 @Composable
 fun WheelView(
+    modifier: Modifier = Modifier,
     slices: List<WheelSlice>,
     rotation: Float,
     wheelImage: String?,
-    @Suppress("UNUSED_PARAMETER") backgroundColor: String?,
+    backgroundColor: String?,
     borderColor: Color = Color.White,
     borderWidth: Int = 5,
-    modifier: Modifier = Modifier
 ) {
     Box(
         modifier = modifier,
@@ -79,10 +84,14 @@ fun WheelView(
                     if (slices.isEmpty()) return@Canvas
 
                     val sliceAngle = 360f / slices.size
-                    val radius = size.minDimension / 2
+
+                    val fullRadius = size.minDimension / 2
+                    val gapBetweenRingAndWheel = 12.dp.toPx()
+                    val sliceRadius = fullRadius - gapBetweenRingAndWheel
+
                     val centerOffset = center
 
-                    // Draw wheel base background color from backend
+                    // Draw wheelbase background color from backend
                     backgroundColor?.let { bg ->
                         try {
                             val parsed = Color(
@@ -92,7 +101,7 @@ fun WheelView(
                             )
                             drawCircle(
                                 color = parsed,
-                                radius = radius,
+                                radius = fullRadius,
                                 center = centerOffset
                             )
                         } catch (_: Exception) {
@@ -125,71 +134,223 @@ fun WheelView(
                         }
                         val sliceStrokeWidth = slice.styling?.wheelStyling?.strokeWidth ?: 2
 
-                        // Draw slice with gradient for 3D effect
-                        drawArc(
-                            brush = androidx.compose.ui.graphics.Brush.radialGradient(
+                        val cornerRadiusConfig = slice.styling?.wheelStyling?.cornerRadius
+
+                        val outerCornerRadiusDp = maxOf(
+                            cornerRadiusConfig?.topLeft ?: 0,
+                            cornerRadiusConfig?.topRight ?: 0
+                        )
+
+                        val cornerPx = min(
+                            outerCornerRadiusDp.dp.toPx(),
+                            sliceRadius * 0.25f
+                        )
+
+                        val path = Path()
+
+                        val outerRect = Rect(
+                            centerOffset.x - sliceRadius,
+                            centerOffset.y - sliceRadius,
+                            centerOffset.x + sliceRadius,
+                            centerOffset.y + sliceRadius
+                        )
+
+// Convert angles to radians
+                        val startRad = Math.toRadians(startAngle.toDouble())
+                        val endRad = Math.toRadians((startAngle + sweepAngle).toDouble())
+
+// Points exactly on the outer arc corners
+                        val startOuter = Offset(
+                            (centerOffset.x + sliceRadius * kotlin.math.cos(startRad)).toFloat(),
+                            (centerOffset.y + sliceRadius * kotlin.math.sin(startRad)).toFloat()
+                        )
+
+                        val endOuter = Offset(
+                            (centerOffset.x + sliceRadius * kotlin.math.cos(endRad)).toFloat(),
+                            (centerOffset.y + sliceRadius * kotlin.math.sin(endRad)).toFloat()
+                        )
+
+                        // Points along each radial line, pulled back from the outer arc by cornerPx
+                        // (these are where the straight radial lines end before the rounded corner begins)
+                        val startTrim = Offset(
+                            (centerOffset.x + (sliceRadius - cornerPx) * kotlin.math.cos(startRad)).toFloat(),
+                            (centerOffset.y + (sliceRadius - cornerPx) * kotlin.math.sin(startRad)).toFloat()
+                        )
+
+                        val endTrim = Offset(
+                            (centerOffset.x + (sliceRadius - cornerPx) * kotlin.math.cos(endRad)).toFloat(),
+                            (centerOffset.y + (sliceRadius - cornerPx) * kotlin.math.sin(endRad)).toFloat()
+                        )
+
+                        // cornerAngleDelta (radians) = arc length consumed by one rounded corner
+                        // We trim this amount from BOTH the start and end of the arc so that
+                        // each radial-to-arc junction has room for a smooth quadratic curve.
+                        val cornerAngleDelta = (cornerPx / sliceRadius).toFloat() // radians
+                        val cornerAngleDeg = Math.toDegrees(cornerAngleDelta.toDouble()).toFloat()
+
+                        // Point on the arc just AFTER the start corner (arc entry)
+                        val startArcEntryRad = startRad + cornerAngleDelta
+                        val startArcEntry = Offset(
+                            (centerOffset.x + sliceRadius * kotlin.math.cos(startArcEntryRad)).toFloat(),
+                            (centerOffset.y + sliceRadius * kotlin.math.sin(startArcEntryRad)).toFloat()
+                        )
+
+                        // The arc is trimmed on both ends by cornerAngleDeg via safeSweep below
+
+                        // Guard: if cornerAngleDeg is too large for the sweep, skip rounding
+                        val safeSweep = sweepAngle - 2f * cornerAngleDeg
+
+                        // Build path with symmetric outer arc corner rounding:
+                        //  center → straight radial to startTrim
+                        //  → quadratic(startOuter → startArcEntry)  [rounds start corner]
+                        //  → arcTo from startArcEntry to endArcExit [main arc, trimmed both ends]
+                        //  → quadratic(endOuter → endTrim)           [rounds end corner]
+                        //  → straight radial back to center
+                        path.moveTo(centerOffset.x, centerOffset.y)
+
+                        if (safeSweep > 0f && cornerPx > 0f) {
+                            // Straight radial line, stops cornerPx short of the outer arc
+                            path.lineTo(startTrim.x, startTrim.y)
+
+                            // Round start outer corner
+                            path.quadraticTo(
+                                startOuter.x, startOuter.y,
+                                startArcEntry.x, startArcEntry.y
+                            )
+
+                            // Main arc: starts after start-corner, stops before end-corner
+                            path.arcTo(
+                                rect = outerRect,
+                                startAngleDegrees = startAngle + cornerAngleDeg,
+                                sweepAngleDegrees = safeSweep,
+                                forceMoveTo = false
+                            )
+
+                            // Round end outer corner
+                            path.quadraticTo(
+                                endOuter.x, endOuter.y,
+                                endTrim.x, endTrim.y
+                            )
+
+                            // Straight radial line back to center
+                            path.lineTo(centerOffset.x, centerOffset.y)
+                        } else {
+                            // No corner rounding — plain pie slice
+                            path.lineTo(startOuter.x, startOuter.y)
+                            path.arcTo(
+                                rect = outerRect,
+                                startAngleDegrees = startAngle,
+                                sweepAngleDegrees = sweepAngle,
+                                forceMoveTo = false
+                            )
+                            path.lineTo(centerOffset.x, centerOffset.y)
+                        }
+
+                        path.close()
+
+                        drawPath(
+                            path = path,
+                            brush = Brush.radialGradient(
                                 colors = listOf(
                                     sliceColor.copy(alpha = 0.95f),
                                     sliceColor,
                                     sliceColor.copy(alpha = 0.85f)
                                 ),
                                 center = centerOffset,
-                                radius = radius
-                            ),
-                            startAngle = startAngle,
-                            sweepAngle = sweepAngle,
-                            useCenter = true,
-                            size = size
+                                radius = sliceRadius
+                            )
                         )
 
-                        // Draw slice border using stroke color and width from backend
-                        drawArc(
+                        drawPath(
+                            path = path,
                             color = sliceStrokeColor,
-                            startAngle = startAngle,
-                            sweepAngle = sweepAngle,
-                            useCenter = true,
-                            size = size,
-                            style = Stroke(width = sliceStrokeWidth.toFloat())
+                            style = Stroke(
+                                width = sliceStrokeWidth.toFloat(),
+                            )
                         )
                     }
 
                     // Draw outer ring for premium look (using border styling from backend)
                     drawCircle(
                         color = borderColor,
-                        radius = radius,
+                        radius = fullRadius - borderWidth.dp.toPx() / 2,
                         center = centerOffset,
-                        style = Stroke(width = borderWidth.toFloat() * 2)
+                        style = Stroke(width = borderWidth.dp.toPx())
                     )
 
+
                     // Draw inner decorative ring
+                    // ---- CENTER HUB DESIGN (Industry Standard) ----
+
+                    val hubOuterRadius = fullRadius * 0.14f
+                    val hubInnerRadius = fullRadius * 0.10f
+                    val hubCoreRadius = fullRadius * 0.06f
+
+                    // 1️⃣ Subtle inner shadow for depth
                     drawCircle(
-                        brush = androidx.compose.ui.graphics.Brush.radialGradient(
+                        brush = Brush.radialGradient(
                             colors = listOf(
-                                Color(0xFFFFFFFF),
-                                Color(0xFFF5F5F5),
+                                Color.Transparent,
+                                Color.Black.copy(alpha = 0.15f)
+                            ),
+                            center = centerOffset,
+                            radius = hubOuterRadius
+                        ),
+                        radius = hubOuterRadius,
+                        center = centerOffset
+                    )
+
+                    // 2️⃣ Metallic outer hub
+                    drawCircle(
+                        brush = Brush.radialGradient(
+                            colors = listOf(
+                                Color(0xFFFDFDFD),
+                                Color(0xFFEAEAEA),
+                                Color(0xFFD6D6D6)
+                            ),
+                            center = centerOffset,
+                            radius = hubOuterRadius
+                        ),
+                        radius = hubOuterRadius,
+                        center = centerOffset
+                    )
+
+                    // 3️⃣ Hub border (scaled properly)
+                    drawCircle(
+                        color = borderColor.copy(alpha = 0.8f),
+                        radius = hubOuterRadius,
+                        center = centerOffset,
+                        style = Stroke(width = fullRadius * 0.015f)
+                    )
+
+                    // 4️⃣ Inner hub layer (adds depth)
+                    drawCircle(
+                        brush = Brush.radialGradient(
+                            colors = listOf(
+                                Color.White,
                                 Color(0xFFE0E0E0)
                             ),
                             center = centerOffset,
-                            radius = radius * 0.2f
+                            radius = hubInnerRadius
                         ),
-                        radius = radius * 0.2f,
+                        radius = hubInnerRadius,
                         center = centerOffset
                     )
 
-                    // Draw center circle border
+                    // 5️⃣ Core accent (brand color / premium center)
                     drawCircle(
-                        color = borderColor,
-                        radius = radius * 0.2f,
-                        center = centerOffset,
-                        style = Stroke(width = 3f)
-                    )
-
-                    // Draw center dot
-                    drawCircle(
-                        color = Color(0xFF6200EE),
-                        radius = radius * 0.08f,
+                        brush = Brush.radialGradient(
+                            colors = listOf(
+                                Color(0xFF7C4DFF),
+                                Color(0xFF5E35B1)
+                            ),
+                            center = centerOffset,
+                            radius = hubCoreRadius
+                        ),
+                        radius = hubCoreRadius,
                         center = centerOffset
                     )
+
                 }
 
                 // Render text labels and images on each slice
@@ -237,12 +398,13 @@ private fun WheelSliceContent(
         val angleInRadians = Math.toRadians((sliceMiddleAngle - 90).toDouble())
         val contentRadiusPercent = 0.65f
 
-        val radius = wheelSizeDp.value / 2f
-
+        val gapBetweenRingAndWheel = 12f   // must match Canvas gap
+        val radius = (wheelSizeDp.value / 2f) - gapBetweenRingAndWheel
 
         // Get styling from backend
         val sliceStyling = slice.styling?.wheelStyling
         val priceLabelStyle = sliceStyling?.priceLabel?.textStyle
+        val priceLabelMargin = sliceStyling?.priceLabel?.margin
 
         // Text color from backend styling or default white
         val textColor = try {
@@ -259,6 +421,12 @@ private fun WheelSliceContent(
         // Font size from backend styling
         val fontSize = priceLabelStyle?.fontSize ?: 10
 
+        // Calculate rotation to keep text upright
+        val textRotation = when {
+            sliceMiddleAngle > 90 && sliceMiddleAngle <= 270 -> sliceMiddleAngle + 180f
+            else -> sliceMiddleAngle
+        }
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -268,7 +436,7 @@ private fun WheelSliceContent(
                     y = (contentRadiusPercent * radius * kotlin.math.sin(angleInRadians)).dp
                 )
                 .size(80.dp)
-                .rotate(sliceMiddleAngle), // Rotate to middle angle
+                .rotate(textRotation),
             contentAlignment = Alignment.Center
         ) {
             Column(
@@ -280,14 +448,15 @@ private fun WheelSliceContent(
                 val imageStyling = sliceStyling?.image
                 val imageCornerRadius = imageStyling?.cornerRadius
                 val imageRotation = imageStyling?.rotation ?: 0
+                val sliceMargin = sliceStyling?.margin
 
                 // Determine the shape based on corner radius
                 val imageShape = if (imageCornerRadius != null) {
                     RoundedCornerShape(
-                        topStart = (imageCornerRadius.topLeft ?: 12).dp,
-                        topEnd = (imageCornerRadius.topRight ?: 12).dp,
-                        bottomStart = (imageCornerRadius.bottomLeft ?: 12).dp,
-                        bottomEnd = (imageCornerRadius.bottomRight ?: 12).dp
+                        topStart = (imageCornerRadius.topLeft ?: 8).dp,
+                        topEnd = (imageCornerRadius.topRight ?: 8).dp,
+                        bottomStart = (imageCornerRadius.bottomLeft ?: 8).dp,
+                        bottomEnd = (imageCornerRadius.bottomRight ?: 8).dp
                     )
                 } else {
                     RoundedCornerShape(8.dp)
@@ -302,6 +471,12 @@ private fun WheelSliceContent(
                             .build(),
                         contentDescription = slice.prizeLabel,
                         modifier = Modifier
+                            .padding(
+                                top = (sliceMargin?.top ?: 0).dp,
+                                bottom = (sliceMargin?.bottom ?: 0).dp,
+                                start = (sliceMargin?.left ?: 0).dp,
+                                end = (sliceMargin?.right ?: 0).dp
+                            )
                             .size(36.dp)
                             .rotate(imageRotation.toFloat())
                             .clip(imageShape)
@@ -322,7 +497,6 @@ private fun WheelSliceContent(
                             }
                         },
                         error = {
-                            // Show placeholder emoji if image fails to load
                             Box(
                                 modifier = Modifier
                                     .size(36.dp)
@@ -354,7 +528,14 @@ private fun WheelSliceContent(
                         textAlign = TextAlign.Center,
                         maxLines = 2,
                         lineHeight = (fontSize + 1).sp,
-                        modifier = Modifier.width(70.dp),
+                        modifier = Modifier
+                            .width(70.dp)
+                            .padding(
+                                top = (priceLabelMargin?.top ?: 0).dp,
+                                bottom = (priceLabelMargin?.bottom ?: 0).dp,
+                                start = (priceLabelMargin?.left ?: 0).dp,
+                                end = (priceLabelMargin?.right ?: 0).dp
+                            ),
                         style = TextStyle(
                             shadow = Shadow(
                                 color = Color.Black.copy(alpha = 0.5f),

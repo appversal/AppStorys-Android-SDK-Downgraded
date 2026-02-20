@@ -151,7 +151,20 @@ object CampaignDeserializer : KSerializer<Campaign> {
         val campaignType = element["campaign_type"]?.jsonPrimitive?.contentOrNull ?: ""
         val position = element["position"]?.jsonPrimitive?.contentOrNull
         val screen = element["screen"]?.jsonPrimitive?.contentOrNull ?: ""
-        val triggerEvent = element["trigger_event"]?.jsonPrimitive?.contentOrNull
+
+        // Handle trigger_event which can be either a string or an object
+        val triggerEvent = try {
+            when (val triggerElement = element["trigger_event"]) {
+                is kotlinx.serialization.json.JsonPrimitive -> triggerElement.contentOrNull
+                is JsonObject -> triggerElement["name"]?.jsonPrimitive?.contentOrNull
+                    ?: triggerElement["event"]?.jsonPrimitive?.contentOrNull
+                    ?: triggerElement.toString() // Fallback to full JSON if no known field
+                else -> null
+            }
+        } catch (e: Exception) {
+            Log.e("CampaignDeserializer", "Error parsing trigger_event: ${e.message}", e)
+            null
+        }
 
         val detailsElement = element["details"]
         val details: CampaignDetails? = if (detailsElement != null && detailsElement !is JsonNull) {
