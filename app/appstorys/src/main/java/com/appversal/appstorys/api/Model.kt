@@ -1651,6 +1651,7 @@ data class SpinTheWheelDetails(
 @Keep
 @Serializable
 data class SpinWheelContent(
+    val availableSpinsText: String? = null,
     val rewardConfiguration: SpinWheelRewardConfig? = null,
     val userInteraction: SpinWheelUserInteraction? = null,
     val wheelConfiguration: SpinWheelWheelConfig? = null
@@ -1751,6 +1752,7 @@ data class SliceRewardCtaText(
     val color: String? = null,
     val fontDecoration: List<String>? = null,
     val fontFamily: String? = null,
+    @Serializable(with = NullableIntSerializer::class)
     val fontSize: Int? = null
 )
 
@@ -1766,6 +1768,7 @@ data class SliceRewardTextStyle(
     val color: String? = null,
     val fontDecoration: List<String>? = null,
     val fontFamily: String? = null,
+    @Serializable(with = NullableIntSerializer::class)
     val fontSize: Int? = null,
     val margin: WheelMargin? = null,
     val textAlign: String? = null
@@ -1844,13 +1847,15 @@ data class WheelConfigurationStyling(
     val borderColor: String? = null,
     val borderWidth: Int? = null,
     val backgroundImage: String? = null,
-    val backgroundImageOpacity: Float? = null
+    val backgroundImageOpacity: Float? = null,
+    val size: Int? = null  // Wheel diameter in dp — defaults to 300 if not set
 )
 
 @Keep
 @Serializable
 data class WheelRewardStyling(
     val backdropColor: String? = null,
+    val cardBackgroundColor: String? = null,
     val confetti: WheelConfettiConfig? = null,
     val crossButton: WheelCrossButtonConfig? = null,
     val title: WheelTextStyleConfig? = null,

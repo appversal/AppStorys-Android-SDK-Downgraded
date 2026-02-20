@@ -86,7 +86,8 @@ fun WheelView(
                     val sliceAngle = 360f / slices.size
 
                     val fullRadius = size.minDimension / 2
-                    val gapBetweenRingAndWheel = 12.dp.toPx()
+                    val gapPercent = 0.04f
+                    val gapBetweenRingAndWheel = fullRadius * gapPercent
                     val sliceRadius = fullRadius - gapBetweenRingAndWheel
 
                     val centerOffset = center
@@ -354,15 +355,17 @@ fun WheelView(
                 }
 
                 // Render text labels and images on each slice
-                slices.forEachIndexed { index, slice ->
-                    WheelSliceContent(
-                        slice = slice,
-                        index = index,
-                        totalSlices = slices.size,
-                        wheelSizeDp = 300.dp,
-                        modifier = Modifier.fillMaxSize()
-                    )
-
+                BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                    val actualWheelSize = minOf(this.maxWidth, this.maxHeight)
+                    slices.forEachIndexed { index, slice ->
+                        WheelSliceContent(
+                            slice = slice,
+                            index = index,
+                            totalSlices = slices.size,
+                            wheelSizeDp = actualWheelSize,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
                 }
             }
         }
@@ -379,7 +382,8 @@ fun WheelView(
 }
 
 /**
- * Renders content (text and image) for a single wheel slice
+ * Renders content (text and image) for a single wheel slice.
+ * Text is placed OUTWARD (near the rim) and image is placed INWARD (near the center).
  */
 @Composable
 private fun WheelSliceContent(
@@ -391,14 +395,10 @@ private fun WheelSliceContent(
 ) {
     Box(modifier = modifier) {
         val sliceAngle = 360f / totalSlices
-        // Calculate the MIDDLE of the slice, not the start
         val sliceMiddleAngle = (index * sliceAngle) + (sliceAngle / 2f)
-
-        // Calculate position for content (65% from center)
         val angleInRadians = Math.toRadians((sliceMiddleAngle - 90).toDouble())
-        val contentRadiusPercent = 0.65f
 
-        val gapBetweenRingAndWheel = 12f   // must match Canvas gap
+        val gapBetweenRingAndWheel = (wheelSizeDp.value / 2f) * 0.06f
         val radius = (wheelSizeDp.value / 2f) - gapBetweenRingAndWheel
 
         // Get styling from backend
@@ -418,133 +418,140 @@ private fun WheelSliceContent(
             Color.White
         }
 
-        // Font size from backend styling
         val fontSize = priceLabelStyle?.fontSize ?: 10
 
-        // Calculate rotation to keep text upright
-        val textRotation = when {
+        // Rotation so content reads along the slice direction (pointing outward)
+        val contentRotation = when {
             sliceMiddleAngle > 90 && sliceMiddleAngle <= 270 -> sliceMiddleAngle + 180f
             else -> sliceMiddleAngle
         }
 
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .wrapContentSize(Alignment.Center)
-                .offset(
-                    x = (contentRadiusPercent * radius * kotlin.math.cos(angleInRadians)).dp,
-                    y = (contentRadiusPercent * radius * kotlin.math.sin(angleInRadians)).dp
-                )
-                .size(80.dp)
-                .rotate(textRotation),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-                modifier = Modifier.fillMaxSize()
+        // ── Percentage-based sizes — scale with the wheel, no hardcoded dp ──────
+        val imageSize   = wheelSizeDp * 0.15f   // 15% of wheel diameter
+        val textWidth   = wheelSizeDp * 0.28f   // 28% of wheel diameter
+        val imageRadiusPercent = 0.38f
+        val textRadiusPercent  = 0.72f
+
+        val imageStyling = sliceStyling?.image
+        val imageCornerRadius = imageStyling?.cornerRadius
+        val imageRotation = imageStyling?.rotation ?: 0
+        val sliceMargin = sliceStyling?.margin
+
+        val imageShape = if (imageCornerRadius != null) {
+            RoundedCornerShape(
+                topStart = (imageCornerRadius.topLeft ?: 8).dp,
+                topEnd = (imageCornerRadius.topRight ?: 8).dp,
+                bottomStart = (imageCornerRadius.bottomLeft ?: 8).dp,
+                bottomEnd = (imageCornerRadius.bottomRight ?: 8).dp
+            )
+        } else {
+            RoundedCornerShape(8.dp)
+        }
+
+        val imageUrl = slice.sliceMedia?.takeIf { it.isNotBlank() }
+            ?: slice.rewards?.firstOrNull()?.sliceRewardMedia?.takeIf { it.isNotBlank() }
+
+        if (!imageUrl.isNullOrBlank()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .wrapContentSize(Alignment.Center)
+                    .offset(
+                        x = (imageRadiusPercent * radius * kotlin.math.cos(angleInRadians)).dp,
+                        y = (imageRadiusPercent * radius * kotlin.math.sin(angleInRadians)).dp
+                    )
+                    .size(imageSize)
+                    .rotate(contentRotation + imageRotation.toFloat()),
+                contentAlignment = Alignment.Center
             ) {
-                // Get image styling from backend
-                val imageStyling = sliceStyling?.image
-                val imageCornerRadius = imageStyling?.cornerRadius
-                val imageRotation = imageStyling?.rotation ?: 0
-                val sliceMargin = sliceStyling?.margin
-
-                // Determine the shape based on corner radius
-                val imageShape = if (imageCornerRadius != null) {
-                    RoundedCornerShape(
-                        topStart = (imageCornerRadius.topLeft ?: 8).dp,
-                        topEnd = (imageCornerRadius.topRight ?: 8).dp,
-                        bottomStart = (imageCornerRadius.bottomLeft ?: 8).dp,
-                        bottomEnd = (imageCornerRadius.bottomRight ?: 8).dp
-                    )
-                } else {
-                    RoundedCornerShape(8.dp)
-                }
-
-                // Render image if available (using sliceMedia field from backend)
-                if (!slice.sliceMedia.isNullOrBlank()) {
-                    SubcomposeAsyncImage(
-                        model = ImageRequest.Builder(LocalContext.current)
-                            .data(slice.sliceMedia)
-                            .crossfade(true)
-                            .build(),
-                        contentDescription = slice.prizeLabel,
-                        modifier = Modifier
-                            .padding(
-                                top = (sliceMargin?.top ?: 0).dp,
-                                bottom = (sliceMargin?.bottom ?: 0).dp,
-                                start = (sliceMargin?.left ?: 0).dp,
-                                end = (sliceMargin?.right ?: 0).dp
+                SubcomposeAsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(imageUrl)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = slice.prizeLabel,
+                    modifier = Modifier
+                        .padding(
+                            top = (sliceMargin?.top ?: 0).dp,
+                            bottom = (sliceMargin?.bottom ?: 0).dp,
+                            start = (sliceMargin?.left ?: 0).dp,
+                            end = (sliceMargin?.right ?: 0).dp
+                        )
+                        .fillMaxSize()
+                        .clip(imageShape)
+                        .background(Color.White.copy(alpha = 0.2f), imageShape),
+                    contentScale = ContentScale.Crop,
+                    loading = {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color.White.copy(alpha = 0.2f), imageShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = Color.White
                             )
-                            .size(36.dp)
-                            .rotate(imageRotation.toFloat())
-                            .clip(imageShape)
-                            .background(Color.White.copy(alpha = 0.2f), imageShape),
-                        contentScale = ContentScale.Crop,
-                        loading = {
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .background(Color.White.copy(alpha = 0.2f), imageShape),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(16.dp),
-                                    strokeWidth = 2.dp,
-                                    color = Color.White
-                                )
-                            }
-                        },
-                        error = {
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .background(Color.White.copy(alpha = 0.15f), imageShape),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = if (slice.noPrize == true) "😔" else "🎁",
-                                    fontSize = 18.sp
-                                )
-                            }
                         }
-                    )
-
-                    if (!slice.prizeLabel.isNullOrBlank()) {
-                        Spacer(modifier = Modifier.height(4.dp))
-                    }
-                }
-
-                // Render label (prizeLabel is used for both prize and no-prize text from backend)
-                val displayLabel = slice.prizeLabel ?: if (slice.noPrize == true) "Better Luck" else null
-
-                if (!displayLabel.isNullOrBlank()) {
-                    Text(
-                        text = displayLabel,
-                        color = textColor,
-                        fontSize = fontSize.sp,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center,
-                        maxLines = 2,
-                        lineHeight = (fontSize + 1).sp,
-                        modifier = Modifier
-                            .width(70.dp)
-                            .padding(
-                                top = (priceLabelMargin?.top ?: 0).dp,
-                                bottom = (priceLabelMargin?.bottom ?: 0).dp,
-                                start = (priceLabelMargin?.left ?: 0).dp,
-                                end = (priceLabelMargin?.right ?: 0).dp
-                            ),
-                        style = TextStyle(
-                            shadow = Shadow(
-                                color = Color.Black.copy(alpha = 0.5f),
-                                offset = Offset(1f, 1f),
-                                blurRadius = 2f
+                    },
+                    error = {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color.White.copy(alpha = 0.15f), imageShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = if (slice.noPrize == true) "😔" else "🎁",
+                                fontSize = 18.sp
                             )
+                        }
+                    }
+                )
+            }
+        }
+
+        // ── TEXT — placed OUTWARD (72% of radius from center, near rim) ─────────
+        val displayLabel = slice.prizeLabel ?: if (slice.noPrize == true) "Better Luck" else null
+
+        if (!displayLabel.isNullOrBlank()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .wrapContentSize(Alignment.Center)
+                    .offset(
+                        x = (textRadiusPercent * radius * kotlin.math.cos(angleInRadians)).dp,
+                        y = (textRadiusPercent * radius * kotlin.math.sin(angleInRadians)).dp
+                    )
+                    .width(textWidth)
+                    .rotate(contentRotation),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = displayLabel,
+                    color = textColor,
+                    fontSize = fontSize.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    lineHeight = (fontSize + 1).sp,
+                    modifier = Modifier
+                        .width(textWidth)
+                        .padding(
+                            top = (priceLabelMargin?.top ?: 0).dp,
+                            bottom = (priceLabelMargin?.bottom ?: 0).dp,
+                            start = (priceLabelMargin?.left ?: 0).dp,
+                            end = (priceLabelMargin?.right ?: 0).dp
+                        ),
+                    style = TextStyle(
+                        shadow = Shadow(
+                            color = Color.Black.copy(alpha = 0.5f),
+                            offset = Offset(1f, 1f),
+                            blurRadius = 2f
                         )
                     )
-                }
+                )
             }
         }
     }
@@ -647,4 +654,3 @@ private fun parseSliceColor(colorString: String?, index: Int, totalSlices: Int):
         modernColors[index % modernColors.size]
     }
 }
-

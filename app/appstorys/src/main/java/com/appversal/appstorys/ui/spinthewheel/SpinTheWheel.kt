@@ -305,6 +305,8 @@ fun SpinTheWheel(
         }
     }
 
+    val rewardDisplayMode = spinTheWheelDetails.rewardDisplayMode ?: "pop-up"
+
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(
@@ -336,13 +338,38 @@ fun SpinTheWheel(
                 )
             }
 
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
+            // Show reward content inline (replacing wheel) after spin completes
+            if (showResultDialog && selectedSlice != null) {
+                val rewardBg = if (rewardDisplayMode.lowercase() == "full-screen" ||
+                    rewardDisplayMode.lowercase() == "full screen"
+                ) {
+                    Modifier.fillMaxSize().background(Color.White)
+                } else {
+                    Modifier.fillMaxSize()
+                }
+                Box(modifier = rewardBg) {
+                    RewardContent(
+                        slice = selectedSlice!!,
+                        rewardConfiguration = content?.rewardConfiguration,
+                        rewardStyling = styling?.rewardConfiguration,
+                        mainLink = spinTheWheelDetails.link,
+                        onLinkClick = { link -> onCtaClick(link) },
+                        onDismiss = {
+                            showResultDialog = false
+                            showConfetti = false
+                            if (spinsLeft <= 0) {
+                                onDismiss()
+                            }
+                        }
+                    )
+                }
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
                 // Close button with styling from backend
                 val crossButtonEnabled = crossButtonConfig?.enabled ?: true
                 val crossButtonSize = crossButtonConfig?.size ?: 30
@@ -443,40 +470,57 @@ fun SpinTheWheel(
                 val spinTextFontWeight = parseFontWeight(availableSpinTextStyle?.fontWeight ?: "bold")
                 val spinTextFontStyle = parseFontStyle(availableSpinTextStyle?.fontStyle)
 
-                Row(
-                    modifier = Modifier,
-                        //.padding(vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    Text(
-//                        modifier = Modifier
-//                            .fillMaxWidth()
-//                            .padding(
-//                                top = (subtitleMargin?.top ?: 0).dp,
-//                                bottom = (subtitleMargin?.bottom ?: 0).dp,
-//                                start = (subtitleMargin?.left ?: 0).dp,
-//                                end = (subtitleMargin?.right ?: 0).dp
-//                            ),
-                        text = "$spinsLeft spin${if (spinsLeft != 1) "s" else ""} remaining",
-                        fontSize = spinTextFontSize.sp,
-                        fontWeight = spinTextFontWeight,
-                        fontStyle = spinTextFontStyle,
-                        color = spinTextColor,
-                        textAlign = spinTextAlign
-                    )
-                }
+                val availableSpinsMargin = availableSpinTextStyle?.margin
+                // Dynamic: always re-evaluated when spinsLeft changes.
+                // If backend provides a template (e.g. "{spinsLeft} spins left"), replace the placeholder.
+                // Otherwise, fall back to a default string built from the live spinsLeft value.
+                    val availableSpinsLabel =
+                        content?.availableSpinsText?.takeIf { it.isNotBlank() }
+                            ?: "Available Spins"
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(
+                                top = (availableSpinsMargin?.top ?: 0).dp,
+                                bottom = (availableSpinsMargin?.bottom ?: 0).dp,
+                                start = (availableSpinsMargin?.left ?: 0).dp,
+                                end = (availableSpinsMargin?.right ?: 0).dp
+                            ),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+
+                        // Label from backend
+                        Text(
+                            text = availableSpinsLabel,
+                            fontSize = spinTextFontSize.sp,
+                            fontWeight = spinTextFontWeight,
+                            fontStyle = spinTextFontStyle,
+                            color = spinTextColor,
+                            textAlign = spinTextAlign
+                        )
+
+                        Spacer(modifier = Modifier.width(6.dp))
+
+                        // Dynamic spins number
+                        Text(
+                            text = spinsLeft.toString(),
+                            fontSize = spinTextFontSize.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = spinTextColor
+                        )
+                    }
 
                 // Enhanced Wheel Container with glow effect
                 val wheelConfigStyling = mainStyling?.wheelConfiguration
                 val wheelBorderColor = parseColor(wheelConfigStyling?.borderColor, Color.White)
                 val wheelBorderWidth = wheelConfigStyling?.borderWidth ?: 5
-
+                val wheelSize = (wheelConfigStyling?.size ?: 350).dp
 
                 Box(
                     modifier = Modifier
-                        //.padding(16.dp) // Hardcoded space around the wheel
-                        .size(300.dp)
+                        .size(wheelSize)
                         .shadow(
                             elevation = 30.dp,
                             shape = CircleShape,
@@ -627,71 +671,9 @@ fun SpinTheWheel(
                     }
                 }
             }
-        }
-    }
-
-    val rewardDisplayMode = spinTheWheelDetails.rewardDisplayMode ?: "pop-up"
-    // Enhanced result dialog
-    if (showResultDialog && selectedSlice != null) {
-        SpinResultDialog(
-            slice = selectedSlice!!,
-            rewardConfiguration = content?.rewardConfiguration,
-            rewardStyling = styling?.rewardConfiguration,
-            rewardDisplayMode = rewardDisplayMode,
-            mainLink = spinTheWheelDetails.link,
-            onLinkClick = { link ->
-                onCtaClick(link)
-            },
-            onDismiss = {
-                showResultDialog = false
-                showConfetti = false
-            }
-        )
-    }
-}
-
-@Composable
-private fun SpinResultDialog(
-    slice: WheelSlice,
-    rewardConfiguration: SpinWheelRewardConfig?,
-    rewardStyling: WheelRewardStyling?,
-    rewardDisplayMode: String,
-    mainLink: String? = null,
-    onLinkClick: (String?) -> Unit = {},
-    onDismiss: () -> Unit,
-) {
-    if (rewardDisplayMode.lowercase() == "full screen") {
-        // FULL SCREEN MODE
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.White)
-        ) {
-            RewardContent(
-                slice = slice,
-                rewardConfiguration = rewardConfiguration,
-                rewardStyling = rewardStyling,
-                onDismiss = onDismiss,
-                onLinkClick = onLinkClick,
-                mainLink = mainLink
-            )
-        }
-    } else {
-        // POP-UP MODE (DEFAULT)
-        Dialog(
-            onDismissRequest = onDismiss,
-            properties = DialogProperties(usePlatformDefaultWidth = false)
-        ) {
-            RewardContent(
-                slice = slice,
-                rewardConfiguration = rewardConfiguration,
-                rewardStyling = rewardStyling,
-                onDismiss = onDismiss,
-                onLinkClick = onLinkClick,
-                mainLink = mainLink
-            )
-        }
-    }
+        } // end else (wheel view)
+    } // end outer Box
+} // end outer Dialog
 }
 
 @Composable
@@ -896,9 +878,9 @@ private fun RewardContent(
                                 modifier = Modifier
                                     .align(crossAlignment)
                                     .padding(
-                                        top = (crossMargin?.top ?: 12).dp,
-                                        start = (crossMargin?.left ?: 12).dp,
-                                        end = (crossMargin?.right ?: 12).dp
+                                        top = (crossMargin?.top ?: 0).coerceAtLeast(0).dp,
+                                        start = (crossMargin?.left ?: 0).coerceAtLeast(0).dp,
+                                        end = (crossMargin?.right ?: 0).coerceAtLeast(0).dp
                                     )
                             ) {
                                 CrossButton(
@@ -1162,10 +1144,10 @@ private fun RewardContent(
                                 )
                                 .height(ctaHeight.dp)
                                 .padding(
-                                    top = (ctaMargin?.top ?: 0).dp,
-                                    bottom = (ctaMargin?.bottom ?: 0).dp,
-                                    start = (ctaMargin?.left ?: 0).dp,
-                                    end = (ctaMargin?.right ?: 0).dp
+                                    top = (ctaMargin?.top ?: 0).coerceAtLeast(0).dp,
+                                    bottom = (ctaMargin?.bottom ?: 0).coerceAtLeast(0).dp,
+                                    start = (ctaMargin?.left ?: 0).coerceAtLeast(0).dp,
+                                    end = (ctaMargin?.right ?: 0).coerceAtLeast(0).dp
                                 )
                                 .then(
                                     if (ctaBorderWidth > 0)
