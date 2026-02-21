@@ -14,6 +14,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -262,7 +263,6 @@ fun SpinTheWheel(
             val finalAngle = current + fullSpins + delta
 
 
-
             // Haptic feedback at start if enabled
             if (enableHapticFeedback) {
                 triggerHapticFeedback(context)
@@ -306,7 +306,16 @@ fun SpinTheWheel(
     val rewardDisplayMode = spinTheWheelDetails.rewardDisplayMode ?: "pop-up"
 
     Dialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = {
+            if (showResultDialog) {
+                // Back press while reward is showing → go back to wheel
+                showResultDialog = false
+                showConfetti = false
+            } else {
+                // Back press on wheel → close the whole campaign
+                onDismiss()
+            }
+        },
         properties = DialogProperties(
             dismissOnBackPress = true,
             dismissOnClickOutside = false,
@@ -342,7 +351,9 @@ fun SpinTheWheel(
                     rewardDisplayMode.lowercase() == "full screen"
                 ) {
                     Log.d("STW_DEBUG", "Reward Mode = $rewardDisplayMode")
-                    Modifier.fillMaxSize().background(Color.White)
+                    Modifier
+                        .fillMaxSize()
+                        .background(Color.White)
                 } else {
                     Log.d("STW_DEBUG", "Running POPUP mode")
                     Modifier.fillMaxSize()
@@ -370,110 +381,118 @@ fun SpinTheWheel(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Top
                 ) {
-                // Close button with styling from backend
-                val crossButtonEnabled = crossButtonConfig?.enabled ?: true
-                val crossButtonSize = crossButtonConfig?.size ?: 30
-                val crossButtonAlignment = crossButtonConfig?.alignment ?: "right"
-                val crossFillColor = crossButtonConfig?.color?.fill ?: "#000000"
-                val crossCrossColor = crossButtonConfig?.color?.cross ?: "#FFFFFF"
-                val crossStrokeColor = crossButtonConfig?.color?.stroke ?: "#FFFFFF"
-                val crossButtonMargin = crossButtonConfig?.margin
+                    // Close button with styling from backend
+                    val crossButtonEnabled = crossButtonConfig?.enabled ?: true
+                    val crossButtonSize = crossButtonConfig?.size ?: 30
+                    val crossButtonAlignment = crossButtonConfig?.alignment ?: "right"
+                    val crossFillColor = crossButtonConfig?.color?.fill ?: "#000000"
+                    val crossCrossColor = crossButtonConfig?.color?.cross ?: "#FFFFFF"
+                    val crossStrokeColor = crossButtonConfig?.color?.stroke ?: "#FFFFFF"
+                    val crossButtonMargin = crossButtonConfig?.margin
 
-                if (crossButtonEnabled) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(
-                                top = (crossButtonMargin?.top ?: 0).dp,
-                                bottom = (crossButtonMargin?.bottom ?: 0).dp,
-                                start = (crossButtonMargin?.left ?: 0).dp,
-                                end = (crossButtonMargin?.right ?: 0).dp
-                            ),
-                        horizontalArrangement = when (crossButtonAlignment.lowercase()) {
-                            "left" -> Arrangement.Start
-                            "center" -> Arrangement.Center
-                            else -> Arrangement.End
-                        }
-                    ) {
-                        Box(
+                    if (crossButtonEnabled) {
+                        Row(
                             modifier = Modifier
-                                .size(crossButtonSize.dp)
-                                .shadow(4.dp, CircleShape)
-                                .background(parseColor(crossFillColor, Color.Black), CircleShape)
-                                .clickable { onDismiss() },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            CrossButton(
-                                config = createCrossButtonConfig(
-                                    fillColorString = crossFillColor,
-                                    crossColorString = crossCrossColor,
-                                    strokeColorString = crossStrokeColor,
-                                    size = crossButtonSize
+                                .fillMaxWidth()
+                                .padding(
+                                    top = (crossButtonMargin?.top ?: 0).dp,
+                                    bottom = (crossButtonMargin?.bottom ?: 0).dp,
+                                    start = (crossButtonMargin?.left ?: 0).dp,
+                                    end = (crossButtonMargin?.right ?: 0).dp
                                 ),
-                                onClose = onDismiss
-                            )
+                            horizontalArrangement = when (crossButtonAlignment.lowercase()) {
+                                "left" -> Arrangement.Start
+                                "center" -> Arrangement.Center
+                                else -> Arrangement.End
+                            }
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(crossButtonSize.dp)
+                                    .shadow(4.dp, CircleShape)
+                                    .background(
+                                        parseColor(crossFillColor, Color.Black),
+                                        CircleShape
+                                    )
+                                    .clickable { onDismiss() },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CrossButton(
+                                    config = createCrossButtonConfig(
+                                        fillColorString = crossFillColor,
+                                        crossColorString = crossCrossColor,
+                                        strokeColorString = crossStrokeColor,
+                                        size = crossButtonSize
+                                    ),
+                                    onClose = onDismiss
+                                )
+                            }
                         }
                     }
-                }
 
-                // Title with styling from backend (using direct popupTitle field)
-                val popupTitle = spinTheWheelDetails.popupTitle ?: ""
-                val titleMargin = titleStyle?.margin
-                if (popupTitle.isNotEmpty()) {
-                    Text(
-                        text = popupTitle,
-                        fontSize = (titleStyle?.fontSize ?: 28).sp,
-                        fontWeight = parseFontWeight(titleStyle?.fontWeight ?: "bold"),
-                        fontStyle = parseFontStyle(titleStyle?.fontStyle),
-                        textAlign = parseTextAlign(titleStyle?.textAlign ?: "center"),
-                        textDecoration = parseTextDecoration(titleStyle?.fontDecoration),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(
-                                top = (titleMargin?.top ?: 0).dp,
-                                bottom = (titleMargin?.bottom ?: 0).dp,
-                                start = (titleMargin?.left ?: 0).dp,
-                                end = (titleMargin?.right ?: 0).dp
+                    // Title with styling from backend (using direct popupTitle field)
+                    val popupTitle = spinTheWheelDetails.popupTitle ?: ""
+                    val titleMargin = titleStyle?.margin
+                    if (popupTitle.isNotEmpty()) {
+                        Text(
+                            text = popupTitle,
+                            fontSize = (titleStyle?.fontSize ?: 28).sp,
+                            fontWeight = parseFontWeight(titleStyle?.fontWeight ?: "bold"),
+                            fontStyle = parseFontStyle(titleStyle?.fontStyle),
+                            textAlign = parseTextAlign(titleStyle?.textAlign ?: "center"),
+                            textDecoration = parseTextDecoration(titleStyle?.fontDecoration),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(
+                                    top = (titleMargin?.top ?: 0).dp,
+                                    bottom = (titleMargin?.bottom ?: 0).dp,
+                                    start = (titleMargin?.left ?: 0).dp,
+                                    end = (titleMargin?.right ?: 0).dp
+                                ),
+                            color = parseColor(titleStyle?.color, Color.White)
+                        )
+                    }
+
+                    // Description with styling from backend (using direct popupDescription field)
+                    val popupDescription = spinTheWheelDetails.popupDescription
+                    if (!popupDescription.isNullOrEmpty()) {
+                        val subtitleMargin = subtitleStyle?.margin
+                        Text(
+                            text = popupDescription,
+                            fontSize = (subtitleStyle?.fontSize ?: 15).sp,
+                            fontWeight = parseFontWeight(subtitleStyle?.fontWeight),
+                            fontStyle = parseFontStyle(subtitleStyle?.fontStyle),
+                            textAlign = parseTextAlign(subtitleStyle?.textAlign ?: "center"),
+                            textDecoration = parseTextDecoration(subtitleStyle?.fontDecoration),
+                            color = parseColor(
+                                subtitleStyle?.color,
+                                Color.White.copy(alpha = 0.9f)
                             ),
-                        color = parseColor(titleStyle?.color, Color.White)
-                    )
-                }
+                            lineHeight = ((subtitleStyle?.fontSize ?: 15) + 5).sp,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(
+                                    top = (subtitleMargin?.top ?: 0).dp,
+                                    bottom = (subtitleMargin?.bottom ?: 0).dp,
+                                    start = (subtitleMargin?.left ?: 0).dp,
+                                    end = (subtitleMargin?.right ?: 0).dp
+                                )
+                        )
+                    }
 
-                // Description with styling from backend (using direct popupDescription field)
-                val popupDescription = spinTheWheelDetails.popupDescription
-                if (!popupDescription.isNullOrEmpty()) {
-                    val subtitleMargin = subtitleStyle?.margin
-                    Text(
-                        text = popupDescription,
-                        fontSize = (subtitleStyle?.fontSize ?: 15).sp,
-                        fontWeight = parseFontWeight(subtitleStyle?.fontWeight),
-                        fontStyle = parseFontStyle(subtitleStyle?.fontStyle),
-                        textAlign = parseTextAlign(subtitleStyle?.textAlign ?: "center"),
-                        textDecoration = parseTextDecoration(subtitleStyle?.fontDecoration),
-                        color = parseColor(subtitleStyle?.color, Color.White.copy(alpha = 0.9f)),
-                        lineHeight = ((subtitleStyle?.fontSize ?: 15) + 5).sp,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(
-                                top = (subtitleMargin?.top ?: 0).dp,
-                                bottom = (subtitleMargin?.bottom ?: 0).dp,
-                                start = (subtitleMargin?.left ?: 0).dp,
-                                end = (subtitleMargin?.right ?: 0).dp
-                            )
-                    )
-                }
+                    // Spins left indicator with styling from backend
+                    val spinTextColor = parseColor(availableSpinTextStyle?.color, Color.White)
+                    val spinTextAlign =
+                        parseTextAlign(availableSpinTextStyle?.textAlign ?: "center")
+                    val spinTextFontSize = availableSpinTextStyle?.fontSize ?: 14
+                    val spinTextFontWeight =
+                        parseFontWeight(availableSpinTextStyle?.fontWeight ?: "bold")
+                    val spinTextFontStyle = parseFontStyle(availableSpinTextStyle?.fontStyle)
 
-                // Spins left indicator with styling from backend
-                val spinTextColor = parseColor(availableSpinTextStyle?.color, Color.White)
-                val spinTextAlign = parseTextAlign(availableSpinTextStyle?.textAlign ?: "center")
-                val spinTextFontSize = availableSpinTextStyle?.fontSize ?: 14
-                val spinTextFontWeight = parseFontWeight(availableSpinTextStyle?.fontWeight ?: "bold")
-                val spinTextFontStyle = parseFontStyle(availableSpinTextStyle?.fontStyle)
-
-                val availableSpinsMargin = availableSpinTextStyle?.margin
-                // Dynamic: always re-evaluated when spinsLeft changes.
-                // If backend provides a template (e.g. "{spinsLeft} spins left"), replace the placeholder.
-                // Otherwise, fall back to a default string built from the live spinsLeft value.
+                    val availableSpinsMargin = availableSpinTextStyle?.margin
+                    // Dynamic: always re-evaluated when spinsLeft changes.
+                    // If backend provides a template (e.g. "{spinsLeft} spins left"), replace the placeholder.
+                    // Otherwise, fall back to a default string built from the live spinsLeft value.
                     val availableSpinsLabel =
                         content?.availableSpinsText?.takeIf { it.isNotBlank() }
                             ?: "Available Spins"
@@ -512,22 +531,22 @@ fun SpinTheWheel(
                         )
                     }
 
-                // Enhanced Wheel Container with glow effect
-                val wheelConfigStyling = mainStyling?.wheelConfiguration
-                val wheelBorderColor = parseColor(wheelConfigStyling?.borderColor, Color.White)
-                val wheelBorderWidth = wheelConfigStyling?.borderWidth ?: 5
-                val wheelSize = (wheelConfigStyling?.size ?: 350).dp
+                    // Enhanced Wheel Container with glow effect
+                    val wheelConfigStyling = mainStyling?.wheelConfiguration
+                    val wheelBorderColor = parseColor(wheelConfigStyling?.borderColor, Color.White)
+                    val wheelBorderWidth = wheelConfigStyling?.borderWidth ?: 5
+                    val wheelSize = (wheelConfigStyling?.size ?: 350).dp
 
-                Box(
-                    modifier = Modifier
-                        .size(wheelSize)
-                        .shadow(
-                            elevation = 30.dp,
-                            shape = CircleShape,
-                            clip = false
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(wheelSize)
+                            .shadow(
+                                elevation = 30.dp,
+                                shape = CircleShape,
+                                clip = false
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
 //                    // Shadow ring
 //                    Box(
 //                        modifier = Modifier
@@ -535,100 +554,102 @@ fun SpinTheWheel(
 //                            .shadow(20.dp, CircleShape)
 //                    )
 
-                    // Wheel
-                    WheelView(
-                        slices = slices,
-                        rotation = rotation.value,
-                        wheelImage = null,
-                        backgroundColor = wheelConfigStyling?.backgroundColor,
-                        borderColor = wheelBorderColor,
-                        borderWidth = wheelBorderWidth,
-                        modifier = Modifier.fillMaxSize()
+                        // Wheel
+                        WheelView(
+                            slices = slices,
+                            rotation = rotation.value,
+                            wheelImage = null,
+                            backgroundColor = wheelConfigStyling?.backgroundColor,
+                            borderColor = wheelBorderColor,
+                            borderWidth = wheelBorderWidth,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+
+
+                    // Extract spin button styling
+                    val buttonContainer = spinButtonStyle?.container
+                    val buttonText = spinButtonStyle?.text
+                    val buttonMargin = spinButtonStyle?.margin
+                    val buttonBackgroundColor =
+                        parseColor(buttonContainer?.backgroundColor, Color(0xFFFFB545))
+                    val buttonBorderColor =
+                        parseColor(buttonContainer?.borderColor, Color.Transparent)
+                    val buttonBorderWidth = buttonContainer?.borderWidth ?: 0
+                    val buttonCornerRadius = buttonContainer?.cornerRadius
+                    val buttonHeight = buttonContainer?.height ?: 50
+                    val buttonWidth = buttonContainer?.width ?: 160
+                    val buttonFullWidth = buttonContainer?.fullWidth ?: false
+                    val buttonTextColor = parseColor(buttonText?.color, Color.White)
+                    val buttonTextSize = buttonText?.fontSize ?: 16
+                    val buttonAlignment = buttonContainer?.alignment ?: "center"
+
+                    val buttonShape = RoundedCornerShape(
+                        topStart = (buttonCornerRadius?.topLeft ?: 12).dp,
+                        topEnd = (buttonCornerRadius?.topRight ?: 12).dp,
+                        bottomStart = (buttonCornerRadius?.bottomLeft ?: 12).dp,
+                        bottomEnd = (buttonCornerRadius?.bottomRight ?: 12).dp
                     )
-                }
 
 
-                // Extract spin button styling
-                val buttonContainer = spinButtonStyle?.container
-                val buttonText = spinButtonStyle?.text
-                val buttonMargin = spinButtonStyle?.margin
-                val buttonBackgroundColor = parseColor(buttonContainer?.backgroundColor, Color(0xFFFFB545))
-                val buttonBorderColor = parseColor(buttonContainer?.borderColor, Color.Transparent)
-                val buttonBorderWidth = buttonContainer?.borderWidth ?: 0
-                val buttonCornerRadius = buttonContainer?.cornerRadius
-                val buttonHeight = buttonContainer?.height ?: 50
-                val buttonWidth = buttonContainer?.width ?: 160
-                val buttonFullWidth = buttonContainer?.fullWidth ?: false
-                val buttonTextColor = parseColor(buttonText?.color, Color.White)
-                val buttonTextSize = buttonText?.fontSize ?: 16
-                val buttonAlignment = buttonContainer?.alignment ?: "center"
+                    val isEnabled = spinsLeft > 0 && !isSpinning
 
-                val buttonShape = RoundedCornerShape(
-                    topStart = (buttonCornerRadius?.topLeft ?: 12).dp,
-                    topEnd = (buttonCornerRadius?.topRight ?: 12).dp,
-                    bottomStart = (buttonCornerRadius?.bottomLeft ?: 12).dp,
-                    bottomEnd = (buttonCornerRadius?.bottomRight ?: 12).dp
-                )
-
-
-                val isEnabled = spinsLeft > 0 && !isSpinning
-
-                val interactionSource = remember { MutableInteractionSource() }
+                    val interactionSource = remember { MutableInteractionSource() }
 
                     Spacer(modifier = Modifier.height((buttonMargin?.top ?: 0).dp))
 
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(
-                            start = (buttonMargin?.left ?: 0).dp,
-                            end = (buttonMargin?.right ?: 0).dp
-                        ),
-                    horizontalArrangement = when (buttonAlignment.lowercase()) {
-                        "left" -> Arrangement.Start
-                        "right" -> Arrangement.End
-                        else -> Arrangement.Center
-                    }
-                ) {
-                    Box(
+                    Row(
                         modifier = Modifier
-                           //scale(if (isEnabled) pulseScale else 1f)
-                            .then(
-                                if (buttonFullWidth) Modifier.fillMaxWidth()
-                                else Modifier.width(buttonWidth.dp)
-                            )
-                            .height(buttonHeight.dp)
-                            .clip(buttonShape)
-                            .background(
-                                if (isEnabled)
-                                    Brush.verticalGradient(
-                                        listOf(
-                                            buttonBackgroundColor,
-                                            buttonBackgroundColor.copy(alpha = 0.9f)
-                                        )
-                                    )
-                                else
-                                    Brush.verticalGradient(
-                                        listOf(
-                                            Color.Gray.copy(alpha = 0.4f),
-                                            Color.Gray.copy(alpha = 0.3f)
-                                        )
-                                    )
-                            )
-                            .border(
-                                if (buttonBorderWidth > 0) buttonBorderWidth.dp else 0.dp,
-                                buttonBorderColor,
-                                buttonShape
-                            )
-                            .clickable(
-                                enabled = isEnabled,
-                                interactionSource = interactionSource,
-                                indication = null
-                            ) {
-                                performSpin()
-                            },
-                        contentAlignment = Alignment.Center
+                            .fillMaxWidth()
+                            .padding(
+                                start = (buttonMargin?.left ?: 0).dp,
+                                end = (buttonMargin?.right ?: 0).dp
+                            ),
+                        horizontalArrangement = when (buttonAlignment.lowercase()) {
+                            "left" -> Arrangement.Start
+                            "right" -> Arrangement.End
+                            else -> Arrangement.Center
+                        }
                     ) {
+                        Box(
+                            modifier = Modifier
+                                //scale(if (isEnabled) pulseScale else 1f)
+                                .then(
+                                    if (buttonFullWidth) Modifier.fillMaxWidth()
+                                    else Modifier.width(buttonWidth.dp)
+                                )
+                                .height(buttonHeight.dp)
+                                .clip(buttonShape)
+                                .background(
+                                    if (isEnabled)
+                                        Brush.verticalGradient(
+                                            listOf(
+                                                buttonBackgroundColor,
+                                                buttonBackgroundColor.copy(alpha = 0.9f)
+                                            )
+                                        )
+                                    else
+                                        Brush.verticalGradient(
+                                            listOf(
+                                                Color.Gray.copy(alpha = 0.4f),
+                                                Color.Gray.copy(alpha = 0.3f)
+                                            )
+                                        )
+                                )
+                                .border(
+                                    if (buttonBorderWidth > 0) buttonBorderWidth.dp else 0.dp,
+                                    buttonBorderColor,
+                                    buttonShape
+                                )
+                                .clickable(
+                                    enabled = isEnabled,
+                                    interactionSource = interactionSource,
+                                    indication = null
+                                ) {
+                                    performSpin()
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
                             if (isSpinning) {
                                 CircularProgressIndicator(
                                     strokeWidth = 2.5.dp,
@@ -646,13 +667,14 @@ fun SpinTheWheel(
                                     letterSpacing = 0.5.sp
                                 )
                             }
+                        }
                     }
-                }
 
-                    Spacer(modifier = Modifier.height((buttonMargin?.bottom ?: 0).dp))            }
-        } // end else (wheel view)
-    } // end outer Box
-} // end outer Dialog
+                    Spacer(modifier = Modifier.height((buttonMargin?.bottom ?: 0).dp))
+                }
+            } // end else (wheel view)
+        } // end outer Box
+    } // end outer Dialog
 } // end SpinTheWheel function
 
 @Composable
@@ -725,8 +747,10 @@ private fun RewardContent(
         if (isWin) Color(0xFF1A1A1A) else Color(0xFF424242)
     )
     val titleFontSize = priceLabelStyle?.fontSize ?: globalTitleStyle?.fontSize ?: 24
-    val titleTextAlign = parseTextAlign(priceLabelStyle?.textAlign ?: globalTitleStyle?.textAlign ?: "center")
-    val titleTextDecoration = parseTextDecoration(priceLabelStyle?.fontDecoration ?: globalTitleStyle?.fontDecoration)
+    val titleTextAlign =
+        parseTextAlign(priceLabelStyle?.textAlign ?: globalTitleStyle?.textAlign ?: "center")
+    val titleTextDecoration =
+        parseTextDecoration(priceLabelStyle?.fontDecoration ?: globalTitleStyle?.fontDecoration)
 
     // Parse subtitle styling
     val subtitleColor = parseColor(
@@ -734,7 +758,8 @@ private fun RewardContent(
         Color(0xFF6B7280)
     )
     val subtitleFontSize = subtitleTextStyle?.fontSize ?: globalSubtitleStyle?.fontSize ?: 14
-    val subtitleTextAlign = parseTextAlign(subtitleTextStyle?.textAlign ?: globalSubtitleStyle?.textAlign ?: "center")
+    val subtitleTextAlign =
+        parseTextAlign(subtitleTextStyle?.textAlign ?: globalSubtitleStyle?.textAlign ?: "center")
 
     // Cross button styling
     val crossButtonEnabled = crossButtonConfig?.enabled ?: true
@@ -748,7 +773,10 @@ private fun RewardContent(
     val ctaText = ctaStyling?.text
     val ctaCornerRadius = ctaStyling?.cornerRadius
     val ctaMargin = ctaStyling?.margin
-    val ctaBackgroundColor = parseColor(ctaContainer?.backgroundColor, if (isWin) Color(0xFF2563EB) else Color(0xFF6B7280))
+    val ctaBackgroundColor = parseColor(
+        ctaContainer?.backgroundColor,
+        if (isWin) Color(0xFF2563EB) else Color(0xFF6B7280)
+    )
     val ctaBorderColor = parseColor(ctaContainer?.borderColor, Color.Transparent)
     val ctaBorderWidth = ctaContainer?.borderWidth ?: 0
     val ctaHeight = ctaContainer?.height ?: 52
@@ -858,388 +886,367 @@ private fun RewardContent(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                // ✅ REWARD TITLE — outside card
-                rewardConfiguration?.rewardPopupTitle?.takeIf { it.isNotBlank() }?.let { title ->
-                    Text(
-                        text = title,
-                        fontSize = (globalTitleStyle?.fontSize ?: 22).sp,
-                        fontWeight = parseFontWeight(globalTitleStyle?.fontWeight ?: "bold"),
-                        fontStyle = parseFontStyle(globalTitleStyle?.fontStyle),
-                        textAlign = parseTextAlign(globalTitleStyle?.textAlign ?: "center"),
-                        textDecoration = parseTextDecoration(globalTitleStyle?.fontDecoration),
-                        color = parseColor(globalTitleStyle?.color, Color(0xFFFF6B35)),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(
-                                top = (globalTitleStyle?.margin?.top ?: 0).dp,
-                                bottom = (globalTitleStyle?.margin?.bottom ?: 6).dp,
-                                start = (globalTitleStyle?.margin?.left ?: 0).dp,
-                                end = (globalTitleStyle?.margin?.right ?: 0).dp
+                    // ✅ REWARD TITLE — outside card
+                    rewardConfiguration?.rewardPopupTitle?.takeIf { it.isNotBlank() }
+                        ?.let { title ->
+                            Text(
+                                text = title,
+                                fontSize = (globalTitleStyle?.fontSize ?: 22).sp,
+                                fontWeight = parseFontWeight(
+                                    globalTitleStyle?.fontWeight ?: "bold"
+                                ),
+                                fontStyle = parseFontStyle(globalTitleStyle?.fontStyle),
+                                textAlign = parseTextAlign(globalTitleStyle?.textAlign ?: "center"),
+                                textDecoration = parseTextDecoration(globalTitleStyle?.fontDecoration),
+                                color = parseColor(globalTitleStyle?.color, Color(0xFFFF6B35)),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(
+                                        top = (globalTitleStyle?.margin?.top ?: 0).dp,
+                                        bottom = (globalTitleStyle?.margin?.bottom ?: 0).dp,
+                                        start = (globalTitleStyle?.margin?.left ?: 0).dp,
+                                        end = (globalTitleStyle?.margin?.right ?: 0).dp
+                                    )
                             )
-                    )
-                }
+                        }
 
-                // ✅ REWARD SUBTITLE — outside card
-                rewardConfiguration?.rewardPopupDescription?.takeIf { it.isNotBlank() }?.let { subtitle ->
-                    Text(
-                        text = subtitle,
-                        fontSize = (globalSubtitleStyle?.fontSize ?: 14).sp,
-                        fontWeight = parseFontWeight(globalSubtitleStyle?.fontWeight ?: "normal"),
-                        fontStyle = parseFontStyle(globalSubtitleStyle?.fontStyle),
-                        textAlign = parseTextAlign(globalSubtitleStyle?.textAlign ?: "center"),
-                        textDecoration = parseTextDecoration(globalSubtitleStyle?.fontDecoration),
-                        color = parseColor(globalSubtitleStyle?.color, Color.Gray),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(
-                                top = (globalSubtitleStyle?.margin?.top ?: 0).dp,
-                                bottom = (globalSubtitleStyle?.margin?.bottom ?: 20).dp,
-                                start = (globalSubtitleStyle?.margin?.left ?: 0).dp,
-                                end = (globalSubtitleStyle?.margin?.right ?: 0).dp
+                    // ✅ REWARD SUBTITLE — outside card
+                    rewardConfiguration?.rewardPopupDescription?.takeIf { it.isNotBlank() }
+                        ?.let { subtitle ->
+                            Text(
+                                text = subtitle,
+                                fontSize = (globalSubtitleStyle?.fontSize ?: 14).sp,
+                                fontWeight = parseFontWeight(
+                                    globalSubtitleStyle?.fontWeight ?: "normal"
+                                ),
+                                fontStyle = parseFontStyle(globalSubtitleStyle?.fontStyle),
+                                textAlign = parseTextAlign(
+                                    globalSubtitleStyle?.textAlign ?: "center"
+                                ),
+                                textDecoration = parseTextDecoration(globalSubtitleStyle?.fontDecoration),
+                                color = parseColor(globalSubtitleStyle?.color, Color.Gray),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(
+                                        top = (globalSubtitleStyle?.margin?.top ?: 0).dp,
+                                        bottom = (globalSubtitleStyle?.margin?.bottom ?: 0).dp,
+                                        start = (globalSubtitleStyle?.margin?.left ?: 0).dp,
+                                        end = (globalSubtitleStyle?.margin?.right ?: 0).dp
+                                    )
                             )
-                    )
-                }
+                        }
 
-                // 🔥 CARD starts here
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(0.9f)
-                        .shadow(32.dp, RoundedCornerShape(28.dp))
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(28.dp))
-                            .background(Color.White),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-
-
-                    // Header section with visual hierarchy
+                    // 🔥 CARD starts here
                     Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .height(140.dp)
-                            .background(
-                                if (isWin) {
-                                    Brush.linearGradient(
-                                        colors = listOf(
-                                            Color(0xFF667EEA),
-                                            Color(0xFF764BA2)
-                                        )
-                                    )
-                                } else {
-                                    Brush.linearGradient(
-                                        colors = listOf(
-                                            Color(0xFF9CA3AF),
-                                            Color(0xFF6B7280)
-                                        )
-                                    )
-                                }
-                            )
+                            .fillMaxWidth(0.9f)
+                            .shadow(32.dp, RoundedCornerShape(28.dp))
                     ) {
-
-
-
-                        // Status indicator
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(top = 40.dp),
+                                .clip(RoundedCornerShape(28.dp))
+                                .background(Color.White),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            // Animated emoji or icon
-//                            val emojiScale by rememberInfiniteTransition(label = "emoji")
-//                                .animateFloat(
-//                                    initialValue = 1f,
-//                                    targetValue = 1.1f,
-//                                    animationSpec = infiniteRepeatable(
-//                                        animation = tween(600, easing = FastOutSlowInEasing),
-//                                        repeatMode = RepeatMode.Reverse
-//                                    ),
-//                                    label = "emojiPulse"
-//                                )
-//
-//                            Text(
-//                                text = if (isWin) "🎉" else "💫",
-//                                fontSize = 48.sp,
-//                                modifier = Modifier.scale(emojiScale)
-//                            )
-//
-//                            Spacer(modifier = Modifier.height(8.dp))
-//
-//                            Text(
-//                                text = if (isWin) "Congratulations!" else "Better Luck Next Time!",
-//                                fontSize = 16.sp,
-//                                fontWeight = FontWeight.SemiBold,
-//                                color = Color.White,
-//                                letterSpacing = 0.5.sp
-//                            )
-                        }
-                    }
-
-                    // Prize image - floating card effect
-                    if (!rewardMedia.isNullOrBlank()) {
-                        Box(
-                            modifier = Modifier
-                                .offset(y = (-32).dp)
-                                .size(150.dp)
-                                .shadow(16.dp, RoundedCornerShape(20.dp))
-                                .clip(RoundedCornerShape(20.dp))
-                                .background(Color.White)
-                                .border(4.dp, Color.White, RoundedCornerShape(20.dp)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            SubcomposeAsyncImage(
-                                model = ImageRequest.Builder(context)
-                                    .data(rewardMedia)
-                                    .crossfade(true)
-                                    .build(),
-                                contentDescription = "Prize",
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(12.dp),
-                                contentScale = ContentScale.Fit,
-                                loading = {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(24.dp),
-                                        strokeWidth = 2.dp,
-                                        color = Color(0xFF667EEA)
-                                    )
-                                }
-                            )
-                        }
-                    } else {
-                        // Default prize icon
-                        Box(
-                            modifier = Modifier
-                                .offset(y = (-32).dp)
-                                .size(80.dp)
-                                .shadow(12.dp, CircleShape)
-                                .clip(CircleShape)
-                                .background(
-                                    Brush.linearGradient(
-                                        colors = if (isWin) {
-                                            listOf(Color(0xFFFFD700), Color(0xFFFFA500))
-                                        } else {
-                                            listOf(Color(0xFFE5E7EB), Color(0xFFD1D5DB))
-                                        }
-                                    )
-                                )
-                                .border(3.dp, Color.White, CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = if (isWin) "🎁" else "✨",
-                                fontSize = 32.sp
-                            )
-                        }
-                    }
 
 
-                    // Content section
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .offset(y = (-16).dp)
-                            .padding(horizontal = 24.dp)
-                            .padding(bottom = 28.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        // Prize name
-                        Text(
-                            text = prizeName,
-                            fontSize = titleFontSize.sp,
-                            fontWeight = FontWeight.Bold,
-                            textAlign = titleTextAlign,
-                            textDecoration = titleTextDecoration,
-                            color = titleColor,
-                            lineHeight = (titleFontSize + 6).sp
-                        )
-
-                        // Sub text / description
-                        subText?.takeIf { it.isNotEmpty() }?.let { text ->
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = text,
-                                fontSize = subtitleFontSize.sp,
-                                fontWeight = FontWeight.Normal,
-                                textAlign = subtitleTextAlign,
-                                color = subtitleColor,
-                                lineHeight = (subtitleFontSize + 5).sp
-                            )
-                        }
-
-//                        // Reward popup description from config
-//                        rewardConfiguration?.rewardPopupDescription?.takeIf { it.isNotEmpty() }?.let { desc ->
-//                            if (subText.isNullOrEmpty()) {
-//                                Spacer(modifier = Modifier.height(8.dp))
-//                                Text(
-//                                    text = desc,
-//                                    fontSize = subtitleFontSize.sp,
-//                                    fontWeight = FontWeight.Normal,
-//                                    textAlign = subtitleTextAlign,
-//                                    color = subtitleColor,
-//                                    lineHeight = (subtitleFontSize + 5).sp
-//                                )
-//                            }
-//                        }
-
-                        // Coupon Code Section - Modern dashed border style
-                        couponCode?.takeIf { it.isNotEmpty() && isWin }?.let { code ->
-                            Spacer(modifier = Modifier.height(24.dp))
-
-                            // Coupon label
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(1.dp)
-                                        .background(Color(0xFFE5E7EB))
-                                )
-                                Text(
-                                    text = "YOUR CODE",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = Color(0xFF9CA3AF),
-                                    letterSpacing = 2.sp,
-                                    modifier = Modifier.padding(horizontal = 12.dp)
-                                )
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(1.dp)
-                                        .background(Color(0xFFE5E7EB))
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            // Coupon code card
-                            Row(
+                            // Header section with visual hierarchy
+                            Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clip(couponShape)
-                                    .background(couponBackgroundColor)
-                                    .border(couponBorderWidth.dp, couponBorderColor, couponShape)
-                                    .clickable {
-                                        try {
-                                            val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
-                                            clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("Coupon Code", code))
-                                            isCopied = true
-                                        } catch (_: Exception) {}
-                                    }
-                                    .padding(horizontal = 20.dp, vertical = 14.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                                    .height(140.dp)
+                                    .background(
+                                        if (isWin) {
+                                            Brush.linearGradient(
+                                                colors = listOf(
+                                                    Color(0xFF667EEA),
+                                                    Color(0xFF764BA2)
+                                                )
+                                            )
+                                        } else {
+                                            Brush.linearGradient(
+                                                colors = listOf(
+                                                    Color(0xFF9CA3AF),
+                                                    Color(0xFF6B7280)
+                                                )
+                                            )
+                                        }
+                                    )
                             ) {
-                                Text(
-                                    text = code.uppercase(),
-                                    fontSize = couponTextSize.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = couponTextColor,
-                                    letterSpacing = 2.sp,
-                                    modifier = Modifier.weight(1f)
-                                )
 
-                                // Copy button with animation
+                            }
+
+                            // Prize image - floating card effect
+                            if (!rewardMedia.isNullOrBlank()) {
                                 Box(
                                     modifier = Modifier
-                                        .clip(RoundedCornerShape(6.dp))
+                                        .offset(y = (-32).dp)
+                                        .size(150.dp)
+                                        .shadow(16.dp, RoundedCornerShape(20.dp))
+                                        .clip(RoundedCornerShape(20.dp))
+                                        .background(Color.White)
+                                        .border(4.dp, Color.White, RoundedCornerShape(20.dp)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    SubcomposeAsyncImage(
+                                        model = ImageRequest.Builder(context)
+                                            .data(rewardMedia)
+                                            .crossfade(true)
+                                            .build(),
+                                        contentDescription = "Prize",
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(12.dp),
+                                        contentScale = ContentScale.Fit,
+                                        loading = {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(24.dp),
+                                                strokeWidth = 2.dp,
+                                                color = Color(0xFF667EEA)
+                                            )
+                                        }
+                                    )
+                                }
+                            } else {
+                                // Default prize icon
+                                Box(
+                                    modifier = Modifier
+                                        .offset(y = (-32).dp)
+                                        .size(80.dp)
+                                        .shadow(12.dp, CircleShape)
+                                        .clip(CircleShape)
                                         .background(
-                                            if (isCopied) Color(0xFF10B981) else couponTextColor
+                                            Brush.linearGradient(
+                                                colors = if (isWin) {
+                                                    listOf(Color(0xFFFFD700), Color(0xFFFFA500))
+                                                } else {
+                                                    listOf(Color(0xFFE5E7EB), Color(0xFFD1D5DB))
+                                                }
+                                            )
                                         )
-                                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                                        .border(3.dp, Color.White, CircleShape),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
-                                        text = if (isCopied) "✓ Copied" else "Copy",
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = Color.White
+                                        text = if (isWin) "🎁" else "✨",
+                                        fontSize = 32.sp
                                     )
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(6.dp))
+                            val priceLabelMargin = priceLabelStyle?.margin
 
-                            Text(
-                                text = "Tap to copy code",
-                                fontSize = 11.sp,
-                                color = Color(0xFFADB5BD),
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(24.dp))
-
-                        // CTA Button with per-slice styling
-                        Button(
-                            onClick = {
-                                if (!redirectLink.isNullOrEmpty()) onLinkClick(redirectLink)
-                                onDismiss()
-                            },
-                            modifier = Modifier
-                                .then(
-                                    if (ctaFullWidth) Modifier.fillMaxWidth()
-                                    else Modifier.width(ctaWidth.dp)
+                            // Content section
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .offset(y = (-16).dp)
+                                    .padding(horizontal = 24.dp)
+                                    .padding(bottom = 28.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                // Prize name
+                                Text(
+                                    text = prizeName,
+                                    fontSize = titleFontSize.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    textAlign = titleTextAlign,
+                                    textDecoration = titleTextDecoration,
+                                    color = titleColor,
+                                    lineHeight = (titleFontSize + 6).sp,
+                                    modifier = Modifier.padding(
+                                        top = (priceLabelMargin?.top ?: 0).dp,
+                                        bottom = (priceLabelMargin?.bottom ?: 0).dp,
+                                        start = (priceLabelMargin?.left ?: 0).dp,
+                                        end = (priceLabelMargin?.right ?: 0).dp
+                                    )
                                 )
-                                .height(ctaHeight.dp)
-                                .padding(
-                                    top = (ctaMargin?.top ?: 0).coerceAtLeast(0).dp,
-                                    bottom = (ctaMargin?.bottom ?: 0).coerceAtLeast(0).dp,
-                                    start = (ctaMargin?.left ?: 0).coerceAtLeast(0).dp,
-                                    end = (ctaMargin?.right ?: 0).coerceAtLeast(0).dp
-                                )
-                                .then(
-                                    if (ctaBorderWidth > 0)
-                                        Modifier.border(ctaBorderWidth.dp, ctaBorderColor, ctaShape)
-                                    else Modifier
-                                ),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = ctaBackgroundColor
-                            ),
-                            shape = ctaShape,
-                            elevation = ButtonDefaults.buttonElevation(
-                                defaultElevation = 6.dp,
-                                pressedElevation = 2.dp
-                            ),
-                            contentPadding = PaddingValues(0.dp)
-                        ) {
-                            Text(
-                                text = buttonCtaText,
-                                fontSize = ctaTextSize.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = ctaTextColor,
-                                textDecoration = ctaTextDecoration,
-                                letterSpacing = 0.5.sp
-                            )
-                        }
 
-                        // Terms & Conditions link
-                        val hasTermsContent = !termsContent.isNullOrEmpty()
-                        if (isWin && hasTermsContent) {
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text(
-                                text = tncCtaText,
-                                fontSize = 13.sp,
-                                color = Color(0xFF6B7280),
-                                fontWeight = FontWeight.Medium,
-                                textDecoration = TextDecoration.Underline,
-                                modifier = Modifier.clickable {
-                                    showTermsDialog = true
+                                val subtitleMargin = subtitleTextStyle?.margin
+
+                                // Sub text / description
+                                subText?.takeIf { it.isNotEmpty() }?.let { text ->
+                                    Text(
+                                        text = text,
+                                        fontSize = subtitleFontSize.sp,
+                                        fontWeight = FontWeight.Normal,
+                                        textAlign = subtitleTextAlign,
+                                        color = subtitleColor,
+                                        lineHeight = (subtitleFontSize + 5).sp,
+                                        modifier = Modifier.padding(
+                                            top = (subtitleMargin?.top ?: 0).dp,
+                                            bottom = (subtitleMargin?.bottom ?: 0).dp,
+                                            start = (subtitleMargin?.left ?: 0).dp,
+                                            end = (subtitleMargin?.right ?: 0).dp
+                                        )
+                                    )
                                 }
-                            )
-                        }
-                    }
-                } // end card content Column
-            } // end card Box
-            } // end main content Column
-        } // end wrapContentSize Box
+
+
+                                // Coupon Code Section - Modern dashed border style
+                                couponCode?.takeIf { it.isNotEmpty() && isWin }?.let { code ->
+
+                                    // Coupon code card
+                                    val couponMargin = couponCtaStyling?.margin
+                                    val couponAlignment = couponContainer?.alignment ?: "center"
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = when (couponAlignment.lowercase()) {
+                                            "left" -> Arrangement.Start
+                                            "right" -> Arrangement.End
+                                            else -> Arrangement.Center
+                                        }
+                                    ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .padding(
+                                                top = (couponMargin?.top ?: 0).dp,
+                                                bottom = (couponMargin?.bottom ?: 0).dp,
+                                                start = (couponMargin?.left ?: 0).dp,
+                                                end = (couponMargin?.right ?: 0).dp
+                                            )
+                                            .then(
+                                                if (couponContainer?.ctaFullWidth == true)
+                                                    Modifier.fillMaxWidth()
+                                                else
+                                                    Modifier.width((couponContainer?.ctaWidth ?: 200).dp)
+                                            )
+                                            .clip(couponShape)
+                                            .background(couponBackgroundColor)
+                                            .border(
+                                                couponBorderWidth.dp,
+                                                couponBorderColor,
+                                                couponShape
+                                            )
+                                            .clickable {
+                                                try {
+                                                    val clipboard =
+                                                        context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                                                    clipboard?.setPrimaryClip(
+                                                        android.content.ClipData.newPlainText(
+                                                            "Coupon Code",
+                                                            code
+                                                        )
+                                                    )
+                                                    isCopied = true
+                                                } catch (_: Exception) {
+                                                }
+                                            }
+                                            .padding(horizontal = 20.dp, vertical = 14.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        val couponDecorations = couponText?.fontDecoration
+                                        Text(
+                                            text = code.uppercase(),
+                                            fontSize = couponTextSize.sp,
+                                            fontWeight = if (couponDecorations?.any { it.equals("bold", true) } == true)
+                                                FontWeight.Bold else FontWeight.Normal,
+                                            fontStyle = if (couponDecorations?.any { it.equals("italic", true) } == true)
+                                                FontStyle.Italic else FontStyle.Normal,
+                                            textDecoration = parseTextDecoration(couponDecorations),
+                                            color = couponTextColor,
+                                            letterSpacing = 2.sp,
+                                            modifier = Modifier.weight(1f)
+                                        )
+
+                                        // Copy button with animation
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .background(
+                                                    if (isCopied) Color(0xFF10B981) else couponTextColor
+                                                )
+                                                .padding(horizontal = 14.dp, vertical = 8.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = if (isCopied) "✓ Copied" else "Copy",
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = Color.White
+                                            )
+                                        }
+                                    } // end inner coupon Row
+                                    } // end alignment Row
+
+
+                                    Text(
+                                        text = "Tap to copy code",
+                                        fontSize = 11.sp,
+                                        color = Color(0xFFADB5BD),
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+
+                                // CTA Button with per-slice styling
+                                Button(
+                                    onClick = {
+                                        if (!redirectLink.isNullOrEmpty()) onLinkClick(redirectLink)
+                                        onDismiss()
+                                    },
+                                    modifier = Modifier
+                                        .padding(
+                                            top = (ctaMargin?.top ?: 0).coerceAtLeast(0).dp,
+                                            bottom = (ctaMargin?.bottom ?: 0).coerceAtLeast(0).dp,
+                                            start = (ctaMargin?.left ?: 0).coerceAtLeast(0).dp,
+                                            end = (ctaMargin?.right ?: 0).coerceAtLeast(0).dp
+                                        )
+                                        .then(
+                                            if (ctaFullWidth) Modifier.fillMaxWidth()
+                                            else Modifier.width(ctaWidth.dp)
+                                        )
+                                        .height(ctaHeight.dp)
+                                        .then(
+                                            if (ctaBorderWidth > 0)
+                                                Modifier.border(
+                                                    ctaBorderWidth.dp,
+                                                    ctaBorderColor,
+                                                    ctaShape
+                                                )
+                                            else Modifier
+                                        ),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = ctaBackgroundColor
+                                    ),
+                                    shape = ctaShape,
+                                    elevation = ButtonDefaults.buttonElevation(
+                                        defaultElevation = 6.dp,
+                                        pressedElevation = 2.dp
+                                    ),
+                                    contentPadding = PaddingValues(0.dp)
+                                ) {
+                                    Text(
+                                        text = buttonCtaText,
+                                        fontSize = ctaTextSize.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = ctaTextColor,
+                                        textDecoration = ctaTextDecoration,
+                                        letterSpacing = 0.5.sp
+                                    )
+                                }
+
+                                // Terms & Conditions link
+                                val hasTermsContent = !termsContent.isNullOrEmpty()
+                                if (isWin && hasTermsContent) {
+                                    Text(
+                                        text = tncCtaText,
+                                        fontSize = 13.sp,
+                                        color = Color(0xFF6B7280),
+                                        fontWeight = FontWeight.Medium,
+                                        textDecoration = TextDecoration.Underline,
+                                        modifier = Modifier.clickable {
+                                            showTermsDialog = true
+                                        }
+                                    )
+                                }
+                            }
+                        } // end card content Column
+                    } // end card Box
+                } // end main content Column
+            } // end wrapContentSize Box
         }
     }
 
@@ -1258,11 +1265,14 @@ private fun RewardContent(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth(0.9f)
+                        .fillMaxHeight(0.75f)
                         .shadow(24.dp, RoundedCornerShape(20.dp))
                         .clip(RoundedCornerShape(20.dp))
                         .background(Color.White)
-                        .padding(24.dp)
+                        .padding(horizontal = 24.dp)
+                        .padding(top = 24.dp, bottom = 16.dp)
                 ) {
+                    // Fixed header
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -1291,9 +1301,9 @@ private fun RewardContent(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(20.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
-                    // Divider
+                    // Fixed divider
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1301,18 +1311,38 @@ private fun RewardContent(
                             .background(Color(0xFFE5E7EB))
                     )
 
-                    Spacer(modifier = Modifier.height(20.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
 
-                    Text(
-                        text = termsContent,
-                        fontSize = 14.sp,
-                        color = Color(0xFF4B5563),
-                        lineHeight = 22.sp,
-                        modifier = Modifier.fillMaxWidth()
+                    // Scrollable terms content
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                    ) {
+                        item {
+                            Text(
+                                text = termsContent,
+                                fontSize = 14.sp,
+                                color = Color(0xFF4B5563),
+                                lineHeight = 22.sp,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 12.dp)
+                            )
+                        }
+                    }
+
+                    // Fixed divider above button
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(Color(0xFFE5E7EB))
                     )
 
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
+                    // Fixed "Got it" button
                     Button(
                         onClick = { showTermsDialog = false },
                         modifier = Modifier
@@ -1382,9 +1412,11 @@ private fun ConfettiEffect(
             listOf(colorConfig.fill, colorConfig.cross, colorConfig.stroke).forEach { colorStr ->
                 if (!colorStr.isNullOrBlank()) {
                     try {
-                        val normalizedColor = if (colorStr.startsWith("#")) colorStr else "#$colorStr"
+                        val normalizedColor =
+                            if (colorStr.startsWith("#")) colorStr else "#$colorStr"
                         customColors.add(Color(android.graphics.Color.parseColor(normalizedColor)))
-                    } catch (_: Exception) { }
+                    } catch (_: Exception) {
+                    }
                 }
             }
         }
