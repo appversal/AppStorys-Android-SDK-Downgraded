@@ -167,10 +167,6 @@ fun SpinTheWheel(
     val subtitleStyle = visualTextStyling?.subtitle?.textStyle
     val availableSpinTextStyle = visualTextStyling?.availableSpinText?.textStyle
 
-    // Parse backdrop styling
-    val backdropColor = parseColor(visualTextStyling?.backdropColor, Color.Black)
-    val backdropOpacity = (visualTextStyling?.backdropOpacity ?: 70) / 100f
-
     // State management - use availableSpins from root or content.userInteraction.numberSpin
     val initialSpins = spinTheWheelDetails.availableSpins
         ?: content?.userInteraction?.numberSpin
@@ -303,8 +299,6 @@ fun SpinTheWheel(
         }
     }
 
-    val rewardDisplayMode = spinTheWheelDetails.rewardDisplayMode ?: "pop-up"
-
     Dialog(
         onDismissRequest = {
             if (showResultDialog) {
@@ -325,16 +319,27 @@ fun SpinTheWheel(
     ) {
         val enableBackdrop = spinTheWheelDetails.enableBackdrop ?: true
 
-        // Full screen backdrop
+        // Backdrop — switches between spin backdrop and reward backdrop based on state
+        val spinBackdropColor = parseColor(visualTextStyling?.backdropColor, Color.Black)
+        val spinBackdropOpacity = (visualTextStyling?.backdropOpacity ?: 70) / 100f
+        // Reward backdrop: alpha is embedded in the hex color (e.g. #000000ff), no separate opacity field
+        val rewardBackdropColor = parseColor(styling?.rewardConfiguration?.backdropColor, Color.Black.copy(alpha = 0.6f))
+        val rewardEnableBackdrop = content?.rewardConfiguration?.rewardEnableBackdrop ?: true
+
+        val activeBackdropModifier = when {
+            showResultDialog && rewardEnableBackdrop ->
+                Modifier.background(rewardBackdropColor)
+            showResultDialog && !rewardEnableBackdrop ->
+                Modifier
+            enableBackdrop ->
+                Modifier.background(spinBackdropColor.copy(alpha = spinBackdropOpacity))
+            else -> Modifier
+        }
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .then(
-                    if (enableBackdrop)
-                        Modifier.background(backdropColor.copy(alpha = backdropOpacity))
-                    else
-                        Modifier.background(Color.Transparent)
-                )
+                .then(activeBackdropModifier)
         ) {
             // Confetti overlay
             if (showConfetti) {
@@ -347,18 +352,7 @@ fun SpinTheWheel(
 
             // Show reward content inline (replacing wheel) after spin completes
             if (showResultDialog && selectedSlice != null) {
-                val rewardBg = if (rewardDisplayMode.lowercase() == "full-screen" ||
-                    rewardDisplayMode.lowercase() == "full screen"
-                ) {
-                    Log.d("STW_DEBUG", "Reward Mode = $rewardDisplayMode")
-                    Modifier
-                        .fillMaxSize()
-                        .background(Color.White)
-                } else {
-                    Log.d("STW_DEBUG", "Running POPUP mode")
-                    Modifier.fillMaxSize()
-                }
-                Box(modifier = rewardBg) {
+                Box(modifier = Modifier.fillMaxSize()) {
                     RewardContent(
                         slice = selectedSlice!!,
                         rewardConfiguration = content?.rewardConfiguration,
@@ -379,7 +373,7 @@ fun SpinTheWheel(
                     modifier = Modifier
                         .fillMaxSize(),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Top
+                    verticalArrangement = Arrangement.Center
                 ) {
                     // Close button with styling from backend
                     val crossButtonEnabled = crossButtonConfig?.enabled ?: true
@@ -708,10 +702,7 @@ private fun RewardContent(
     val reward = slice.rewards?.firstOrNull()
     val rewardStylingFromSlice = reward?.styling
 
-    val rewardEnableBackdrop = rewardConfiguration?.rewardEnableBackdrop ?: true
     val isWin = slice.noPrize != true
-
-    // Use reward data if available, otherwise fallback to slice data
     val prizeName = reward?.prizeName?.takeIf { it.isNotEmpty() }
         ?: slice.prizeLabel
         ?: if (isWin) "You Won!" else "No Prize"
@@ -808,36 +799,11 @@ private fun RewardContent(
         bottomEnd = (couponCornerRadius?.bottomRight ?: 8).dp
     )
 
-    val rewardBackdropColor = try {
-        rewardStyling?.backdropColor?.let {
-            Color(android.graphics.Color.parseColor(it))
-        } ?: Color.Black.copy(alpha = 0.6f)
-    } catch (_: Exception) {
-        Color.Black.copy(alpha = 0.6f)
-    }
-
     Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
 
-        // BACKDROP — fade only
-        AnimatedVisibility(
-            visible = visible,
-            enter = fadeIn(tween(200)),
-            exit = fadeOut(tween(150))
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .then(
-                        if (rewardEnableBackdrop)
-                            Modifier.background(rewardBackdropColor.copy(alpha = 0.6f))
-                        else
-                            Modifier
-                    )
-            )
-        }
 
         // CARD — scale + fade
         AnimatedVisibility(
@@ -1412,9 +1378,12 @@ private fun ConfettiEffect(
             listOf(colorConfig.fill, colorConfig.cross, colorConfig.stroke).forEach { colorStr ->
                 if (!colorStr.isNullOrBlank()) {
                     try {
-                        val normalizedColor =
-                            if (colorStr.startsWith("#")) colorStr else "#$colorStr"
-                        customColors.add(Color(android.graphics.Color.parseColor(normalizedColor)))
+                        val normalized = if (colorStr.startsWith("#")) colorStr else "#$colorStr"
+                        // Convert #RRGGBBAA → #AARRGGBB
+                        val androidColor = if (normalized.length == 9) {
+                            "#${normalized.substring(7, 9)}${normalized.substring(1, 7)}"
+                        } else normalized
+                        customColors.add(Color(android.graphics.Color.parseColor(androidColor)))
                     } catch (_: Exception) {
                     }
                 }
