@@ -635,7 +635,6 @@ fun SpinTheWheel(
                                     color = buttonTextColor,
                                     modifier = Modifier.size(22.dp)
                                 )
-
                             } else {
                                 Text(
                                     text = spinTheWheelDetails.spinButtonText ?: "SPIN",
@@ -654,7 +653,7 @@ fun SpinTheWheel(
         } // end else (wheel view)
     } // end outer Box
 } // end outer Dialog
-}
+} // end SpinTheWheel function
 
 @Composable
 private fun RewardContent(
@@ -793,6 +792,7 @@ private fun RewardContent(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
+
         // BACKDROP — fade only
         AnimatedVisibility(
             visible = visible,
@@ -811,7 +811,6 @@ private fun RewardContent(
             )
         }
 
-
         // CARD — scale + fade
         AnimatedVisibility(
             visible = visible,
@@ -823,19 +822,97 @@ private fun RewardContent(
             ) + fadeIn(),
             exit = scaleOut() + fadeOut()
         ) {
-            // Main Card - Modern glassmorphism-inspired design
             Box(
-                modifier = Modifier
-                    .fillMaxWidth(0.9f)
-                    .shadow(32.dp, RoundedCornerShape(28.dp))
+                modifier = Modifier.wrapContentSize(),
+                contentAlignment = Alignment.TopCenter
             ) {
+                // ✅ CROSS BUTTON — relative to reward container
+                if (crossButtonEnabled) {
+                    val crossAlignment = when (crossButtonAlignment.lowercase()) {
+                        "left" -> Alignment.TopStart
+                        "center" -> Alignment.TopCenter
+                        else -> Alignment.TopEnd
+                    }
+                    Box(
+                        modifier = Modifier
+                            .align(crossAlignment)
+                            .offset(
+                                y = -(crossMargin?.bottom ?: 0).dp
+                            )
+                    ) {
+                        CrossButton(
+                            config = createCrossButtonConfig(
+                                fillColorString = crossButtonConfig?.color?.fill ?: "#FFFFFF33",
+                                crossColorString = crossButtonConfig?.color?.cross ?: "#FFFFFF",
+                                strokeColorString = crossButtonConfig?.color?.stroke ?: "#FFFFFF33",
+                                size = crossButtonSize,
+                                imageUrl = crossButtonImage
+                            ),
+                            onClose = onDismiss
+                        )
+                    }
+                }
+
+                // 🔥 MAIN CONTENT
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(28.dp))
-                        .background(Color.White),
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+                // ✅ REWARD TITLE — outside card
+                rewardConfiguration?.rewardPopupTitle?.takeIf { it.isNotBlank() }?.let { title ->
+                    Text(
+                        text = title,
+                        fontSize = (globalTitleStyle?.fontSize ?: 22).sp,
+                        fontWeight = parseFontWeight(globalTitleStyle?.fontWeight ?: "bold"),
+                        fontStyle = parseFontStyle(globalTitleStyle?.fontStyle),
+                        textAlign = parseTextAlign(globalTitleStyle?.textAlign ?: "center"),
+                        textDecoration = parseTextDecoration(globalTitleStyle?.fontDecoration),
+                        color = parseColor(globalTitleStyle?.color, Color(0xFFFF6B35)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(
+                                top = (globalTitleStyle?.margin?.top ?: 0).dp,
+                                bottom = (globalTitleStyle?.margin?.bottom ?: 6).dp,
+                                start = (globalTitleStyle?.margin?.left ?: 0).dp,
+                                end = (globalTitleStyle?.margin?.right ?: 0).dp
+                            )
+                    )
+                }
+
+                // ✅ REWARD SUBTITLE — outside card
+                rewardConfiguration?.rewardPopupDescription?.takeIf { it.isNotBlank() }?.let { subtitle ->
+                    Text(
+                        text = subtitle,
+                        fontSize = (globalSubtitleStyle?.fontSize ?: 14).sp,
+                        fontWeight = parseFontWeight(globalSubtitleStyle?.fontWeight ?: "normal"),
+                        fontStyle = parseFontStyle(globalSubtitleStyle?.fontStyle),
+                        textAlign = parseTextAlign(globalSubtitleStyle?.textAlign ?: "center"),
+                        textDecoration = parseTextDecoration(globalSubtitleStyle?.fontDecoration),
+                        color = parseColor(globalSubtitleStyle?.color, Color.Gray),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(
+                                top = (globalSubtitleStyle?.margin?.top ?: 0).dp,
+                                bottom = (globalSubtitleStyle?.margin?.bottom ?: 20).dp,
+                                start = (globalSubtitleStyle?.margin?.left ?: 0).dp,
+                                end = (globalSubtitleStyle?.margin?.right ?: 0).dp
+                            )
+                    )
+                }
+
+                // 🔥 CARD starts here
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.9f)
+                        .shadow(32.dp, RoundedCornerShape(28.dp))
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(28.dp))
+                            .background(Color.White),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
 
 
                     // Header section with visual hierarchy
@@ -861,34 +938,7 @@ private fun RewardContent(
                                 }
                             )
                     ) {
-                        // Close button
-                        if (crossButtonEnabled) {
-                            val crossAlignment = when (crossButtonAlignment.lowercase()) {
-                                "left" -> Alignment.TopStart
-                                "center" -> Alignment.TopCenter
-                                else -> Alignment.TopEnd
-                            }
-                            Box(
-                                modifier = Modifier
-                                    .align(crossAlignment)
-                                    .padding(
-                                        top = (crossMargin?.top ?: 0).coerceAtLeast(0).dp,
-                                        start = (crossMargin?.left ?: 0).coerceAtLeast(0).dp,
-                                        end = (crossMargin?.right ?: 0).coerceAtLeast(0).dp
-                                    )
-                            ) {
-                                CrossButton(
-                                    config = createCrossButtonConfig(
-                                        fillColorString = crossButtonConfig?.color?.fill ?: "#FFFFFF33",
-                                        crossColorString = crossButtonConfig?.color?.cross ?: "#FFFFFF",
-                                        strokeColorString = crossButtonConfig?.color?.stroke ?: "#FFFFFF33",
-                                        size = crossButtonSize,
-                                        imageUrl = crossButtonImage
-                                    ),
-                                    onClose = onDismiss
-                                )
-                            }
-                        }
+
 
 
                         // Status indicator
@@ -1186,8 +1236,10 @@ private fun RewardContent(
                             )
                         }
                     }
-                }
-            }
+                } // end card content Column
+            } // end card Box
+            } // end main content Column
+        } // end wrapContentSize Box
         }
     }
 
