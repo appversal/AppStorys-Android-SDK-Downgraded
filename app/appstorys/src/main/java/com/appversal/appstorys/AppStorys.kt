@@ -35,6 +35,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -110,6 +111,8 @@ import com.appversal.appstorys.ui.common_components.createExpandButtonConfig
 import com.appversal.appstorys.ui.common_components.createSoundToggleButtonConfig
 import com.appversal.appstorys.ui.reels.saveLikedReels
 import com.appversal.appstorys.ui.saveScratchedCampaigns
+import com.appversal.appstorys.ui.spinwheel.getSpinCount
+import com.appversal.appstorys.ui.spinwheel.saveSpinCount
 import com.appversal.appstorys.utils.AppStorysSdkState
 import com.appversal.appstorys.utils.ViewTreeAnalyzer
 import com.appversal.appstorys.utils.toJsonElementMap
@@ -177,6 +180,9 @@ object AppStorys {
     private val reelFullScreenVisible = MutableStateFlow(false)
 
     private val scratchedCampaigns = MutableStateFlow<List<String>>(emptyList())
+
+    // In-memory spin count per campaign — keyed by campaign ID, value = remaining spins
+    private val spinCountByCampaign = mutableStateMapOf<String, Int>()
 
     private var accessToken = ""
 
@@ -335,6 +341,12 @@ object AppStorys {
                         context.getSharedPreferences("AppStory", Context.MODE_PRIVATE)
                     )
                     scratchedCampaigns.emit(savedScratchedCampaigns)
+
+                    // Restore persisted spin counts into in-memory map
+                    val spinPrefs = context.getSharedPreferences("appstorys_spin_counts", Context.MODE_PRIVATE)
+                    spinPrefs.all.forEach { (key, value) ->
+                        if (value is Int) spinCountByCampaign[key] = value
+                    }
                     if (campaignsJob?.isActive != true) {
                         getScreenCampaigns("Home Screen", emptyList())
                     }
@@ -2062,36 +2074,58 @@ object AppStorys {
             }
         }
 
-        if (spinTheWheelDetails != null && shouldShowSpinWheel && isPresented) {
+        // ── Spin count: hoist here so it survives recomposition and screen navigation ──
+        val campaignId = campaign?.id
+        if (spinTheWheelDetails != null && campaignId != null) {
+            val initialSpins = spinTheWheelDetails.availableSpins
+                ?: spinTheWheelDetails.content?.userInteraction?.numberSpin
+                ?: 3
 
-            LaunchedEffect(Unit) {
-                campaign?.id?.let {
-                    trackEvents(it, "viewed")
-                }
+            // Seed in-memory map on first encounter (also covers post-restart restore)
+            if (!spinCountByCampaign.containsKey(campaignId)) {
+                val persisted = getSpinCount(
+                    campaignId = campaignId,
+                    sharedPreferences = context.getSharedPreferences("appstorys_spin_counts", Context.MODE_PRIVATE)
+                )
+                spinCountByCampaign[campaignId] = persisted ?: initialSpins
             }
 
-            // Get redirect URL from model - can come from link field or be empty
-            val redirectUrl = spinTheWheelDetails.link ?: ""
+            val spinsLeft = spinCountByCampaign[campaignId] ?: initialSpins
 
-            com.appversal.appstorys.ui.spinwheel.SpinTheWheel(
-                isPresented = isPresented,
-                onDismiss = {
-                    isPresented = false
-                    triggerEventValue?.let { trackedEventNames.remove(it) }
-                },
-                spinTheWheelDetails = spinTheWheelDetails,
-                onCtaClick = { link ->
-                    campaign?.id?.let { campaignId ->
-                        // Use provided link, or fall back to model's redirect URL
+            if (shouldShowSpinWheel && isPresented) {
+
+                LaunchedEffect(Unit) {
+                    trackEvents(campaignId, "viewed")
+                }
+
+                val redirectUrl = spinTheWheelDetails.link ?: ""
+
+                com.appversal.appstorys.ui.spinwheel.SpinTheWheel(
+                    isPresented = isPresented,
+                    onDismiss = {
+                        isPresented = false
+                        triggerEventValue?.let { trackedEventNames.remove(it) }
+                    },
+                    spinTheWheelDetails = spinTheWheelDetails,
+                    spinsLeft = spinsLeft,
+                    onSpinUsed = {
+                        val updated = (spinCountByCampaign[campaignId] ?: initialSpins) - 1
+                        val clamped = updated.coerceAtLeast(0)
+                        spinCountByCampaign[campaignId] = clamped
+                        saveSpinCount(
+                            campaignId = campaignId,
+                            count = clamped,
+                            sharedPreferences = context.getSharedPreferences("appstorys_spin_counts", Context.MODE_PRIVATE)
+                        )
+                    },
+                    onCtaClick = { link ->
                         val targetLink = link?.takeIf { it.isNotEmpty() } ?: redirectUrl
                         if (targetLink.isNotEmpty()) {
                             clickEvent(link = targetLink, campaignId = campaignId)
                             trackEvents(campaignId, "clicked")
                         }
-                    }
-                },
-                onSpinComplete = { prizeLabel, couponCode ->
-                    campaign?.id?.let { campaignId ->
+                    },
+                    onSpinComplete = { prizeLabel, couponCode ->
                         trackEvents(
                             campaignId, "spin_completed", mapOf(
                                 "prize_label" to (prizeLabel ?: ""),
@@ -2099,8 +2133,8 @@ object AppStorys {
                             )
                         )
                     }
-                }
-            )
+                )
+            }
         }
     }
 

@@ -145,6 +145,10 @@ fun SpinTheWheel(
     isPresented: Boolean,
     onDismiss: () -> Unit,
     spinTheWheelDetails: SpinTheWheelDetails,
+    // Spin count is hoisted by the caller (AppStorys object) so it persists
+    // across recompositions, screen navigation and app restarts.
+    spinsLeft: Int,
+    onSpinUsed: () -> Unit,
     onCtaClick: (String?) -> Unit = {},
     onSpinComplete: (prizeLabel: String?, couponCode: String?) -> Unit = { _, _ -> }
 ) {
@@ -167,17 +171,7 @@ fun SpinTheWheel(
     val subtitleStyle = visualTextStyling?.subtitle?.textStyle
     val availableSpinTextStyle = visualTextStyling?.availableSpinText?.textStyle
 
-    // State management - use availableSpins from root or content.userInteraction.numberSpin
-    val initialSpins = spinTheWheelDetails.availableSpins
-        ?: content?.userInteraction?.numberSpin
-        ?: 3
-    var spinsLeft by remember { mutableStateOf(initialSpins) }
-
-    LaunchedEffect(isPresented) {
-        if (isPresented) {
-            spinsLeft = initialSpins
-        }
-    }
+    // spinsLeft comes from the hoisted AppStorys state — no local copy, no reset.
 
     var isSpinning by remember { mutableStateOf(false) }
     var selectedSlice by remember { mutableStateOf<WheelSlice?>(null) }
@@ -206,7 +200,7 @@ fun SpinTheWheel(
     val performSpin = {
         if (spinsLeft > 0 && !isSpinning && slices.isNotEmpty()) {
             isSpinning = true
-            spinsLeft--
+            onSpinUsed() // decrement persisted + in-memory count via hoisted callback
 
             // Calculate winning slice based on probability weights (using 'weight' field from backend)
             val totalWeight = slices.sumOf { maxOf(it.weight ?: 0, 0) }
@@ -1459,3 +1453,34 @@ private data class ConfettiParticle(
     val velocity: Float,
     val rotation: Float
 )
+
+// ─────────────────────────────────────────────────────────────────
+// SharedPreferences helpers — mirrors saveScratchedCampaigns pattern
+// ─────────────────────────────────────────────────────────────────
+
+/**
+ * Persists the remaining spin count for a given campaign to SharedPreferences.
+ * Key format: "spin_count_<campaignId>"
+ */
+fun saveSpinCount(
+    campaignId: String,
+    count: Int,
+    sharedPreferences: android.content.SharedPreferences
+) {
+    sharedPreferences.edit().putInt("spin_count_$campaignId", count).apply()
+}
+
+/**
+ * Retrieves the persisted spin count for a campaign.
+ * Returns null if no value has been stored yet (i.e. first launch for this campaign).
+ */
+fun getSpinCount(
+    campaignId: String,
+    sharedPreferences: android.content.SharedPreferences
+): Int? {
+    return if (sharedPreferences.contains("spin_count_$campaignId")) {
+        sharedPreferences.getInt("spin_count_$campaignId", 0)
+    } else {
+        null
+    }
+}
