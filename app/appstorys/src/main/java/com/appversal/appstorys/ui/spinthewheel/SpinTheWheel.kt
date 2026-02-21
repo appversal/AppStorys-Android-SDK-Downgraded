@@ -4,10 +4,9 @@ import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import android.util.Log
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.togetherWith
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.annotation.RequiresApi
 import androidx.compose.animation.core.*
 import androidx.compose.animation.AnimatedVisibility
@@ -28,7 +27,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
@@ -185,7 +183,7 @@ fun SpinTheWheel(
     }
 
     var isSpinning by remember { mutableStateOf(false) }
-    var selectedSlice by remember { mutableStateOf<com.appversal.appstorys.api.WheelSlice?>(null) }
+    var selectedSlice by remember { mutableStateOf<WheelSlice?>(null) }
     var showResultDialog by remember { mutableStateOf(false) }
     var showConfetti by remember { mutableStateOf(false) }
 
@@ -343,8 +341,10 @@ fun SpinTheWheel(
                 val rewardBg = if (rewardDisplayMode.lowercase() == "full-screen" ||
                     rewardDisplayMode.lowercase() == "full screen"
                 ) {
+                    Log.d("STW_DEBUG", "Reward Mode = $rewardDisplayMode")
                     Modifier.fillMaxSize().background(Color.White)
                 } else {
+                    Log.d("STW_DEBUG", "Running POPUP mode")
                     Modifier.fillMaxSize()
                 }
                 Box(modifier = rewardBg) {
@@ -368,7 +368,7 @@ fun SpinTheWheel(
                     modifier = Modifier
                         .fillMaxSize(),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
+                    verticalArrangement = Arrangement.Top
                 ) {
                 // Close button with styling from backend
                 val crossButtonEnabled = crossButtonConfig?.enabled ?: true
@@ -547,8 +547,6 @@ fun SpinTheWheel(
                     )
                 }
 
-                // Spin button with styling from backend
-                val buttonScale = if (spinsLeft > 0 && !isSpinning) pulseScale else 1f
 
                 // Extract spin button styling
                 val buttonContainer = spinButtonStyle?.container
@@ -572,25 +570,17 @@ fun SpinTheWheel(
                     bottomEnd = (buttonCornerRadius?.bottomRight ?: 12).dp
                 )
 
-                // ---------------------------
-                // INDUSTRY STANDARD SPIN CTA
-                // ---------------------------
 
                 val isEnabled = spinsLeft > 0 && !isSpinning
 
                 val interactionSource = remember { MutableInteractionSource() }
 
-//                val animatedElevation by animateDpAsState(
-//                    targetValue = if (isSpinning) 2.dp else 8.dp,
-//                    label = "elevation"
-//                )
+                    Spacer(modifier = Modifier.height((buttonMargin?.top ?: 0).dp))
 
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(
-                            top = (buttonMargin?.top ?: 0).dp,
-                            bottom = (buttonMargin?.bottom ?: 0).dp,
                             start = (buttonMargin?.left ?: 0).dp,
                             end = (buttonMargin?.right ?: 0).dp
                         ),
@@ -602,12 +592,12 @@ fun SpinTheWheel(
                 ) {
                     Box(
                         modifier = Modifier
+                           //scale(if (isEnabled) pulseScale else 1f)
                             .then(
                                 if (buttonFullWidth) Modifier.fillMaxWidth()
                                 else Modifier.width(buttonWidth.dp)
                             )
                             .height(buttonHeight.dp)
-                            //.shadow(animatedElevation, buttonShape)
                             .clip(buttonShape)
                             .background(
                                 if (isEnabled)
@@ -639,17 +629,7 @@ fun SpinTheWheel(
                             },
                         contentAlignment = Alignment.Center
                     ) {
-
-                        // Animated content swap (no jump)
-                        AnimatedContent(
-                            targetState = isSpinning,
-                            transitionSpec = {
-                                fadeIn(tween(150)) togetherWith fadeOut(tween(150))
-                            },
-                            label = "spinContent"
-                        ) { spinning ->
-
-                            if (spinning) {
+                            if (isSpinning) {
                                 CircularProgressIndicator(
                                     strokeWidth = 2.5.dp,
                                     color = buttonTextColor,
@@ -667,10 +647,10 @@ fun SpinTheWheel(
                                     letterSpacing = 0.5.sp
                                 )
                             }
-                        }
                     }
                 }
-            }
+
+                    Spacer(modifier = Modifier.height((buttonMargin?.bottom ?: 0).dp))            }
         } // end else (wheel view)
     } // end outer Box
 } // end outer Dialog
@@ -801,35 +781,47 @@ private fun RewardContent(
         bottomEnd = (couponCornerRadius?.bottomRight ?: 8).dp
     )
 
-    AnimatedVisibility(
-        visible = visible,
-        enter = scaleIn(
-            animationSpec = spring(
-                dampingRatio = Spring.DampingRatioMediumBouncy,
-                stiffness = Spring.StiffnessLow
-            )
-        ) + fadeIn(),
-        exit = scaleOut() + fadeOut()
+    val rewardBackdropColor = try {
+        rewardStyling?.backdropColor?.let {
+            Color(android.graphics.Color.parseColor(it))
+        } ?: Color.Black.copy(alpha = 0.6f)
+    } catch (_: Exception) {
+        Color.Black.copy(alpha = 0.6f)
+    }
+
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
     ) {
-        val rewardBackdropColor = try {
-            rewardStyling?.backdropColor?.let {
-                Color(android.graphics.Color.parseColor(it))
-            } ?: Color.Black.copy(alpha = 0.6f)
-        } catch (_: Exception) {
-            Color.Black.copy(alpha = 0.6f)
+        // BACKDROP — fade only
+        AnimatedVisibility(
+            visible = visible,
+            enter = fadeIn(tween(200)),
+            exit = fadeOut(tween(150))
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .then(
+                        if (rewardEnableBackdrop)
+                            Modifier.background(rewardBackdropColor.copy(alpha = 0.6f))
+                        else
+                            Modifier
+                    )
+            )
         }
 
-        // Backdrop Container
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .then(
-                    if (rewardEnableBackdrop)
-                        Modifier.background(rewardBackdropColor.copy(alpha = 0.6f))
-                    else
-                        Modifier
-                ),
-            contentAlignment = Alignment.Center
+
+        // CARD — scale + fade
+        AnimatedVisibility(
+            visible = visible,
+            enter = scaleIn(
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                    stiffness = Spring.StiffnessLow
+                )
+            ) + fadeIn(),
+            exit = scaleOut() + fadeOut()
         ) {
             // Main Card - Modern glassmorphism-inspired design
             Box(
@@ -844,6 +836,8 @@ private fun RewardContent(
                         .background(Color.White),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+
+
                     // Header section with visual hierarchy
                     Box(
                         modifier = Modifier
@@ -896,6 +890,7 @@ private fun RewardContent(
                             }
                         }
 
+
                         // Status indicator
                         Column(
                             modifier = Modifier
@@ -904,32 +899,32 @@ private fun RewardContent(
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             // Animated emoji or icon
-                            val emojiScale by rememberInfiniteTransition(label = "emoji")
-                                .animateFloat(
-                                    initialValue = 1f,
-                                    targetValue = 1.1f,
-                                    animationSpec = infiniteRepeatable(
-                                        animation = tween(600, easing = FastOutSlowInEasing),
-                                        repeatMode = RepeatMode.Reverse
-                                    ),
-                                    label = "emojiPulse"
-                                )
-
-                            Text(
-                                text = if (isWin) "🎉" else "💫",
-                                fontSize = 48.sp,
-                                modifier = Modifier.scale(emojiScale)
-                            )
-
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            Text(
-                                text = if (isWin) "Congratulations!" else "Better Luck Next Time!",
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = Color.White,
-                                letterSpacing = 0.5.sp
-                            )
+//                            val emojiScale by rememberInfiniteTransition(label = "emoji")
+//                                .animateFloat(
+//                                    initialValue = 1f,
+//                                    targetValue = 1.1f,
+//                                    animationSpec = infiniteRepeatable(
+//                                        animation = tween(600, easing = FastOutSlowInEasing),
+//                                        repeatMode = RepeatMode.Reverse
+//                                    ),
+//                                    label = "emojiPulse"
+//                                )
+//
+//                            Text(
+//                                text = if (isWin) "🎉" else "💫",
+//                                fontSize = 48.sp,
+//                                modifier = Modifier.scale(emojiScale)
+//                            )
+//
+//                            Spacer(modifier = Modifier.height(8.dp))
+//
+//                            Text(
+//                                text = if (isWin) "Congratulations!" else "Better Luck Next Time!",
+//                                fontSize = 16.sp,
+//                                fontWeight = FontWeight.SemiBold,
+//                                color = Color.White,
+//                                letterSpacing = 0.5.sp
+//                            )
                         }
                     }
 
@@ -938,7 +933,7 @@ private fun RewardContent(
                         Box(
                             modifier = Modifier
                                 .offset(y = (-32).dp)
-                                .size(100.dp)
+                                .size(150.dp)
                                 .shadow(16.dp, RoundedCornerShape(20.dp))
                                 .clip(RoundedCornerShape(20.dp))
                                 .background(Color.White)
@@ -991,6 +986,7 @@ private fun RewardContent(
                         }
                     }
 
+
                     // Content section
                     Column(
                         modifier = Modifier
@@ -1024,20 +1020,20 @@ private fun RewardContent(
                             )
                         }
 
-                        // Reward popup description from config
-                        rewardConfiguration?.rewardPopupDescription?.takeIf { it.isNotEmpty() }?.let { desc ->
-                            if (subText.isNullOrEmpty()) {
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = desc,
-                                    fontSize = subtitleFontSize.sp,
-                                    fontWeight = FontWeight.Normal,
-                                    textAlign = subtitleTextAlign,
-                                    color = subtitleColor,
-                                    lineHeight = (subtitleFontSize + 5).sp
-                                )
-                            }
-                        }
+//                        // Reward popup description from config
+//                        rewardConfiguration?.rewardPopupDescription?.takeIf { it.isNotEmpty() }?.let { desc ->
+//                            if (subText.isNullOrEmpty()) {
+//                                Spacer(modifier = Modifier.height(8.dp))
+//                                Text(
+//                                    text = desc,
+//                                    fontSize = subtitleFontSize.sp,
+//                                    fontWeight = FontWeight.Normal,
+//                                    textAlign = subtitleTextAlign,
+//                                    color = subtitleColor,
+//                                    lineHeight = (subtitleFontSize + 5).sp
+//                                )
+//                            }
+//                        }
 
                         // Coupon Code Section - Modern dashed border style
                         couponCode?.takeIf { it.isNotEmpty() && isWin }?.let { code ->

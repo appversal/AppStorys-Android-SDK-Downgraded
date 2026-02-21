@@ -283,9 +283,9 @@ fun WheelView(
                     // Draw inner decorative ring
                     // ---- CENTER HUB DESIGN (Industry Standard) ----
 
-                    val hubOuterRadius = fullRadius * 0.14f
-                    val hubInnerRadius = fullRadius * 0.10f
-                    val hubCoreRadius = fullRadius * 0.06f
+                    val hubOuterRadius = fullRadius * 0.10f
+                    val hubInnerRadius = fullRadius * 0.07f
+                    val hubCoreRadius  = fullRadius * 0.04f
 
                     // 1️⃣ Subtle inner shadow for depth
                     drawCircle(
@@ -418,7 +418,12 @@ private fun WheelSliceContent(
             Color.White
         }
 
-        val fontSize = priceLabelStyle?.fontSize ?: 10
+        // Dynamic font scaling based on wheel size
+        val dynamicFontSize = (wheelSizeDp.value * 0.045f)
+
+        // Use backend value if present, otherwise dynamic
+        val fontSize = priceLabelStyle?.fontSize?.toFloat()
+            ?: dynamicFontSize
 
         // Rotation so content reads along the slice direction (pointing outward)
         val contentRotation = when {
@@ -429,8 +434,8 @@ private fun WheelSliceContent(
         // ── Percentage-based sizes — scale with the wheel, no hardcoded dp ──────
         val imageSize   = wheelSizeDp * 0.15f   // 15% of wheel diameter
         val textWidth   = wheelSizeDp * 0.28f   // 28% of wheel diameter
-        val imageRadiusPercent = 0.38f
-        val textRadiusPercent  = 0.72f
+        val imageRadiusPercent = 0.50f
+        val textRadiusPercent  = 0.85f
 
         val imageStyling = sliceStyling?.image
         val imageCornerRadius = imageStyling?.cornerRadius
