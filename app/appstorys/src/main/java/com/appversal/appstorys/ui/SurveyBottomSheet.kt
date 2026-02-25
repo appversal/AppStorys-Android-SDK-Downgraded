@@ -38,6 +38,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.core.graphics.toColorInt
 import com.appversal.appstorys.api.SurveyDetails
 import com.appversal.appstorys.api.SurveyStyling
+import com.appversal.appstorys.ui.common_components.CTAButton
+import com.appversal.appstorys.ui.common_components.CrossButton
+import com.appversal.appstorys.ui.common_components.createCTAButtonConfig
+import com.appversal.appstorys.ui.common_components.createCrossButtonConfig
 
 data class SurveyFeedback(
     val responseOptions: List<String>? = null,
@@ -46,7 +50,7 @@ data class SurveyFeedback(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun SurveyBottomSheet(
+fun SurveyBottomSheet(
     onSubmitFeedback: (SurveyFeedback) -> Unit,
     onDismissRequest: () -> Unit,
     surveyDetails: SurveyDetails,
@@ -136,6 +140,24 @@ private fun SurveyContent(
         surveyOptions.add(SurveyOption(nextOptionId, "Others"))
     }
 
+    val crossConfig = createCrossButtonConfig(
+        fillColorString = surveyDetails.styling?.ctaBackgroundColor,
+        crossColorString = surveyDetails.styling?.ctaTextIconColor,
+        size = 32
+    )
+
+    val ctaConfig = createCTAButtonConfig(
+        backgroundColorString = surveyDetails.styling?.ctaBackgroundColor,
+        textColor = surveyDetails.styling?.ctaTextIconColor,
+        textSize = 16,
+        height = 56,
+        fullWidth = true,
+        borderRadiusTopLeft = 12,
+        borderRadiusTopRight = 12,
+        borderRadiusBottomLeft = 12,
+        borderRadiusBottomRight = 12
+    )
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -156,23 +178,12 @@ private fun SurveyContent(
                 modifier = Modifier.align(Alignment.Center)
             )
 
-            IconButton(
-                onClick = onClose,
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .background(
-                        Color(surveyDetails.styling.ctaBackgroundColor!!.toColorInt()),
-                        CircleShape
-                    )
-                    .size(32.dp)
-            ) {
-                Icon(
-                    Icons.Default.Close,
-                    contentDescription = "Close",
-                    tint = Color(surveyDetails.styling.ctaTextIconColor!!.toColorInt()),
-                    modifier = Modifier.size(22.dp)
-                )
-            }
+            CrossButton(
+                modifier = Modifier.align(Alignment.CenterEnd),
+                config = crossConfig,
+                onClose = onClose
+            )
+
         }
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -237,29 +248,15 @@ private fun SurveyContent(
         }
 
         // Submit button
-        Button(
+        CTAButton(
+            text = "SUBMIT",
+            config = ctaConfig,
             onClick = {
                 if (selectedOptions.isNotEmpty()) {
                     onSubmit()
                 }
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color(surveyDetails.styling.ctaBackgroundColor!!.toColorInt())
-            ),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Text(
-                text = "SUBMIT",
-                style = MaterialTheme.typography.bodyLarge.copy(
-                    color = Color(surveyDetails.styling.ctaTextIconColor!!.toColorInt()),
-                    fontWeight = FontWeight.Medium
-                )
-            )
-        }
-
+            }
+        )
         Spacer(modifier = Modifier.height(16.dp))
     }
 }

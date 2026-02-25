@@ -278,24 +278,41 @@ fun HomeScreen(
                     campaignManager.SpinTheWheel()
                 }
 
-                // Spin The Wheel Test Button - triggers via event
-                Box(
-                    modifier = Modifier.padding(top = 12.dp, start = 16.dp, end = 16.dp)
-                        .fillMaxWidth(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Button(
-                        onClick = {
-                            campaignManager.trackEvents(event = "triggerSpinWheel")
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF9C27B0)
+//                // Spin The Wheel Test Button - triggers via event
+//                Box(
+//                    modifier = Modifier.padding(top = 12.dp, start = 16.dp, end = 16.dp)
+//                        .fillMaxWidth(),
+//                    contentAlignment = Alignment.Center
+//                ) {
+//                    Button(
+//                        onClick = {
+//                            campaignManager.trackEvents(event = "triggerSpinWheel")
+//                        },
+//                        modifier = Modifier.fillMaxWidth(),
+//                        colors = ButtonDefaults.buttonColors(
+//                            containerColor = Color(0xFF9C27B0)
+//                        )
+//                    ) {
+//                        Text("🎡 Open Spin The Wheel")
+//                    }
+//                }
+
+                // ── Survey Demo shortcut ────────────────────────────────
+                Button(
+                    onClick = {
+                        (context as? android.app.Activity)?.startActivity(
+                            android.content.Intent(context, SurveyDemoActivity::class.java)
                         )
-                    ) {
-                        Text("🎡 Open Spin The Wheel")
-                    }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB))
+                ) {
+                    Text("🗳️  Preview Survey (Demo)", fontWeight = FontWeight.SemiBold)
                 }
+                // ────────────────────────────────────────────────────────
+
 
                 // NEW: Scratch Card Button
 //                Box(
