@@ -1821,14 +1821,32 @@ object AppStorys {
                 surveyDetails = surveyDetails,
                 onSubmitFeedback = { feedback ->
                     coroutineScope.launch {
-                        trackEvents(
-                            campaign_id = campaign?.id,
-                            event = "survey captured",
-                            metadata = mapOf(
-                                "selectedOptions" to (feedback.responseOptions ?: ""),
-                                "otherText" to feedback.comment
+                        if (feedback.slideResponses != null) {
+                            // Multi-slide path
+                            trackEvents(
+                                campaign_id = campaign?.id,
+                                event = "survey captured",
+                                metadata = mapOf(
+                                    "slideResponses" to feedback.slideResponses.map {
+                                        mapOf(
+                                            "slideId" to (it.slideId ?: ""),
+                                            "selectedOptions" to (it.responseOptions ?: emptyList<String>()),
+                                            "otherText" to (it.comment ?: "")
+                                        )
+                                    }
+                                )
                             )
-                        )
+                        } else {
+                            // Legacy single-question path
+                            trackEvents(
+                                campaign_id = campaign?.id,
+                                event = "survey captured",
+                                metadata = mapOf(
+                                    "selectedOptions" to (feedback.responseOptions ?: ""),
+                                    "otherText" to feedback.comment
+                                )
+                            )
+                        }
                     }
                 },
             )

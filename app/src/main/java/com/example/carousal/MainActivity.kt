@@ -297,23 +297,6 @@ fun HomeScreen(
 //                    }
 //                }
 
-                // ── Survey Demo shortcut ────────────────────────────────
-                Button(
-                    onClick = {
-                        (context as? android.app.Activity)?.startActivity(
-                            android.content.Intent(context, SurveyDemoActivity::class.java)
-                        )
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB))
-                ) {
-                    Text("🗳️  Preview Survey (Demo)", fontWeight = FontWeight.SemiBold)
-                }
-                // ────────────────────────────────────────────────────────
-
-
                 // NEW: Scratch Card Button
 //                Box(
 //                    modifier = Modifier.padding(top = 12.dp, start = 16.dp, end = 16.dp)

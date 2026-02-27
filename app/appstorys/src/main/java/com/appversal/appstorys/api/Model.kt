@@ -1160,15 +1160,184 @@ data class BottomSheetElement(
 
 @Keep
 @Serializable
+data class SurveySlide(
+    val id: String?,
+    val order: Int?,
+    val parent: String?,  // Add this field - it's in your JSON
+    val title: String?,
+    val subtitle: String?,
+    val question: String?,
+    val options: Map<String, String>?,
+    val image: String?,
+    val submitButtonText: String?,
+    val logic: SurveyLogic?,
+    val additionalComment: AdditionalComment?,
+    val createdAt: String? = null,
+    val updatedAt: String? = null,
+
+    // For backward compatibility with old single-question format
+    val surveyQuestion: String? = null,
+    val surveyOptions: Map<String, String>? = null,
+    val hasOthers: Boolean? = null
+)
+
+@Keep
+@Serializable
+data class SurveyLogic(
+    val redirectTo: String?,
+    val selectOption: String?
+)
+
+@Keep
+@Serializable
+data class AdditionalComment(
+    val enabled: Boolean?,
+    val placeholder: String?
+)
+
+
+@Keep
+@Serializable
 data class SurveyDetails(
     val id: String?,
     val name: String?,
     val styling: SurveyStyling?,
+    // keep old single-question fields for backward compat:
     val surveyQuestion: String?,
     val surveyOptions: Map<String, String>?,
+    val hasOthers: Boolean?,
     val campaign: String?,
-    val hasOthers: Boolean?
+    // NEW — multi-slide fields from backend:
+    val slides: List<SurveySlide>? = null,   // list of questions
+    val totalSlides: Int? = null,             // backend-provided slide count
+    // Thank you page fields:
+    val thankYouTitle: String? = null,
+    val thankYouText: String? = null,
+    val thankYouImage: String? = null,
+    val thankYouButtonText: String? = null,
+    val thankYouButtonConfig: SurveyThankYouButtonConfig? = null
 ) : CampaignDetails()
+
+@Keep
+@Serializable
+data class SurveyThankYouButtonConfig(
+    val action: String? = null,
+    val enabled: Boolean? = null,
+    val redirectUrl: String? = null
+)
+
+@Keep
+@Serializable
+data class SurveyCtaContainer(
+    val alignment: String? = null,
+    val backgroundColor: String? = null,
+    val borderColor: String? = null,
+    val borderWidth: Int? = null,
+    val ctaFullWidth: Boolean? = null,
+    val ctaWidth: Int? = null,
+    val height: Int? = null
+)
+
+@Keep
+@Serializable
+data class SurveyCtaText(
+    val color: String? = null,
+    val fontDecoration: List<String>? = null,
+    val fontFamily: String? = null,
+    val fontSize: Int? = null
+)
+
+@Keep
+@Serializable
+data class SurveyCtaConfig(
+    val container: SurveyCtaContainer? = null,
+    val cornerRadius: CornerRadius? = null,
+    val margin: Margin? = null,
+    val text: SurveyCtaText? = null
+)
+
+@Keep
+@Serializable
+data class SurveyThankyouTextStyle(
+    val color: String? = null,
+    val fontDecoration: List<String>? = null,
+    val fontFamily: String? = null,
+    val fontSize: Int? = null,
+    val margin: Margin? = null,
+    val textAlign: String? = null
+)
+
+@Keep
+@Serializable
+data class SurveyThankyouTextElement(
+    val textStyle: SurveyThankyouTextStyle? = null
+)
+
+@Keep
+@Serializable
+data class SurveyThankyouPage(
+    val cta: SurveyCtaConfig? = null,
+    val subtitle: SurveyThankyouTextElement? = null,
+    val title: SurveyThankyouTextElement? = null
+)
+
+@Keep
+@Serializable
+data class SurveyAppearance(
+    val backdropColor: String? = null,
+    val backgroundColor: String? = null,
+    // New field — controls opacity of the backdrop layer
+    val backdropOpacity: Int? = null,
+    // Legacy field — kept for backward compat until backend fully renames to backdropOpacity
+    val backgroundOpacity: Int? = null,
+    val cornerRadius: CornerRadius? = null,
+    val displayDelay: Int? = null
+)
+
+@Keep
+@Serializable
+data class SurveyOptionColors(
+    val background: String? = null,
+    val border: String? = null,
+    val text: String? = null
+)
+
+@Keep
+@Serializable
+data class SurveyOptionTextStyle(
+    val borderwidth: JsonElement? = null,
+    val fontDecoration: List<String>? = null,
+    val fontFamily: String? = null,
+    val fontSize: Int? = null,
+    val textAlign: String? = null
+)
+
+@Keep
+@Serializable
+data class SurveyOptionStyle(
+    val colors: SurveyOptionColors? = null,
+    val textStyle: SurveyOptionTextStyle? = null
+)
+
+@Keep
+@Serializable
+data class SurveyAdditionalCommentsStyle(
+    val colors: SurveyOptionColors? = null,
+    val textStyle: SurveyOptionTextStyle? = null
+)
+
+@Keep
+@Serializable
+data class SurveyOptionsConfig(
+    val additionalComments: SurveyAdditionalCommentsStyle? = null,
+    val bulletSpacing: String? = null,
+    val nonSelectedOptions: SurveyOptionStyle? = null,
+    val optionListStyle: String? = null,
+    val optionsHeight: Int? = null,
+    val optionsSpacing: String? = null,
+    val selectedOptions: SurveyOptionStyle? = null,
+    val cornerRadius: CornerRadius? = null
+)
 
 @Keep
 @Serializable
@@ -1184,7 +1353,33 @@ data class SurveyStyling(
     val selectedOptionColor: String?,
     val surveyQuestionColor: String?,
     val othersBackgroundColor: String?,
-    val selectedOptionTextColor: String?
+    val selectedOptionTextColor: String?,
+    val crossButton: SurveyCrossButton? = null,
+    val thankyouPage: SurveyThankyouPage? = null,
+    val appearance: SurveyAppearance? = null,
+    val cta: SurveyCtaConfig? = null,
+    val title: SurveyThankyouTextElement? = null,
+    val subtitle: SurveyThankyouTextElement? = null,
+    val options: SurveyOptionsConfig? = null
+)
+
+@Keep
+@Serializable
+data class SurveyCrossButton(
+    val color: BannerColors? = null,
+    val enabled: Boolean? = null,
+    val image: String? = null,
+    val margin: BannerMargin? = null,
+    val selectedStyle: String? = null,
+    val size: Int? = null
+)
+
+@Keep
+@Serializable
+data class SlideResponse(
+    val slideId: String?,
+    val responseOptions: List<String>?,
+    val comment: String? = ""
 )
 
 @Keep
@@ -1192,9 +1387,13 @@ data class SurveyStyling(
 data class SurveyFeedbackPostRequest(
     val user_id: String?,
     val survey: String?,
+    // old single-question fields — keep for backward compat:
     val responseOptions: List<String>? = null,
-    val comment: String? = ""
+    val comment: String? = "",
+    // NEW — multi-slide responses:
+    val slideResponses: List<SlideResponse>? = null
 )
+
 
 @Keep
 @Serializable

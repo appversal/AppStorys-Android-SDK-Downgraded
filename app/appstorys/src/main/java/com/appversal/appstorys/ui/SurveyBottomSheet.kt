@@ -1,54 +1,58 @@
 package com.appversal.appstorys.ui
 
+import android.content.Intent
+import androidx.core.net.toUri
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.launch
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.core.graphics.toColorInt
+import coil.compose.AsyncImage
+import com.appversal.appstorys.api.SlideResponse
 import com.appversal.appstorys.api.SurveyDetails
+import com.appversal.appstorys.api.SurveySlide
 import com.appversal.appstorys.api.SurveyStyling
 import com.appversal.appstorys.ui.common_components.CTAButton
 import com.appversal.appstorys.ui.common_components.CrossButton
 import com.appversal.appstorys.ui.common_components.createCTAButtonConfig
 import com.appversal.appstorys.ui.common_components.createCrossButtonConfig
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 data class SurveyFeedback(
+    // single-question backward compat
     val responseOptions: List<String>? = null,
-    val comment: String = ""
+    val comment: String = "",
+    // multi-slide
+    val slideResponses: List<SlideResponse>? = null
 )
 
-@OptIn(ExperimentalMaterial3Api::class)
+private fun String?.toColorOr(default: Color): Color {
+    return try {
+        if (this != null) Color(this.toColorInt()) else default
+    } catch (_: Exception) {
+        default
+    }
+}
+
 @Composable
 fun SurveyBottomSheet(
     onSubmitFeedback: (SurveyFeedback) -> Unit,
@@ -56,277 +60,946 @@ fun SurveyBottomSheet(
     surveyDetails: SurveyDetails,
 ) {
     val coroutineScope = rememberCoroutineScope()
-    val sheetState = rememberModalBottomSheetState(
-        skipPartiallyExpanded = true,
-    )
 
+    val styling = surveyDetails.styling
+    val appearance = styling?.appearance
+
+    // ── Survey container background — NO opacity applied ─────────────────
+    val backgroundColor = (appearance?.backgroundColor ?: styling?.backgroundColor)
+        .toColorOr(Color.White)
+
+    // ── appearance.cornerRadius (topLeft / topRight only for bottom sheet) ─
+    val cornerRadiusTopStart = (appearance?.cornerRadius?.topLeft ?: 24).dp
+    val cornerRadiusTopEnd   = (appearance?.cornerRadius?.topRight ?: 24).dp
+
+
+    // ── appearance.displayDelay (seconds) ─────────────────────────────────
+    val displayDelaySec = appearance?.displayDelay ?: 0
+    var isVisible by remember { mutableStateOf(displayDelaySec <= 0) }
     LaunchedEffect(Unit) {
-        coroutineScope.launch {
-            sheetState.expand()
+        if (displayDelaySec > 0) {
+            delay(displayDelaySec * 1000L)
+            isVisible = true
         }
     }
 
-    val backgroundColor = Color(surveyDetails.styling?.backgroundColor!!.toColorInt())
+    val hasThankYouPage = surveyDetails.thankYouButtonConfig?.enabled == true
+    var showThankYou by remember { mutableStateOf(false) }
 
-    var selectedOptions by remember { mutableStateOf(setOf<String>()) }
-    var showInputBox by remember { mutableStateOf(false) }
-    var othersText by remember { mutableStateOf("") }
+    val slides = surveyDetails.slides
+        ?.sortedBy { it.order ?: 0 }
+        ?: listOf(
+            SurveySlide(
+                id = surveyDetails.id,
+                order = 0,
+                parent = null,
+                title = null,
+                subtitle = null,
+                question = surveyDetails.surveyQuestion,
+                options = surveyDetails.surveyOptions,
+                image = null,
+                submitButtonText = null,
+                logic = null,
+                additionalComment = null,
+                surveyQuestion = surveyDetails.surveyQuestion,
+                surveyOptions = surveyDetails.surveyOptions,
+                hasOthers = surveyDetails.hasOthers
+            )
+        )
 
-    ModalBottomSheet(
-        onDismissRequest = onDismissRequest,
-//        shape = RoundedCornerShape(topStart = cornerRadius, topEnd = cornerRadius),
-        containerColor = backgroundColor,
-        dragHandle = {},
-        sheetState = sheetState
-    ) {
-        SurveyContent(
-            surveyDetails = surveyDetails,
-            selectedOptions = selectedOptions,
-            showInputBox = showInputBox,
-            othersText = othersText,
-            onOptionSelected = { option ->
-                selectedOptions = if (selectedOptions.contains(option)) {
-                    selectedOptions - option
-                } else {
-                    selectedOptions + option
-                }
-                showInputBox = selectedOptions.contains("Others")
-            },
-            onOthersTextChanged = { text ->
-                othersText = text
-            },
-            onSubmit = {
-                val finalOptions = selectedOptions
-                    .filter { it != "Others" }
+    val pagerState = rememberPagerState(pageCount = { slides.size })
 
-                val commentText = if (showInputBox && othersText.isNotBlank()) {
-                    othersText
-                } else {
-                    ""
-                }
+    // Per-slide state — keyed by slides.size so it rebuilds if slide count changes
+    val selectedOptionsPerSlide = remember(slides.size) {
+        List(slides.size) { mutableStateOf(setOf<String>()) }
+    }
+    val othersTextPerSlide = remember(slides.size) {
+        MutableList(slides.size) { "" }.toMutableStateList()
+    }
 
-                onSubmitFeedback(
-                    SurveyFeedback(
-                        responseOptions = finalOptions.toList(),
-                        comment = commentText
-                    )
-                )
-                onDismissRequest()
-            },
-            onClose = onDismissRequest
+    // Track visited slide indices for back navigation (logic can jump slides)
+    val slideHistory = remember { mutableStateListOf<Int>(0) }
+
+    // Helper: build a SlideResponse for a single slide index
+    fun slideResponseFor(index: Int): SlideResponse {
+        val s = slides[index]
+        val selected = selectedOptionsPerSlide[index].value
+        val hasOthers = selected.contains("Others")
+        return SlideResponse(
+            slideId = s.id,
+            // Keep "Others" in responseOptions so the server knows it was selected;
+            // the typed free-text goes separately in comment.
+            responseOptions = selected.toList(),
+            comment = if (hasOthers) othersTextPerSlide[index] else ""
         )
     }
-}
 
-@Composable
-private fun SurveyContent(
-    surveyDetails: SurveyDetails,
-    selectedOptions: Set<String>,
-    showInputBox: Boolean,
-    othersText: String,
-    onOptionSelected: (String) -> Unit,
-    onOthersTextChanged: (String) -> Unit,
-    onSubmit: () -> Unit,
-    onClose: () -> Unit
-) {
-    // Create survey options list
-    val surveyOptions = surveyDetails.surveyOptions!!.map { (id, name) ->
-        SurveyOption(id, name)
-    }.toMutableList()
-
-    // Add "Others" option if enabled
-    if (surveyDetails.hasOthers ?: false) {
-        val nextOptionId = String(charArrayOf((65 + surveyOptions.size).toChar()))
-        surveyOptions.add(SurveyOption(nextOptionId, "Others"))
+    // Helper: collect all responses answered so far (up to and including upToIndex)
+    fun collectResponses(upToIndex: Int = slides.size - 1): SurveyFeedback {
+        val responses = (0..upToIndex).map { slideResponseFor(it) }
+        return SurveyFeedback(slideResponses = responses)
     }
 
+    // Helper: resolve the logic redirect for the currently selected option on a slide.
+    // logic.selectOption = the option VALUE text (as shown in the dashboard "If" dropdown)
+    // logic.redirectTo   = "thank_you" | "thank-you" | slide id (UUID) | slide title | "Slide N" label
+    fun resolveLogicRedirect(slideIndex: Int): String? {
+        val slide = slides[slideIndex]
+        val selected = selectedOptionsPerSlide[slideIndex].value
+        val logic = slide.logic ?: return null
+        if (logic.selectOption.isNullOrEmpty() || logic.redirectTo.isNullOrEmpty()) return null
+
+        val selectedValue = selected.firstOrNull() ?: return null
+        return if (logic.selectOption == selectedValue) logic.redirectTo else null
+    }
+
+    // Helper: resolve a redirectTo string to a slide index.
+    fun resolveRedirectIndex(redirectTo: String): Int? {
+        if (redirectTo == "thank_you" || redirectTo == "thank-you") return null
+        // 1. Try matching by slide id (UUID)
+        val byId = slides.indexOfFirst { it.id == redirectTo }.takeIf { it != -1 }
+        if (byId != null) return byId
+        // 2. Try matching by slide title (exact)
+        val byTitle = slides.indexOfFirst {
+            it.title.equals(redirectTo, ignoreCase = true)
+        }.takeIf { it != -1 }
+        if (byTitle != null) return byTitle
+        // 3. Try matching "Slide N" pattern (e.g. "Slide 1" → order index 0)
+        // Slides are already sorted by order, so positional index matches "Slide N"
+        val slideLabel = Regex("^[Ss]lide\\s*(\\d+)$").find(redirectTo)
+        if (slideLabel != null) {
+            val n = slideLabel.groupValues[1].toIntOrNull() ?: return null
+            val targetIndex = n - 1  // "Slide 1" = index 0
+            return if (targetIndex in slides.indices) targetIndex else null
+        }
+        return null
+    }
+
+    // Configs built once here — used in header
+    val crossButton = surveyDetails.styling?.crossButton
+    val isCrossEnabled = crossButton?.enabled != false  // default true if null
+    val crossColors = crossButton?.color
+    val crossMargin = crossButton?.margin
+
     val crossConfig = createCrossButtonConfig(
-        fillColorString = surveyDetails.styling?.ctaBackgroundColor,
-        crossColorString = surveyDetails.styling?.ctaTextIconColor,
-        size = 32
+        fillColorString = crossColors?.fill ?: surveyDetails.styling?.ctaBackgroundColor,
+        crossColorString = crossColors?.cross ?: surveyDetails.styling?.ctaTextIconColor,
+        strokeColorString = crossColors?.stroke,
+        marginTop = crossMargin?.top,
+        marginEnd = crossMargin?.right,
+        size = crossButton?.size,
+        imageUrl = crossButton?.image
     )
 
-    val ctaConfig = createCTAButtonConfig(
-        backgroundColorString = surveyDetails.styling?.ctaBackgroundColor,
-        textColor = surveyDetails.styling?.ctaTextIconColor,
-        textSize = 16,
-        height = 56,
-        fullWidth = true,
-        borderRadiusTopLeft = 12,
-        borderRadiusTopRight = 12,
-        borderRadiusBottomLeft = 12,
-        borderRadiusBottomRight = 12
+    // Use Dialog instead of ModalBottomSheet for full control
+    if (!isVisible) return
+
+    Dialog(
+        onDismissRequest = { /* Do nothing - only cross button can dismiss */ },
+        properties = DialogProperties(
+            dismissOnBackPress = true,
+            dismissOnClickOutside = false,
+            usePlatformDefaultWidth = false
+        )
+    ) {
+        val backdropColor = Color.Red
+        // backdropOpacity is the new field; fall back to legacy backgroundOpacity if not present
+        val backdropAlpha = remember(appearance?.backdropOpacity, appearance?.backgroundOpacity) {
+            val raw = appearance?.backdropOpacity
+                ?: appearance?.backgroundOpacity
+                ?: 100
+            raw.coerceIn(0, 100) / 100f
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(backdropColor.copy(alpha = backdropAlpha)),
+            contentAlignment = Alignment.BottomCenter
+        ) {
+
+            // ✅ SHEET LAYER — container background has NO opacity applied
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .wrapContentHeight()
+                    .systemBarsPadding()
+                    .clip(
+                        RoundedCornerShape(
+                            topStart = cornerRadiusTopStart,
+                            topEnd = cornerRadiusTopEnd
+                        )
+                    )
+                    .background(backgroundColor)
+                    .clickable(
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() }
+                    ) { /* consume clicks so they don't dismiss via backdrop */ }
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(15.dp)
+                ) {
+                    // ── Header: close button ────────────────────────────
+                    if (isCrossEnabled) {
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            CrossButton(
+                                modifier = Modifier.align(Alignment.CenterEnd),
+                                config = crossConfig,
+                                onClose = {
+                                    if (showThankYou) {
+                                        onDismissRequest()
+                                    } else {
+                                        val answeredUpTo = pagerState.currentPage
+                                        if (selectedOptionsPerSlide[answeredUpTo].value.isNotEmpty()) {
+                                            onSubmitFeedback(collectResponses(answeredUpTo))
+                                        } else if (answeredUpTo > 0) {
+                                            onSubmitFeedback(collectResponses(answeredUpTo - 1))
+                                        }
+                                        onDismissRequest()
+                                    }
+                                }
+                            )
+                        }
+                    }
+
+                    if (showThankYou) {
+                        // ── Thank You page — data already submitted, CTA only redirects ──
+                        SurveyThankYouContent(
+                            surveyDetails = surveyDetails,
+                            onDismiss = onDismissRequest
+                        )
+                    } else {
+                        // ── Survey slides ────────────────────────────────────────────────
+                        val currentSelected = selectedOptionsPerSlide[pagerState.currentPage].value
+                        val isCurrentSlideValid = currentSelected.isNotEmpty()
+
+                        HorizontalPager(
+                            state = pagerState,
+                            userScrollEnabled = isCurrentSlideValid,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .wrapContentHeight()
+                        ) { pageIndex ->
+                            val slide = slides[pageIndex]
+                            val currentSelectedInPage = selectedOptionsPerSlide[pageIndex].value
+                            val showInputBox = currentSelectedInPage.contains("Others")
+
+                            SurveyContent(
+                                slide = slide,
+                                styling = surveyDetails.styling,
+                                selectedOptions = currentSelectedInPage,
+                                showInputBox = showInputBox,
+                                othersText = othersTextPerSlide[pageIndex],
+                                onOptionSelected = { optionName ->
+                                    selectedOptionsPerSlide[pageIndex].value = setOf(optionName)
+                                    othersTextPerSlide[pageIndex] = ""
+                                },
+                                onOthersTextChanged = { text ->
+                                    othersTextPerSlide[pageIndex] = text
+                                }
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // ── Navigation row: NEXT / SUBMIT ──────────────────────────────
+                        val isLastSlide = pagerState.currentPage == slides.size - 1
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            val currentPage = pagerState.currentPage
+                            val currentSlide = slides[currentPage]
+                            val currentSelectedInRow = selectedOptionsPerSlide[currentPage].value
+                            val isCurrentSlideValidInRow = currentSelectedInRow.isNotEmpty()
+
+                            val logicRedirect =
+                                if (isCurrentSlideValidInRow) resolveLogicRedirect(currentPage) else null
+                            // Normalize: treat both "thank_you" and "thank-you" as a thank-you redirect
+                            val isThankYouRedirect =
+                                logicRedirect == "thank_you" || logicRedirect == "thank-you"
+                            // Resolve redirect target: id / title / "Slide N" → index; null if thank_you or no match
+                            val redirectTargetIndex =
+                                logicRedirect?.let { resolveRedirectIndex(it) }
+
+                            val buttonText = when {
+                                isThankYouRedirect ->
+                                    currentSlide.submitButtonText?.takeIf { it.isNotEmpty() }
+                                        ?: "SUBMIT"
+
+                                redirectTargetIndex != null ->
+                                    currentSlide.submitButtonText?.takeIf { it.isNotEmpty() }
+                                        ?: "NEXT"
+
+                                isLastSlide ->
+                                    currentSlide.submitButtonText?.takeIf { it.isNotEmpty() }
+                                        ?: "SUBMIT"
+
+                                else ->
+                                    currentSlide.submitButtonText?.takeIf { it.isNotEmpty() }
+                                        ?: "NEXT"
+                            }
+
+                            val navButtonConfig = run {
+                                val ctaStyling = surveyDetails.styling?.cta
+                                val ctaContainer = ctaStyling?.container
+                                val ctaCornerRadius = ctaStyling?.cornerRadius
+                                val ctaMargin = ctaStyling?.margin
+                                createCTAButtonConfig(
+                                    // text
+                                    textColor = if (isCurrentSlideValidInRow)
+                                        (ctaStyling?.text?.color ?: surveyDetails.styling?.ctaTextIconColor ?: "#FFFFFF")
+                                    else "#666666",
+                                    textSize = ctaStyling?.text?.fontSize ?: 16,
+                                    fontFamily = ctaStyling?.text?.fontFamily,
+                                    fontDecoration = ctaStyling?.text?.fontDecoration,
+                                    // margins
+                                    marginTop = ctaMargin?.top,
+                                    marginBottom = ctaMargin?.bottom,
+                                    marginStart = ctaMargin?.left,
+                                    marginEnd = ctaMargin?.right,
+                                    // container
+                                    height = ctaContainer?.height ?: 56,
+                                    width = ctaContainer?.ctaWidth,
+                                    alignment = ctaContainer?.alignment ?: "center",
+                                    backgroundColorString = if (isCurrentSlideValidInRow)
+                                        (ctaContainer?.backgroundColor ?: surveyDetails.styling?.ctaBackgroundColor ?: "#000000")
+                                    else "#CCCCCC",
+                                    borderColorString = ctaContainer?.borderColor,
+                                    borderWidth = ctaContainer?.borderWidth ?: 0,
+                                    fullWidth = ctaContainer?.ctaFullWidth ?: true,
+                                    // corner radius
+                                    borderRadiusTopLeft = ctaCornerRadius?.topLeft ?: 12,
+                                    borderRadiusTopRight = ctaCornerRadius?.topRight ?: 12,
+                                    borderRadiusBottomLeft = ctaCornerRadius?.bottomLeft ?: 12,
+                                    borderRadiusBottomRight = ctaCornerRadius?.bottomRight ?: 12,
+                                )
+                            }
+
+                            CTAButton(
+                                text = buttonText,
+                                config = navButtonConfig,
+                                onClick = {
+                                    if (!isCurrentSlideValidInRow) return@CTAButton
+
+                                    coroutineScope.launch {
+                                        when {
+                                            // Logic → jump directly to thank you:
+                                            // Submit all responses collected so far (up to current page)
+                                            isThankYouRedirect -> {
+                                                onSubmitFeedback(collectResponses(currentPage))
+                                                if (hasThankYouPage) showThankYou = true
+                                                else onDismissRequest()
+                                            }
+                                            // Logic → jump to a specific slide:
+                                            // Submit current slide's response, then navigate
+                                            redirectTargetIndex != null -> {
+                                                onSubmitFeedback(
+                                                    SurveyFeedback(
+                                                        slideResponses = listOf(
+                                                            slideResponseFor(
+                                                                currentPage
+                                                            )
+                                                        )
+                                                    )
+                                                )
+                                                slideHistory.add(redirectTargetIndex)
+                                                pagerState.animateScrollToPage(redirectTargetIndex)
+                                            }
+                                            // Last slide → submit all collected responses
+                                            isLastSlide -> {
+                                                onSubmitFeedback(collectResponses(currentPage))
+                                                if (hasThankYouPage) showThankYou = true
+                                                else onDismissRequest()
+                                            }
+                                            // Not last slide → submit current slide response, go next
+                                            else -> {
+                                                onSubmitFeedback(
+                                                    SurveyFeedback(
+                                                        slideResponses = listOf(
+                                                            slideResponseFor(
+                                                                currentPage
+                                                            )
+                                                        )
+                                                    )
+                                                )
+                                                val nextPage = currentPage + 1
+                                                slideHistory.add(nextPage)
+                                                pagerState.animateScrollToPage(nextPage)
+                                            }
+                                        }
+                                    }
+                                }
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // ── Dot indicators ─────────────────────────────────────────────
+                        if (slides.size > 1) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            DotsIndicator(
+                                modifier = Modifier.align(Alignment.CenterHorizontally),
+                                totalDots = slides.size,
+                                selectedIndex = pagerState.currentPage,
+                                selectedColor = surveyDetails.styling?.ctaBackgroundColor.toColorOr(
+                                    Color.Blue
+                                ),
+                                unSelectedColor = surveyDetails.styling?.optionColor.toColorOr(Color.LightGray),
+                                dotSize = 8.dp,
+                                selectedLength = 20.dp
+                            )
+                        }
+
+                    } // end if/else showThankYou
+                }
+            } // end sheet Box
+        } // end outer Box
+    } // end Dialog
+} // end SurveyBottomSheet
+
+// ── Thank You page ────────────────────────────────────────────────────────────
+
+@Composable
+private fun SurveyThankYouContent(
+    surveyDetails: SurveyDetails,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    val thankyouPage = surveyDetails.styling?.thankyouPage
+
+    // ── Title styling (styling.thankyouPage.title.textStyle) ──────────────
+    val titleTextStyle = thankyouPage?.title?.textStyle
+    val titleColor = titleTextStyle?.color.toColorOr(Color.Black)
+    val titleFontSize = (titleTextStyle?.fontSize ?: 20).sp
+    val titleFontWeight = if (titleTextStyle?.fontDecoration?.contains("bold") == true) FontWeight.Bold else FontWeight.Normal
+    val titleFontStyle = if (titleTextStyle?.fontDecoration?.contains("italic") == true) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal
+    val titleTextDecoration = if (titleTextStyle?.fontDecoration?.contains("underline") == true) androidx.compose.ui.text.style.TextDecoration.Underline else androidx.compose.ui.text.style.TextDecoration.None
+    val titleTextAlign = when (titleTextStyle?.textAlign?.lowercase()) {
+        "left" -> TextAlign.Start
+        "right" -> TextAlign.End
+        else -> TextAlign.Center
+    }
+    val titleFontFamily = when (titleTextStyle?.fontFamily?.lowercase()) {
+        "serif" -> FontFamily.Serif
+        "monospace" -> FontFamily.Monospace
+        "cursive" -> FontFamily.Cursive
+        else -> FontFamily.SansSerif
+    }
+    val titleMargin = titleTextStyle?.margin
+
+    // ── Subtitle styling (styling.thankyouPage.subtitle.textStyle) ────────
+    val subtitleTextStyle = thankyouPage?.subtitle?.textStyle
+    val subtitleColor = subtitleTextStyle?.color.toColorOr(Color(0xFF6B7280))
+    val subtitleFontSize = (subtitleTextStyle?.fontSize ?: 14).sp
+    val subtitleFontWeight = if (subtitleTextStyle?.fontDecoration?.contains("bold") == true) FontWeight.Bold else FontWeight.Normal
+    val subtitleFontStyle = if (subtitleTextStyle?.fontDecoration?.contains("italic") == true) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal
+    val subtitleTextDecoration = if (subtitleTextStyle?.fontDecoration?.contains("underline") == true) androidx.compose.ui.text.style.TextDecoration.Underline else androidx.compose.ui.text.style.TextDecoration.None
+    val subtitleTextAlign = when (subtitleTextStyle?.textAlign?.lowercase()) {
+        "left" -> TextAlign.Start
+        "right" -> TextAlign.End
+        else -> TextAlign.Center
+    }
+    val subtitleFontFamily = when (subtitleTextStyle?.fontFamily?.lowercase()) {
+        "serif" -> FontFamily.Serif
+        "monospace" -> FontFamily.Monospace
+        "cursive" -> FontFamily.Cursive
+        else -> FontFamily.SansSerif
+    }
+    val subtitleMargin = subtitleTextStyle?.margin
+
+    // ── CTA config (styling.thankyouPage.cta) ─────────────────────────────
+    val ctaStyling = thankyouPage?.cta
+    val ctaContainer = ctaStyling?.container
+    val ctaMargin = ctaStyling?.margin
+    val ctaCornerRadius = ctaStyling?.cornerRadius
+
+    // ── thankYouButtonConfig (top-level: action / enabled / redirectUrl) ──
+    val buttonConfig = surveyDetails.thankYouButtonConfig
+    // "CTA Text" field → thankYouButtonText
+    val buttonText = surveyDetails.thankYouButtonText?.takeIf { it.isNotBlank() } ?: "Okay"
+    // "Redirect to" field → thankYouButtonConfig.redirectUrl
+    val redirectUrl = buttonConfig?.redirectUrl
+
+    // Build CTAButtonConfig using the common factory
+    val ctaButtonConfig = createCTAButtonConfig(
+        // text styling
+        textColor = ctaStyling?.text?.color ?: "#FFFFFF",
+        textSize = ctaStyling?.text?.fontSize ?: 14,
+        fontFamily = ctaStyling?.text?.fontFamily,
+        fontDecoration = ctaStyling?.text?.fontDecoration,
+        // margins
+        marginTop = ctaMargin?.top,
+        marginBottom = ctaMargin?.bottom,
+        marginStart = ctaMargin?.left,
+        marginEnd = ctaMargin?.right,
+        // container
+        height = ctaContainer?.height ?: 50,
+        width = ctaContainer?.ctaWidth,
+        alignment = ctaContainer?.alignment ?: "center",
+        backgroundColorString = ctaContainer?.backgroundColor ?: "#1F35DB",
+        borderColorString = ctaContainer?.borderColor,
+        borderWidth = ctaContainer?.borderWidth ?: 0,
+        fullWidth = ctaContainer?.ctaFullWidth ?: false,
+        // corner radius
+        borderRadiusTopLeft = ctaCornerRadius?.topLeft ?: 12,
+        borderRadiusTopRight = ctaCornerRadius?.topRight ?: 12,
+        borderRadiusBottomLeft = ctaCornerRadius?.bottomLeft ?: 12,
+        borderRadiusBottomRight = ctaCornerRadius?.bottomRight ?: 12,
     )
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(20.dp)
+            .padding(vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Header with title and close button
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(50.dp)
-        ) {
-            Text(
-                text = surveyDetails.name ?: "Survey",
-                style = MaterialTheme.typography.headlineSmall.copy(
-                    color = Color(surveyDetails.styling?.surveyTextColor!!.toColorInt()),
-                    fontWeight = FontWeight.Medium
-                ),
-                modifier = Modifier.align(Alignment.Center)
-            )
+        Spacer(modifier = Modifier.height(8.dp))
 
-            CrossButton(
-                modifier = Modifier.align(Alignment.CenterEnd),
-                config = crossConfig,
-                onClose = onClose
+        // ── "Upload Image" → thankYouImage ──────────────────
+        val imageUrl = surveyDetails.thankYouImage
+        if (!imageUrl.isNullOrEmpty()) {
+            AsyncImage(
+                model = imageUrl,
+                contentDescription = "Thank you image",
+                modifier = Modifier
+                    .size(80.dp)
+                    .padding(bottom = 12.dp)
             )
-
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // Survey question
-        Text(
-            text = surveyDetails.surveyQuestion ?: "Survey Question",
-            style = MaterialTheme.typography.bodyLarge.copy(
-                color = Color(surveyDetails.styling?.surveyQuestionColor!!.toColorInt()),
-                fontWeight = FontWeight.Bold
-            )
-        )
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        // Survey options
-        LazyColumn {
-            items(surveyOptions) { option ->
-                if (option.id.isNotEmpty() && option.name.isNotEmpty()) {
-                    SurveyOptionItem(
-                        option = option,
-                        isSelected = selectedOptions.contains(option.name),
-                        styling = surveyDetails.styling,
-                        onOptionClick = { onOptionSelected(option.name) }
+        // ── "Title Text" → thankYouTitle ────────────────────
+        val title = surveyDetails.thankYouTitle
+        if (!title.isNullOrEmpty()) {
+            Text(
+                text = title,
+                fontSize = titleFontSize,
+                fontWeight = titleFontWeight,
+                fontStyle = titleFontStyle,
+                textDecoration = titleTextDecoration,
+                fontFamily = titleFontFamily,
+                color = titleColor,
+                textAlign = titleTextAlign,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        start = (titleMargin?.left ?: 4).dp,
+                        end = (titleMargin?.right ?: 4).dp,
+                        top = (titleMargin?.top ?: 4).dp,
+                        bottom = (titleMargin?.bottom ?: 4).dp
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
+        // ── "Subtitle Text" → thankYouText ──────────────────
+        val bodyText = surveyDetails.thankYouText
+        if (!bodyText.isNullOrEmpty()) {
+            Text(
+                text = bodyText,
+                fontSize = subtitleFontSize,
+                fontWeight = subtitleFontWeight,
+                fontStyle = subtitleFontStyle,
+                textDecoration = subtitleTextDecoration,
+                fontFamily = subtitleFontFamily,
+                color = subtitleColor,
+                textAlign = subtitleTextAlign,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        start = (subtitleMargin?.left ?: 4).dp,
+                        end = (subtitleMargin?.right ?: 4).dp,
+                        top = (subtitleMargin?.top ?: 4).dp,
+                        bottom = (subtitleMargin?.bottom ?: 4).dp
+                    )
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+
+        // ── "CTA Text" + "Redirect to" → thankYouButtonText / thankYouButtonConfig
+        // CTA button shown only when the thank-you page toggle is enabled
+        // (thankYouButtonConfig.enabled == true, controlled by the toggle in the screenshot)
+        if (buttonConfig?.enabled == true) {
+            // "CTA Text" → thankYouButtonText | "Redirect to" → thankYouButtonConfig.redirectUrl
+            CTAButton(
+                text = buttonText,
+                config = ctaButtonConfig,
+                onClick = {
+                    // Data was already submitted when the user tapped Next/Submit on each slide.
+                    // CTA here only handles optional redirect + dismissal.
+                    if (!redirectUrl.isNullOrEmpty() && buttonConfig.action == "redirect") {
+                        try {
+                            context.startActivity(Intent(Intent.ACTION_VIEW, redirectUrl.toUri()))
+                        } catch (_: Exception) {
+                        }
+                    }
+                    onDismiss()
+                }
+            )
+        }
+    }
+}
+
+// ── Per-slide question + options ─────────────────────────────────────────────
+
+@Composable
+private fun SurveyContent(
+    slide: SurveySlide,
+    styling: SurveyStyling?,
+    selectedOptions: Set<String>,
+    showInputBox: Boolean,
+    othersText: String,
+    onOptionSelected: (String) -> Unit,
+    onOthersTextChanged: (String) -> Unit,
+) {
+    val surveyOptions = remember(slide) {
+        val optionsMap = slide.options ?: slide.surveyOptions
+
+        val base = optionsMap?.entries
+            ?.sortedBy { it.key }  // Sort option1, option2, option3...
+            ?.mapIndexed { index, entry ->
+                // Extract number from "option1", "option2" or use the key directly
+                val displayId = entry.key.removePrefix("option").ifEmpty {
+                    ('A' + index).toString()
+                }
+                SurveyOption(displayId, entry.value)
+            }?.toMutableList() ?: mutableListOf()
+
+        // Check additionalComment.enabled for new format, hasOthers for old
+        val shouldAddOthers = slide.additionalComment?.enabled == true || slide.hasOthers == true
+
+        if (shouldAddOthers) {
+            val nextId = ('A' + base.size).toString()
+            base.add(SurveyOption(nextId, "Others"))
+        }
+        base
+    }
+
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+
+        // Question text
+        Column {
+            // Display title if exists
+            slide.title?.let { title ->
+                val titleStyle = styling?.title?.textStyle
+                val titleColor = titleStyle?.color.toColorOr(
+                    styling?.surveyQuestionColor.toColorOr(Color.Black)
+                )
+                val titleFontSize = (titleStyle?.fontSize ?: 18).sp
+                val titleFontWeight = when {
+                    titleStyle?.fontDecoration?.contains("bold") == true -> FontWeight.Bold
+                    else -> FontWeight.Normal
+                }
+                val titleFontStyle = when {
+                    titleStyle?.fontDecoration?.contains("italic") == true -> androidx.compose.ui.text.font.FontStyle.Italic
+                    else -> androidx.compose.ui.text.font.FontStyle.Normal
+                }
+                val titleTextDecoration = when {
+                    titleStyle?.fontDecoration?.contains("underline") == true ->
+                        androidx.compose.ui.text.style.TextDecoration.Underline
+                    else -> androidx.compose.ui.text.style.TextDecoration.None
+                }
+                val titleTextAlign = when (titleStyle?.textAlign?.lowercase()) {
+                    "left" -> TextAlign.Start
+                    "right" -> TextAlign.End
+                    else -> TextAlign.Center
+                }
+                val titleFontFamily = when (titleStyle?.fontFamily?.lowercase()) {
+                    "serif" -> FontFamily.Serif
+                    "monospace" -> FontFamily.Monospace
+                    "cursive" -> FontFamily.Cursive
+                    else -> FontFamily.SansSerif
+                }
+                val titleMargin = titleStyle?.margin
+                Text(
+                    text = title,
+                    fontSize = titleFontSize,
+                    fontWeight = titleFontWeight,
+                    fontStyle = titleFontStyle,
+                    textDecoration = titleTextDecoration,
+                    fontFamily = titleFontFamily,
+                    color = titleColor,
+                    textAlign = titleTextAlign,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(
+                            start = (titleMargin?.left ?: 0).dp,
+                            end = (titleMargin?.right ?: 0).dp,
+                            top = (titleMargin?.top ?: 0).dp,
+                            bottom = (titleMargin?.bottom ?: 0).dp
+                        )
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
+            // Display subtitle if exists
+            slide.subtitle?.let { subtitle ->
+                val subtitleStyle = styling?.subtitle?.textStyle
+                val subtitleColor = subtitleStyle?.color.toColorOr(
+                    styling?.surveyQuestionColor.toColorOr(Color.Gray)
+                )
+                val subtitleFontSize = (subtitleStyle?.fontSize ?: 14).sp
+                val subtitleFontWeight = when {
+                    subtitleStyle?.fontDecoration?.contains("bold") == true -> FontWeight.Bold
+                    else -> FontWeight.Normal
+                }
+                val subtitleFontStyle = when {
+                    subtitleStyle?.fontDecoration?.contains("italic") == true -> androidx.compose.ui.text.font.FontStyle.Italic
+                    else -> androidx.compose.ui.text.font.FontStyle.Normal
+                }
+                val subtitleTextDecoration = when {
+                    subtitleStyle?.fontDecoration?.contains("underline") == true ->
+                        androidx.compose.ui.text.style.TextDecoration.Underline
+                    else -> androidx.compose.ui.text.style.TextDecoration.None
+                }
+                val subtitleTextAlign = when (subtitleStyle?.textAlign?.lowercase()) {
+                    "left" -> TextAlign.Start
+                    "right" -> TextAlign.End
+                    else -> TextAlign.Center
+                }
+                val subtitleFontFamily = when (subtitleStyle?.fontFamily?.lowercase()) {
+                    "serif" -> FontFamily.Serif
+                    "monospace" -> FontFamily.Monospace
+                    "cursive" -> FontFamily.Cursive
+                    else -> FontFamily.SansSerif
+                }
+                val subtitleMargin = subtitleStyle?.margin
+                Text(
+                    text = subtitle,
+                    fontSize = subtitleFontSize,
+                    fontWeight = subtitleFontWeight,
+                    fontStyle = subtitleFontStyle,
+                    textDecoration = subtitleTextDecoration,
+                    fontFamily = subtitleFontFamily,
+                    color = subtitleColor,
+                    textAlign = subtitleTextAlign,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(
+                            start = (subtitleMargin?.left ?: 0).dp,
+                            end = (subtitleMargin?.right ?: 0).dp,
+                            top = (subtitleMargin?.top ?: 0).dp,
+                            bottom = (subtitleMargin?.bottom ?: 0).dp
+                        )
+                )
+            }
+        }
+
+        // Options list
+        val optionsConfig = styling?.options
+        val optionsSpacing = optionsConfig?.optionsSpacing?.toIntOrNull() ?: 12
+        val bulletSpacing = optionsConfig?.bulletSpacing?.toIntOrNull() ?: 12
+        val optionListStyle = optionsConfig?.optionListStyle ?: "number"
+        val visibleOptions = surveyOptions.filter { it.id.isNotEmpty() && it.name.isNotEmpty() }
+        Column {
+            visibleOptions.forEachIndexed { index, option ->
+                val isTextBullet = when (optionListStyle.lowercase()) {
+                    "none", "plain", "no_bullet", "nobullet" -> false
+                    else -> true
+                }
+                val displayId = when (optionListStyle.lowercase()) {
+                    "none", "plain", "no_bullet", "nobullet" -> ""
+                    "roman" -> "${toRoman(index + 1).uppercase()}."
+                    "alpha", "alphabetic", "alphabet" -> "${('A' + index)}."
+                    else -> "${index + 1}."
+                }
+                SurveyOptionItem(
+                    option = option.copy(id = displayId),
+                    isSelected = selectedOptions.contains(option.name),
+                    styling = styling,
+                    bulletSpacing = bulletSpacing,
+                    showBullet = isTextBullet,
+                    onOptionClick = { onOptionSelected(option.name) }
+                )
+                if (index < visibleOptions.lastIndex) {
+                    Spacer(modifier = Modifier.height(optionsSpacing.dp))
                 }
             }
         }
 
-        // Others input box
+        // Others text input
         if (showInputBox) {
+            val addlStyle = styling?.options?.additionalComments
+            val addlColors = addlStyle?.colors
+            val addlTextStyle = addlStyle?.textStyle
+            val addlBgColor = addlColors?.background.toColorOr(
+                styling?.othersBackgroundColor.toColorOr(Color.LightGray)
+            )
+            val addlBorderColor = addlColors?.border.toColorOr(
+                styling?.othersBackgroundColor.toColorOr(Color.LightGray)
+            )
+            val addlTextColor = addlColors?.text.toColorOr(
+                styling?.othersTextColor.toColorOr(Color.Black)
+            )
+            val addlFontSize = (addlTextStyle?.fontSize ?: 14).sp
+            val addlFontWeight = if (addlTextStyle?.fontDecoration?.contains("bold") == true) FontWeight.Bold else FontWeight.Normal
+            val addlFontStyle = if (addlTextStyle?.fontDecoration?.contains("italic") == true) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal
+            val addlTextDecoration = if (addlTextStyle?.fontDecoration?.contains("underline") == true) androidx.compose.ui.text.style.TextDecoration.Underline else androidx.compose.ui.text.style.TextDecoration.None
+            val addlTextAlign = when (addlTextStyle?.textAlign?.lowercase()) {
+                "left" -> TextAlign.Start
+                "right" -> TextAlign.End
+                else -> TextAlign.Center
+            }
+            val addlBorderWidth = (addlTextStyle?.borderwidth
+                ?.let { if (it.toString() == "null") null else it.toString().removeSuffix(".0").toIntOrNull() }
+                ?: 1).dp
+
             OutlinedTextField(
                 value = othersText,
                 onValueChange = onOthersTextChanged,
                 placeholder = {
                     Text(
-                        "Please enter Others text…..upto 200 chars",
+                        slide.additionalComment?.placeholder
+                            ?: "Please enter Others text…..upto 200 chars",
                         style = MaterialTheme.typography.bodySmall.copy(
-                            color = Color.Black,
+                            color = addlTextColor,
                             fontWeight = FontWeight.Light
                         )
                     )
                 },
+                textStyle = androidx.compose.ui.text.TextStyle(
+                    fontSize = addlFontSize,
+                    fontWeight = addlFontWeight,
+                    fontStyle = addlFontStyle,
+                    textDecoration = addlTextDecoration,
+                    textAlign = addlTextAlign,
+                    color = addlTextColor
+                ),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(56.dp),
+                    .height((optionsConfig?.optionsHeight ?: 56).dp)
+                    .border(addlBorderWidth, addlBorderColor, RoundedCornerShape(8.dp)),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(surveyDetails.styling.othersBackgroundColor!!.toColorInt()),
-                    unfocusedBorderColor = Color(surveyDetails.styling.othersBackgroundColor.toColorInt()),
-                    focusedContainerColor = Color(surveyDetails.styling.othersBackgroundColor.toColorInt()),
-                    unfocusedContainerColor = Color(surveyDetails.styling.othersBackgroundColor.toColorInt()),
-                    focusedTextColor = Color(surveyDetails.styling.othersTextColor!!.toColorInt()),
-                    unfocusedTextColor = Color(surveyDetails.styling.othersTextColor.toColorInt()),
-                    cursorColor = Color(surveyDetails.styling.othersTextColor.toColorInt())
+                    focusedBorderColor = addlBorderColor,
+                    unfocusedBorderColor = addlBorderColor,
+                    focusedContainerColor = addlBgColor,
+                    unfocusedContainerColor = addlBgColor,
+                    focusedTextColor = addlTextColor,
+                    unfocusedTextColor = addlTextColor,
+                    cursorColor = addlTextColor
                 ),
-                shape = RoundedCornerShape(8.dp),
-                maxLines = 1,
+                shape = RoundedCornerShape(8.dp),                maxLines = 1,
                 singleLine = true
             )
             Spacer(modifier = Modifier.height(16.dp))
         }
-
-        // Submit button
-        CTAButton(
-            text = "SUBMIT",
-            config = ctaConfig,
-            onClick = {
-                if (selectedOptions.isNotEmpty()) {
-                    onSubmit()
-                }
-            }
-        )
-        Spacer(modifier = Modifier.height(16.dp))
     }
 }
+
+// ── Option row card ──────────────────────────────────────────────────────────
 
 @Composable
 private fun SurveyOptionItem(
     option: SurveyOption,
     isSelected: Boolean,
-    styling: SurveyStyling,
+    styling: SurveyStyling?,
+    bulletSpacing: Int = 12,
+    showBullet: Boolean = true,
     onOptionClick: () -> Unit
 ) {
-    Card(
+    val optionsConfig = styling?.options
+    val optionHeight = optionsConfig?.optionsHeight
+    val activeStyle = if (isSelected) optionsConfig?.selectedOptions else optionsConfig?.nonSelectedOptions
+    val activeColors = activeStyle?.colors
+    val activeTextStyle = activeStyle?.textStyle
+
+    // Corner radius from optionsConfig (future-proof — backend not sending yet)
+    val cr = optionsConfig?.cornerRadius
+    val optionShape = RoundedCornerShape(
+        topStart = (cr?.topLeft ?: 12).dp,
+        topEnd = (cr?.topRight ?: 12).dp,
+        bottomStart = (cr?.bottomLeft ?: 12).dp,
+        bottomEnd = (cr?.bottomRight ?: 12).dp
+    )
+
+    // Colors
+    val bgColor = activeColors?.background.toColorOr(
+        if (isSelected) styling?.selectedOptionColor.toColorOr(Color(0xFFF3F4F6))
+        else styling?.optionColor.toColorOr(Color.LightGray)
+    )
+    val borderColor = activeColors?.border.toColorOr(Color(0xFFE5E7EB))
+    val textColor = activeColors?.text.toColorOr(
+        if (isSelected) styling?.selectedOptionTextColor.toColorOr(Color.White)
+        else styling?.optionTextColor.toColorOr(Color.Black)
+    )
+
+    // Border width from textStyle.borderwidth
+    val borderWidth = (activeTextStyle?.borderwidth
+        ?.let { if (it.toString() == "null") null else it.toString().removeSuffix(".0").toIntOrNull() }
+        ?: 1).dp
+
+    // Text style
+    val fontSize = (activeTextStyle?.fontSize ?: 14).sp
+    val fontWeight = if (activeTextStyle?.fontDecoration?.contains("bold") == true) FontWeight.Bold else FontWeight.Normal
+    val fontStyle = if (activeTextStyle?.fontDecoration?.contains("italic") == true) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal
+    val textDecoration = if (activeTextStyle?.fontDecoration?.contains("underline") == true) androidx.compose.ui.text.style.TextDecoration.Underline else androidx.compose.ui.text.style.TextDecoration.None
+    val textAlign = when (activeTextStyle?.textAlign?.lowercase()) {
+        "left" -> TextAlign.Start
+        "right" -> TextAlign.End
+        else -> TextAlign.Center
+    }
+    val fontFamily = when (activeTextStyle?.fontFamily?.lowercase()) {
+        "serif" -> FontFamily.Serif
+        "monospace" -> FontFamily.Monospace
+        "cursive" -> FontFamily.Cursive
+        else -> FontFamily.SansSerif
+    }
+
+    Box(
         modifier = Modifier
             .fillMaxWidth()
+            .then(if (optionHeight != null) Modifier.height(optionHeight.dp) else Modifier.wrapContentHeight())
+            .clip(optionShape)
+            .background(bgColor)
+            .border(borderWidth, borderColor, optionShape)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
-            ) {
-                onOptionClick()
-            },
-        colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) {
-                Color(styling.selectedOptionColor!!.toColorInt())
-            } else {
-                Color(styling.optionColor!!.toColorInt())
-            }
-        ),
-        shape = RoundedCornerShape(12.dp)
+            ) { onOptionClick() },
+        contentAlignment = Alignment.CenterStart
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Option ID badge
-            Box(
-                modifier = Modifier
-                    .background(
-                        Color.White,
-                        RoundedCornerShape(18.dp)
-                    )
-                    .border(
-                        0.8.dp,
-                        Color.Black,
-                        RoundedCornerShape(18.dp)
-                    )
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-            ) {
+            // Bullet / ID badge
+            if (showBullet) {
+                // Numbered / Alpha / Roman — show plain text (no circle wrapper)
                 Text(
                     text = option.id,
                     style = MaterialTheme.typography.bodySmall.copy(
-                        color = Color.Black,
+                        color = textColor,
                         fontWeight = FontWeight.SemiBold
                     )
                 )
+            } else {
+                // Plain / None — show a small filled circle dot
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .clip(androidx.compose.foundation.shape.CircleShape)
+                        .background(textColor)
+                )
             }
+            Spacer(modifier = Modifier.width(bulletSpacing.dp))
 
-            Spacer(modifier = Modifier.width(12.dp))
-
-            // Option text
             Text(
                 text = option.name,
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    color = if (isSelected) {
-                        Color(styling.selectedOptionTextColor!!.toColorInt())
-                    } else {
-                        Color(styling.optionTextColor!!.toColorInt())
-                    }
-                )
+                fontSize = fontSize,
+                fontWeight = fontWeight,
+                fontStyle = fontStyle,
+                textDecoration = textDecoration,
+                fontFamily = fontFamily,
+                color = textColor,
+                textAlign = textAlign,
+                modifier = Modifier.weight(1f)
             )
         }
     }
@@ -336,3 +1009,18 @@ data class SurveyOption(
     val id: String,
     val name: String
 )
+
+private fun toRoman(num: Int): String {
+    val values = intArrayOf(1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1)
+    val symbols = arrayOf("M", "CM", "D", "CD", "C", "XC", "L", "XL", "X", "IX", "V", "IV", "I")
+    val sb = StringBuilder()
+    var n = num
+    for (i in values.indices) {
+        while (n >= values[i]) {
+            sb.append(symbols[i])
+            n -= values[i]
+        }
+    }
+    return sb.toString().lowercase()
+}
+
