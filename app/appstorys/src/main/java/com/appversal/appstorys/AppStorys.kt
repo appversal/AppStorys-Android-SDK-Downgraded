@@ -193,6 +193,8 @@ object AppStorys {
 
     private var showBottomSheet by mutableStateOf(true)
 
+    private var backPressCampaignConsumed = false
+
     internal var sdkState = AppStorysSdkState.Uninitialized
         private set
 
@@ -269,6 +271,27 @@ object AppStorys {
         }
     }
 
+    private fun getBackPressTriggerEvents(): List<String> {
+        if (backPressCampaignConsumed) return emptyList()
+        val disabled = disabledCampaigns.value
+        return campaigns.value
+            .filter { campaign -> !disabled.contains(campaign.id) }
+            .mapNotNull { campaign ->
+                when (val trigger = campaign.triggerEvent) {
+                    // String triggers never have back_press
+                    is TriggerEvent.StringTrigger -> null
+                    // Only ObjectTrigger has the back_press flag
+                    is TriggerEvent.ObjectTrigger -> {
+                        if (trigger.backPress) trigger.event.ifEmpty { null }
+                        else null
+                    }
+
+                    null -> null
+                }
+            }
+            .distinct()
+    }
+
     fun initialize(
         context: Application,
         appId: String,
@@ -323,6 +346,7 @@ object AppStorys {
                     showModal = true
                     showCsat = false
                     showBottomSheet = true
+                    backPressCampaignConsumed = false
                     _trackedEventNames.update { emptySet() }
                     campaignsJob?.cancel()
                     campaignsJob = null
@@ -371,8 +395,9 @@ object AppStorys {
                     disabledCampaigns.emit(emptyList())
                     impressions.emit(emptyList())
                     campaigns.emit(emptyList())
+                    _trackedEventNames.emit(emptySet())
                     currentScreen = screenName
-
+                    backPressCampaignConsumed = false
                     delay(100)
                 }
 
@@ -447,7 +472,7 @@ object AppStorys {
                     }
                     val client = OkHttpClient()
                     val request = Request.Builder()
-                        .url("https://tracking.appstorys.com/capture-event")
+                        .url("https://tracking.appstorys.co/capture-event")
                         .post(
                             requestBody.toString()
                                 .toRequestBody("application/json".toMediaTypeOrNull())
@@ -577,6 +602,22 @@ object AppStorys {
         }
     }
 
+    fun handleBackPress(onNavigate: () -> Unit) {
+        val backPressEvents = getBackPressTriggerEvents()
+        if (backPressEvents.isNotEmpty()) {
+            backPressCampaignConsumed = true
+            coroutineScope.launch {
+                _trackedEventNames.update { currentSet ->
+                    currentSet + backPressEvents.map {
+                        TrackedEventData(eventName = it, metadata = null)
+                    }.toSet()
+                }
+            }
+        } else {
+            onNavigate()
+        }
+    }
+
     @Composable
     fun overlayElements(
         bottomPadding: Dp = 0.dp,
@@ -588,6 +629,24 @@ object AppStorys {
         pipBottomPadding: Dp = 0.dp,
         csatBottomPadding: Dp = 0.dp,
     ) {
+
+        BackHandler(enabled = true) {
+            val backPressEvents = getBackPressTriggerEvents()
+            if (backPressEvents.isNotEmpty()) {
+                backPressCampaignConsumed = true
+                _trackedEventNames.update { currentSet ->
+                    currentSet + backPressEvents.map {
+                        TrackedEventData(eventName = it, metadata = null)
+                    }.toSet()
+                }
+            } else {
+                // No back-press campaign — forward to system so navigation works normally
+                (activity as? androidx.activity.ComponentActivity)
+                    ?.onBackPressedDispatcher
+                    ?.onBackPressed()
+            }
+        }
+
         OverlayContainer.Content(
             bottomPadding = bottomPadding,
             topPadding = topPadding,

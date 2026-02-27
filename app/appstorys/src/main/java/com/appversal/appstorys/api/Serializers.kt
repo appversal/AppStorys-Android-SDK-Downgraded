@@ -39,10 +39,13 @@ object CampaignDeserializer : KSerializer<Campaign> {
                     is TriggerEvent.ObjectTrigger -> {
                         put("trigger_event", buildJsonObject {
                             put("event", trigger.event)
-                            put("event_config", jsonEncoder.json.encodeToJsonElement(
-                                serializer<List<TriggerEventConfig>>(),
-                                trigger.eventConfig
-                            ))
+                            put("back_press", trigger.backPress)
+                            put(
+                                "event_config", jsonEncoder.json.encodeToJsonElement(
+                                    serializer<List<TriggerEventConfig>>(),
+                                    trigger.eventConfig
+                                )
+                            )
                         })
                     }
                 }
@@ -66,10 +69,14 @@ object CampaignDeserializer : KSerializer<Campaign> {
                     // String trigger event
                     triggerElement.contentOrNull?.let { TriggerEvent.StringTrigger(it) }
                 }
+
                 is JsonObject -> {
                     // Object trigger event with conditions
                     try {
                         val event = triggerElement["event"]?.jsonPrimitive?.contentOrNull
+                        val backPress =
+                            triggerElement["back_press"]?.jsonPrimitive?.content?.toBooleanStrictOrNull()
+                                ?: false
                         val eventConfig = triggerElement["event_config"]?.let { configElement ->
                             jsonDecoder.json.decodeFromJsonElement(
                                 serializer<List<TriggerEventConfig>>(),
@@ -78,15 +85,20 @@ object CampaignDeserializer : KSerializer<Campaign> {
                         }
 
                         if (event != null && eventConfig != null) {
-                            TriggerEvent.ObjectTrigger(event, eventConfig)
+                            TriggerEvent.ObjectTrigger(event, backPress, eventConfig)
                         } else {
                             null
                         }
                     } catch (e: Exception) {
-                        Log.e("CampaignDeserializer", "Error parsing trigger_event object: ${e.message}", e)
+                        Log.e(
+                            "CampaignDeserializer",
+                            "Error parsing trigger_event object: ${e.message}",
+                            e
+                        )
                         null
                     }
                 }
+
                 else -> null
             }
         }
@@ -96,7 +108,10 @@ object CampaignDeserializer : KSerializer<Campaign> {
             try {
                 // Check if details contains a "variants" key
                 if (detailsElement is JsonObject && detailsElement.containsKey("variants")) {
-                    Log.d("CampaignDeserializer", "Campaign $id has variants, storing as VariantCampaignDetails")
+                    Log.d(
+                        "CampaignDeserializer",
+                        "Campaign $id has variants, storing as VariantCampaignDetails"
+                    )
                     jsonDecoder.json.decodeFromJsonElement(
                         serializer<VariantCampaignDetails>(),
                         detailsElement
@@ -241,35 +256,35 @@ object CampaignResponseDeserializer : KSerializer<CampaignResponse> {
     }
 }
 
-    /**
-     * Custom serializer for nullable Int that treats empty strings as null.
-     * Backend sometimes sends empty strings ("") instead of omitting the field or sending null.
-     */
-    object NullableIntSerializer : KSerializer<Int?> {
-        override val descriptor: SerialDescriptor =
-            PrimitiveSerialDescriptor("NullableInt", PrimitiveKind.INT)
+/**
+ * Custom serializer for nullable Int that treats empty strings as null.
+ * Backend sometimes sends empty strings ("") instead of omitting the field or sending null.
+ */
+object NullableIntSerializer : KSerializer<Int?> {
+    override val descriptor: SerialDescriptor =
+        PrimitiveSerialDescriptor("NullableInt", PrimitiveKind.INT)
 
-        override fun deserialize(decoder: Decoder): Int? {
-            val jsonDecoder = decoder as? JsonDecoder ?: return decoder.decodeInt()
-            val element = jsonDecoder.decodeJsonElement()
+    override fun deserialize(decoder: Decoder): Int? {
+        val jsonDecoder = decoder as? JsonDecoder ?: return decoder.decodeInt()
+        val element = jsonDecoder.decodeJsonElement()
 
-            // Handle empty string as null
-            if (element is kotlinx.serialization.json.JsonPrimitive) {
-                val content = element.contentOrNull
-                if (content.isNullOrEmpty()) return null
-                return content.toIntOrNull()
-            }
-
-            return null
+        // Handle empty string as null
+        if (element is kotlinx.serialization.json.JsonPrimitive) {
+            val content = element.contentOrNull
+            if (content.isNullOrEmpty()) return null
+            return content.toIntOrNull()
         }
 
-        @OptIn(ExperimentalSerializationApi::class)
-        override fun serialize(encoder: Encoder, value: Int?) {
-            if (value == null) {
-                encoder.encodeNull()
-            } else {
-                encoder.encodeInt(value)
-            }
+        return null
+    }
+
+    @OptIn(ExperimentalSerializationApi::class)
+    override fun serialize(encoder: Encoder, value: Int?) {
+        if (value == null) {
+            encoder.encodeNull()
+        } else {
+            encoder.encodeInt(value)
         }
     }
+}
 

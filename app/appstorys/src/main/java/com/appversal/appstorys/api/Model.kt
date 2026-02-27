@@ -1633,6 +1633,7 @@ sealed class TriggerEvent {
     @Serializable
     data class ObjectTrigger(
         val event: String,
+        @SerialName("back_press") val backPress: Boolean = false,
         @SerialName("event_config") val eventConfig: List<TriggerEventConfig>
     ) : TriggerEvent()
 }
