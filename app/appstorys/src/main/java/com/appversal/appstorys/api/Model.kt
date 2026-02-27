@@ -1,6 +1,8 @@
 package com.appversal.appstorys.api
 
 import androidx.annotation.Keep
+import com.appversal.appstorys.api.CampaignDeserializer.CampaignResponseDeserializer
+import com.appversal.appstorys.api.CampaignDeserializer.NullableIntSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
@@ -1161,15 +1163,184 @@ data class BottomSheetElement(
 
 @Keep
 @Serializable
+data class SurveySlide(
+    val id: String?,
+    val order: Int?,
+    val parent: String?,  // Add this field - it's in your JSON
+    val title: String?,
+    val subtitle: String?,
+    val question: String?,
+    val options: Map<String, String>?,
+    val image: String?,
+    val submitButtonText: String?,
+    val logic: SurveyLogic?,
+    val additionalComment: AdditionalComment?,
+    val createdAt: String? = null,
+    val updatedAt: String? = null,
+
+    // For backward compatibility with old single-question format
+    val surveyQuestion: String? = null,
+    val surveyOptions: Map<String, String>? = null,
+    val hasOthers: Boolean? = null
+)
+
+@Keep
+@Serializable
+data class SurveyLogic(
+    val redirectTo: String?,
+    val selectOption: String?
+)
+
+@Keep
+@Serializable
+data class AdditionalComment(
+    val enabled: Boolean?,
+    val placeholder: String?
+)
+
+
+@Keep
+@Serializable
 data class SurveyDetails(
     val id: String?,
     val name: String?,
     val styling: SurveyStyling?,
+    // keep old single-question fields for backward compat:
     val surveyQuestion: String?,
     val surveyOptions: Map<String, String>?,
+    val hasOthers: Boolean?,
     val campaign: String?,
-    val hasOthers: Boolean?
+    // NEW — multi-slide fields from backend:
+    val slides: List<SurveySlide>? = null,   // list of questions
+    val totalSlides: Int? = null,             // backend-provided slide count
+    // Thank you page fields:
+    val thankYouTitle: String? = null,
+    val thankYouText: String? = null,
+    val thankYouImage: String? = null,
+    val thankYouButtonText: String? = null,
+    val thankYouButtonConfig: SurveyThankYouButtonConfig? = null
 ) : CampaignDetails()
+
+@Keep
+@Serializable
+data class SurveyThankYouButtonConfig(
+    val action: String? = null,
+    val enabled: Boolean? = null,
+    val redirectUrl: String? = null
+)
+
+@Keep
+@Serializable
+data class SurveyCtaContainer(
+    val alignment: String? = null,
+    val backgroundColor: String? = null,
+    val borderColor: String? = null,
+    val borderWidth: Int? = null,
+    val ctaFullWidth: Boolean? = null,
+    val ctaWidth: Int? = null,
+    val height: Int? = null
+)
+
+@Keep
+@Serializable
+data class SurveyCtaText(
+    val color: String? = null,
+    val fontDecoration: List<String>? = null,
+    val fontFamily: String? = null,
+    val fontSize: Int? = null
+)
+
+@Keep
+@Serializable
+data class SurveyCtaConfig(
+    val container: SurveyCtaContainer? = null,
+    val cornerRadius: CornerRadius? = null,
+    val margin: Margin? = null,
+    val text: SurveyCtaText? = null
+)
+
+@Keep
+@Serializable
+data class SurveyThankyouTextStyle(
+    val color: String? = null,
+    val fontDecoration: List<String>? = null,
+    val fontFamily: String? = null,
+    val fontSize: Int? = null,
+    val margin: Margin? = null,
+    val textAlign: String? = null
+)
+
+@Keep
+@Serializable
+data class SurveyThankyouTextElement(
+    val textStyle: SurveyThankyouTextStyle? = null
+)
+
+@Keep
+@Serializable
+data class SurveyThankyouPage(
+    val cta: SurveyCtaConfig? = null,
+    val subtitle: SurveyThankyouTextElement? = null,
+    val title: SurveyThankyouTextElement? = null
+)
+
+@Keep
+@Serializable
+data class SurveyAppearance(
+    val backdropColor: String? = null,
+    val backgroundColor: String? = null,
+    // New field — controls opacity of the backdrop layer
+    val backdropOpacity: Int? = null,
+    // Legacy field — kept for backward compat until backend fully renames to backdropOpacity
+    val backgroundOpacity: Int? = null,
+    val cornerRadius: CornerRadius? = null,
+    val displayDelay: Int? = null
+)
+
+@Keep
+@Serializable
+data class SurveyOptionColors(
+    val background: String? = null,
+    val border: String? = null,
+    val text: String? = null
+)
+
+@Keep
+@Serializable
+data class SurveyOptionTextStyle(
+    val borderwidth: JsonElement? = null,
+    val fontDecoration: List<String>? = null,
+    val fontFamily: String? = null,
+    val fontSize: Int? = null,
+    val textAlign: String? = null
+)
+
+@Keep
+@Serializable
+data class SurveyOptionStyle(
+    val colors: SurveyOptionColors? = null,
+    val textStyle: SurveyOptionTextStyle? = null
+)
+
+@Keep
+@Serializable
+data class SurveyAdditionalCommentsStyle(
+    val colors: SurveyOptionColors? = null,
+    val textStyle: SurveyOptionTextStyle? = null
+)
+
+@Keep
+@Serializable
+data class SurveyOptionsConfig(
+    val additionalComments: SurveyAdditionalCommentsStyle? = null,
+    val bulletSpacing: String? = null,
+    val nonSelectedOptions: SurveyOptionStyle? = null,
+    val optionListStyle: String? = null,
+    val optionsHeight: Int? = null,
+    val optionsSpacing: String? = null,
+    val selectedOptions: SurveyOptionStyle? = null,
+    val cornerRadius: CornerRadius? = null
+)
 
 @Keep
 @Serializable
@@ -1185,7 +1356,33 @@ data class SurveyStyling(
     val selectedOptionColor: String?,
     val surveyQuestionColor: String?,
     val othersBackgroundColor: String?,
-    val selectedOptionTextColor: String?
+    val selectedOptionTextColor: String?,
+    val crossButton: SurveyCrossButton? = null,
+    val thankyouPage: SurveyThankyouPage? = null,
+    val appearance: SurveyAppearance? = null,
+    val cta: SurveyCtaConfig? = null,
+    val title: SurveyThankyouTextElement? = null,
+    val subtitle: SurveyThankyouTextElement? = null,
+    val options: SurveyOptionsConfig? = null
+)
+
+@Keep
+@Serializable
+data class SurveyCrossButton(
+    val color: BannerColors? = null,
+    val enabled: Boolean? = null,
+    val image: String? = null,
+    val margin: BannerMargin? = null,
+    val selectedStyle: String? = null,
+    val size: Int? = null
+)
+
+@Keep
+@Serializable
+data class SlideResponse(
+    val slideId: String?,
+    val responseOptions: List<String>?,
+    val comment: String? = ""
 )
 
 @Keep
@@ -1193,9 +1390,13 @@ data class SurveyStyling(
 data class SurveyFeedbackPostRequest(
     val user_id: String?,
     val survey: String?,
+    // old single-question fields — keep for backward compat:
     val responseOptions: List<String>? = null,
-    val comment: String? = ""
+    val comment: String? = "",
+    // NEW — multi-slide responses:
+    val slideResponses: List<SlideResponse>? = null
 )
+
 
 @Keep
 @Serializable
@@ -1467,7 +1668,10 @@ data class ScratchCardDetails(
     val width: Int?,
     val soundFile: String?,
     val content: JsonObject? = null,
-    val styling: JsonObject? = null
+    val styling: JsonObject? = null,
+    val button_text: String? = null,
+    val link: String? = null,
+    val coupon_code: String? = null
 ) : CampaignDetails()
 
 @Keep
@@ -1644,4 +1848,340 @@ data class TriggerEventConfig(
     val key: String,
     val operator: String, // "eq", "neq", "gt", "gte", "lt", "lte"
     val value: String
+)
+// Spin the Wheel Models
+@Keep
+@Serializable
+data class SpinTheWheelDetails(
+    val id: String? = null,
+    // Direct fields from backend
+    val popupTitle: String? = null,
+    val popupDescription: String? = null,
+    val spinButtonText: String? = null,
+    val availableSpins: Int? = null,
+    val enableBackdrop: Boolean? = null,
+    val rewardDisplayMode: String? = null, // "pop-up" or other modes
+    val slices: List<WheelSlice>? = null,
+    val content: SpinWheelContent? = null,
+    val styling: SpinWheelStyling? = null,
+    val link: String? = null, // Redirect link for CTA button
+    val button_text: String? = null // Alternative button text field
+) : CampaignDetails()
+
+@Keep
+@Serializable
+data class SpinWheelContent(
+    val availableSpinsText: String? = null,
+    val rewardConfiguration: SpinWheelRewardConfig? = null,
+    val userInteraction: SpinWheelUserInteraction? = null,
+    val wheelConfiguration: SpinWheelWheelConfig? = null
+)
+
+@Keep
+@Serializable
+data class SpinWheelRewardConfig(
+    val rewardEnableBackdrop: Boolean? = null,
+    val rewardPopupDescription: String? = null,
+    val rewardPopupTitle: String? = null
+)
+
+@Keep
+@Serializable
+data class SpinWheelUserInteraction(
+    val hapticFeedback: Boolean? = null,
+    val numberSpin: Int? = null
+)
+
+@Keep
+@Serializable
+data class SpinWheelWheelConfig(
+    val spinDirection: String? = null, // "clockwise" or "anti-clockwise"
+    val totalSliceCount: Int? = null
+)
+
+@Keep
+@Serializable
+data class WheelSlice(
+    val id: String? = null,
+    val parent: String? = null,
+    val coupon: String? = null,
+    val noPrize: Boolean? = null,
+    val prizeLabel: String? = null,
+    @SerialName("subText") val subText: String? = null, // Optional supporting text shown below the prize name
+    val sliceMedia: String? = null,
+    val weight: Int? = null,
+    val styling: WheelSliceStyling? = null,
+    val link: String? = null, // Redirect link for this specific prize (Button Redirect To)
+    @SerialName("buttonCtaText") val buttonCtaText: String? = null, // Custom text for primary CTA button
+    @SerialName("tncCtaText") val tncCtaText: String? = null, // Custom text for Terms & Conditions link
+    @SerialName("termsAndConditions") val termsAndConditions: String? = null, // Content displayed when user clicks "Know More to Claim"
+    val rewards: List<SliceReward>? = null // Array of reward configurations for this slice
+)
+
+// Slice Reward Configuration (per-slice reward display settings)
+
+@Keep
+@Serializable
+data class SliceReward(
+    val id: String? = null,
+    val sliceId: String? = null,
+    val prizeName: String? = null,
+    val couponCode: String? = null,
+    val subText: String? = null,
+    val buttonCta: String? = null,
+    @SerialName("tNcCta") val tNcCta: String? = null,
+    @SerialName("termsNConditions") val termsNConditions: String? = null,
+    val link: String? = null,
+    val sliceRewardMedia: String? = null,
+    val styling: SliceRewardStyling? = null
+)
+
+@Keep
+@Serializable
+data class SliceRewardStyling(
+    val couponCodeCta: SliceRewardCtaStyling? = null,
+    val cta: SliceRewardCtaStyling? = null,
+    val priceLabel: SliceRewardTextConfig? = null,
+    val subtitleText: SliceRewardTextConfig? = null
+)
+
+@Keep
+@Serializable
+data class SliceRewardCtaStyling(
+    val container: SliceRewardCtaContainer? = null,
+    val cornerRadius: CornerRadius? = null,
+    val margin: WheelMargin? = null,
+    val text: SliceRewardCtaText? = null
+)
+
+@Keep
+@Serializable
+data class SliceRewardCtaContainer(
+    val alignment: String? = null,
+    val backgroundColor: String? = null,
+    val borderColor: String? = null,
+    val borderWidth: Int? = null,
+    val ctaFullWidth: Boolean? = null,
+    val ctaWidth: Int? = null,
+    val height: Int? = null
+)
+
+@Keep
+@Serializable
+data class SliceRewardCtaText(
+    val color: String? = null,
+    val fontDecoration: List<String>? = null,
+    val fontFamily: String? = null,
+    @Serializable(with = NullableIntSerializer::class)
+    val fontSize: Int? = null
+)
+
+@Keep
+@Serializable
+data class SliceRewardTextConfig(
+    val textStyle: SliceRewardTextStyle? = null
+)
+
+@Keep
+@Serializable
+data class SliceRewardTextStyle(
+    val color: String? = null,
+    val fontDecoration: List<String>? = null,
+    val fontFamily: String? = null,
+    @Serializable(with = NullableIntSerializer::class)
+    val fontSize: Int? = null,
+    val margin: WheelMargin? = null,
+    val textAlign: String? = null
+)
+
+// Styling Models (from Dashboard Styling Tab)
+
+@Keep
+@Serializable
+data class SpinWheelStyling(
+    val spinTheWheel: SpinTheWheelMainStyling? = null,
+    val rewardConfiguration: WheelRewardStyling? = null
+)
+
+@Keep
+@Serializable
+data class SpinTheWheelMainStyling(
+    val crossButton: WheelCrossButtonConfig? = null,
+    val visualTextCommunication: WheelVisualTextStyling? = null,
+    val wheelConfiguration: WheelConfigurationStyling? = null
+)
+
+@Keep
+@Serializable
+data class WheelVisualTextStyling(
+    val title: WheelTextStyleConfig? = null,
+    val subtitle: WheelTextStyleConfig? = null,
+    val availableSpinText: WheelAvailableSpinTextStyle? = null,
+    val spinButton: WheelSpinButtonStyle? = null,
+    val backdropColor: String? = null,
+    val backdropOpacity: Int? = null
+)
+
+@Keep
+@Serializable
+data class WheelAvailableSpinTextStyle(
+    val textStyle: WheelTextStyleDetails? = null
+)
+
+@Keep
+@Serializable
+data class WheelSpinButtonStyle(
+    val container: WheelButtonContainerStyle? = null,
+    val text: WheelButtonTextStyle? = null,
+    val margin: WheelMargin? = null
+)
+
+@Keep
+@Serializable
+data class WheelButtonContainerStyle(
+    val alignment: String? = null,
+    val backgroundColor: String? = null,
+    val borderColor: String? = null,
+    val borderWidth: Int? = null,
+    val cornerRadius: CornerRadius? = null,
+    val fullWidth: Boolean? = null,
+    val height: Int? = null,
+    val width: Int? = null
+)
+
+@Keep
+@Serializable
+data class WheelButtonTextStyle(
+    val color: String? = null,
+    val fontFamily: String? = null,
+    val fontSize: Int? = null,
+    val fontWeight: String? = null,
+    val fontStyle: String? = null,
+    val fontDecoration: List<String>? = null
+)
+
+@Keep
+@Serializable
+data class WheelConfigurationStyling(
+    val backgroundColor: String? = null,
+    val borderColor: String? = null,
+    val borderWidth: Int? = null,
+    val backgroundImage: String? = null,
+    val backgroundImageOpacity: Float? = null,
+    val size: Int? = null  // Wheel diameter in dp — defaults to 300 if not set
+)
+
+@Keep
+@Serializable
+data class WheelRewardStyling(
+    val backdropColor: String? = null,
+    val cardBackgroundColor: String? = null,
+    val confetti: WheelConfettiConfig? = null,
+    val crossButton: WheelCrossButtonConfig? = null,
+    val title: WheelTextStyleConfig? = null,
+    val subtitle: WheelTextStyleConfig? = null
+)
+
+@Keep
+@Serializable
+data class WheelConfettiConfig(
+    val selectedStyle: String? = null,
+    val color: WheelButtonColors? = null,
+    val image: String? = null,
+    val margin: WheelMargin? = null,
+    val padding: WheelMargin? = null
+)
+
+@Keep
+@Serializable
+data class WheelCrossButtonConfig(
+    val enabled: Boolean? = null,
+    val selectedStyle: String? = null,
+    val size: Int? = null,
+    val color: WheelButtonColors? = null,
+    val image: String? = null,
+    val margin: WheelMargin? = null,
+    val alignment: String? = null
+)
+
+@Keep
+@Serializable
+data class WheelButtonColors(
+    val cross: String? = null,
+    val fill: String? = null,
+    val stroke: String? = null
+)
+
+@Keep
+@Serializable
+data class WheelMargin(
+    val top: Int? = null,
+    val bottom: Int? = null,
+    val left: Int? = null,
+    val right: Int? = null
+)
+
+@Keep
+@Serializable
+data class WheelTextStyleConfig(
+    val textStyle: WheelTextStyleDetails? = null
+)
+
+@Keep
+@Serializable
+data class WheelTextStyleDetails(
+    val color: String? = null,
+    val fontFamily: String? = null,
+    val fontSize: Int? = null,
+    val fontWeight: String? = null,
+    val fontStyle: String? = null,
+    val fontDecoration: List<String>? = null,
+    val textAlign: String? = null,
+    val margin: WheelMargin? = null
+)
+
+@Keep
+@Serializable
+data class WheelSliceStyling(
+    val wheelStyling: WheelSliceWheelStyling? = null
+)
+
+@Keep
+@Serializable
+data class WheelSliceWheelStyling(
+    val color: WheelSliceColors? = null,
+    val cornerRadius: CornerRadius? = null,
+    val strokeWidth: Int? = null,
+    val margin: WheelMargin? = null,
+    val image: WheelSliceImageStyling? = null,
+    val priceLabel: WheelSlicePriceLabelStyling? = null
+)
+
+@Keep
+@Serializable
+data class WheelSliceColors(
+    val background: String? = null,
+    val stroke: String? = null
+)
+
+@Keep
+@Serializable
+data class WheelSliceImageStyling(
+    val cornerRadius: CornerRadius? = null,
+    val rotation: Int? = null
+)
+
+@Keep
+@Serializable
+data class WheelSlicePriceLabelStyling(
+    val margin: WheelMargin? = null,
+    val textStyle: WheelSliceTextStyle? = null
+)
+
+@Keep
+@Serializable
+data class WheelSliceTextStyle(
+    val font: String? = null,
+    val fontSize: Int? = null,
+    val color: String? = null
 )

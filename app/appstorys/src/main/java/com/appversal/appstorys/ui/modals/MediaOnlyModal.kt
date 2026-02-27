@@ -14,7 +14,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -89,17 +88,21 @@ fun MediaOnlyModal(
     // Resolve media URL using unified utility (see ModalMediaUtils.kt)
     val resolvedMediaUrl = modal.resolveMediaUrl() ?: modal.url
 
-    // Check if media is loaded before showing the modal
+    // Check if media is loaded before showing the modal - now includes dimensions
     val mediaLoadState = rememberMediaLoadState(resolvedMediaUrl)
     val isMediaLoaded = mediaLoadState is MediaLoadState.Success
 
-    // Track if media has actually been rendered (not just loaded)
-    // This prevents the cross button "jump" glitch
-    var isMediaRendered by remember { mutableStateOf(false) }
+    // Gate rendering - Don't compose Dialog at all until media is preloaded
+    // Since rememberMediaLoadState actually downloads/caches the media,
+    // rendering should be instant once this returns Success
+    if (!isMediaLoaded) {
+        return
+    }
 
-    // Use alpha to control visibility - prevents animation glitches
-    val contentAlpha = if (isMediaLoaded) 1f else 0f
+    // Get pre-loaded aspect ratio to set container size BEFORE media renders
+    val preloadedAspectRatio = mediaLoadState.getAspectRatio()
 
+    // Show the Dialog - media is preloaded so should appear instantly
     Dialog(
         onDismissRequest = onCloseClick,
         properties = DialogProperties(
@@ -108,67 +111,78 @@ fun MediaOnlyModal(
             usePlatformDefaultWidth = false
         )
     ) {
-        // Always render the structure, but control visibility with alpha
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                //.graphicsLayer { alpha = contentAlpha }
                 .background(backdropColor.copy(alpha = backdropAlpha))
                 .clickable(
                     indication = null,
-                    interactionSource = remember { MutableInteractionSource() },
-                    enabled = isMediaLoaded)
-                { onCloseClick() },
+                    interactionSource = remember { MutableInteractionSource() }
+                ) { onCloseClick() },
             contentAlignment = Alignment.Center
         ) {
+            // Use pre-loaded aspect ratio to size the container correctly
+            val containerModifier = if (preloadedAspectRatio != null) {
+                Modifier
+                    .width(modalWidth)
+                    .aspectRatio(preloadedAspectRatio)
+                    //.clip(cornerShape)
+                    .background(backgroundColor)
+            } else {
+                Modifier
+                    .width(modalWidth)
+                    .wrapContentHeight()
+                    //.clip(cornerShape)
+                    .background(backgroundColor)
+            }
+
+            Box(
+                modifier = containerModifier
+                    .clickable(
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() }
+                    ) {
+                        val redirectUrl = modal.redirection?.url ?: modal.link
+                        if (!redirectUrl.isNullOrBlank()) {
+                            onPrimaryCta?.invoke(redirectUrl)
+                        }
+                    }
+            ) {
+                val mediaModifier = if (preloadedAspectRatio != null) {
+                    Modifier.fillMaxSize()
+                } else {
+                    Modifier
+                        .width(modalWidth)
+                        .wrapContentHeight()
+                }
+
                 Box(
                     modifier = Modifier
-                        .width(modalWidth)
-                        .wrapContentHeight()
-                        .background(backgroundColor)
-                        .clickable(
-                            indication = null,
-                            interactionSource = remember { MutableInteractionSource() },
-                            enabled = isMediaLoaded
-                        ) {
-                            val redirectUrl = modal.redirection?.url ?: modal.link
-                            if (!redirectUrl.isNullOrBlank()) {
-                                onPrimaryCta?.invoke(redirectUrl)
-                            }
-                        }
+                        .matchParentSize()
+                        .clip(cornerShape)   // 👈 clip ONLY media
                 ) {
-                    val mediaType = determineMediaType(resolvedMediaUrl)
-
-                    // For videos, use wrapContentHeight to respect natural aspect ratio
-                    val mediaModifier = Modifier
-                        .width(modalWidth)
-                        .wrapContentHeight()
-                        .clip(cornerShape)
-
                     ModalMediaRendererWithCallback(
                         mediaUrl = resolvedMediaUrl,
-                        modifier = mediaModifier,
+                        modifier = Modifier.fillMaxSize(),
                         contentDescription = "Media Only Modal",
                         contentScale = ContentScale.FillWidth,
                         muted = false,
-                        cornerShape = cornerShape,
-                        onMediaRendered = { isMediaRendered = true }
+                        cornerShape = null,
+                        preloadedAspectRatio = preloadedAspectRatio,
+                        onMediaRendered = {}
                     )
-
-                    // Only show cross button after media has actually rendered
-                    // This prevents the "jump" glitch where button appears before media
-                    if (crossEnabled && isMediaRendered) {
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                            //.statusBarsPadding()
-                            //.padding(16.dp)
-                        ) {
-                            CrossButton(config = crossConfig, onClose = onCloseClick)
-                        }
-                    }
                 }
 
+
+                // Cross button
+                if (crossEnabled) {
+                    Box(
+                        modifier = Modifier.align(Alignment.TopEnd)
+                    ) {
+                        CrossButton(config = crossConfig, onClose = onCloseClick)
+                    }
+                }
+            }
         }
     }
 }

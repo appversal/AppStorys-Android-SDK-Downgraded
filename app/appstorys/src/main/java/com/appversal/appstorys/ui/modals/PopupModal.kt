@@ -124,13 +124,17 @@ private fun ModalWithCTA(
     val mediaLoadState = rememberMediaLoadState(mediaUrl)
     val isMediaLoaded = mediaLoadState is MediaLoadState.Success || mediaUrl.isNullOrEmpty()
 
-    // Track if media has actually been rendered (not just loaded)
-    // This prevents the cross button "jump" glitch
-    var isMediaRendered by remember { mutableStateOf(mediaUrl.isNullOrEmpty()) }
+    // Gate rendering - Don't compose Dialog at all until media is preloaded
+    // Since rememberMediaLoadState actually downloads/caches the media,
+    // rendering should be instant once this returns Success
+    if (!isMediaLoaded) {
+        return
+    }
 
-    // Use alpha to control visibility - prevents animation glitches
-    val contentAlpha = if (isMediaLoaded) 1f else 0f
+    // Get pre-loaded aspect ratio to set container size BEFORE media renders
+    val preloadedAspectRatio = mediaLoadState.getAspectRatio()
 
+    // Show the Dialog - media is preloaded so should appear instantly
     Dialog(
         onDismissRequest = onCloseClick,
         properties = DialogProperties(
@@ -139,24 +143,19 @@ private fun ModalWithCTA(
             usePlatformDefaultWidth = false
         )
     ) {
-        // Always render the structure, but control visibility with alpha
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                //.graphicsLayer { alpha = contentAlpha }
                 .background(backdropColor.copy(alpha = backdropAlpha))
                 .clickable(
                     indication = null,
-                    interactionSource = remember { MutableInteractionSource() },
-                    enabled = isMediaLoaded
+                    interactionSource = remember { MutableInteractionSource() }
                 ) { onCloseClick() },
             contentAlignment = Alignment.Center
         ) {
             // Wrapper Box to position cross button outside the modal
             Box(
-                modifier = Modifier
-                    .wrapContentSize()
-
+                modifier = Modifier.wrapContentSize()
             ) {
                 // Modal container - clip first, then background (order matters!)
                 Box(
@@ -174,14 +173,11 @@ private fun ModalWithCTA(
                     ) {
                         // Media section
                         if (!mediaUrl.isNullOrEmpty()) {
-                            val mediaType = determineMediaType(mediaUrl)
-
-                            // For videos, use wrapContentHeight to respect natural aspect ratio
-                            // For images/gifs/lottie, use fillWidth with aspect fit
-                            val mediaModifier = if (mediaType == "video") {
+                            // Use pre-loaded aspect ratio to size media container correctly
+                            val mediaContainerModifier = if (preloadedAspectRatio != null) {
                                 Modifier
                                     .fillMaxWidth()
-                                    .wrapContentHeight()
+                                    .aspectRatio(preloadedAspectRatio)
                             } else {
                                 Modifier
                                     .fillMaxWidth()
@@ -189,18 +185,25 @@ private fun ModalWithCTA(
                             }
 
                             Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .wrapContentHeight()
+                                modifier = mediaContainerModifier
                                     .noRippleClickable(onClick = {})
                             ) {
+                                val mediaModifier = if (preloadedAspectRatio != null) {
+                                    Modifier.fillMaxSize()
+                                } else {
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .wrapContentHeight()
+                                }
+
                                 ModalMediaRendererWithCallback(
                                     mediaUrl = mediaUrl,
                                     modifier = mediaModifier,
                                     contentDescription = "Modal Media",
                                     contentScale = ContentScale.FillWidth,
                                     muted = false,
-                                    onMediaRendered = { isMediaRendered = true }
+                                    preloadedAspectRatio = preloadedAspectRatio,
+                                    onMediaRendered = { } // No-op, media is already preloaded
                                 )
                             }
                         }
@@ -224,12 +227,10 @@ private fun ModalWithCTA(
                     }
                 }
 
-                // Cross button overlay - positioned outside the modal at top-right
-                if (crossEnabled && isMediaRendered) {
+                // Cross button
+                if (crossEnabled) {
                     Box(
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            //.offset(x = 12.dp, y = (-12).dp)
+                        modifier = Modifier.align(Alignment.TopEnd)
                     ) {
                         CrossButton(config = crossConfig, onClose = onCloseClick)
                     }

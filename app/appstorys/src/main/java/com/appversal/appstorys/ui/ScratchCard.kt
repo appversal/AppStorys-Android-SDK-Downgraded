@@ -17,8 +17,10 @@ import androidx.compose.animation.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.snapping.SnapPosition
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -40,6 +42,7 @@ import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -59,6 +62,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.math.min
@@ -68,10 +72,14 @@ import com.airbnb.lottie.compose.LottieAnimation
 import com.airbnb.lottie.compose.LottieCompositionSpec
 import com.airbnb.lottie.compose.LottieConstants
 import com.airbnb.lottie.compose.rememberLottieComposition
+import com.appversal.appstorys.api.CommonMargins
 import com.appversal.appstorys.api.TextStyling
 import com.appversal.appstorys.ui.common_components.CommonText
+import com.appversal.appstorys.ui.common_components.CrossButton
+import com.appversal.appstorys.ui.common_components.CrossButtonConfig
 import com.appversal.appstorys.ui.xml.toDp
 import com.appversal.appstorys.utils.isLottieUrl
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.booleanOrNull
 
 @RequiresApi(Build.VERSION_CODES.M)
@@ -79,22 +87,26 @@ import kotlinx.serialization.json.booleanOrNull
 @Composable
 fun CardScratch(
     isPresented: Boolean,
+    crossButtonConfig: CrossButtonConfig = CrossButtonConfig(),
+    crossButtonAlignment: String = "center",
+    crossButtonMarginBottom: Dp = 0.dp,
     onDismiss: () -> Unit,
     onConfettiTrigger: () -> Unit,
     wasFullyScratched: Boolean,
     onWasFullyScratched: (Boolean) -> Unit,
     scratchCardDetails: com.appversal.appstorys.api.ScratchCardDetails,
-    onCtaClick: () -> Unit = {}
+    onCtaClick: () -> Unit = {},
 ) {
     val details = scratchCardDetails.content
 
     // -------- card_size --------
     val cardSizeData = details
         ?.get("card_size")
+        ?.takeIf { it !is JsonNull }
         ?.jsonObject
 
     val cardHeight = cardSizeData
-        ?.get("width")
+        ?.get("height")
         ?.jsonPrimitive
         ?.intOrNull
 
@@ -104,6 +116,7 @@ fun CardScratch(
     // -------- interactions --------
     val interactions = details
         ?.get("interactions")
+        ?.takeIf { it !is JsonNull }
         ?.jsonObject
 
     val haptics = interactions
@@ -111,150 +124,327 @@ fun CardScratch(
         ?.jsonPrimitive
         ?.booleanOrNull
 
+    // Alternative haptic fields
+    val hapticFeedbackEnabled = details
+        ?.get("haptic_feedback_enabled")
+        ?.jsonPrimitive
+        ?.booleanOrNull
+
+    val hapticStyle = details
+        ?.get("haptic_style")
+        ?.jsonPrimitive
+        ?.contentOrNull ?: ""
+
+    // Use haptic_feedback_enabled if available, otherwise fall back to interactions.haptics
+    val hapticsEnabled = hapticFeedbackEnabled ?: haptics ?: false
+
     // -------- reward_content --------
     val rewardContent = details
         ?.get("reward_content")
+        ?.takeIf { it !is JsonNull }
         ?.jsonObject
 
     // bannerImage at root level
     val bannerImage = scratchCardDetails.bannerImage ?: ""
 
-    val offerTitle = rewardContent
-        ?.get("offer_title")
+    // NEW: offerTitle is now an object with text and textStyle
+    val offerTitleObj = rewardContent
+        ?.get("offerTitle")
+        ?.takeIf { it !is JsonNull }
+        ?.jsonObject
+    val offerTitle = offerTitleObj
+        ?.get("text")
         ?.jsonPrimitive
         ?.contentOrNull ?: ""
-
-    val titleFontSize = rewardContent
-        ?.get("titleFontSize")
+    val offerTitleTextStyle = offerTitleObj
+        ?.get("textStyle")
+        ?.takeIf { it !is JsonNull }
+        ?.jsonObject
+    val titleFontSize = offerTitleTextStyle
+        ?.get("fontSize")
         ?.jsonPrimitive
         ?.intOrNull ?: 18
-
-    val offerSubtitle = rewardContent
-        ?.get("offer_subtitle")
+    val offerTitleColor = offerTitleTextStyle
+        ?.get("color")
+        ?.jsonPrimitive
+        ?.contentOrNull ?: "#000000"
+    val offerTitleFontFamily = offerTitleTextStyle
+        ?.get("fontFamily")
         ?.jsonPrimitive
         ?.contentOrNull ?: ""
-
-    val subtitleFontSize = rewardContent
-        ?.get("subtitleFontSize")
+    val offerTitleFontDecoration = try {
+        offerTitleTextStyle?.get("fontDecoration")?.jsonArray?.map {
+            it.jsonPrimitive.content
+        } ?: listOf()
+    } catch (e: Exception) {
+        listOf()
+    }
+    val offerTitleTextAlign = offerTitleTextStyle
+        ?.get("textAlign")
         ?.jsonPrimitive
-        ?.intOrNull ?: 16
+        ?.contentOrNull ?: "center"
+    val offerTitleMargin = offerTitleTextStyle
+        ?.get("margin")
+        ?.takeIf { it !is JsonNull }
+        ?.jsonObject
+    val offerTitleMarginTop = offerTitleMargin?.get("top")?.jsonPrimitive?.intOrNull?.dp ?: 0.dp
+    val offerTitleMarginBottom =
+        offerTitleMargin?.get("bottom")?.jsonPrimitive?.intOrNull?.dp ?: 0.dp
+    val offerTitleMarginLeft = offerTitleMargin?.get("left")?.jsonPrimitive?.intOrNull?.dp ?: 0.dp
+    val offerTitleMarginRight = offerTitleMargin?.get("right")?.jsonPrimitive?.intOrNull?.dp ?: 0.dp
 
+    // NEW: offerSubtitle is now an object with text and textStyle
+    val offerSubtitleObj = rewardContent
+        ?.get("offerSubtitle")
+        ?.takeIf { it !is JsonNull }
+        ?.jsonObject
+    val offerSubtitle = offerSubtitleObj
+        ?.get("text")
+        ?.jsonPrimitive
+        ?.contentOrNull ?: ""
+    val offerSubtitleTextStyle = offerSubtitleObj
+        ?.get("textStyle")
+        ?.takeIf { it !is JsonNull }
+        ?.jsonObject
+    val subtitleFontSize = offerSubtitleTextStyle
+        ?.get("fontSize")
+        ?.jsonPrimitive
+        ?.intOrNull ?: 14
+    val offerSubtitleColor = offerSubtitleTextStyle
+        ?.get("color")
+        ?.jsonPrimitive
+        ?.contentOrNull ?: "#000000"
+    val offerSubtitleFontFamily = offerSubtitleTextStyle
+        ?.get("fontFamily")
+        ?.jsonPrimitive
+        ?.contentOrNull ?: ""
+    val offerSubtitleFontDecoration = try {
+        offerSubtitleTextStyle?.get("fontDecoration")?.jsonArray?.map {
+            it.jsonPrimitive.content
+        } ?: listOf()
+    } catch (e: Exception) {
+        listOf()
+    }
+    val offerSubtitleTextAlign = offerSubtitleTextStyle
+        ?.get("textAlign")
+        ?.jsonPrimitive
+        ?.contentOrNull ?: "center"
+    val offerSubtitleMargin = offerSubtitleTextStyle
+        ?.get("margin")
+        ?.takeIf { it !is JsonNull }
+        ?.jsonObject
+    val offerSubtitleMarginTop =
+        offerSubtitleMargin?.get("top")?.jsonPrimitive?.intOrNull?.dp ?: 0.dp
+    val offerSubtitleMarginBottom =
+        offerSubtitleMargin?.get("bottom")?.jsonPrimitive?.intOrNull?.dp ?: 0.dp
+    val offerSubtitleMarginLeft =
+        offerSubtitleMargin?.get("left")?.jsonPrimitive?.intOrNull?.dp ?: 0.dp
+    val offerSubtitleMarginRight =
+        offerSubtitleMargin?.get("right")?.jsonPrimitive?.intOrNull?.dp ?: 0.dp
+
+    // NEW: onlyImage is now a boolean directly
     val onlyImage = rewardContent
         ?.get("onlyImage")
         ?.jsonPrimitive
-        ?.contentOrNull
-        ?.toBoolean() ?: false
+        ?.booleanOrNull ?: false
 
     val rewardBgColor = rewardContent
         ?.get("background_color")
         ?.jsonPrimitive
-        ?.contentOrNull ?: "#141414"
+        ?.contentOrNull
+        ?.ifEmpty { "#FFFFFF" } ?: "#FFFFFF"
 
-    val offerTitleColor = rewardContent
-        ?.get("offerTitleTextColor")
-        ?.jsonPrimitive
-        ?.contentOrNull ?: "#FFFFFF"
+    // -------- coupon_code (now at root level of details) --------
+    val couponCode = scratchCardDetails.coupon_code ?: ""
 
-    val offerSubtitleColor = rewardContent
-        ?.get("offerSubtitleTextColor")
-        ?.jsonPrimitive
-        ?.contentOrNull ?: "#B3B3B3"
-
-    // -------- coupon --------
-    val coupon = details
-        ?.get("coupon")
+    // -------- couponCodeCta (replaces old coupon object, now inside reward_content) --------
+    val couponCodeCta = rewardContent
+        ?.get("couponCodeCta")
+        ?.takeIf { it !is JsonNull }
+        ?.jsonObject
+    val couponContainer = couponCodeCta
+        ?.get("container")
+        ?.takeIf { it !is JsonNull }
+        ?.jsonObject
+    val couponTextObj = couponCodeCta
+        ?.get("text")
+        ?.takeIf { it !is JsonNull }
+        ?.jsonObject
+    val couponCornerRadiusObj = couponCodeCta
+        ?.get("cornerRadius")
+        ?.takeIf { it !is JsonNull }
+        ?.jsonObject
+    val couponMarginObj = couponCodeCta
+        ?.get("margin")
+        ?.takeIf { it !is JsonNull }
         ?.jsonObject
 
-    val couponCode = coupon
-        ?.get("code")
+    val couponBgColor = couponContainer
+        ?.get("backgroundColor")
+        ?.jsonPrimitive
+        ?.contentOrNull ?: "#30d158"
+
+    val couponBorderColor = couponContainer
+        ?.get("borderColor")
+        ?.jsonPrimitive
+        ?.contentOrNull ?: "#fa6837"
+
+    val couponBorderWidth = couponContainer
+        ?.get("borderWidth")
+        ?.jsonPrimitive
+        ?.intOrNull ?: 1
+
+    val couponAlignment = couponContainer
+        ?.get("alignment")
+        ?.jsonPrimitive
+        ?.contentOrNull ?: "center"
+
+    val couponCtaFullWidth = couponContainer
+        ?.get("ctaFullWidth")
+        ?.jsonPrimitive
+        ?.booleanOrNull ?: false
+
+    val couponCtaWidth = couponContainer
+        ?.get("ctaWidth")
+        ?.jsonPrimitive
+        ?.intOrNull
+        ?.dp ?: Dp.Unspecified
+
+    val couponHeight = couponContainer
+        ?.get("height")
+        ?.jsonPrimitive
+        ?.intOrNull
+        ?.dp ?: Dp.Unspecified
+
+    val couponTextColor = couponTextObj
+        ?.get("color")
+        ?.jsonPrimitive
+        ?.contentOrNull ?: "#008932"
+
+    val couponFontSize = couponTextObj
+        ?.get("fontSize")
+        ?.jsonPrimitive
+        ?.intOrNull ?: 14
+
+    val couponFontFamily = couponTextObj
+        ?.get("fontFamily")
         ?.jsonPrimitive
         ?.contentOrNull ?: ""
 
-    val couponBgColor = coupon
-        ?.get("background_color")
-        ?.jsonPrimitive
-        ?.contentOrNull ?: "#1F1F1F"
+    val couponFontDecoration = try {
+        couponTextObj?.get("fontDecoration")?.jsonArray?.map {
+            it.jsonPrimitive.content
+        } ?: listOf()
+    } catch (e: Exception) {
+        listOf()
+    }
 
-    val couponBorderColor = coupon
-        ?.get("border_color")
-        ?.jsonPrimitive
-        ?.contentOrNull ?: "#0066FF"
+    val couponTopLeft = couponCornerRadiusObj?.get("topLeft")?.jsonPrimitive?.intOrNull?.dp ?: 8.dp
+    val couponTopRight =
+        couponCornerRadiusObj?.get("topRight")?.jsonPrimitive?.intOrNull?.dp ?: 8.dp
+    val couponBottomLeft =
+        couponCornerRadiusObj?.get("bottomLeft")?.jsonPrimitive?.intOrNull?.dp ?: 8.dp
+    val couponBottomRight =
+        couponCornerRadiusObj?.get("bottomRight")?.jsonPrimitive?.intOrNull?.dp ?: 8.dp
 
-    val couponTextColor = coupon
-        ?.get("codeTextColor")
+    val couponMarginTop = couponMarginObj?.get("top")?.jsonPrimitive?.intOrNull?.dp ?: 0.dp
+    val couponMarginBottom = couponMarginObj?.get("bottom")?.jsonPrimitive?.intOrNull?.dp ?: 0.dp
+    val couponMarginLeft = couponMarginObj?.get("left")?.jsonPrimitive?.intOrNull?.dp ?: 0.dp
+    val couponMarginRight = couponMarginObj?.get("right")?.jsonPrimitive?.intOrNull?.dp ?: 0.dp
+
+    // -------- custom_sound_enabled --------
+    val customSoundEnabled = details
+        ?.get("custom_sound_enabled")
         ?.jsonPrimitive
-        ?.contentOrNull ?: "#FFFFFF"
+        ?.booleanOrNull ?: true
 
     // -------- cta --------
     val cta = details
         ?.get("cta")
+        ?.takeIf { it !is JsonNull }
         ?.jsonObject
 
-    val ctaHeight = cta
+    val container = cta?.get("container")?.takeIf { it !is JsonNull }?.jsonObject
+    val textObj = cta?.get("text")?.takeIf { it !is JsonNull }?.jsonObject
+    val cornerRadiusObj = cta?.get("cornerRadius")?.takeIf { it !is JsonNull }?.jsonObject
+    val marginObj = cta?.get("margin")?.takeIf { it !is JsonNull }?.jsonObject
+
+    val ctaHeight = container
         ?.get("height")
         ?.jsonPrimitive
         ?.intOrNull
         ?.dp ?: 48.dp
 
-    val ctaBorderRadius = cta
-        ?.get("border_radius")
-        ?.jsonPrimitive
-        ?.intOrNull
-        ?.dp ?: 12.dp
-
-    val ctaText = cta
-        ?.get("button_text")
-        ?.jsonPrimitive
-        ?.contentOrNull ?: "Claim offer now"
-
-    val ctaFontSize = cta
-        ?.get("ctaFontSize")
-        ?.jsonPrimitive
-        ?.intOrNull ?: 16
-
-    val ctaColor = cta
-        ?.get("button_color")
+    val ctaColor = container
+        ?.get("backgroundColor")
         ?.jsonPrimitive
         ?.contentOrNull ?: "#0066FF"
 
-    val ctaTextColor = cta
-        ?.get("cta_text_color")
+    val ctaBorderColor = container
+        ?.get("borderColor")
         ?.jsonPrimitive
-        ?.contentOrNull ?: "#383838"
+        ?.contentOrNull ?: ""
 
-    val ctaFullWidth = cta
-        ?.get("enable_full_width")
+    val ctaBorderWidth = container
+        ?.get("borderWidth")
         ?.jsonPrimitive
-        ?.contentOrNull
-        ?.toBoolean() ?: false
+        ?.intOrNull ?: 0
 
-    val ctaPadding = cta
-        ?.get("padding")
-        ?.jsonObject
-
-    val ctaPaddingTop = ctaPadding
-        ?.get("top")
+    val ctaAlignment = container
+        ?.get("alignment")
         ?.jsonPrimitive
-        ?.intOrNull
-        ?.dp ?: 12.dp
+        ?.contentOrNull ?: "center"
 
-    val ctaPaddingBottom = ctaPadding
-        ?.get("bottom")
+    val ctaFullWidth = container
+        ?.get("ctaFullWidth")
         ?.jsonPrimitive
-        ?.intOrNull
-        ?.dp ?: 12.dp
+        ?.booleanOrNull ?: false
 
-    val ctaPaddingLeft = ctaPadding
-        ?.get("left")
+    val ctaWidth = container
+        ?.get("ctaWidth")
         ?.jsonPrimitive
         ?.intOrNull
-        ?.dp ?: 20.dp
+        ?.dp ?: Dp.Unspecified
 
-    val ctaPaddingRight = ctaPadding
-        ?.get("right")
+
+    val ctaText = scratchCardDetails.button_text ?: "Claim offer"
+
+
+    val ctaTextColor = textObj
+        ?.get("color")
         ?.jsonPrimitive
-        ?.intOrNull
-        ?.dp ?: 20.dp
+        ?.contentOrNull ?: "#FFFFFF"
+
+    val ctaFontSize = textObj
+        ?.get("fontSize")
+        ?.jsonPrimitive
+        ?.intOrNull ?: 16
+
+    val ctaFontFamily = textObj
+        ?.get("fontFamily")
+        ?.jsonPrimitive
+        ?.contentOrNull ?: ""
+
+    val ctaFontDecoration = try {
+        textObj?.get("fontDecoration")?.jsonArray?.map {
+            it.jsonPrimitive.content
+        } ?: listOf()
+    } catch (e: Exception) {
+        listOf()
+    }
+
+
+    val topLeft = cornerRadiusObj?.get("topLeft")?.jsonPrimitive?.intOrNull?.dp ?: 12.dp
+    val topRight = cornerRadiusObj?.get("topRight")?.jsonPrimitive?.intOrNull?.dp ?: 12.dp
+    val bottomLeft = cornerRadiusObj?.get("bottomLeft")?.jsonPrimitive?.intOrNull?.dp ?: 12.dp
+    val bottomRight = cornerRadiusObj?.get("bottomRight")?.jsonPrimitive?.intOrNull?.dp ?: 12.dp
+
+
+    val ctaPaddingTop = marginObj?.get("top")?.jsonPrimitive?.intOrNull?.dp ?: 4.dp
+    val ctaPaddingBottom = marginObj?.get("bottom")?.jsonPrimitive?.intOrNull?.dp ?: 4.dp
+    val ctaPaddingLeft = marginObj?.get("left")?.jsonPrimitive?.intOrNull?.dp ?: 4.dp
+    val ctaPaddingRight = marginObj?.get("right")?.jsonPrimitive?.intOrNull?.dp ?: 4.dp
+
 
     // -------- terms_and_conditions (HTML string) --------
     val termsAndConditionsHtml = details
@@ -275,21 +465,72 @@ fun CardScratch(
 
     // Card size (from campaign data or adaptive fallback)
     val screenWidth = LocalConfiguration.current.screenWidthDp.dp
-    val configuredCardSize = cardSizeData
+    val density = LocalDensity.current
+
+    // Get configured width, respecting screen boundaries (industry standard: max 95% of screen width)
+    val maxCardWidth = screenWidth * 0.90f
+    val configuredCardWidth = cardSizeData
         ?.get("width")
         ?.jsonPrimitive
         ?.intOrNull
-        ?.dp ?: min(screenWidth.value * 0.9f, 260f).dp
-    val cardSize = if (configuredCardSize.value > screenWidth.value * 0.9f) {
-        min(screenWidth.value * 0.9f, 260f).dp
-    } else {
-        configuredCardSize
-    }
+        ?.dp ?: min(screenWidth.value * 0.85f, 320f).dp
+
+    // Clamp width to screen bounds - industry standard approach
+    val cardWidth = minOf(configuredCardWidth, maxCardWidth)
+
+    // Use cardHeight from card_size, fallback to cardWidth for square cards
+    val cardHeightDp = cardHeight?.dp ?: cardWidth
     val cornerRadius = cardSizeData
         ?.get("corner_radius")
         ?.jsonPrimitive
         ?.intOrNull
         ?.dp ?: 32.dp
+
+    // -------- imageCircle --------
+    val imageCircleObj = rewardContent
+        ?.get("imageCircle")
+        ?.takeIf { it !is JsonNull }
+        ?.jsonObject
+
+    val imageSizeObj = imageCircleObj
+        ?.get("size")
+        ?.takeIf { it !is JsonNull }
+        ?.jsonObject
+
+    val imageWidth = imageSizeObj
+        ?.get("width")
+        ?.jsonPrimitive
+        ?.intOrNull
+        ?.dp ?: Dp.Unspecified
+
+    val imageHeight = imageSizeObj
+        ?.get("height")
+        ?.jsonPrimitive
+        ?.intOrNull
+        ?.dp ?: Dp.Unspecified
+
+    val imageCornerObj = imageCircleObj
+        ?.get("cornerRadius")
+        ?.takeIf { it !is JsonNull }
+        ?.jsonObject
+
+    val imageTopLeft = imageCornerObj?.get("topLeft")?.jsonPrimitive?.intOrNull?.dp ?: 0.dp
+    val imageTopRight = imageCornerObj?.get("topRight")?.jsonPrimitive?.intOrNull?.dp ?: 0.dp
+    val imageBottomLeft = imageCornerObj?.get("bottomLeft")?.jsonPrimitive?.intOrNull?.dp ?: 0.dp
+    val imageBottomRight = imageCornerObj?.get("bottomRight")?.jsonPrimitive?.intOrNull?.dp ?: 0.dp
+
+    val imageMarginObj = imageCircleObj
+        ?.get("margin")
+        ?.takeIf { it !is JsonNull }
+        ?.jsonObject
+
+    val imageMarginTop = imageMarginObj?.get("top")?.jsonPrimitive?.intOrNull?.dp ?: 0.dp
+    val imageMarginBottom = imageMarginObj?.get("bottom")?.jsonPrimitive?.intOrNull?.dp ?: 0.dp
+    val imageMarginLeft = imageMarginObj?.get("left")?.jsonPrimitive?.intOrNull?.dp ?: 0.dp
+    val imageMarginRight = imageMarginObj?.get("right")?.jsonPrimitive?.intOrNull?.dp ?: 0.dp
+
+
+
 
     LaunchedEffect(wasFullyScratched) {
         if (wasFullyScratched) {
@@ -315,46 +556,52 @@ fun CardScratch(
             ) {
                 Spacer(modifier = Modifier.weight(1f))
 
-                // Close button
+                // Close button - constrained to card width for proper alignment
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp),
-                    contentAlignment = Alignment.Center
+                        .width(cardWidth)
+                        .padding(bottom = crossButtonMarginBottom),
+                    contentAlignment = when (crossButtonAlignment.lowercase()) {
+                        "left", "start" -> Alignment.CenterStart
+                        "right", "end" -> Alignment.CenterEnd
+                        else -> Alignment.Center
+                    }
                 ) {
                     this@Column.AnimatedVisibility(
                         visible = true,
                         enter = fadeIn() + slideInVertically(),
                         exit = fadeOut() + slideOutVertically()
                     ) {
-                        IconButton(
-                            onClick = { onDismiss() },
-                            modifier = Modifier
-                                .size(40.dp)
-                                .background(
-                                    Color.White.copy(alpha = 0.4f),
-                                    CircleShape
-                                )
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = "Close",
-                                tint = Color.White
+                        val isCrossButtonEnabled = scratchCardDetails.content
+                            ?.get("crossButton")
+                            ?.takeIf { it !is JsonNull }
+                            ?.jsonObject
+                            ?.get("enabled")
+                            ?.jsonPrimitive
+                            ?.booleanOrNull ?: true
+
+                        if (isCrossButtonEnabled) {
+                            CrossButton(
+                                config = crossButtonConfig,
+                                onClose = { onDismiss() }
                             )
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                //Spacer(modifier = Modifier.height(12.dp))
 
                 // Scratch card
                 Box(
                     modifier = Modifier
-                        .size(cardSize)
+                        .width(cardWidth)
+                        .wrapContentHeight()
+
                         .clip(RoundedCornerShape(cornerRadius))
                 ) {
                     ScratchableCard(
-                        cardSize = cardSize,
+                        cardWidth = cardWidth,
+                        cardHeight = cardHeightDp,
                         points = points,
                         isRevealed = isRevealed,
                         overlayImageUrl = overlayImage,
@@ -389,18 +636,67 @@ fun CardScratch(
                         },
                         gridCols = gridCols,
                         gridRows = gridRows,
-                        haptics = haptics ?: false,
-                        cardHeight = cardHeight ?: 200,
+                        haptics = hapticsEnabled,
+                        customSoundEnabled = customSoundEnabled,
                         titleFontSize = titleFontSize,
-                        subtitleFontSize = subtitleFontSize
-                    )
+                        subtitleFontSize = subtitleFontSize,
+                        // Title styling
+                        offerTitleFontFamily = offerTitleFontFamily,
+                        offerTitleFontDecoration = offerTitleFontDecoration,
+                        offerTitleTextAlign = offerTitleTextAlign,
+                        offerTitleMarginTop = offerTitleMarginTop,
+                        offerTitleMarginBottom = offerTitleMarginBottom,
+                        offerTitleMarginLeft = offerTitleMarginLeft,
+                        offerTitleMarginRight = offerTitleMarginRight,
+                        // Subtitle styling
+                        offerSubtitleFontFamily = offerSubtitleFontFamily,
+                        offerSubtitleFontDecoration = offerSubtitleFontDecoration,
+                        offerSubtitleTextAlign = offerSubtitleTextAlign,
+                        offerSubtitleMarginTop = offerSubtitleMarginTop,
+                        offerSubtitleMarginBottom = offerSubtitleMarginBottom,
+                        offerSubtitleMarginLeft = offerSubtitleMarginLeft,
+                        offerSubtitleMarginRight = offerSubtitleMarginRight,
+                        // Coupon styling
+                        couponBorderWidth = couponBorderWidth,
+                        couponAlignment = couponAlignment,
+                        couponCtaFullWidth = couponCtaFullWidth,
+                        couponCtaWidth = couponCtaWidth,
+                        couponHeight = couponHeight,
+                        couponFontSize = couponFontSize,
+                        couponFontFamily = couponFontFamily,
+                        couponFontDecoration = couponFontDecoration,
+                        couponTopLeft = couponTopLeft,
+                        couponTopRight = couponTopRight,
+                        couponBottomLeft = couponBottomLeft,
+                        couponBottomRight = couponBottomRight,
+                        couponMarginTop = couponMarginTop,
+                        couponMarginBottom = couponMarginBottom,
+                        couponMarginLeft = couponMarginLeft,
+                        couponMarginRight = couponMarginRight,
+
+                        imageWidth = imageWidth,
+                        imageHeight = imageHeight,
+                        imageTopLeft = imageTopLeft,
+                        imageTopRight = imageTopRight,
+                        imageBottomLeft = imageBottomLeft,
+                        imageBottomRight = imageBottomRight,
+                        imageMarginTop = imageMarginTop,
+                        imageMarginBottom = imageMarginBottom,
+                        imageMarginLeft = imageMarginLeft,
+                        imageMarginRight = imageMarginRight,
+
+                        )
                 }
 
                 // Action buttons
                 Box(
                     modifier = Modifier
                         .fillMaxWidth(),
-                    contentAlignment = Alignment.Center
+                    contentAlignment = when (ctaAlignment.lowercase()) {
+                        "left", "start" -> Alignment.CenterStart
+                        "right", "end" -> Alignment.CenterEnd
+                        else -> Alignment.Center
+                    }
                 ) {
                     this@Column.AnimatedVisibility(
                         visible = isRevealed,
@@ -423,11 +719,41 @@ fun CardScratch(
                                     onClick = { onCtaClick() },
                                     modifier = Modifier
                                         .then(
-                                            if (ctaFullWidth) Modifier.fillMaxWidth()
-                                            else Modifier.wrapContentWidth()
+                                            when {
+                                                ctaFullWidth -> Modifier.fillMaxWidth()
+                                                ctaWidth != Dp.Unspecified -> Modifier.width(
+                                                    ctaWidth
+                                                )
+
+                                                else -> Modifier.wrapContentWidth()
+                                            }
                                         )
-                                        .height(ctaHeight),
-                                    shape = RoundedCornerShape(ctaBorderRadius),
+                                        .height(ctaHeight)
+                                        .then(
+                                            if (ctaBorderWidth > 0 && ctaBorderColor.isNotEmpty()) {
+                                                Modifier.border(
+                                                    width = ctaBorderWidth.dp,
+                                                    color = parseColorSafe(
+                                                        ctaBorderColor,
+                                                        Color.Transparent
+                                                    ),
+                                                    shape = RoundedCornerShape(
+                                                        topLeft,
+                                                        topRight,
+                                                        bottomRight,
+                                                        bottomLeft
+                                                    )
+                                                )
+                                            } else {
+                                                Modifier
+                                            }
+                                        ),
+                                    shape = RoundedCornerShape(
+                                        topLeft,
+                                        topRight,
+                                        bottomRight,
+                                        bottomLeft
+                                    ),
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = parseColorSafe(ctaColor, Color(0xFF0066FF))
                                     )
@@ -437,8 +763,8 @@ fun CardScratch(
                                         styling = TextStyling(
                                             color = ctaTextColor,
                                             fontSize = ctaFontSize,
-                                            fontFamily = "",
-                                            fontDecoration = listOf("semibold")
+                                            fontFamily = ctaFontFamily,
+                                            fontDecoration = ctaFontDecoration.ifEmpty { listOf("semibold") }
                                         )
                                     )
                                 }
@@ -486,7 +812,8 @@ fun CardScratch(
 
 @Composable
 fun ScratchableCard(
-    cardSize: Dp,
+    cardWidth: Dp,
+    cardHeight: Dp,
     points: List<Offset>,
     isRevealed: Boolean,
     overlayImageUrl: String,
@@ -507,12 +834,61 @@ fun ScratchableCard(
     gridCols: Int,
     gridRows: Int,
     haptics: Boolean,
-    cardHeight: Int,
+    customSoundEnabled: Boolean,
     titleFontSize: Int,
-    subtitleFontSize: Int
+    subtitleFontSize: Int,
+    // New styling parameters for title
+    offerTitleFontFamily: String = "",
+    offerTitleFontDecoration: List<String> = listOf(),
+    offerTitleTextAlign: String = "center",
+    offerTitleMarginTop: Dp = 0.dp,
+    offerTitleMarginBottom: Dp = 0.dp,
+    offerTitleMarginLeft: Dp = 0.dp,
+    offerTitleMarginRight: Dp = 0.dp,
+    // New styling parameters for subtitle
+    offerSubtitleFontFamily: String = "",
+    offerSubtitleFontDecoration: List<String> = listOf(),
+    offerSubtitleTextAlign: String = "center",
+    offerSubtitleMarginTop: Dp = 0.dp,
+    offerSubtitleMarginBottom: Dp = 0.dp,
+    offerSubtitleMarginLeft: Dp = 0.dp,
+    offerSubtitleMarginRight: Dp = 0.dp,
+    // Coupon styling parameters
+    couponBorderWidth: Int = 1,
+    couponAlignment: String = "center",
+    couponCtaFullWidth: Boolean = false,
+    couponCtaWidth: Dp = Dp.Unspecified,
+    couponHeight: Dp = Dp.Unspecified,
+    couponFontSize: Int = 14,
+    couponFontFamily: String = "",
+    couponFontDecoration: List<String> = listOf(),
+    couponTopLeft: Dp = 8.dp,
+    couponTopRight: Dp = 8.dp,
+    couponBottomLeft: Dp = 8.dp,
+    couponBottomRight: Dp = 8.dp,
+    couponMarginTop: Dp = 0.dp,
+    couponMarginBottom: Dp = 0.dp,
+    couponMarginLeft: Dp = 0.dp,
+    couponMarginRight: Dp = 0.dp,
+
+    // Image styling
+    imageWidth: Dp = Dp.Unspecified,
+    imageHeight: Dp = Dp.Unspecified,
+    imageTopLeft: Dp = 0.dp,
+    imageTopRight: Dp = 0.dp,
+    imageBottomLeft: Dp = 0.dp,
+    imageBottomRight: Dp = 0.dp,
+    imageMarginTop: Dp = 0.dp,
+    imageMarginBottom: Dp = 0.dp,
+    imageMarginLeft: Dp = 0.dp,
+    imageMarginRight: Dp = 0.dp,
 ) {
     val context = LocalContext.current
-    val cardSizePx = with(LocalDensity.current) { cardSize.toPx() }.toInt()
+
+    var measuredHeightPx by remember { mutableStateOf(0) }
+
+    val cardWidthPx = with(LocalDensity.current) { cardWidth.toPx() }.toInt()
+    val cardHeightPx = measuredHeightPx
     val coroutineScope = rememberCoroutineScope()
 
     // Media player for sound
@@ -532,7 +908,8 @@ fun ScratchableCard(
     val vibrator = remember {
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
+                val vibratorManager =
+                    context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
                 vibratorManager?.defaultVibrator
             } else {
                 @Suppress("DEPRECATION")
@@ -549,8 +926,8 @@ fun ScratchableCard(
     var hasPlayedEffects by remember { mutableStateOf(false) }
 
     // Load sound file
-    LaunchedEffect(soundFileUrl) {
-        if (soundFileUrl.isNotEmpty() && !soundLoaded) {
+    LaunchedEffect(soundFileUrl, customSoundEnabled) {
+        if (customSoundEnabled && soundFileUrl.isNotEmpty() && !soundLoaded) {
             try {
                 withContext(Dispatchers.IO) {
                     mediaPlayer.reset()
@@ -570,18 +947,20 @@ fun ScratchableCard(
             hasPlayedEffects = true
 
             // Play sound
-            coroutineScope.launch {
-                try {
-                    if (soundLoaded && !mediaPlayer.isPlaying) {
-                        mediaPlayer.start()
+            if (customSoundEnabled) {
+                coroutineScope.launch {
+                    try {
+                        if (soundLoaded && !mediaPlayer.isPlaying) {
+                            mediaPlayer.start()
+                        }
+                    } catch (e: Exception) {
+                        Log.e("ScratchCard", "Error playing sound: ${e.message}")
                     }
-                } catch (e: Exception) {
-                    Log.e("ScratchCard", "Error playing sound: ${e.message}")
                 }
             }
 
             // Vibrate once
-            if(haptics){
+            if (haptics) {
                 try {
                     vibrator?.let {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -616,13 +995,17 @@ fun ScratchableCard(
         }
     }
 
-    // Offscreen buffer (scratch surface)
-    val scratchBitmap = remember {
-        Bitmap.createBitmap(cardSizePx, cardSizePx, Bitmap.Config.ARGB_8888)
-            .apply { eraseColor(Color.Gray.toArgb()) }
+    val scratchBitmap = remember(cardWidthPx, cardHeightPx) {
+        if (cardHeightPx > 0) {
+            Bitmap.createBitmap(cardWidthPx, cardHeightPx, Bitmap.Config.ARGB_8888)
+                .apply { eraseColor(Color.Gray.toArgb()) }
+        } else null
     }
 
-    val scratchCanvas = remember { android.graphics.Canvas(scratchBitmap) }
+
+    val scratchCanvas = remember(scratchBitmap) {
+        scratchBitmap?.let { android.graphics.Canvas(it) }
+    }
 
     // Improved eraser paint with larger stroke for smoother scratching
     val eraserPaint = remember {
@@ -656,8 +1039,8 @@ fun ScratchableCard(
     // Overlay image
     var overlayBitmap by remember { mutableStateOf<Bitmap?>(null) }
 
-    LaunchedEffect(overlayImageUrl) {
-        if (overlayImageUrl.isNotEmpty()) {
+    LaunchedEffect(overlayImageUrl, cardWidthPx, cardHeightPx) {
+        if (overlayImageUrl.isNotEmpty() && cardWidthPx > 0 && cardHeightPx > 0) {
             val loader = ImageLoader(context)
             val request = ImageRequest.Builder(context)
                 .data(overlayImageUrl)
@@ -670,26 +1053,38 @@ fun ScratchableCard(
             bmp?.let {
                 overlayBitmap = Bitmap.createScaledBitmap(
                     it,
-                    cardSizePx,
-                    cardSizePx,
+                    cardWidthPx,
+                    cardHeightPx,
                     true
                 )
-                scratchCanvas.drawBitmap(overlayBitmap!!, 0f, 0f, null)
+                scratchCanvas?.drawBitmap(overlayBitmap!!, 0f, 0f, null)
             }
         }
     }
 
-    Box(modifier = Modifier.size(cardSize)) {
+    Box(
+        modifier = Modifier
+            .width(cardWidth)
+            .wrapContentHeight()
+            .onSizeChanged {
+                measuredHeightPx = it.height
+            }
+    )
+    {
 
         // Bottom content
         if (onlyImage) {
             OnlyImageView(
-                modifier = Modifier.size(cardSize),
+                modifier = Modifier
+                    .width(cardWidth)
+                    .wrapContentHeight(),
                 bannerImageUrl = bannerImageUrl
             )
         } else {
             CashBackInfoView(
-                modifier = Modifier.size(cardSize),
+                modifier = Modifier
+                    .width(cardWidth)
+                    .wrapContentHeight(),
                 bannerImageUrl = bannerImageUrl,
                 offerTitle = offerTitle,
                 offerSubtitle = offerSubtitle,
@@ -702,7 +1097,51 @@ fun ScratchableCard(
                 offerSubtitleColor = offerSubtitleColor,
                 cardHeight = cardHeight,
                 titleFontSize = titleFontSize,
-                subtitleFontSize = subtitleFontSize
+                subtitleFontSize = subtitleFontSize,
+                // Title styling
+                offerTitleFontFamily = offerTitleFontFamily,
+                offerTitleFontDecoration = offerTitleFontDecoration,
+                offerTitleTextAlign = offerTitleTextAlign,
+                offerTitleMarginTop = offerTitleMarginTop,
+                offerTitleMarginBottom = offerTitleMarginBottom,
+                offerTitleMarginLeft = offerTitleMarginLeft,
+                offerTitleMarginRight = offerTitleMarginRight,
+                // Subtitle styling
+                offerSubtitleFontFamily = offerSubtitleFontFamily,
+                offerSubtitleFontDecoration = offerSubtitleFontDecoration,
+                offerSubtitleTextAlign = offerSubtitleTextAlign,
+                offerSubtitleMarginTop = offerSubtitleMarginTop,
+                offerSubtitleMarginBottom = offerSubtitleMarginBottom,
+                offerSubtitleMarginLeft = offerSubtitleMarginLeft,
+                offerSubtitleMarginRight = offerSubtitleMarginRight,
+                // Coupon styling
+                couponBorderWidth = couponBorderWidth,
+                couponAlignment = couponAlignment,
+                couponCtaFullWidth = couponCtaFullWidth,
+                couponCtaWidth = couponCtaWidth,
+                couponHeight = couponHeight,
+                couponFontSize = couponFontSize,
+                couponFontFamily = couponFontFamily,
+                couponFontDecoration = couponFontDecoration,
+                couponTopLeft = couponTopLeft,
+                couponTopRight = couponTopRight,
+                couponBottomLeft = couponBottomLeft,
+                couponBottomRight = couponBottomRight,
+                couponMarginTop = couponMarginTop,
+                couponMarginBottom = couponMarginBottom,
+                couponMarginLeft = couponMarginLeft,
+                couponMarginRight = couponMarginRight,
+
+                imageWidth = imageWidth,
+                imageHeight = imageHeight,
+                imageTopLeft = imageTopLeft,
+                imageTopRight = imageTopRight,
+                imageBottomLeft = imageBottomLeft,
+                imageBottomRight = imageBottomRight,
+                imageMarginTop = imageMarginTop,
+                imageMarginBottom = imageMarginBottom,
+                imageMarginLeft = imageMarginLeft,
+                imageMarginRight = imageMarginRight,
             )
         }
 
@@ -712,14 +1151,21 @@ fun ScratchableCard(
 
             Canvas(
                 modifier = Modifier
-                    .size(cardSize)
+                    .width(cardWidth)
+                    .height(with(LocalDensity.current){measuredHeightPx.toDp()})
                     .pointerInput(Unit) {
                         detectDragGestures(
                             onDragStart = { offset ->
                                 lastPoint = offset
                                 onPointsChanged(points + offset)
                                 onCellTouched(
-                                    cellIndexFor(offset, cardSizePx.toFloat(), gridCols, gridRows)
+                                    cellIndexFor(
+                                        offset,
+                                        cardWidthPx.toFloat(),
+                                        cardHeightPx.toFloat(),
+                                        gridCols,
+                                        gridRows
+                                    )
                                 )
                             },
                             onDrag = { change, _ ->
@@ -728,7 +1174,13 @@ fun ScratchableCard(
                                 val newPoint = change.position
                                 onPointsChanged(points + newPoint)
                                 onCellTouched(
-                                    cellIndexFor(newPoint, cardSizePx.toFloat(), gridCols, gridRows)
+                                    cellIndexFor(
+                                        newPoint,
+                                        cardWidthPx.toFloat(),
+                                        cardHeightPx.toFloat(),
+                                        gridCols,
+                                        gridRows
+                                    )
                                 )
 
                                 // Draw continuous stroke with interpolation
@@ -747,7 +1199,7 @@ fun ScratchableCard(
                                             val interpolatedY = last.y + dy * t
 
                                             // Draw circle at each interpolated point
-                                            scratchCanvas.drawCircle(
+                                            scratchCanvas?.drawCircle(
                                                 interpolatedX,
                                                 interpolatedY,
                                                 40f,
@@ -786,21 +1238,23 @@ fun ScratchableCard(
                                 val t = j.toFloat() / steps
                                 val x = prev.x + dx * t
                                 val y = prev.y + dy * t
-                                scratchCanvas.drawCircle(x, y, 40f, circlePaint)
+                                scratchCanvas?.drawCircle(x, y, 40f, circlePaint)
                             }
                         }
 
                         path.lineTo(curr.x, curr.y)
                     }
 
-                    scratchCanvas.drawPath(path, eraserPaint)
+                    scratchCanvas?.drawPath(path, eraserPaint)
                 }
 
                 // Draw the updated scratch bitmap on screen
-                drawImage(
-                    image = scratchBitmap.asImageBitmap(),
-                    dstSize = IntSize(size.width.toInt(), size.height.toInt())
-                )
+                scratchBitmap?.let {
+                    drawImage(
+                        image = it.asImageBitmap(),
+                        dstSize = IntSize(size.width.toInt(), size.height.toInt())
+                    )
+                }
             }
         }
     }
@@ -849,7 +1303,7 @@ fun OnlyImageView(
                     contentScale = ContentScale.FillBounds,
                     modifier = Modifier.fillMaxSize()
                 )
-            } else if(isLottieUrl(bannerImageUrl)){
+            } else if (isLottieUrl(bannerImageUrl)) {
                 val composition by rememberLottieComposition(
                     spec = LottieCompositionSpec.Url(bannerImageUrl)
                 )
@@ -858,8 +1312,7 @@ fun OnlyImageView(
                     iterations = LottieConstants.IterateForever,
                     modifier = Modifier.fillMaxSize()
                 )
-            }
-             else{
+            } else {
                 SubcomposeAsyncImage(
                     model = bannerImageUrl,
                     contentDescription = "Banner",
@@ -897,155 +1350,225 @@ fun CashBackInfoView(
     rewardBgColor: String,
     offerTitleColor: String,
     offerSubtitleColor: String,
-    cardHeight: Int,
+    cardHeight: Dp,
     titleFontSize: Int,
     subtitleFontSize: Int,
+    // New styling parameters for title
+    offerTitleFontFamily: String = "",
+    offerTitleFontDecoration: List<String> = listOf(),
+    offerTitleTextAlign: String = "center",
+    offerTitleMarginTop: Dp = 0.dp,
+    offerTitleMarginBottom: Dp = 0.dp,
+    offerTitleMarginLeft: Dp = 0.dp,
+    offerTitleMarginRight: Dp = 0.dp,
+    // New styling parameters for subtitle
+    offerSubtitleFontFamily: String = "",
+    offerSubtitleFontDecoration: List<String> = listOf(),
+    offerSubtitleTextAlign: String = "center",
+    offerSubtitleMarginTop: Dp = 0.dp,
+    offerSubtitleMarginBottom: Dp = 0.dp,
+    offerSubtitleMarginLeft: Dp = 0.dp,
+    offerSubtitleMarginRight: Dp = 0.dp,
+    // Coupon styling parameters
+    couponBorderWidth: Int = 1,
+    couponAlignment: String = "center",
+    couponCtaFullWidth: Boolean = false,
+    couponCtaWidth: Dp = Dp.Unspecified,
+    couponHeight: Dp = Dp.Unspecified,
+    couponFontSize: Int = 14,
+    couponFontFamily: String = "",
+    couponFontDecoration: List<String> = listOf(),
+    couponTopLeft: Dp = 8.dp,
+    couponTopRight: Dp = 8.dp,
+    couponBottomLeft: Dp = 8.dp,
+    couponBottomRight: Dp = 8.dp,
+    couponMarginTop: Dp = 0.dp,
+    couponMarginBottom: Dp = 0.dp,
+    couponMarginLeft: Dp = 0.dp,
+    couponMarginRight: Dp = 0.dp,
+
+    // Image styling (ADD THIS BLOCK)
+    imageWidth: Dp = Dp.Unspecified,
+    imageHeight: Dp = Dp.Unspecified,
+    imageTopLeft: Dp = 0.dp,
+    imageTopRight: Dp = 0.dp,
+    imageBottomLeft: Dp = 0.dp,
+    imageBottomRight: Dp = 0.dp,
+    imageMarginTop: Dp = 0.dp,
+    imageMarginBottom: Dp = 0.dp,
+    imageMarginLeft: Dp = 0.dp,
+    imageMarginRight: Dp = 0.dp,
 ) {
     val context = LocalContext.current
 
     Box(
         modifier = modifier
-            .background(parseColorSafe(rewardBgColor, Color(0xFF141414)))
-            .padding(horizontal = 16.dp),
+            .background(parseColorSafe(rewardBgColor, Color(0xFF141414))),
         contentAlignment = Alignment.Center
     ) {
         Column(
+//            modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
+//            verticalArrangement = Arrangement.Top
         ) {
-            Spacer(modifier = Modifier.weight(1f))
-                if (bannerImageUrl.isNotEmpty()) {
+            //Spacer(modifier = Modifier.weight(1f))
+            if (bannerImageUrl.isNotEmpty()) {
 
-                    val maxSize = (cardHeight * 0.3f).dp
-
-                    if (isGifUrl(bannerImageUrl)) {
-                        val imageLoader = ImageLoader.Builder(context)
-                            .components {
-                                if (SDK_INT >= 28) {
-                                    add(ImageDecoderDecoder.Factory())
-                                } else {
-                                    add(GifDecoder.Factory())
-                                }
-                            }
-                            .build()
-
-                        val painter = rememberAsyncImagePainter(
-                            ImageRequest.Builder(context)
-                                .data(bannerImageUrl)
-                                .memoryCacheKey(bannerImageUrl)
-                                .diskCacheKey(bannerImageUrl)
-                                .diskCachePolicy(CachePolicy.ENABLED)
-                                .memoryCachePolicy(CachePolicy.ENABLED)
-                                .crossfade(true)
-                                .apply { size(coil.size.Size.ORIGINAL) }
-                                .build(),
-                            imageLoader = imageLoader
+                Box(
+                    modifier = Modifier
+                        .padding(
+                            start = imageMarginLeft,
+                            end = imageMarginRight,
+                            top = imageMarginTop,
+                            bottom = imageMarginBottom
                         )
-
-                        Image(
-                            painter = painter,
-                            contentDescription = "Banner",
-                            contentScale = ContentScale.Fit,
-                            modifier = Modifier
-                                .sizeIn(
-                                    maxWidth = maxSize,
-                                    maxHeight = maxSize
-                                )
-                                .clip(CircleShape)
+                        .then(
+                            if (imageWidth != Dp.Unspecified && imageHeight != Dp.Unspecified)
+                                Modifier.size(imageWidth, imageHeight)
+                            else
+                                Modifier.sizeIn(maxWidth = cardHeight * 0.3f, maxHeight = cardHeight * 0.3f)
                         )
-                    } else if(isLottieUrl(bannerImageUrl)){
-                        val composition by rememberLottieComposition(
-                            spec = LottieCompositionSpec.Url(bannerImageUrl)
+                        .clip(
+                            RoundedCornerShape(
+                                topStart = imageTopLeft,
+                                topEnd = imageTopRight,
+                                bottomStart = imageBottomLeft,
+                                bottomEnd = imageBottomRight
+                            )
                         )
-                        LottieAnimation(
-                            composition = composition,
-                            iterations = LottieConstants.IterateForever,
-                            modifier = Modifier
-                                .sizeIn(
-                                    maxWidth = maxSize,
-                                    maxHeight = maxSize
-                                )
-                                .clip(CircleShape)
-                        )
-                    }
-                    else{
-                        SubcomposeAsyncImage(
-                            model = bannerImageUrl,
-                            contentDescription = "Banner",
-                            contentScale = ContentScale.FillBounds,
-                            modifier = Modifier
-                                .sizeIn(
-                                    maxWidth = maxSize,
-                                    maxHeight = maxSize
-                                )
-                                .clip(CircleShape)
-                        )
-                    }
+                ) {
+                    SubcomposeAsyncImage(
+                        model = bannerImageUrl,
+                        contentDescription = "Banner",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
                 }
+            }
 
-            Spacer(modifier = Modifier.weight(1f))
+
+            //Spacer(modifier = Modifier.weight(1f))
 
             Column(
+                modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 if (offerTitle.isNotEmpty()) {
                     CommonText(
+                        modifier = Modifier.fillMaxWidth(),
                         text = offerTitle,
                         styling = TextStyling(
                             color = offerTitleColor,
                             fontSize = titleFontSize,
-                            fontFamily = "",
-                            fontDecoration = listOf("bold")
+                            fontFamily = offerTitleFontFamily,
+                            fontDecoration = offerTitleFontDecoration.ifEmpty { listOf("bold") },
+                            textAlign = offerTitleTextAlign,
+                            margin = CommonMargins(
+                                top = offerTitleMarginTop.value.toInt(),
+                                bottom = offerTitleMarginBottom.value.toInt(),
+                                left = offerTitleMarginLeft.value.toInt(),
+                                right = offerTitleMarginRight.value.toInt()
+                            )
                         )
                     )
                 }
 
-                Spacer(Modifier.height((cardHeight * 0.06).toDp()))
+                //Spacer(Modifier.height(cardHeight * 0.06f))
 
                 if (offerSubtitle.isNotEmpty()) {
                     CommonText(
+                        modifier = Modifier.fillMaxWidth(),
                         text = offerSubtitle,
                         letterSpacing = 0.1.toFloat(),
                         styling = TextStyling(
                             color = offerSubtitleColor,
                             fontSize = subtitleFontSize,
-                            fontFamily = "",
+                            fontFamily = offerSubtitleFontFamily,
+                            fontDecoration = offerSubtitleFontDecoration,
+                            textAlign = offerSubtitleTextAlign,
+                            margin = CommonMargins(
+                                top = offerSubtitleMarginTop.value.toInt(),
+                                bottom = offerSubtitleMarginBottom.value.toInt(),
+                                left = offerSubtitleMarginLeft.value.toInt(),
+                                right = offerSubtitleMarginRight.value.toInt()
+                            )
                         )
                     )
                 }
 
-                Spacer(Modifier.height((cardHeight * 0.2).toDp()))
+                //Spacer(Modifier.height(cardHeight * 0.2f))
 
                 // Coupon code display
                 if (couponCode.isNotEmpty()) {
                     val clipboardManager = LocalClipboardManager.current
-                    Box(
+
+                    Row(
                         modifier = Modifier
-                            .background(
-                                color = parseColorSafe(couponBgColor, Color(0xFF1F1F1F)),
-                                shape = RoundedCornerShape(8.dp)
-                            )
-                            .then(
-                                if (couponBorderColor.isNotEmpty()) {
-                                    Modifier.drawWithContent {
-                                        drawContent()
-                                        drawRoundRect(
-                                            color = parseColorSafe(couponBorderColor, Color(0xFF0066FF)),
-                                            style = Stroke(width = 1.dp.toPx()),
-                                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(8.dp.toPx())
-                                        )
-                                    }
-                                } else {
-                                    Modifier
-                                }
-                            )
-                            .clickable {
-                                clipboardManager.setText(AnnotatedString(couponCode))   // ← FIXED
-                                Toast.makeText(context, "Copied to clipboard", Toast.LENGTH_SHORT).show()
-                            }
-                            .padding(start = 16.dp, top = (cardHeight * 0.05).toDp(), bottom = (cardHeight * 0.05).toDp(), end = 8.dp),
-                        contentAlignment = Alignment.Center
+                            .fillMaxWidth()
+                            .padding(
+                                start = couponMarginLeft,
+                                end = couponMarginRight,
+                                top = couponMarginTop,
+                                bottom = couponMarginBottom
+                            ),
+                        horizontalArrangement = when (couponAlignment.lowercase()) {
+                            "left", "start" -> Arrangement.Start
+                            "right", "end" -> Arrangement.End
+                            else -> Arrangement.Center
+                        }
                     ) {
                         Row(
+                            modifier = Modifier
+                                .then(
+                                    if (couponCtaFullWidth) Modifier.fillMaxWidth()
+                                    else if (couponCtaWidth != Dp.Unspecified) Modifier.width(
+                                        couponCtaWidth
+                                    )
+                                    else Modifier
+                                )
+                                .then(
+                                    if (couponHeight != Dp.Unspecified) Modifier.height(couponHeight)
+                                    else Modifier
+                                )
+                                .background(
+                                    color = parseColorSafe(couponBgColor, Color(0xFF1F1F1F)),
+                                    shape = RoundedCornerShape(
+                                        topStart = couponTopLeft,
+                                        topEnd = couponTopRight,
+                                        bottomStart = couponBottomLeft,
+                                        bottomEnd = couponBottomRight
+                                    )
+                                )
+                                .then(
+                                    if (couponBorderColor.isNotEmpty() && couponBorderWidth > 0) {
+                                        Modifier.drawWithContent {
+                                            drawContent()
+                                            drawRoundRect(
+                                                color = parseColorSafe(
+                                                    couponBorderColor,
+                                                    Color(0xFF0066FF)
+                                                ),
+                                                style = Stroke(width = couponBorderWidth.dp.toPx()),
+                                                cornerRadius = androidx.compose.ui.geometry.CornerRadius(
+                                                    couponTopLeft.toPx(),
+                                                    couponTopRight.toPx()
+                                                )
+                                            )
+                                        }
+                                    } else Modifier
+                                )
+                                .clickable {
+                                    clipboardManager.setText(AnnotatedString(couponCode))
+                                    Toast.makeText(
+                                        context,
+                                        "Copied to clipboard",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                                .padding(
+                                    horizontal = 16.dp,
+                                    vertical = if (couponHeight != Dp.Unspecified) 0.dp else cardHeight * 0.05f
+                                ),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.Center
                         ) {
@@ -1054,25 +1577,25 @@ fun CashBackInfoView(
                                 letterSpacing = 0.2.toFloat(),
                                 styling = TextStyling(
                                     color = couponTextColor,
-                                    fontFamily = "",
-                                    fontSize = null
+                                    fontFamily = couponFontFamily,
+                                    fontSize = couponFontSize,
+                                    fontDecoration = couponFontDecoration
                                 )
                             )
 
                             Spacer(modifier = Modifier.width(8.dp))
 
-                            // Copy Icon
                             Icon(
                                 imageVector = Icons.Default.Share,
                                 contentDescription = "Copy Coupon",
-                                tint = parseColorSafe(couponTextColor, Color.White), // same color as text
+                                tint = parseColorSafe(couponTextColor, Color.White),
                                 modifier = Modifier.size(20.dp)
                             )
                         }
                     }
                 }
             }
-            Spacer(modifier = Modifier.weight(1f))
+            //Spacer(modifier = Modifier.weight(1f))
         }
     }
 }
@@ -1103,12 +1626,16 @@ fun TermsAndConditionsView(
                         setTextAppearance(android.R.style.TextAppearance_Material_Body1)
 
                         // Parse HTML
-                        text = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
-                            android.text.Html.fromHtml(termsHtml, android.text.Html.FROM_HTML_MODE_COMPACT)
-                        } else {
-                            @Suppress("DEPRECATION")
-                            android.text.Html.fromHtml(termsHtml)
-                        }
+                        text =
+                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                                android.text.Html.fromHtml(
+                                    termsHtml,
+                                    android.text.Html.FROM_HTML_MODE_COMPACT
+                                )
+                            } else {
+                                @Suppress("DEPRECATION")
+                                android.text.Html.fromHtml(termsHtml)
+                            }
 
                         // Make links clickable
                         movementMethod = android.text.method.LinkMovementMethod.getInstance()
@@ -1121,12 +1648,16 @@ fun TermsAndConditionsView(
                     }
                 },
                 update = { textView ->
-                    textView.text = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
-                        android.text.Html.fromHtml(termsHtml, android.text.Html.FROM_HTML_MODE_COMPACT)
-                    } else {
-                        @Suppress("DEPRECATION")
-                        android.text.Html.fromHtml(termsHtml)
-                    }
+                    textView.text =
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                            android.text.Html.fromHtml(
+                                termsHtml,
+                                android.text.Html.FROM_HTML_MODE_COMPACT
+                            )
+                        } else {
+                            @Suppress("DEPRECATION")
+                            android.text.Html.fromHtml(termsHtml)
+                        }
                 },
                 modifier = Modifier.fillMaxWidth()
             )
@@ -1137,15 +1668,16 @@ fun TermsAndConditionsView(
 // Helper function to map point to grid cell index
 private fun cellIndexFor(
     point: Offset,
-    size: Float,
+    width: Float,
+    height: Float,
     gridCols: Int,
     gridRows: Int
 ): Int {
-    val x = point.x.coerceIn(0f, size)
-    val y = point.y.coerceIn(0f, size)
+    val x = point.x.coerceIn(0f, width)
+    val y = point.y.coerceIn(0f, height)
 
-    val col = ((x / size) * gridCols).toInt().coerceIn(0, gridCols - 1)
-    val row = ((y / size) * gridRows).toInt().coerceIn(0, gridRows - 1)
+    val col = ((x / width) * gridCols).toInt().coerceIn(0, gridCols - 1)
+    val row = ((y / height) * gridRows).toInt().coerceIn(0, gridRows - 1)
 
     return row * gridCols + col
 }

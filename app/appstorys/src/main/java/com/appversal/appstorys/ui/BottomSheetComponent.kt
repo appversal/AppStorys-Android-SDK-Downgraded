@@ -105,9 +105,10 @@ internal fun BottomSheetComponent(
 
     val backdropOpacity = (bottomSheetDetails.backdropOpacity?.asInt(50)?.toFloat() ?: 50f) / 100f
 
+
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
-        shape = RoundedCornerShape(topStart = topLeftRadius, topEnd = topRightRadius),
+        shape = RoundedCornerShape(0.dp), // disable sheet clipping
         containerColor = Color.Transparent, // Use backend background color (transparent for imageOnly)
         scrimColor = backdropColor.copy(alpha = backdropOpacity), // Apply backdrop with opacity
         dragHandle = null,
@@ -117,6 +118,33 @@ internal fun BottomSheetComponent(
                 modifier = Modifier.fillMaxWidth(),
                 content = {
 
+
+                    // Check the common enabled field first, then fall back to legacy enableCrossButton string
+                    // Prioritize root-level crossButton (new backend format) over styling.crossButton
+                    val crossButton = bottomSheetDetails.crossButton ?: bottomSheetDetails.styling?.crossButton
+                    val crossEnabled = crossButton?.enabled
+                        ?: (bottomSheetDetails.enableCrossButton?.trim()?.equals("true", true) ?: true)
+
+                    if (crossEnabled) {
+                        // Get cross button config with support for new backend format
+                        val crossColors = crossButton?.color ?: crossButton?.colors
+                        val crossImageUrl = crossButton?.image
+
+                        CrossButton(
+                            modifier = Modifier.align(Alignment.TopEnd),
+                            config = createCrossButtonConfig(
+                                fillColorString = crossColors?.fill,
+                                crossColorString = crossColors?.cross,
+                                strokeColorString = crossColors?.stroke,
+                                marginTop = crossButton?.margin?.top,
+                                marginEnd = crossButton?.margin?.right,
+                                size = crossButton?.size,
+                                imageUrl = crossImageUrl
+                            ),
+                            onClose = onDismissRequest
+                        )
+                    }
+
                     val hasOverlayButton = imageElement?.overlayButton == true
 
                     if (imageElement != null && hasOverlayButton) {
@@ -125,6 +153,12 @@ internal fun BottomSheetComponent(
 
                     Column(
                         modifier = Modifier
+                            .clip(
+                                RoundedCornerShape(
+                                    topStart = topLeftRadius,
+                                    topEnd = topRightRadius
+                                )
+                            )
                             .then(
                                 when (hasOverlayButton) {
                                     true -> Modifier.align(Alignment.BottomCenter)
@@ -187,32 +221,6 @@ internal fun BottomSheetComponent(
                             }
                         }
                     )
-
-                    // Check the common enabled field first, then fall back to legacy enableCrossButton string
-                    // Prioritize root-level crossButton (new backend format) over styling.crossButton
-                    val crossButton = bottomSheetDetails.crossButton ?: bottomSheetDetails.styling?.crossButton
-                    val crossEnabled = crossButton?.enabled
-                        ?: (bottomSheetDetails.enableCrossButton?.trim()?.equals("true", true) ?: true)
-
-                    if (crossEnabled) {
-                        // Get cross button config with support for new backend format
-                        val crossColors = crossButton?.color ?: crossButton?.colors
-                        val crossImageUrl = crossButton?.image
-
-                        CrossButton(
-                            modifier = Modifier.align(Alignment.TopEnd),
-                            config = createCrossButtonConfig(
-                                fillColorString = crossColors?.fill,
-                                crossColorString = crossColors?.cross,
-                                strokeColorString = crossColors?.stroke,
-                                marginTop = crossButton?.margin?.top,
-                                marginEnd = crossButton?.margin?.right,
-                                size = crossButton?.size,
-                                imageUrl = crossImageUrl
-                            ),
-                            onClose = onDismissRequest
-                        )
-                    }
                 }
             )
         }

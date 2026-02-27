@@ -7,7 +7,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -68,9 +67,17 @@ internal fun FullPageCarouselModal(
     val firstSlideLoadState = rememberMediaLoadState(firstSlideMediaUrl)
     val isFirstSlideLoaded = firstSlideLoadState is MediaLoadState.Success || firstSlideMediaUrl.isNullOrEmpty()
 
-    // Use alpha to control visibility - prevents animation glitches
-    val contentAlpha = if (isFirstSlideLoaded) 1f else 0f
+    // Get pre-loaded aspect ratio
+    val preloadedAspectRatio = firstSlideLoadState.getAspectRatio()
 
+    // Gate rendering - Don't compose anything until media is preloaded
+    // Since rememberMediaLoadState actually downloads/caches the media,
+    // rendering should be instant once this returns Success
+    if (!isFirstSlideLoaded) {
+        return
+    }
+
+    // Show the Dialog - media is preloaded so should appear instantly
     Dialog(
         onDismissRequest = onCloseClick,
         properties = DialogProperties(
@@ -79,11 +86,9 @@ internal fun FullPageCarouselModal(
             usePlatformDefaultWidth = false
         )
     ) {
-        // Always render the structure, but control visibility with alpha
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .graphicsLayer { alpha = contentAlpha }
                 .background(backdropColorFinal.copy(alpha = backdropAlphaFinal)),
         ) {
             Column(modifier = Modifier.fillMaxSize()

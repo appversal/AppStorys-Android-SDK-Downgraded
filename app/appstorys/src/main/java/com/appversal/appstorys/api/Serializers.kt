@@ -186,6 +186,11 @@ object CampaignDeserializer : KSerializer<Campaign> {
                             detailsElement
                         )
 
+                        "STW" -> jsonDecoder.json.decodeFromJsonElement(
+                            serializer<SpinTheWheelDetails>(),
+                            detailsElement
+                        )
+
                         else -> {
                             Log.e("CampaignDeserializer", "Unknown campaign type: $campaignType")
                             null
