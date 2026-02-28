@@ -280,25 +280,39 @@ object AppStorys {
         }
     }
 
-    private fun getBackPressTriggerEvents(): List<String> {
-        if (backPressCampaignConsumed) return emptyList()
+    private fun isBackPressCampaignReady(): Boolean {
+        if (backPressCampaignConsumed) return false
         val disabled = disabledCampaigns.value
-        return campaigns.value
-            .filter { campaign -> !disabled.contains(campaign.id) }
-            .mapNotNull { campaign ->
-                when (val trigger = campaign.triggerEvent) {
-                    // String triggers never have back_press
-                    is TriggerEvent.StringTrigger -> null
-                    // Only ObjectTrigger has the back_press flag
-                    is TriggerEvent.ObjectTrigger -> {
-                        if (trigger.backPress) trigger.event.ifEmpty { null }
-                        else null
-                    }
+        val currentEvents = _trackedEventNames.value
 
-                    null -> null
-                }
-            }
-            .distinct()
+        return campaigns.value.any { campaign ->
+            !disabled.contains(campaign.id) &&
+                    when (val trigger = campaign.triggerEvent) {
+                        is TriggerEvent.ObjectTrigger -> {
+                            val isBackPress = trigger.eventConfig.any { it.backPress == true }
+                            if (!isBackPress) return@any false
+
+                            val realConditions = trigger.eventConfig.filter { it.backPress == null }
+
+                            if (realConditions.isEmpty()) {
+                                // No conditions → always ready on back press
+                                true
+                            } else {
+                                // Conditions exist → must already be satisfied by tracked events
+                                val matchingEvents =
+                                    currentEvents.filter { it.eventName == trigger.event }
+                                matchingEvents.any { tracked ->
+                                    TriggerEventMatcher.matchesAllConditions(
+                                        realConditions,
+                                        tracked.metadata
+                                    )
+                                }
+                            }
+                        }
+
+                        else -> false
+                    }
+        }
     }
 
     fun initialize(
@@ -379,7 +393,8 @@ object AppStorys {
                     scratchedCampaigns.emit(savedScratchedCampaigns)
 
                     // Restore persisted spin counts into in-memory map
-                    val spinPrefs = context.getSharedPreferences("appstorys_spin_counts", Context.MODE_PRIVATE)
+                    val spinPrefs =
+                        context.getSharedPreferences("appstorys_spin_counts", Context.MODE_PRIVATE)
                     spinPrefs.all.forEach { (key, value) ->
                         if (value is Int) spinCountByCampaign[key] = value
                     }
@@ -455,7 +470,16 @@ object AppStorys {
     ) {
         coroutineScope.launch {
             if (accessToken.isNotEmpty()) {
-                if (event != "viewed" && event != "clicked" && event != "csat captured" && event != "survey captured" && event != "shared") {
+                if (
+                    event != "viewed"
+                    && event != "clicked"
+                    && event != "csat captured"
+                    && event != "survey captured"
+                    && event != "shared"
+                    && event != "SurveySubmitted"
+                    && event != "SurveyDismissed"
+                    && event != "ThankYouCTAClicked"
+                ) {
                     _trackedEventNames.update { it + TrackedEventData(event, metadata) }
                 }
                 try {
@@ -472,7 +496,16 @@ object AppStorys {
                     val deviceInfo = getDeviceInfo(context)
 
                     val mergedMetadata =
-                        if (event != "viewed" && event != "clicked" && event != "csat captured" && event != "survey captured" && event != "shared") {
+                        if (
+                            event != "viewed"
+                            && event != "clicked"
+                            && event != "csat captured"
+                            && event != "survey captured"
+                            && event != "shared"
+                            && event != "SurveySubmitted"
+                            && event != "SurveyDismissed"
+                            && event != "ThankYouCTAClicked"
+                        ) {
                             updatedMetadata + deviceInfo
                         } else {
                             updatedMetadata
@@ -618,16 +651,12 @@ object AppStorys {
     }
 
     fun handleBackPress(onNavigate: () -> Unit) {
-        val backPressEvents = getBackPressTriggerEvents()
-        if (backPressEvents.isNotEmpty()) {
+        if (isBackPressCampaignReady()) {
             backPressCampaignConsumed = true
             coroutineScope.launch {
-                _trackedEventNames.update { currentSet ->
-                    currentSet + backPressEvents.map {
-                        TrackedEventData(eventName = it, metadata = null)
-                    }.toSet()
-                }
+                _trackedEventNames.update { it + TrackedEventData(TriggerEventMatcher.BACK_PRESS_SENTINEL) }
             }
+            // Don't call onNavigate — stay on screen, campaign will show
         } else {
             onNavigate()
         }
@@ -646,16 +675,13 @@ object AppStorys {
     ) {
 
         BackHandler(enabled = true) {
-            val backPressEvents = getBackPressTriggerEvents()
-            if (backPressEvents.isNotEmpty()) {
+            if (isBackPressCampaignReady()) {
                 backPressCampaignConsumed = true
-                _trackedEventNames.update { currentSet ->
-                    currentSet + backPressEvents.map {
-                        TrackedEventData(eventName = it, metadata = null)
-                    }.toSet()
-                }
+                // Inject sentinel — unlocks back_press campaigns in TriggerEventMatcher.
+                // Conditions are evaluated against metadata already stored from
+                // the client's prior trackEvents() calls. Nothing else needed.
+                _trackedEventNames.update { it + TrackedEventData(TriggerEventMatcher.BACK_PRESS_SENTINEL) }
             } else {
-                // No back-press campaign — forward to system so navigation works normally
                 (activity as? androidx.activity.ComponentActivity)
                     ?.onBackPressedDispatcher
                     ?.onBackPressed()
@@ -1903,48 +1929,19 @@ object AppStorys {
         }
 
         if (surveyDetails != null && showSurvey && shouldShowSurvey) {
-
-            LaunchedEffect(Unit) {
-                campaign?.id?.let {
-                    trackEvents(it, "viewed")
-                }
-            }
-
             SurveyBottomSheet(
                 onDismissRequest = {
                     showSurvey = false
                 },
                 surveyDetails = surveyDetails,
-                onSubmitFeedback = { feedback ->
-                    coroutineScope.launch {
-                        if (feedback.slideResponses != null) {
-                            // Multi-slide path
-                            trackEvents(
-                                campaign_id = campaign?.id,
-                                event = "survey captured",
-                                metadata = mapOf(
-                                    "slideResponses" to feedback.slideResponses.map {
-                                        mapOf(
-                                            "slideId" to (it.slideId ?: ""),
-                                            "selectedOptions" to (it.responseOptions ?: emptyList<String>()),
-                                            "otherText" to (it.comment ?: "")
-                                        )
-                                    }
-                                )
-                            )
-                        } else {
-                            // Legacy single-question path
-                            trackEvents(
-                                campaign_id = campaign?.id,
-                                event = "survey captured",
-                                metadata = mapOf(
-                                    "selectedOptions" to (feedback.responseOptions ?: ""),
-                                    "otherText" to feedback.comment
-                                )
-                            )
-                        }
-                    }
-                },
+                campaignId = campaign?.id,
+                onTrackEvent = { campId, event, metadata ->
+                    trackEvents(
+                        campaign_id = campId,
+                        event = event,
+                        metadata = metadata
+                    )
+                }
             )
         }
     }
@@ -2181,14 +2178,14 @@ object AppStorys {
             else -> null
         }
 
-        val triggerEventValue = when (val event = campaign?.triggerEvent) {
-            "viaAppStorys" -> "viaAppStorys${campaign?.id}"
-            null, "" -> null
-            else -> event
-        }
+        val trackedEventsData = trackedEventNames.collectAsStateWithLifecycle()
 
-        val shouldShowSpinWheel = remember(triggerEventValue, trackedEventNames.size) {
-            triggerEventValue.isNullOrEmpty() || trackedEventNames.contains(triggerEventValue)
+        val shouldShowSpinWheel = remember(campaign, trackedEventsData.value.size) {
+            TriggerEventMatcher.shouldShowCampaign(
+                triggerEvent = campaign?.triggerEvent,
+                campaignId = campaign?.id,
+                trackedEvents = trackedEventsData.value
+            )
         }
 
         var isPresented by remember(campaign?.id) { mutableStateOf(true) }
@@ -2210,7 +2207,10 @@ object AppStorys {
             if (!spinCountByCampaign.containsKey(campaignId)) {
                 val persisted = getSpinCount(
                     campaignId = campaignId,
-                    sharedPreferences = context.getSharedPreferences("appstorys_spin_counts", Context.MODE_PRIVATE)
+                    sharedPreferences = context.getSharedPreferences(
+                        "appstorys_spin_counts",
+                        Context.MODE_PRIVATE
+                    )
                 )
                 spinCountByCampaign[campaignId] = persisted ?: initialSpins
             }
@@ -2229,7 +2229,17 @@ object AppStorys {
                     isPresented = isPresented,
                     onDismiss = {
                         isPresented = false
-                        triggerEventValue?.let { trackedEventNames.remove(it) }
+                        campaign?.triggerEvent?.let { trigger ->
+                            val eventName = when (trigger) {
+                                is TriggerEvent.StringTrigger -> trigger.event
+                                is TriggerEvent.ObjectTrigger -> trigger.event
+                            }
+                            _trackedEventNames.update { currentSet ->
+                                currentSet.filterNot {
+                                    it.eventName == eventName
+                                }.toSet()
+                            }
+                        }
                     },
                     spinTheWheelDetails = spinTheWheelDetails,
                     spinsLeft = spinsLeft,
@@ -2240,7 +2250,10 @@ object AppStorys {
                         saveSpinCount(
                             campaignId = campaignId,
                             count = clamped,
-                            sharedPreferences = context.getSharedPreferences("appstorys_spin_counts", Context.MODE_PRIVATE)
+                            sharedPreferences = context.getSharedPreferences(
+                                "appstorys_spin_counts",
+                                Context.MODE_PRIVATE
+                            )
                         )
                     },
                     onCtaClick = { link ->

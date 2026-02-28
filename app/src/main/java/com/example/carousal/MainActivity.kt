@@ -100,7 +100,8 @@ fun MyApp() {
         if (screenName.isNotEmpty()) {
             when (screenName) {
                 "TestScreen" -> navController.navigate("test")
-                else -> { /* handle other SDK-driven navigations here */ }
+                else -> { /* handle other SDK-driven navigations here */
+                }
             }
             app.resetNavigation()
         }
@@ -188,7 +189,7 @@ fun HomeHost(onNavigateToTest: () -> Unit) {
     LaunchedEffect(screenName) {
         if (screenName.isNotEmpty()) {
             when (screenName) {
-                "PayScreen"  -> selectedTab = 1
+                "PayScreen" -> selectedTab = 1
                 "HomeScreen" -> selectedTab = 0
             }
             app.resetNavigation()
@@ -227,6 +228,7 @@ fun HomeHost(onNavigateToTest: () -> Unit) {
                 onIsPresentedChange = { isPresented = it },
                 onNavigateToTest = onNavigateToTest   // passed up to NavController
             )
+
             1 -> PayScreen(innerPadding)
         }
     }
@@ -326,13 +328,17 @@ fun HomeScreen(
                 )
 
                 campaignManager.Widget(
-                    modifier = Modifier.fillMaxWidth().appstorys("tooltip_home_prem_test"),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .appstorys("tooltip_home_prem_test"),
                     placeholder = context.getDrawable(R.drawable.ic_launcher_foreground),
                     position = "widget_one",
                 )
 
                 campaignManager.Widget(
-                    modifier = Modifier.fillMaxWidth().appstorys("tooltip_home_prem_test"),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .appstorys("tooltip_home_prem_test"),
                     placeholder = context.getDrawable(R.drawable.ic_launcher_foreground),
                     position = "widget_two",
                 )
@@ -464,7 +470,11 @@ fun HomeScreen(
                     Button(
                         onClick = {
                             campaignManager.setUserProperties(mapOf("key_one" to input1))
-                            Toast.makeText(context, "User property set: key_one = $input1", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(
+                                context,
+                                "User property set: key_one = $input1",
+                                Toast.LENGTH_SHORT
+                            ).show()
                         }
                     ) {
                         Text("Set Property 1")
@@ -494,7 +504,11 @@ fun HomeScreen(
                     Button(
                         onClick = {
                             campaignManager.setUserProperties(mapOf("key_two" to input2))
-                            Toast.makeText(context, "User property set: key_two = $input2", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(
+                                context,
+                                "User property set: key_two = $input2",
+                                Toast.LENGTH_SHORT
+                            ).show()
                         }
                     ) {
                         Text("Set Property 2")
@@ -506,7 +520,9 @@ fun HomeScreen(
                 Image(
                     painter = painterResource(id = R.drawable.home_two),
                     contentDescription = "App Logo",
-                    modifier = Modifier.fillMaxWidth().appstorys("app_logo"),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .appstorys("app_logo"),
                     contentScale = ContentScale.Fit
                 )
             }
@@ -629,6 +645,7 @@ fun PayScreen(padding: PaddingValues) {
                         buttonText = "Cashbook Tab",
                         screenType = "cashbook"
                     )
+
                     1 -> PayScreenPage(
                         topImages = listOf(
                             Triple(R.drawable.more_one, "cashbook", "Cashbook"),
@@ -639,6 +656,7 @@ fun PayScreen(padding: PaddingValues) {
                         buttonText = "Bills Tab",
                         screenType = "bills"
                     )
+
                     2 -> PayScreenPage(
                         topImages = listOf(
                             Triple(R.drawable.more_three, "items", "Items"),
@@ -708,7 +726,9 @@ fun PayScreenPage(
                     Image(
                         painter = painterResource(id = imageRes),
                         contentDescription = description,
-                        modifier = Modifier.weight(1f).appstorys(tag),
+                        modifier = Modifier
+                            .weight(1f)
+                            .appstorys(tag),
                         contentScale = ContentScale.Fit
                     )
                 }
@@ -727,7 +747,9 @@ fun PayScreenPage(
 
             Button(
                 onClick = {},
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
             ) {
                 Text(buttonText)
             }
@@ -743,7 +765,9 @@ fun PayScreenPage(
 fun BottomNavigationBar(selectedTab: Int, onTabSelected: (Int) -> Unit) {
     NavigationBar(
         containerColor = Color.White,
-        modifier = Modifier.fillMaxWidth().height(70.dp)
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(70.dp)
     ) {
         val items = listOf("Parties", "More")
         val icons = listOf(Icons.Filled.Person, Icons.Filled.List)

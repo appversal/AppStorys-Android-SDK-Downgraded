@@ -39,7 +39,6 @@ object CampaignDeserializer : KSerializer<Campaign> {
                     is TriggerEvent.ObjectTrigger -> {
                         put("trigger_event", buildJsonObject {
                             put("event", trigger.event)
-                            put("back_press", trigger.backPress)
                             put(
                                 "event_config", jsonEncoder.json.encodeToJsonElement(
                                     serializer<List<TriggerEventConfig>>(),
@@ -74,18 +73,15 @@ object CampaignDeserializer : KSerializer<Campaign> {
                     // Object trigger event with conditions
                     try {
                         val event = triggerElement["event"]?.jsonPrimitive?.contentOrNull
-                        val backPress =
-                            triggerElement["back_press"]?.jsonPrimitive?.content?.toBooleanStrictOrNull()
-                                ?: false
                         val eventConfig = triggerElement["event_config"]?.let { configElement ->
                             jsonDecoder.json.decodeFromJsonElement(
                                 serializer<List<TriggerEventConfig>>(),
                                 configElement
                             )
-                        }
+                        } ?: emptyList()
 
-                        if (event != null && eventConfig != null) {
-                            TriggerEvent.ObjectTrigger(event, backPress, eventConfig)
+                        if (event != null) {
+                            TriggerEvent.ObjectTrigger(event, eventConfig)
                         } else {
                             null
                         }

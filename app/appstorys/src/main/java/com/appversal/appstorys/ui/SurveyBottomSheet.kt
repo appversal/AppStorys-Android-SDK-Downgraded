@@ -34,6 +34,7 @@ import com.appversal.appstorys.ui.common_components.CTAButton
 import com.appversal.appstorys.ui.common_components.CrossButton
 import com.appversal.appstorys.ui.common_components.createCTAButtonConfig
 import com.appversal.appstorys.ui.common_components.createCrossButtonConfig
+import com.appversal.appstorys.utils.toColor
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -55,9 +56,10 @@ private fun String?.toColorOr(default: Color): Color {
 
 @Composable
 fun SurveyBottomSheet(
-    onSubmitFeedback: (SurveyFeedback) -> Unit,
     onDismissRequest: () -> Unit,
     surveyDetails: SurveyDetails,
+    campaignId: String?,
+    onTrackEvent: (campaignId: String, event: String, metadata: Map<String, Any>?) -> Unit
 ) {
     val coroutineScope = rememberCoroutineScope()
 
@@ -70,7 +72,7 @@ fun SurveyBottomSheet(
 
     // ── appearance.cornerRadius (topLeft / topRight only for bottom sheet) ─
     val cornerRadiusTopStart = (appearance?.cornerRadius?.topLeft ?: 24).dp
-    val cornerRadiusTopEnd   = (appearance?.cornerRadius?.topRight ?: 24).dp
+    val cornerRadiusTopEnd = (appearance?.cornerRadius?.topRight ?: 24).dp
 
 
     // ── appearance.displayDelay (seconds) ─────────────────────────────────
@@ -145,12 +147,12 @@ fun SurveyBottomSheet(
     // logic.redirectTo   = "thank_you" | "thank-you" | slide id (UUID) | slide title | "Slide N" label
     fun resolveLogicRedirect(slideIndex: Int): String? {
         val slide = slides[slideIndex]
-        val selected = selectedOptionsPerSlide[slideIndex].value
         val logic = slide.logic ?: return null
-        if (logic.selectOption.isNullOrEmpty() || logic.redirectTo.isNullOrEmpty()) return null
+        val selectedValue = selectedOptionsPerSlide[slideIndex].value.firstOrNull() ?: return null
 
-        val selectedValue = selected.firstOrNull() ?: return null
-        return if (logic.selectOption == selectedValue) logic.redirectTo else null
+        return logic.firstOrNull { rule ->
+            rule.selectOption?.contains(selectedValue) == true
+        }?.redirectTo
     }
 
     // Helper: resolve a redirectTo string to a slide index.
@@ -202,7 +204,7 @@ fun SurveyBottomSheet(
             usePlatformDefaultWidth = false
         )
     ) {
-        val backdropColor = Color.Red
+        val backdropColor = appearance?.backdropColor.toColor(Color.Black)
         // backdropOpacity is the new field; fall back to legacy backgroundOpacity if not present
         val backdropAlpha = remember(appearance?.backdropOpacity, appearance?.backgroundOpacity) {
             val raw = appearance?.backdropOpacity
@@ -252,12 +254,14 @@ fun SurveyBottomSheet(
                                     if (showThankYou) {
                                         onDismissRequest()
                                     } else {
-                                        val answeredUpTo = pagerState.currentPage
-                                        if (selectedOptionsPerSlide[answeredUpTo].value.isNotEmpty()) {
-                                            onSubmitFeedback(collectResponses(answeredUpTo))
-                                        } else if (answeredUpTo > 0) {
-                                            onSubmitFeedback(collectResponses(answeredUpTo - 1))
+                                        campaignId?.let {
+                                            onTrackEvent(
+                                                it,
+                                                "SurveyDismissed",
+                                                mapOf("survey_id" to (surveyDetails.id ?: ""))
+                                            )
                                         }
+                                        val answeredUpTo = pagerState.currentPage
                                         onDismissRequest()
                                     }
                                 }
@@ -269,12 +273,36 @@ fun SurveyBottomSheet(
                         // ── Thank You page — data already submitted, CTA only redirects ──
                         SurveyThankYouContent(
                             surveyDetails = surveyDetails,
-                            onDismiss = onDismissRequest
+                            onDismiss = onDismissRequest,
+                            onThankYouCtaClicked = {
+                                campaignId?.let {
+                                    onTrackEvent(
+                                        it,
+                                        "ThankYouCTAClicked",
+                                        mapOf("survey_id" to (surveyDetails.id ?: ""))
+                                    )
+                                }
+                            }
                         )
                     } else {
                         // ── Survey slides ────────────────────────────────────────────────
                         val currentSelected = selectedOptionsPerSlide[pagerState.currentPage].value
                         val isCurrentSlideValid = currentSelected.isNotEmpty()
+
+                        LaunchedEffect(pagerState.currentPage) {
+                            if (!showThankYou) {
+                                val slide = slides[pagerState.currentPage]
+                                campaignId?.let {
+                                    onTrackEvent(
+                                        it, "viewed",
+                                        mapOf(
+                                            "survey_id" to (surveyDetails.id ?: ""),
+                                            "slide_id" to (slide.id ?: "")
+                                        )
+                                    )
+                                }
+                            }
+                        }
 
                         HorizontalPager(
                             state = pagerState,
@@ -294,7 +322,11 @@ fun SurveyBottomSheet(
                                 showInputBox = showInputBox,
                                 othersText = othersTextPerSlide[pageIndex],
                                 onOptionSelected = { optionName ->
-                                    selectedOptionsPerSlide[pageIndex].value = setOf(optionName)
+                                    val current = selectedOptionsPerSlide[pageIndex].value
+                                    // Toggle: if already selected remove it, else add it
+                                    selectedOptionsPerSlide[pageIndex].value =
+                                        if (current.contains(optionName)) current - optionName
+                                        else current + optionName
                                     othersTextPerSlide[pageIndex] = ""
                                 },
                                 onOthersTextChanged = { text ->
@@ -319,7 +351,8 @@ fun SurveyBottomSheet(
                             val isCurrentSlideValidInRow = currentSelectedInRow.isNotEmpty()
 
                             val logicRedirect =
-                                if (isCurrentSlideValidInRow) resolveLogicRedirect(currentPage) else null
+                                if (isCurrentSlideValidInRow) resolveLogicRedirect(currentPage) else
+                                    null
                             // Normalize: treat both "thank_you" and "thank-you" as a thank-you redirect
                             val isThankYouRedirect =
                                 logicRedirect == "thank_you" || logicRedirect == "thank-you"
@@ -353,7 +386,8 @@ fun SurveyBottomSheet(
                                 createCTAButtonConfig(
                                     // text
                                     textColor = if (isCurrentSlideValidInRow)
-                                        (ctaStyling?.text?.color ?: surveyDetails.styling?.ctaTextIconColor ?: "#FFFFFF")
+                                        (ctaStyling?.text?.color
+                                            ?: surveyDetails.styling?.ctaTextIconColor ?: "#FFFFFF")
                                     else "#666666",
                                     textSize = ctaStyling?.text?.fontSize ?: 16,
                                     fontFamily = ctaStyling?.text?.fontFamily,
@@ -368,7 +402,9 @@ fun SurveyBottomSheet(
                                     width = ctaContainer?.ctaWidth,
                                     alignment = ctaContainer?.alignment ?: "center",
                                     backgroundColorString = if (isCurrentSlideValidInRow)
-                                        (ctaContainer?.backgroundColor ?: surveyDetails.styling?.ctaBackgroundColor ?: "#000000")
+                                        (ctaContainer?.backgroundColor
+                                            ?: surveyDetails.styling?.ctaBackgroundColor
+                                            ?: "#000000")
                                     else "#CCCCCC",
                                     borderColorString = ctaContainer?.borderColor,
                                     borderWidth = ctaContainer?.borderWidth ?: 0,
@@ -387,47 +423,74 @@ fun SurveyBottomSheet(
                                 onClick = {
                                     if (!isCurrentSlideValidInRow) return@CTAButton
 
+                                    // ── Track "clicked" for selected options ─────────────────────────
+                                    val selectedOptionKeys = currentSelectedInRow
+                                        .mapNotNull { selectedName ->
+                                            currentSlide.options?.entries
+                                                ?.firstOrNull { it.value == selectedName }?.key
+                                        }
+                                    campaignId?.let {
+                                        onTrackEvent(
+                                            it, "clicked",
+                                            mapOf(
+                                                "survey_id" to (surveyDetails.id ?: ""),
+                                                "slide_id" to (currentSlide.id ?: ""),
+                                                "option" to selectedOptionKeys
+                                            )
+                                        )
+                                    }
+
+                                    // ── Track "clicked" for additional comment if non-empty ──────────
+                                    val comment = othersTextPerSlide[currentPage]
+                                    if (comment.isNotEmpty()) {
+                                        campaignId?.let {
+                                            onTrackEvent(
+                                                it, "clicked",
+                                                mapOf(
+                                                    "survey_id" to (surveyDetails.id ?: ""),
+                                                    "slide_id" to (currentSlide.id ?: ""),
+                                                    "additional_comment" to comment
+                                                )
+                                            )
+                                        }
+                                    }
+
                                     coroutineScope.launch {
                                         when {
-                                            // Logic → jump directly to thank you:
-                                            // Submit all responses collected so far (up to current page)
                                             isThankYouRedirect -> {
-                                                onSubmitFeedback(collectResponses(currentPage))
+                                                campaignId?.let {
+                                                    onTrackEvent(
+                                                        it,
+                                                        "SurveySubmitted",
+                                                        mapOf(
+                                                            "survey_id" to (surveyDetails.id ?: "")
+                                                        )
+                                                    )
+                                                }
                                                 if (hasThankYouPage) showThankYou = true
                                                 else onDismissRequest()
                                             }
-                                            // Logic → jump to a specific slide:
-                                            // Submit current slide's response, then navigate
+
                                             redirectTargetIndex != null -> {
-                                                onSubmitFeedback(
-                                                    SurveyFeedback(
-                                                        slideResponses = listOf(
-                                                            slideResponseFor(
-                                                                currentPage
-                                                            )
-                                                        )
-                                                    )
-                                                )
                                                 slideHistory.add(redirectTargetIndex)
                                                 pagerState.animateScrollToPage(redirectTargetIndex)
                                             }
-                                            // Last slide → submit all collected responses
+
                                             isLastSlide -> {
-                                                onSubmitFeedback(collectResponses(currentPage))
+                                                campaignId?.let {
+                                                    onTrackEvent(
+                                                        it,
+                                                        "SurveySubmitted",
+                                                        mapOf(
+                                                            "survey_id" to (surveyDetails.id ?: "")
+                                                        )
+                                                    )
+                                                }
                                                 if (hasThankYouPage) showThankYou = true
                                                 else onDismissRequest()
                                             }
-                                            // Not last slide → submit current slide response, go next
+
                                             else -> {
-                                                onSubmitFeedback(
-                                                    SurveyFeedback(
-                                                        slideResponses = listOf(
-                                                            slideResponseFor(
-                                                                currentPage
-                                                            )
-                                                        )
-                                                    )
-                                                )
                                                 val nextPage = currentPage + 1
                                                 slideHistory.add(nextPage)
                                                 pagerState.animateScrollToPage(nextPage)
@@ -467,7 +530,8 @@ fun SurveyBottomSheet(
 @Composable
 private fun SurveyThankYouContent(
     surveyDetails: SurveyDetails,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onThankYouCtaClicked: () -> Unit,
 ) {
     val context = LocalContext.current
     val thankyouPage = surveyDetails.styling?.thankyouPage
@@ -476,9 +540,12 @@ private fun SurveyThankYouContent(
     val titleTextStyle = thankyouPage?.title?.textStyle
     val titleColor = titleTextStyle?.color.toColorOr(Color.Black)
     val titleFontSize = (titleTextStyle?.fontSize ?: 20).sp
-    val titleFontWeight = if (titleTextStyle?.fontDecoration?.contains("bold") == true) FontWeight.Bold else FontWeight.Normal
-    val titleFontStyle = if (titleTextStyle?.fontDecoration?.contains("italic") == true) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal
-    val titleTextDecoration = if (titleTextStyle?.fontDecoration?.contains("underline") == true) androidx.compose.ui.text.style.TextDecoration.Underline else androidx.compose.ui.text.style.TextDecoration.None
+    val titleFontWeight =
+        if (titleTextStyle?.fontDecoration?.contains("bold") == true) FontWeight.Bold else FontWeight.Normal
+    val titleFontStyle =
+        if (titleTextStyle?.fontDecoration?.contains("italic") == true) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal
+    val titleTextDecoration =
+        if (titleTextStyle?.fontDecoration?.contains("underline") == true) androidx.compose.ui.text.style.TextDecoration.Underline else androidx.compose.ui.text.style.TextDecoration.None
     val titleTextAlign = when (titleTextStyle?.textAlign?.lowercase()) {
         "left" -> TextAlign.Start
         "right" -> TextAlign.End
@@ -496,9 +563,12 @@ private fun SurveyThankYouContent(
     val subtitleTextStyle = thankyouPage?.subtitle?.textStyle
     val subtitleColor = subtitleTextStyle?.color.toColorOr(Color(0xFF6B7280))
     val subtitleFontSize = (subtitleTextStyle?.fontSize ?: 14).sp
-    val subtitleFontWeight = if (subtitleTextStyle?.fontDecoration?.contains("bold") == true) FontWeight.Bold else FontWeight.Normal
-    val subtitleFontStyle = if (subtitleTextStyle?.fontDecoration?.contains("italic") == true) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal
-    val subtitleTextDecoration = if (subtitleTextStyle?.fontDecoration?.contains("underline") == true) androidx.compose.ui.text.style.TextDecoration.Underline else androidx.compose.ui.text.style.TextDecoration.None
+    val subtitleFontWeight =
+        if (subtitleTextStyle?.fontDecoration?.contains("bold") == true) FontWeight.Bold else FontWeight.Normal
+    val subtitleFontStyle =
+        if (subtitleTextStyle?.fontDecoration?.contains("italic") == true) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal
+    val subtitleTextDecoration =
+        if (subtitleTextStyle?.fontDecoration?.contains("underline") == true) androidx.compose.ui.text.style.TextDecoration.Underline else androidx.compose.ui.text.style.TextDecoration.None
     val subtitleTextAlign = when (subtitleTextStyle?.textAlign?.lowercase()) {
         "left" -> TextAlign.Start
         "right" -> TextAlign.End
@@ -629,6 +699,7 @@ private fun SurveyThankYouContent(
                 text = buttonText,
                 config = ctaButtonConfig,
                 onClick = {
+                    onThankYouCtaClicked()
                     // Data was already submitted when the user tapped Next/Submit on each slide.
                     // CTA here only handles optional redirect + dismissal.
                     if (!redirectUrl.isNullOrEmpty() && buttonConfig.action == "redirect") {
@@ -702,6 +773,7 @@ private fun SurveyContent(
                 val titleTextDecoration = when {
                     titleStyle?.fontDecoration?.contains("underline") == true ->
                         androidx.compose.ui.text.style.TextDecoration.Underline
+
                     else -> androidx.compose.ui.text.style.TextDecoration.None
                 }
                 val titleTextAlign = when (titleStyle?.textAlign?.lowercase()) {
@@ -755,6 +827,7 @@ private fun SurveyContent(
                 val subtitleTextDecoration = when {
                     subtitleStyle?.fontDecoration?.contains("underline") == true ->
                         androidx.compose.ui.text.style.TextDecoration.Underline
+
                     else -> androidx.compose.ui.text.style.TextDecoration.None
                 }
                 val subtitleTextAlign = when (subtitleStyle?.textAlign?.lowercase()) {
@@ -837,16 +910,22 @@ private fun SurveyContent(
                 styling?.othersTextColor.toColorOr(Color.Black)
             )
             val addlFontSize = (addlTextStyle?.fontSize ?: 14).sp
-            val addlFontWeight = if (addlTextStyle?.fontDecoration?.contains("bold") == true) FontWeight.Bold else FontWeight.Normal
-            val addlFontStyle = if (addlTextStyle?.fontDecoration?.contains("italic") == true) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal
-            val addlTextDecoration = if (addlTextStyle?.fontDecoration?.contains("underline") == true) androidx.compose.ui.text.style.TextDecoration.Underline else androidx.compose.ui.text.style.TextDecoration.None
+            val addlFontWeight =
+                if (addlTextStyle?.fontDecoration?.contains("bold") == true) FontWeight.Bold else FontWeight.Normal
+            val addlFontStyle =
+                if (addlTextStyle?.fontDecoration?.contains("italic") == true) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal
+            val addlTextDecoration =
+                if (addlTextStyle?.fontDecoration?.contains("underline") == true) androidx.compose.ui.text.style.TextDecoration.Underline else androidx.compose.ui.text.style.TextDecoration.None
             val addlTextAlign = when (addlTextStyle?.textAlign?.lowercase()) {
                 "left" -> TextAlign.Start
                 "right" -> TextAlign.End
                 else -> TextAlign.Center
             }
             val addlBorderWidth = (addlTextStyle?.borderwidth
-                ?.let { if (it.toString() == "null") null else it.toString().removeSuffix(".0").toIntOrNull() }
+                ?.let {
+                    if (it.toString() == "null") null else it.toString().removeSuffix(".0")
+                        .toIntOrNull()
+                }
                 ?: 1).dp
 
             OutlinedTextField(
@@ -883,7 +962,7 @@ private fun SurveyContent(
                     unfocusedTextColor = addlTextColor,
                     cursorColor = addlTextColor
                 ),
-                shape = RoundedCornerShape(8.dp),                maxLines = 1,
+                shape = RoundedCornerShape(8.dp), maxLines = 1,
                 singleLine = true
             )
             Spacer(modifier = Modifier.height(16.dp))
@@ -904,7 +983,8 @@ private fun SurveyOptionItem(
 ) {
     val optionsConfig = styling?.options
     val optionHeight = optionsConfig?.optionsHeight
-    val activeStyle = if (isSelected) optionsConfig?.selectedOptions else optionsConfig?.nonSelectedOptions
+    val activeStyle =
+        if (isSelected) optionsConfig?.selectedOptions else optionsConfig?.nonSelectedOptions
     val activeColors = activeStyle?.colors
     val activeTextStyle = activeStyle?.textStyle
 
@@ -930,14 +1010,19 @@ private fun SurveyOptionItem(
 
     // Border width from textStyle.borderwidth
     val borderWidth = (activeTextStyle?.borderwidth
-        ?.let { if (it.toString() == "null") null else it.toString().removeSuffix(".0").toIntOrNull() }
+        ?.let {
+            if (it.toString() == "null") null else it.toString().removeSuffix(".0").toIntOrNull()
+        }
         ?: 1).dp
 
     // Text style
     val fontSize = (activeTextStyle?.fontSize ?: 14).sp
-    val fontWeight = if (activeTextStyle?.fontDecoration?.contains("bold") == true) FontWeight.Bold else FontWeight.Normal
-    val fontStyle = if (activeTextStyle?.fontDecoration?.contains("italic") == true) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal
-    val textDecoration = if (activeTextStyle?.fontDecoration?.contains("underline") == true) androidx.compose.ui.text.style.TextDecoration.Underline else androidx.compose.ui.text.style.TextDecoration.None
+    val fontWeight =
+        if (activeTextStyle?.fontDecoration?.contains("bold") == true) FontWeight.Bold else FontWeight.Normal
+    val fontStyle =
+        if (activeTextStyle?.fontDecoration?.contains("italic") == true) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal
+    val textDecoration =
+        if (activeTextStyle?.fontDecoration?.contains("underline") == true) androidx.compose.ui.text.style.TextDecoration.Underline else androidx.compose.ui.text.style.TextDecoration.None
     val textAlign = when (activeTextStyle?.textAlign?.lowercase()) {
         "left" -> TextAlign.Start
         "right" -> TextAlign.End

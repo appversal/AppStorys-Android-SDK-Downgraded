@@ -1,8 +1,6 @@
 package com.appversal.appstorys.api
 
 import androidx.annotation.Keep
-import com.appversal.appstorys.api.CampaignDeserializer.CampaignResponseDeserializer
-import com.appversal.appstorys.api.CampaignDeserializer.NullableIntSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
@@ -1173,7 +1171,7 @@ data class SurveySlide(
     val options: Map<String, String>?,
     val image: String?,
     val submitButtonText: String?,
-    val logic: SurveyLogic?,
+    val logic: List<SurveyLogic>? = null,
     val additionalComment: AdditionalComment?,
     val createdAt: String? = null,
     val updatedAt: String? = null,
@@ -1188,7 +1186,7 @@ data class SurveySlide(
 @Serializable
 data class SurveyLogic(
     val redirectTo: String?,
-    val selectOption: String?
+    val selectOption: List<String>? = null
 )
 
 @Keep
@@ -1837,17 +1835,17 @@ sealed class TriggerEvent {
     @Serializable
     data class ObjectTrigger(
         val event: String,
-        @SerialName("back_press") val backPress: Boolean = false,
-        @SerialName("event_config") val eventConfig: List<TriggerEventConfig>
+        @SerialName("event_config") val eventConfig: List<TriggerEventConfig> = emptyList()
     ) : TriggerEvent()
 }
 
 @Keep
 @Serializable
 data class TriggerEventConfig(
-    val key: String,
-    val operator: String, // "eq", "neq", "gt", "gte", "lt", "lte"
-    val value: String
+    val key: String? = null,
+    val operator: String? = null,
+    val value: String? = null,
+    @SerialName("back_press") val backPress: Boolean? = null
 )
 // Spin the Wheel Models
 @Keep
