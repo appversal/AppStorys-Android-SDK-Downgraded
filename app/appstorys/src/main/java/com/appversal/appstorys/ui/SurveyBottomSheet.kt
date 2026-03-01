@@ -9,6 +9,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -385,10 +386,10 @@ fun SurveyBottomSheet(
                                 val ctaMargin = ctaStyling?.margin
                                 createCTAButtonConfig(
                                     // text
-                                    textColor = if (isCurrentSlideValidInRow)
-                                        (ctaStyling?.text?.color
-                                            ?: surveyDetails.styling?.ctaTextIconColor ?: "#FFFFFF")
-                                    else "#666666",
+                                    textColor =
+                                        ctaStyling?.text?.color
+                                            ?: surveyDetails.styling?.ctaTextIconColor
+                                            ?: "#FFFFFF",
                                     textSize = ctaStyling?.text?.fontSize ?: 16,
                                     fontFamily = ctaStyling?.text?.fontFamily,
                                     fontDecoration = ctaStyling?.text?.fontDecoration,
@@ -401,11 +402,10 @@ fun SurveyBottomSheet(
                                     height = ctaContainer?.height ?: 56,
                                     width = ctaContainer?.ctaWidth,
                                     alignment = ctaContainer?.alignment ?: "center",
-                                    backgroundColorString = if (isCurrentSlideValidInRow)
-                                        (ctaContainer?.backgroundColor
+                                    backgroundColorString =
+                                        ctaContainer?.backgroundColor
                                             ?: surveyDetails.styling?.ctaBackgroundColor
-                                            ?: "#000000")
-                                    else "#CCCCCC",
+                                            ?: "#000000",
                                     borderColorString = ctaContainer?.borderColor,
                                     borderWidth = ctaContainer?.borderWidth ?: 0,
                                     fullWidth = ctaContainer?.ctaFullWidth ?: true,
@@ -569,10 +569,11 @@ private fun SurveyThankYouContent(
         if (subtitleTextStyle?.fontDecoration?.contains("italic") == true) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal
     val subtitleTextDecoration =
         if (subtitleTextStyle?.fontDecoration?.contains("underline") == true) androidx.compose.ui.text.style.TextDecoration.Underline else androidx.compose.ui.text.style.TextDecoration.None
-    val subtitleTextAlign = when (subtitleTextStyle?.textAlign?.lowercase()) {
-        "left" -> TextAlign.Start
-        "right" -> TextAlign.End
-        else -> TextAlign.Center
+    val subtitleTextAlign = when (subtitleTextStyle?.textAlign?.trim()?.lowercase()) {
+        "left", "start" -> TextAlign.Start
+        "right", "end" -> TextAlign.End
+        "center", "centre", "middle" -> TextAlign.Center
+        else -> TextAlign.Start
     }
     val subtitleFontFamily = when (subtitleTextStyle?.fontFamily?.lowercase()) {
         "serif" -> FontFamily.Serif
@@ -871,22 +872,27 @@ private fun SurveyContent(
         val visibleOptions = surveyOptions.filter { it.id.isNotEmpty() && it.name.isNotEmpty() }
         Column {
             visibleOptions.forEachIndexed { index, option ->
-                val isTextBullet = when (optionListStyle.lowercase()) {
-                    "none", "plain", "no_bullet", "nobullet" -> false
-                    else -> true
+                val showTextPrefix = when (optionListStyle.lowercase()) {
+                    "number", "roman", "alpha", "alphabetic", "alphabet" -> true
+                    else -> false
                 }
+
+                val showCircleBullet =
+                    optionListStyle.equals("bulleted", ignoreCase = true)
+
                 val displayId = when (optionListStyle.lowercase()) {
-                    "none", "plain", "no_bullet", "nobullet" -> ""
+                    "number" -> "${index + 1}."
                     "roman" -> "${toRoman(index + 1).uppercase()}."
                     "alpha", "alphabetic", "alphabet" -> "${('A' + index)}."
-                    else -> "${index + 1}."
+                    else -> ""
                 }
                 SurveyOptionItem(
                     option = option.copy(id = displayId),
                     isSelected = selectedOptions.contains(option.name),
                     styling = styling,
                     bulletSpacing = bulletSpacing,
-                    showBullet = isTextBullet,
+                    showBullet = showTextPrefix,
+                    showCircleBullet = showCircleBullet,
                     onOptionClick = { onOptionSelected(option.name) }
                 )
                 if (index < visibleOptions.lastIndex) {
@@ -979,6 +985,7 @@ private fun SurveyOptionItem(
     styling: SurveyStyling?,
     bulletSpacing: Int = 12,
     showBullet: Boolean = true,
+    showCircleBullet: Boolean = false,
     onOptionClick: () -> Unit
 ) {
     val optionsConfig = styling?.options
@@ -1054,9 +1061,9 @@ private fun SurveyOptionItem(
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Bullet / ID badge
+            // Prefix Rendering
             if (showBullet) {
-                // Numbered / Alpha / Roman — show plain text (no circle wrapper)
+                // Number / Alpha / Roman
                 Text(
                     text = option.id,
                     style = MaterialTheme.typography.bodySmall.copy(
@@ -1064,15 +1071,30 @@ private fun SurveyOptionItem(
                         fontWeight = FontWeight.SemiBold
                     )
                 )
-            } else {
-                // Plain / None — show a small filled circle dot
+            }
+            else if (showCircleBullet) {
                 Box(
                     modifier = Modifier
-                        .size(8.dp)
-                        .clip(androidx.compose.foundation.shape.CircleShape)
-                        .background(textColor)
-                )
+                        .size(18.dp)
+                        .clip(CircleShape)
+                        .border(
+                            width = 2.dp,
+                            color = textColor,
+                            shape = CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isSelected) {
+                        Box(
+                            modifier = Modifier
+                                .size(10.dp)
+                                .clip(CircleShape)
+                                .background(textColor)
+                        )
+                    }
+                }
             }
+
             Spacer(modifier = Modifier.width(bulletSpacing.dp))
 
             Text(
