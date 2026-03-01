@@ -18,7 +18,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -31,7 +30,9 @@ import com.appversal.appstorys.api.SlideResponse
 import com.appversal.appstorys.api.SurveyDetails
 import com.appversal.appstorys.api.SurveySlide
 import com.appversal.appstorys.api.SurveyStyling
+import com.appversal.appstorys.api.TextStyling
 import com.appversal.appstorys.ui.common_components.CTAButton
+import com.appversal.appstorys.ui.common_components.CommonText
 import com.appversal.appstorys.ui.common_components.CrossButton
 import com.appversal.appstorys.ui.common_components.createCTAButtonConfig
 import com.appversal.appstorys.ui.common_components.createCrossButtonConfig
@@ -536,52 +537,6 @@ private fun SurveyThankYouContent(
     val context = LocalContext.current
     val thankyouPage = surveyDetails.styling?.thankyouPage
 
-    // ── Title styling (styling.thankyouPage.title.textStyle) ──────────────
-    val titleTextStyle = thankyouPage?.title?.textStyle
-    val titleColor = titleTextStyle?.color.toColorOr(Color.Black)
-    val titleFontSize = (titleTextStyle?.fontSize ?: 20).sp
-    val titleFontWeight =
-        if (titleTextStyle?.fontDecoration?.contains("bold") == true) FontWeight.Bold else FontWeight.Normal
-    val titleFontStyle =
-        if (titleTextStyle?.fontDecoration?.contains("italic") == true) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal
-    val titleTextDecoration =
-        if (titleTextStyle?.fontDecoration?.contains("underline") == true) androidx.compose.ui.text.style.TextDecoration.Underline else androidx.compose.ui.text.style.TextDecoration.None
-    val titleTextAlign = when (titleTextStyle?.textAlign?.lowercase()) {
-        "left" -> TextAlign.Start
-        "right" -> TextAlign.End
-        else -> TextAlign.Center
-    }
-    val titleFontFamily = when (titleTextStyle?.fontFamily?.lowercase()) {
-        "serif" -> FontFamily.Serif
-        "monospace" -> FontFamily.Monospace
-        "cursive" -> FontFamily.Cursive
-        else -> FontFamily.SansSerif
-    }
-    val titleMargin = titleTextStyle?.margin
-
-    // ── Subtitle styling (styling.thankyouPage.subtitle.textStyle) ────────
-    val subtitleTextStyle = thankyouPage?.subtitle?.textStyle
-    val subtitleColor = subtitleTextStyle?.color.toColorOr(Color(0xFF6B7280))
-    val subtitleFontSize = (subtitleTextStyle?.fontSize ?: 14).sp
-    val subtitleFontWeight =
-        if (subtitleTextStyle?.fontDecoration?.contains("bold") == true) FontWeight.Bold else FontWeight.Normal
-    val subtitleFontStyle =
-        if (subtitleTextStyle?.fontDecoration?.contains("italic") == true) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal
-    val subtitleTextDecoration =
-        if (subtitleTextStyle?.fontDecoration?.contains("underline") == true) androidx.compose.ui.text.style.TextDecoration.Underline else androidx.compose.ui.text.style.TextDecoration.None
-    val subtitleTextAlign = when (subtitleTextStyle?.textAlign?.trim()?.lowercase()) {
-        "left", "start" -> TextAlign.Start
-        "right", "end" -> TextAlign.End
-        "center", "centre", "middle" -> TextAlign.Center
-        else -> TextAlign.Start
-    }
-    val subtitleFontFamily = when (subtitleTextStyle?.fontFamily?.lowercase()) {
-        "serif" -> FontFamily.Serif
-        "monospace" -> FontFamily.Monospace
-        "cursive" -> FontFamily.Cursive
-        else -> FontFamily.SansSerif
-    }
-    val subtitleMargin = subtitleTextStyle?.margin
 
     // ── CTA config (styling.thankyouPage.cta) ─────────────────────────────
     val ctaStyling = thankyouPage?.cta
@@ -646,23 +601,17 @@ private fun SurveyThankYouContent(
         // ── "Title Text" → thankYouTitle ────────────────────
         val title = surveyDetails.thankYouTitle
         if (!title.isNullOrEmpty()) {
-            Text(
+            val titleTextStyle = thankyouPage?.title?.textStyle
+            CommonText(
+                modifier = Modifier.fillMaxWidth(),
                 text = title,
-                fontSize = titleFontSize,
-                fontWeight = titleFontWeight,
-                fontStyle = titleFontStyle,
-                textDecoration = titleTextDecoration,
-                fontFamily = titleFontFamily,
-                color = titleColor,
-                textAlign = titleTextAlign,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(
-                        start = (titleMargin?.left ?: 4).dp,
-                        end = (titleMargin?.right ?: 4).dp,
-                        top = (titleMargin?.top ?: 4).dp,
-                        bottom = (titleMargin?.bottom ?: 4).dp
-                    )
+                styling = TextStyling(
+                    color = titleTextStyle?.color,
+                    fontFamily = titleTextStyle?.fontFamily,
+                    fontSize = titleTextStyle?.fontSize ?: 20,
+                    textAlign = titleTextStyle?.textAlign ?: "center",
+                    fontDecoration = titleTextStyle?.fontDecoration
+                )
             )
             Spacer(modifier = Modifier.height(8.dp))
         }
@@ -670,23 +619,17 @@ private fun SurveyThankYouContent(
         // ── "Subtitle Text" → thankYouText ──────────────────
         val bodyText = surveyDetails.thankYouText
         if (!bodyText.isNullOrEmpty()) {
-            Text(
+            val subtitleTextStyle = thankyouPage?.subtitle?.textStyle
+            CommonText(
+                modifier = Modifier.fillMaxWidth(),
                 text = bodyText,
-                fontSize = subtitleFontSize,
-                fontWeight = subtitleFontWeight,
-                fontStyle = subtitleFontStyle,
-                textDecoration = subtitleTextDecoration,
-                fontFamily = subtitleFontFamily,
-                color = subtitleColor,
-                textAlign = subtitleTextAlign,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(
-                        start = (subtitleMargin?.left ?: 4).dp,
-                        end = (subtitleMargin?.right ?: 4).dp,
-                        top = (subtitleMargin?.top ?: 4).dp,
-                        bottom = (subtitleMargin?.bottom ?: 4).dp
-                    )
+                styling = TextStyling(
+                    color = subtitleTextStyle?.color,
+                    fontFamily = subtitleTextStyle?.fontFamily,
+                    fontSize = subtitleTextStyle?.fontSize ?: 14,
+                    textAlign = subtitleTextStyle?.textAlign ?: "center",
+                    fontDecoration = subtitleTextStyle?.fontDecoration
+                )
             )
             Spacer(modifier = Modifier.height(16.dp))
         }
@@ -759,53 +702,16 @@ private fun SurveyContent(
             // Display title if exists
             slide.title?.let { title ->
                 val titleStyle = styling?.title?.textStyle
-                val titleColor = titleStyle?.color.toColorOr(
-                    styling?.surveyQuestionColor.toColorOr(Color.Black)
-                )
-                val titleFontSize = (titleStyle?.fontSize ?: 18).sp
-                val titleFontWeight = when {
-                    titleStyle?.fontDecoration?.contains("bold") == true -> FontWeight.Bold
-                    else -> FontWeight.Normal
-                }
-                val titleFontStyle = when {
-                    titleStyle?.fontDecoration?.contains("italic") == true -> androidx.compose.ui.text.font.FontStyle.Italic
-                    else -> androidx.compose.ui.text.font.FontStyle.Normal
-                }
-                val titleTextDecoration = when {
-                    titleStyle?.fontDecoration?.contains("underline") == true ->
-                        androidx.compose.ui.text.style.TextDecoration.Underline
-
-                    else -> androidx.compose.ui.text.style.TextDecoration.None
-                }
-                val titleTextAlign = when (titleStyle?.textAlign?.lowercase()) {
-                    "left" -> TextAlign.Start
-                    "right" -> TextAlign.End
-                    else -> TextAlign.Center
-                }
-                val titleFontFamily = when (titleStyle?.fontFamily?.lowercase()) {
-                    "serif" -> FontFamily.Serif
-                    "monospace" -> FontFamily.Monospace
-                    "cursive" -> FontFamily.Cursive
-                    else -> FontFamily.SansSerif
-                }
-                val titleMargin = titleStyle?.margin
-                Text(
+                CommonText(
+                    modifier = Modifier.fillMaxWidth(),
                     text = title,
-                    fontSize = titleFontSize,
-                    fontWeight = titleFontWeight,
-                    fontStyle = titleFontStyle,
-                    textDecoration = titleTextDecoration,
-                    fontFamily = titleFontFamily,
-                    color = titleColor,
-                    textAlign = titleTextAlign,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(
-                            start = (titleMargin?.left ?: 0).dp,
-                            end = (titleMargin?.right ?: 0).dp,
-                            top = (titleMargin?.top ?: 0).dp,
-                            bottom = (titleMargin?.bottom ?: 0).dp
-                        )
+                    styling = TextStyling(
+                        color = titleStyle?.color ?: styling?.surveyQuestionColor,
+                        fontFamily = titleStyle?.fontFamily,
+                        fontSize = titleStyle?.fontSize ?: 18,
+                        textAlign = titleStyle?.textAlign ?: "center",
+                        fontDecoration = titleStyle?.fontDecoration
+                    )
                 )
                 Spacer(modifier = Modifier.height(8.dp))
             }
@@ -813,53 +719,16 @@ private fun SurveyContent(
             // Display subtitle if exists
             slide.subtitle?.let { subtitle ->
                 val subtitleStyle = styling?.subtitle?.textStyle
-                val subtitleColor = subtitleStyle?.color.toColorOr(
-                    styling?.surveyQuestionColor.toColorOr(Color.Gray)
-                )
-                val subtitleFontSize = (subtitleStyle?.fontSize ?: 14).sp
-                val subtitleFontWeight = when {
-                    subtitleStyle?.fontDecoration?.contains("bold") == true -> FontWeight.Bold
-                    else -> FontWeight.Normal
-                }
-                val subtitleFontStyle = when {
-                    subtitleStyle?.fontDecoration?.contains("italic") == true -> androidx.compose.ui.text.font.FontStyle.Italic
-                    else -> androidx.compose.ui.text.font.FontStyle.Normal
-                }
-                val subtitleTextDecoration = when {
-                    subtitleStyle?.fontDecoration?.contains("underline") == true ->
-                        androidx.compose.ui.text.style.TextDecoration.Underline
-
-                    else -> androidx.compose.ui.text.style.TextDecoration.None
-                }
-                val subtitleTextAlign = when (subtitleStyle?.textAlign?.lowercase()) {
-                    "left" -> TextAlign.Start
-                    "right" -> TextAlign.End
-                    else -> TextAlign.Center
-                }
-                val subtitleFontFamily = when (subtitleStyle?.fontFamily?.lowercase()) {
-                    "serif" -> FontFamily.Serif
-                    "monospace" -> FontFamily.Monospace
-                    "cursive" -> FontFamily.Cursive
-                    else -> FontFamily.SansSerif
-                }
-                val subtitleMargin = subtitleStyle?.margin
-                Text(
+                CommonText(
+                    modifier = Modifier.fillMaxWidth(),
                     text = subtitle,
-                    fontSize = subtitleFontSize,
-                    fontWeight = subtitleFontWeight,
-                    fontStyle = subtitleFontStyle,
-                    textDecoration = subtitleTextDecoration,
-                    fontFamily = subtitleFontFamily,
-                    color = subtitleColor,
-                    textAlign = subtitleTextAlign,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(
-                            start = (subtitleMargin?.left ?: 0).dp,
-                            end = (subtitleMargin?.right ?: 0).dp,
-                            top = (subtitleMargin?.top ?: 0).dp,
-                            bottom = (subtitleMargin?.bottom ?: 0).dp
-                        )
+                    styling = TextStyling(
+                        color = subtitleStyle?.color ?: styling?.surveyQuestionColor,
+                        fontFamily = subtitleStyle?.fontFamily,
+                        fontSize = subtitleStyle?.fontSize ?: 14,
+                        textAlign = subtitleStyle?.textAlign ?: "center",
+                        fontDecoration = subtitleStyle?.fontDecoration
+                    )
                 )
             }
         }
@@ -1022,26 +891,6 @@ private fun SurveyOptionItem(
         }
         ?: 1).dp
 
-    // Text style
-    val fontSize = (activeTextStyle?.fontSize ?: 14).sp
-    val fontWeight =
-        if (activeTextStyle?.fontDecoration?.contains("bold") == true) FontWeight.Bold else FontWeight.Normal
-    val fontStyle =
-        if (activeTextStyle?.fontDecoration?.contains("italic") == true) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal
-    val textDecoration =
-        if (activeTextStyle?.fontDecoration?.contains("underline") == true) androidx.compose.ui.text.style.TextDecoration.Underline else androidx.compose.ui.text.style.TextDecoration.None
-    val textAlign = when (activeTextStyle?.textAlign?.lowercase()) {
-        "left" -> TextAlign.Start
-        "right" -> TextAlign.End
-        else -> TextAlign.Center
-    }
-    val fontFamily = when (activeTextStyle?.fontFamily?.lowercase()) {
-        "serif" -> FontFamily.Serif
-        "monospace" -> FontFamily.Monospace
-        "cursive" -> FontFamily.Cursive
-        else -> FontFamily.SansSerif
-    }
-
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -1064,12 +913,16 @@ private fun SurveyOptionItem(
             // Prefix Rendering
             if (showBullet) {
                 // Number / Alpha / Roman
-                Text(
+                val bulletStyle = TextStyling(
+                    color = activeColors?.text,
+                    fontFamily = activeTextStyle?.fontFamily,
+                    fontSize = activeTextStyle?.fontSize ?: 12,
+                    textAlign = "start",
+                    fontDecoration = listOf("semibold")
+                )
+                CommonText(
                     text = option.id,
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        color = textColor,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    styling = bulletStyle
                 )
             }
             else if (showCircleBullet) {
@@ -1097,16 +950,16 @@ private fun SurveyOptionItem(
 
             Spacer(modifier = Modifier.width(bulletSpacing.dp))
 
-            Text(
+            CommonText(
                 text = option.name,
-                fontSize = fontSize,
-                fontWeight = fontWeight,
-                fontStyle = fontStyle,
-                textDecoration = textDecoration,
-                fontFamily = fontFamily,
-                color = textColor,
-                textAlign = textAlign,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                styling = TextStyling(
+                    color = activeColors?.text,
+                    fontFamily = activeTextStyle?.fontFamily,
+                    fontSize = activeTextStyle?.fontSize ?: 14,
+                    textAlign = activeTextStyle?.textAlign ?: "center",
+                    fontDecoration = activeTextStyle?.fontDecoration
+                )
             )
         }
     }
