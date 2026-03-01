@@ -9,8 +9,10 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,6 +28,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.graphics.toColorInt
 import coil.compose.AsyncImage
+import com.appversal.appstorys.api.CommonMargins
 import com.appversal.appstorys.api.SlideResponse
 import com.appversal.appstorys.api.SurveyDetails
 import com.appversal.appstorys.api.SurveySlide
@@ -159,22 +162,28 @@ fun SurveyBottomSheet(
 
     // Helper: resolve a redirectTo string to a slide index.
     fun resolveRedirectIndex(redirectTo: String): Int? {
+
         if (redirectTo == "thank_you" || redirectTo == "thank-you") return null
+
         // 1. Try matching by slide id (UUID)
-        val byId = slides.indexOfFirst { it.id == redirectTo }.takeIf { it != -1 }
+        val byId = slides.indexOfFirst { it.id == redirectTo }
+            .takeIf { it != -1 }
         if (byId != null) return byId
+
         // 2. Try matching by slide title (exact)
         val byTitle = slides.indexOfFirst {
             it.title.equals(redirectTo, ignoreCase = true)
         }.takeIf { it != -1 }
         if (byTitle != null) return byTitle
-        // 3. Try matching "Slide N" pattern (e.g. "Slide 1" → order index 0)
-        // Slides are already sorted by order, so positional index matches "Slide N"
-        val slideLabel = Regex("^[Ss]lide\\s*(\\d+)$").find(redirectTo)
-        if (slideLabel != null) {
-            val n = slideLabel.groupValues[1].toIntOrNull() ?: return null
-            val targetIndex = n - 1  // "Slide 1" = index 0
-            return if (targetIndex in slides.indices) targetIndex else null
+
+        // 3. Try matching "Question N"
+        val questionMatch = Regex("^[Qq]uestion\\s*(\\d+)$").find(redirectTo)
+        if (questionMatch != null) {
+            val questionNumber = questionMatch.groupValues[1].toIntOrNull()
+            if (questionNumber != null) {
+                val targetIndex = questionNumber - 1   // 🔥 because order starts at 0
+                return if (targetIndex in slides.indices) targetIndex else null
+            }
         }
         return null
     }
@@ -229,6 +238,7 @@ fun SurveyBottomSheet(
                     .fillMaxWidth()
                     .wrapContentHeight()
                     .systemBarsPadding()
+                    .imePadding()
                     .clip(
                         RoundedCornerShape(
                             topStart = cornerRadiusTopStart,
@@ -308,7 +318,7 @@ fun SurveyBottomSheet(
 
                         HorizontalPager(
                             state = pagerState,
-                            userScrollEnabled = isCurrentSlideValid,
+                            userScrollEnabled = false,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .wrapContentHeight()
@@ -337,7 +347,6 @@ fun SurveyBottomSheet(
                             )
                         }
 
-                        Spacer(modifier = Modifier.height(12.dp))
 
                         // ── Navigation row: NEXT / SUBMIT ──────────────────────────────
                         val isLastSlide = pagerState.currentPage == slides.size - 1
@@ -501,11 +510,9 @@ fun SurveyBottomSheet(
                                 }
                             )
                         }
-                        Spacer(modifier = Modifier.height(16.dp))
 
                         // ── Dot indicators ─────────────────────────────────────────────
                         if (slides.size > 1) {
-                            Spacer(modifier = Modifier.height(12.dp))
                             DotsIndicator(
                                 modifier = Modifier.align(Alignment.CenterHorizontally),
                                 totalDots = slides.size,
@@ -584,7 +591,6 @@ private fun SurveyThankYouContent(
             .padding(vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(modifier = Modifier.height(8.dp))
 
         // ── "Upload Image" → thankYouImage ──────────────────
         val imageUrl = surveyDetails.thankYouImage
@@ -610,10 +616,12 @@ private fun SurveyThankYouContent(
                     fontFamily = titleTextStyle?.fontFamily,
                     fontSize = titleTextStyle?.fontSize ?: 20,
                     textAlign = titleTextStyle?.textAlign ?: "center",
-                    fontDecoration = titleTextStyle?.fontDecoration
+                    fontDecoration = titleTextStyle?.fontDecoration,
+                    margin = titleTextStyle?.margin?.let {
+                        CommonMargins(top = it.top, bottom = it.bottom, left = it.left, right = it.right)
+                    }
                 )
             )
-            Spacer(modifier = Modifier.height(8.dp))
         }
 
         // ── "Subtitle Text" → thankYouText ──────────────────
@@ -628,10 +636,12 @@ private fun SurveyThankYouContent(
                     fontFamily = subtitleTextStyle?.fontFamily,
                     fontSize = subtitleTextStyle?.fontSize ?: 14,
                     textAlign = subtitleTextStyle?.textAlign ?: "center",
-                    fontDecoration = subtitleTextStyle?.fontDecoration
+                    fontDecoration = subtitleTextStyle?.fontDecoration,
+                    margin = subtitleTextStyle?.margin?.let {
+                        CommonMargins(top = it.top, bottom = it.bottom, left = it.left, right = it.right)
+                    }
                 )
             )
-            Spacer(modifier = Modifier.height(16.dp))
         }
 
         // ── "CTA Text" + "Redirect to" → thankYouButtonText / thankYouButtonConfig
@@ -695,7 +705,9 @@ private fun SurveyContent(
     }
 
 
-    Column(modifier = Modifier.fillMaxWidth()) {
+    Column(modifier = Modifier
+            .verticalScroll(rememberScrollState())
+            .fillMaxWidth()) {
 
         // Question text
         Column {
@@ -710,10 +722,12 @@ private fun SurveyContent(
                         fontFamily = titleStyle?.fontFamily,
                         fontSize = titleStyle?.fontSize ?: 18,
                         textAlign = titleStyle?.textAlign ?: "center",
-                        fontDecoration = titleStyle?.fontDecoration
+                        fontDecoration = titleStyle?.fontDecoration,
+                        margin = titleStyle?.margin?.let {
+                            CommonMargins(top = it.top, bottom = it.bottom, left = it.left, right = it.right)
+                        }
                     )
                 )
-                Spacer(modifier = Modifier.height(8.dp))
             }
 
             // Display subtitle if exists
@@ -727,7 +741,10 @@ private fun SurveyContent(
                         fontFamily = subtitleStyle?.fontFamily,
                         fontSize = subtitleStyle?.fontSize ?: 14,
                         textAlign = subtitleStyle?.textAlign ?: "center",
-                        fontDecoration = subtitleStyle?.fontDecoration
+                        fontDecoration = subtitleStyle?.fontDecoration,
+                        margin = subtitleStyle?.margin?.let {
+                            CommonMargins(top = it.top, bottom = it.bottom, left = it.left, right = it.right)
+                        }
                     )
                 )
             }
@@ -805,15 +822,17 @@ private fun SurveyContent(
 
             OutlinedTextField(
                 value = othersText,
-                onValueChange = onOthersTextChanged,
+                onValueChange = {
+                    if (it.length <= 200) {
+                        onOthersTextChanged(it)
+                    }
+                },
                 placeholder = {
                     Text(
-                        slide.additionalComment?.placeholder
-                            ?: "Please enter Others text…..upto 200 chars",
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            color = addlTextColor,
-                            fontWeight = FontWeight.Light
-                        )
+                        text = slide.additionalComment?.placeholder
+                            ?: "Please enter details (max 200 characters)",
+                        color = addlTextColor.copy(alpha = 0.6f),
+                        fontSize = addlFontSize
                     )
                 },
                 textStyle = androidx.compose.ui.text.TextStyle(
@@ -826,7 +845,7 @@ private fun SurveyContent(
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height((optionsConfig?.optionsHeight ?: 56).dp)
+                    .defaultMinSize(minHeight = 56.dp)
                     .border(addlBorderWidth, addlBorderColor, RoundedCornerShape(8.dp)),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = addlBorderColor,
@@ -837,10 +856,11 @@ private fun SurveyContent(
                     unfocusedTextColor = addlTextColor,
                     cursorColor = addlTextColor
                 ),
-                shape = RoundedCornerShape(8.dp), maxLines = 1,
-                singleLine = true
+                shape = RoundedCornerShape(8.dp),
+                minLines = 2,
+                maxLines = 4,
+                singleLine = false
             )
-            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
