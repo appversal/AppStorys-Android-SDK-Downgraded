@@ -1,12 +1,16 @@
 package com.appversal.appstorys.ui.pipvideo
 
+import android.annotation.SuppressLint
 import androidx.annotation.OptIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
@@ -301,6 +305,7 @@ internal fun PipVideo(
     }
 }
 
+@SuppressLint("UnusedBoxWithConstraintsScope")
 @OptIn(UnstableApi::class)
 @Composable
 fun PipPlayerView(
@@ -308,19 +313,85 @@ fun PipPlayerView(
     pipStyling: PipStyling?,
     modifier: Modifier = Modifier
 ) {
-    AndroidView(
-        factory = { ctx ->
-            PlayerView(ctx).apply {
-                player = exoPlayer
-                useController = false
-                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                setShowBuffering(PlayerView.SHOW_BUFFERING_ALWAYS)
-                useArtwork = false
-                setKeepContentOnPlayerReset(true)
+    var videoAspectRatio by remember { mutableFloatStateOf(16f / 9f) }
+    var isBuffering by remember { mutableStateOf(true) }
+
+    DisposableEffect(exoPlayer) {
+        val listener = object : Player.Listener {
+            override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
+                if (videoSize.width > 0 && videoSize.height > 0) {
+                    videoAspectRatio = (videoSize.width.toFloat() * videoSize.pixelWidthHeightRatio) /
+                            videoSize.height.toFloat()
+                }
             }
-        },
-        modifier = modifier
-    )
+
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                isBuffering = playbackState == Player.STATE_BUFFERING
+            }
+
+            override fun onIsLoadingChanged(isLoading: Boolean) {
+                if (!isLoading && exoPlayer.playbackState == Player.STATE_READY) {
+                    isBuffering = false
+                }
+            }
+        }
+        exoPlayer.addListener(listener)
+
+        if (exoPlayer.videoSize.width > 0 && exoPlayer.videoSize.height > 0) {
+            videoAspectRatio = (exoPlayer.videoSize.width.toFloat() * exoPlayer.videoSize.pixelWidthHeightRatio) /
+                    exoPlayer.videoSize.height.toFloat()
+        }
+        isBuffering = exoPlayer.playbackState == Player.STATE_BUFFERING
+
+        onDispose {
+            exoPlayer.removeListener(listener)
+        }
+    }
+
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.Center
+    ) {
+        BoxWithConstraints(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            val containerAspectRatio = constraints.maxWidth.toFloat() / constraints.maxHeight.toFloat()
+
+            val videoModifier = if (videoAspectRatio > containerAspectRatio) {
+                Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(videoAspectRatio)
+            } else {
+                Modifier
+                    .fillMaxHeight()
+                    .aspectRatio(videoAspectRatio, matchHeightConstraintsFirst = true)
+            }
+
+            AndroidView(
+                factory = { ctx ->
+                    android.widget.FrameLayout(ctx).apply {
+                        val textureView = android.view.TextureView(ctx).apply {
+                            layoutParams = android.widget.FrameLayout.LayoutParams(
+                                android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                                android.widget.FrameLayout.LayoutParams.MATCH_PARENT
+                            )
+                        }
+                        addView(textureView)
+                        exoPlayer.setVideoTextureView(textureView)
+                    }
+                },
+                modifier = videoModifier
+            )
+        }
+
+        if (isBuffering) {
+            androidx.compose.material3.CircularProgressIndicator(
+                color = Color.White,
+                modifier = Modifier.size(36.dp)
+            )
+        }
+    }
 }
 
 @kotlin.OptIn(ExperimentalMaterial3Api::class)

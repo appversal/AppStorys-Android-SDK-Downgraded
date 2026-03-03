@@ -1,14 +1,16 @@
 package com.appversal.appstorys.ui
 
 import android.content.Intent
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.togetherWith
 import androidx.core.net.toUri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -41,7 +43,6 @@ import com.appversal.appstorys.ui.common_components.createCTAButtonConfig
 import com.appversal.appstorys.ui.common_components.createCrossButtonConfig
 import com.appversal.appstorys.utils.toColor
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 data class SurveyFeedback(
     // single-question backward compat
@@ -114,7 +115,7 @@ fun SurveyBottomSheet(
             )
         )
 
-    val pagerState = rememberPagerState(pageCount = { slides.size })
+    var currentPage by remember { mutableIntStateOf(0) }
 
     // Per-slide state — keyed by slides.size so it rebuilds if slide count changes
     val selectedOptionsPerSlide = remember(slides.size) {
@@ -251,12 +252,286 @@ fun SurveyBottomSheet(
                         interactionSource = remember { MutableInteractionSource() }
                     ) { /* consume clicks so they don't dismiss via backdrop */ }
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(15.dp)
-                ) {
-                    // ── Header: close button ────────────────────────────
+                Box {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState())
+                            .padding(15.dp)
+                    ) {
+
+                        if (showThankYou) {
+                            // ── Thank You page — data already submitted, CTA only redirects ──
+                            SurveyThankYouContent(
+                                surveyDetails = surveyDetails,
+                                onDismiss = onDismissRequest,
+                                onThankYouCtaClicked = {
+                                    campaignId?.let {
+                                        onTrackEvent(
+                                            it,
+                                            "ThankYouCTAClicked",
+                                            mapOf(
+                                                "survey_id" to (surveyDetails.id ?: ""),
+                                                "slide_id" to (slides.lastOrNull()?.id ?: "")
+                                            )
+                                        )
+                                    }
+                                }
+                            )
+                        } else {
+                            // ── Survey slides ────────────────────────────────────────────────
+                            val currentSelected =
+                                selectedOptionsPerSlide[currentPage].value
+                            val isCurrentSlideValid = currentSelected.isNotEmpty()
+
+                            LaunchedEffect(currentPage) {
+                                if (!showThankYou) {
+                                    val slide = slides[currentPage]
+                                    campaignId?.let {
+                                        onTrackEvent(
+                                            it, "viewed",
+                                            mapOf(
+                                                "survey_id" to (surveyDetails.id ?: ""),
+                                                "slide_id" to (slide.id ?: "")
+                                            )
+                                        )
+                                    }
+                                }
+                            }
+
+                            AnimatedContent(
+                                targetState = currentPage,
+                                transitionSpec = {
+                                    if (targetState > initialState) {
+                                        // Forward: slide in from right
+                                        slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Left) togetherWith
+                                                slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Left)
+                                    } else {
+                                        // Backward: slide in from left
+                                        slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Right) togetherWith
+                                                slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Right)
+                                    }
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .animateContentSize(),
+                                label = "surveySlide"
+                            ) { pageIndex ->
+
+                                val slide = slides[pageIndex]
+                                val currentSelectedInPage = selectedOptionsPerSlide[pageIndex].value
+                                val showInputBox = currentSelectedInPage.contains("Others")
+                                SurveyContent(
+                                    slide = slide,
+                                    styling = surveyDetails.styling,
+                                    selectedOptions = currentSelectedInPage,
+                                    showInputBox = showInputBox,
+                                    othersText = othersTextPerSlide[pageIndex],
+                                    onOptionSelected = { optionName ->
+                                        val current = selectedOptionsPerSlide[pageIndex].value
+                                        selectedOptionsPerSlide[pageIndex].value =
+                                            if (current.contains(optionName)) current - optionName
+                                            else current + optionName
+                                        if (optionName == "Others" && current.contains("Others")) {
+                                            othersTextPerSlide[pageIndex] = ""
+                                        }
+                                    },
+                                    onOthersTextChanged = { text ->
+                                        othersTextPerSlide[pageIndex] = text
+                                    }
+                                )
+                            }
+
+                            // ── Navigation row: NEXT / SUBMIT ──────────────────────────────
+                            val isLastSlide = currentPage == slides.size - 1
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                val currentSlide = slides[currentPage]
+                                val currentSelectedInRow =
+                                    selectedOptionsPerSlide[currentPage].value
+                                val isCurrentSlideValidInRow = currentSelectedInRow.isNotEmpty()
+
+                                val logicRedirect =
+                                    if (isCurrentSlideValidInRow) resolveLogicRedirect(currentPage) else
+                                        null
+                                // Normalize: treat both "thank_you" and "thank-you" as a thank-you redirect
+                                val isThankYouRedirect =
+                                    logicRedirect == "thank_you" || logicRedirect == "thank-you"
+                                // Resolve redirect target: id / title / "Slide N" → index; null if thank_you or no match
+                                val redirectTargetIndex =
+                                    logicRedirect?.let { resolveRedirectIndex(it) }
+
+                                val buttonText = when {
+                                    isThankYouRedirect ->
+                                        currentSlide.submitButtonText?.takeIf { it.isNotEmpty() }
+                                            ?: "SUBMIT"
+
+                                    redirectTargetIndex != null ->
+                                        currentSlide.submitButtonText?.takeIf { it.isNotEmpty() }
+                                            ?: "NEXT"
+
+                                    isLastSlide ->
+                                        currentSlide.submitButtonText?.takeIf { it.isNotEmpty() }
+                                            ?: "SUBMIT"
+
+                                    else ->
+                                        currentSlide.submitButtonText?.takeIf { it.isNotEmpty() }
+                                            ?: "NEXT"
+                                }
+
+                                val navButtonConfig = run {
+                                    val ctaStyling = surveyDetails.styling?.cta
+                                    val ctaContainer = ctaStyling?.container
+                                    val ctaCornerRadius = ctaStyling?.cornerRadius
+                                    val ctaMargin = ctaStyling?.margin
+                                    createCTAButtonConfig(
+                                        // text
+                                        textColor =
+                                            ctaStyling?.text?.color
+                                                ?: surveyDetails.styling?.ctaTextIconColor
+                                                ?: "#FFFFFF",
+                                        textSize = ctaStyling?.text?.fontSize ?: 16,
+                                        fontFamily = ctaStyling?.text?.fontFamily,
+                                        fontDecoration = ctaStyling?.text?.fontDecoration,
+                                        // margins
+                                        marginTop = ctaMargin?.top,
+                                        marginBottom = ctaMargin?.bottom,
+                                        marginStart = ctaMargin?.left,
+                                        marginEnd = ctaMargin?.right,
+                                        // container
+                                        height = ctaContainer?.height ?: 56,
+                                        width = ctaContainer?.ctaWidth,
+                                        alignment = ctaContainer?.alignment ?: "center",
+                                        backgroundColorString =
+                                            ctaContainer?.backgroundColor
+                                                ?: surveyDetails.styling?.ctaBackgroundColor
+                                                ?: "#000000",
+                                        borderColorString = ctaContainer?.borderColor,
+                                        borderWidth = ctaContainer?.borderWidth ?: 0,
+                                        fullWidth = ctaContainer?.ctaFullWidth ?: true,
+                                        // corner radius
+                                        borderRadiusTopLeft = ctaCornerRadius?.topLeft ?: 12,
+                                        borderRadiusTopRight = ctaCornerRadius?.topRight ?: 12,
+                                        borderRadiusBottomLeft = ctaCornerRadius?.bottomLeft ?: 12,
+                                        borderRadiusBottomRight = ctaCornerRadius?.bottomRight
+                                            ?: 12,
+                                    )
+                                }
+
+                                CTAButton(
+                                    text = buttonText,
+                                    config = navButtonConfig,
+                                    onClick = {
+                                        if (!isCurrentSlideValidInRow) return@CTAButton
+
+                                        // ── Track "clicked" for selected options ─────────────────────────
+                                        val selectedOptionKeys = currentSelectedInRow
+                                            .mapNotNull { selectedName ->
+                                                currentSlide.options?.entries
+                                                    ?.firstOrNull { it.value == selectedName }?.key
+                                            }
+
+                                        if (selectedOptionKeys.isNotEmpty()) {
+                                            campaignId?.let {
+                                                onTrackEvent(
+                                                    it, "clicked",
+                                                    mapOf(
+                                                        "survey_id" to (surveyDetails.id ?: ""),
+                                                        "slide_id" to (currentSlide.id ?: ""),
+                                                        "selected_options" to selectedOptionKeys
+                                                    )
+                                                )
+                                            }
+                                        }
+
+                                        // ── Track "clicked" for additional comment if non-empty ──────────
+                                        val comment = othersTextPerSlide[currentPage]
+                                        if (comment.isNotEmpty()) {
+                                            campaignId?.let {
+                                                onTrackEvent(
+                                                    it, "clicked",
+                                                    mapOf(
+                                                        "survey_id" to (surveyDetails.id ?: ""),
+                                                        "slide_id" to (currentSlide.id ?: ""),
+                                                        "additional_comment" to comment
+                                                    )
+                                                )
+                                            }
+                                        }
+                                        when {
+                                            isThankYouRedirect -> {
+                                                campaignId?.let {
+                                                    onTrackEvent(
+                                                        it,
+                                                        "SurveySubmitted",
+                                                        mapOf(
+                                                            "survey_id" to (surveyDetails.id
+                                                                ?: ""),
+                                                            "slide_id" to (slides.lastOrNull()?.id
+                                                                ?: "")
+                                                        )
+                                                    )
+                                                }
+                                                if (hasThankYouPage) showThankYou = true
+                                                else onDismissRequest()
+                                            }
+
+                                            redirectTargetIndex != null -> {
+                                                slideHistory.add(redirectTargetIndex)
+                                                currentPage = redirectTargetIndex
+                                            }
+
+                                            isLastSlide -> {
+                                                campaignId?.let {
+                                                    onTrackEvent(
+                                                        it,
+                                                        "SurveySubmitted",
+                                                        mapOf(
+                                                            "survey_id" to (surveyDetails.id
+                                                                ?: ""),
+                                                            "slide_id" to (slides.lastOrNull()?.id
+                                                                ?: "")
+                                                        )
+                                                    )
+                                                }
+                                                if (hasThankYouPage) showThankYou = true
+                                                else onDismissRequest()
+                                            }
+
+                                            else -> {
+                                                val nextPage = currentPage + 1
+                                                slideHistory.add(nextPage)
+                                                currentPage = nextPage
+                                            }
+                                        }
+                                    }
+                                )
+                            }
+
+                            // ── Dot indicators ─────────────────────────────────────────────
+                            if (slides.size > 1) {
+                                DotsIndicator(
+                                    modifier = Modifier.align(Alignment.CenterHorizontally),
+                                    totalDots = slides.size,
+                                    selectedIndex = currentPage,
+                                    selectedColor = surveyDetails.styling?.cta?.container?.backgroundColor.toColor(
+                                        surveyDetails.styling?.ctaBackgroundColor.toColor(Color.Black)
+                                    ),
+                                    unSelectedColor = surveyDetails.styling?.optionColor.toColorOr(
+                                        Color.LightGray
+                                    ),
+                                    dotSize = 8.dp,
+                                    selectedLength = 20.dp
+                                )
+                            }
+
+                        } // end if/else showThankYou
+                    }
+
                     if (isCrossEnabled) {
                         Box(modifier = Modifier.fillMaxWidth()) {
                             CrossButton(
@@ -270,263 +545,18 @@ fun SurveyBottomSheet(
                                             onTrackEvent(
                                                 it,
                                                 "SurveyDismissed",
-                                                mapOf("survey_id" to (surveyDetails.id ?: ""))
+                                                mapOf(
+                                                    "survey_id" to (surveyDetails.id ?: ""),
+                                                    "slide_id" to (slides.lastOrNull()?.id ?: "")
+                                                )
                                             )
                                         }
-                                        val answeredUpTo = pagerState.currentPage
                                         onDismissRequest()
                                     }
                                 }
                             )
                         }
                     }
-
-                    if (showThankYou) {
-                        // ── Thank You page — data already submitted, CTA only redirects ──
-                        SurveyThankYouContent(
-                            surveyDetails = surveyDetails,
-                            onDismiss = onDismissRequest,
-                            onThankYouCtaClicked = {
-                                campaignId?.let {
-                                    onTrackEvent(
-                                        it,
-                                        "ThankYouCTAClicked",
-                                        mapOf("survey_id" to (surveyDetails.id ?: ""))
-                                    )
-                                }
-                            }
-                        )
-                    } else {
-                        // ── Survey slides ────────────────────────────────────────────────
-                        val currentSelected = selectedOptionsPerSlide[pagerState.currentPage].value
-                        val isCurrentSlideValid = currentSelected.isNotEmpty()
-
-                        LaunchedEffect(pagerState.currentPage) {
-                            if (!showThankYou) {
-                                val slide = slides[pagerState.currentPage]
-                                campaignId?.let {
-                                    onTrackEvent(
-                                        it, "viewed",
-                                        mapOf(
-                                            "survey_id" to (surveyDetails.id ?: ""),
-                                            "slide_id" to (slide.id ?: "")
-                                        )
-                                    )
-                                }
-                            }
-                        }
-
-                        HorizontalPager(
-                            state = pagerState,
-                            userScrollEnabled = false,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .wrapContentHeight()
-                        ) { pageIndex ->
-                            val slide = slides[pageIndex]
-                            val currentSelectedInPage = selectedOptionsPerSlide[pageIndex].value
-                            val showInputBox = currentSelectedInPage.contains("Others")
-
-                            SurveyContent(
-                                slide = slide,
-                                styling = surveyDetails.styling,
-                                selectedOptions = currentSelectedInPage,
-                                showInputBox = showInputBox,
-                                othersText = othersTextPerSlide[pageIndex],
-                                onOptionSelected = { optionName ->
-                                    val current = selectedOptionsPerSlide[pageIndex].value
-                                    // Toggle: if already selected remove it, else add it
-                                    selectedOptionsPerSlide[pageIndex].value =
-                                        if (current.contains(optionName)) current - optionName
-                                        else current + optionName
-                                    othersTextPerSlide[pageIndex] = ""
-                                },
-                                onOthersTextChanged = { text ->
-                                    othersTextPerSlide[pageIndex] = text
-                                }
-                            )
-                        }
-
-
-                        // ── Navigation row: NEXT / SUBMIT ──────────────────────────────
-                        val isLastSlide = pagerState.currentPage == slides.size - 1
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            val currentPage = pagerState.currentPage
-                            val currentSlide = slides[currentPage]
-                            val currentSelectedInRow = selectedOptionsPerSlide[currentPage].value
-                            val isCurrentSlideValidInRow = currentSelectedInRow.isNotEmpty()
-
-                            val logicRedirect =
-                                if (isCurrentSlideValidInRow) resolveLogicRedirect(currentPage) else
-                                    null
-                            // Normalize: treat both "thank_you" and "thank-you" as a thank-you redirect
-                            val isThankYouRedirect =
-                                logicRedirect == "thank_you" || logicRedirect == "thank-you"
-                            // Resolve redirect target: id / title / "Slide N" → index; null if thank_you or no match
-                            val redirectTargetIndex =
-                                logicRedirect?.let { resolveRedirectIndex(it) }
-
-                            val buttonText = when {
-                                isThankYouRedirect ->
-                                    currentSlide.submitButtonText?.takeIf { it.isNotEmpty() }
-                                        ?: "SUBMIT"
-
-                                redirectTargetIndex != null ->
-                                    currentSlide.submitButtonText?.takeIf { it.isNotEmpty() }
-                                        ?: "NEXT"
-
-                                isLastSlide ->
-                                    currentSlide.submitButtonText?.takeIf { it.isNotEmpty() }
-                                        ?: "SUBMIT"
-
-                                else ->
-                                    currentSlide.submitButtonText?.takeIf { it.isNotEmpty() }
-                                        ?: "NEXT"
-                            }
-
-                            val navButtonConfig = run {
-                                val ctaStyling = surveyDetails.styling?.cta
-                                val ctaContainer = ctaStyling?.container
-                                val ctaCornerRadius = ctaStyling?.cornerRadius
-                                val ctaMargin = ctaStyling?.margin
-                                createCTAButtonConfig(
-                                    // text
-                                    textColor =
-                                        ctaStyling?.text?.color
-                                            ?: surveyDetails.styling?.ctaTextIconColor
-                                            ?: "#FFFFFF",
-                                    textSize = ctaStyling?.text?.fontSize ?: 16,
-                                    fontFamily = ctaStyling?.text?.fontFamily,
-                                    fontDecoration = ctaStyling?.text?.fontDecoration,
-                                    // margins
-                                    marginTop = ctaMargin?.top,
-                                    marginBottom = ctaMargin?.bottom,
-                                    marginStart = ctaMargin?.left,
-                                    marginEnd = ctaMargin?.right,
-                                    // container
-                                    height = ctaContainer?.height ?: 56,
-                                    width = ctaContainer?.ctaWidth,
-                                    alignment = ctaContainer?.alignment ?: "center",
-                                    backgroundColorString =
-                                        ctaContainer?.backgroundColor
-                                            ?: surveyDetails.styling?.ctaBackgroundColor
-                                            ?: "#000000",
-                                    borderColorString = ctaContainer?.borderColor,
-                                    borderWidth = ctaContainer?.borderWidth ?: 0,
-                                    fullWidth = ctaContainer?.ctaFullWidth ?: true,
-                                    // corner radius
-                                    borderRadiusTopLeft = ctaCornerRadius?.topLeft ?: 12,
-                                    borderRadiusTopRight = ctaCornerRadius?.topRight ?: 12,
-                                    borderRadiusBottomLeft = ctaCornerRadius?.bottomLeft ?: 12,
-                                    borderRadiusBottomRight = ctaCornerRadius?.bottomRight ?: 12,
-                                )
-                            }
-
-                            CTAButton(
-                                text = buttonText,
-                                config = navButtonConfig,
-                                onClick = {
-                                    if (!isCurrentSlideValidInRow) return@CTAButton
-
-                                    // ── Track "clicked" for selected options ─────────────────────────
-                                    val selectedOptionKeys = currentSelectedInRow
-                                        .mapNotNull { selectedName ->
-                                            currentSlide.options?.entries
-                                                ?.firstOrNull { it.value == selectedName }?.key
-                                        }
-                                    campaignId?.let {
-                                        onTrackEvent(
-                                            it, "clicked",
-                                            mapOf(
-                                                "survey_id" to (surveyDetails.id ?: ""),
-                                                "slide_id" to (currentSlide.id ?: ""),
-                                                "option" to selectedOptionKeys
-                                            )
-                                        )
-                                    }
-
-                                    // ── Track "clicked" for additional comment if non-empty ──────────
-                                    val comment = othersTextPerSlide[currentPage]
-                                    if (comment.isNotEmpty()) {
-                                        campaignId?.let {
-                                            onTrackEvent(
-                                                it, "clicked",
-                                                mapOf(
-                                                    "survey_id" to (surveyDetails.id ?: ""),
-                                                    "slide_id" to (currentSlide.id ?: ""),
-                                                    "additional_comment" to comment
-                                                )
-                                            )
-                                        }
-                                    }
-
-                                    coroutineScope.launch {
-                                        when {
-                                            isThankYouRedirect -> {
-                                                campaignId?.let {
-                                                    onTrackEvent(
-                                                        it,
-                                                        "SurveySubmitted",
-                                                        mapOf(
-                                                            "survey_id" to (surveyDetails.id ?: "")
-                                                        )
-                                                    )
-                                                }
-                                                if (hasThankYouPage) showThankYou = true
-                                                else onDismissRequest()
-                                            }
-
-                                            redirectTargetIndex != null -> {
-                                                slideHistory.add(redirectTargetIndex)
-                                                pagerState.animateScrollToPage(redirectTargetIndex)
-                                            }
-
-                                            isLastSlide -> {
-                                                campaignId?.let {
-                                                    onTrackEvent(
-                                                        it,
-                                                        "SurveySubmitted",
-                                                        mapOf(
-                                                            "survey_id" to (surveyDetails.id ?: "")
-                                                        )
-                                                    )
-                                                }
-                                                if (hasThankYouPage) showThankYou = true
-                                                else onDismissRequest()
-                                            }
-
-                                            else -> {
-                                                val nextPage = currentPage + 1
-                                                slideHistory.add(nextPage)
-                                                pagerState.animateScrollToPage(nextPage)
-                                            }
-                                        }
-                                    }
-                                }
-                            )
-                        }
-
-                        // ── Dot indicators ─────────────────────────────────────────────
-                        if (slides.size > 1) {
-                            DotsIndicator(
-                                modifier = Modifier.align(Alignment.CenterHorizontally),
-                                totalDots = slides.size,
-                                selectedIndex = pagerState.currentPage,
-                                selectedColor = surveyDetails.styling?.ctaBackgroundColor.toColorOr(
-                                    Color.Blue
-                                ),
-                                unSelectedColor = surveyDetails.styling?.optionColor.toColorOr(Color.LightGray),
-                                dotSize = 8.dp,
-                                selectedLength = 20.dp
-                            )
-                        }
-
-                    } // end if/else showThankYou
                 }
             } // end sheet Box
         } // end outer Box
@@ -587,21 +617,55 @@ private fun SurveyThankYouContent(
 
     Column(
         modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
+            .fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
 
         // ── "Upload Image" → thankYouImage ──────────────────
         val imageUrl = surveyDetails.thankYouImage
         if (!imageUrl.isNullOrEmpty()) {
-            AsyncImage(
-                model = imageUrl,
-                contentDescription = "Thank you image",
-                modifier = Modifier
-                    .size(80.dp)
-                    .padding(bottom = 12.dp)
-            )
+            val imgStyle = thankyouPage?.imageStyle
+            val imgWidth = imgStyle?.width ?: 80
+            val imgHeight = imgStyle?.height ?: 80
+            val imgMargin = imgStyle?.margin
+            val imgModifier = Modifier
+                .size(width = imgWidth.dp, height = imgHeight.dp)
+                .padding(
+                    top = (imgMargin?.top ?: 12).dp,
+                    bottom = (imgMargin?.bottom ?: 12).dp,
+                    start = (imgMargin?.left ?: 12).dp,
+                    end = (imgMargin?.right ?: 12).dp
+                )
+            // Detect media type purely from URL extension (strip query params first)
+            val urlClean = imageUrl.substringBefore("?").lowercase()
+            when {
+                urlClean.endsWith(".json") || urlClean.endsWith(".lottie") -> {
+                    com.airbnb.lottie.compose.LottieAnimation(
+                        composition = com.airbnb.lottie.compose.rememberLottieComposition(
+                            com.airbnb.lottie.compose.LottieCompositionSpec.Url(imageUrl)
+                        ).value,
+                        iterations = com.airbnb.lottie.compose.LottieConstants.IterateForever,
+                        modifier = imgModifier
+                    )
+                }
+                urlClean.endsWith(".gif") -> {
+                    AsyncImage(
+                        model = coil.request.ImageRequest.Builder(LocalContext.current)
+                            .data(imageUrl)
+                            .decoderFactory(coil.decode.GifDecoder.Factory())
+                            .build(),
+                        contentDescription = "Thank you image",
+                        modifier = imgModifier
+                    )
+                }
+                else -> {
+                    AsyncImage(
+                        model = imageUrl,
+                        contentDescription = "Thank you image",
+                        modifier = imgModifier
+                    )
+                }
+            }
         }
 
         // ── "Title Text" → thankYouTitle ────────────────────
@@ -618,7 +682,12 @@ private fun SurveyThankYouContent(
                     textAlign = titleTextStyle?.textAlign ?: "center",
                     fontDecoration = titleTextStyle?.fontDecoration,
                     margin = titleTextStyle?.margin?.let {
-                        CommonMargins(top = it.top, bottom = it.bottom, left = it.left, right = it.right)
+                        CommonMargins(
+                            top = it.top,
+                            bottom = it.bottom,
+                            left = it.left,
+                            right = it.right
+                        )
                     }
                 )
             )
@@ -638,7 +707,12 @@ private fun SurveyThankYouContent(
                     textAlign = subtitleTextStyle?.textAlign ?: "center",
                     fontDecoration = subtitleTextStyle?.fontDecoration,
                     margin = subtitleTextStyle?.margin?.let {
-                        CommonMargins(top = it.top, bottom = it.bottom, left = it.left, right = it.right)
+                        CommonMargins(
+                            top = it.top,
+                            bottom = it.bottom,
+                            left = it.left,
+                            right = it.right
+                        )
                     }
                 )
             )
@@ -705,9 +779,10 @@ private fun SurveyContent(
     }
 
 
-    Column(modifier = Modifier
-            .verticalScroll(rememberScrollState())
-            .fillMaxWidth()) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+    ) {
 
         // Question text
         Column {
@@ -724,7 +799,12 @@ private fun SurveyContent(
                         textAlign = titleStyle?.textAlign ?: "center",
                         fontDecoration = titleStyle?.fontDecoration,
                         margin = titleStyle?.margin?.let {
-                            CommonMargins(top = it.top, bottom = it.bottom, left = it.left, right = it.right)
+                            CommonMargins(
+                                top = it.top,
+                                bottom = it.bottom,
+                                left = it.left,
+                                right = it.right
+                            )
                         }
                     )
                 )
@@ -743,7 +823,12 @@ private fun SurveyContent(
                         textAlign = subtitleStyle?.textAlign ?: "center",
                         fontDecoration = subtitleStyle?.fontDecoration,
                         margin = subtitleStyle?.margin?.let {
-                            CommonMargins(top = it.top, bottom = it.bottom, left = it.left, right = it.right)
+                            CommonMargins(
+                                top = it.top,
+                                bottom = it.bottom,
+                                left = it.left,
+                                right = it.right
+                            )
                         }
                     )
                 )
@@ -820,47 +905,58 @@ private fun SurveyContent(
                 }
                 ?: 1).dp
 
-            OutlinedTextField(
-                value = othersText,
-                onValueChange = {
-                    if (it.length <= 200) {
-                        onOthersTextChanged(it)
-                    }
-                },
-                placeholder = {
-                    Text(
-                        text = slide.additionalComment?.placeholder
-                            ?: "Please enter details (max 200 characters)",
-                        color = addlTextColor.copy(alpha = 0.6f),
-                        fontSize = addlFontSize
-                    )
-                },
-                textStyle = androidx.compose.ui.text.TextStyle(
-                    fontSize = addlFontSize,
-                    fontWeight = addlFontWeight,
-                    fontStyle = addlFontStyle,
-                    textDecoration = addlTextDecoration,
-                    textAlign = addlTextAlign,
-                    color = addlTextColor
-                ),
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .defaultMinSize(minHeight = 56.dp)
-                    .border(addlBorderWidth, addlBorderColor, RoundedCornerShape(8.dp)),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = addlBorderColor,
-                    unfocusedBorderColor = addlBorderColor,
-                    focusedContainerColor = addlBgColor,
-                    unfocusedContainerColor = addlBgColor,
-                    focusedTextColor = addlTextColor,
-                    unfocusedTextColor = addlTextColor,
-                    cursorColor = addlTextColor
-                ),
-                shape = RoundedCornerShape(8.dp),
-                minLines = 2,
-                maxLines = 4,
-                singleLine = false
-            )
+                    .padding(top = 12.dp)
+                    .height(92.dp)
+                    .background(
+                        color = addlBgColor,
+                        shape = RoundedCornerShape(18.dp)
+                    )
+                    .border(
+                        width = addlBorderWidth,
+                        color = addlBorderColor,
+                        shape = RoundedCornerShape(18.dp)
+                    )
+            ) {
+                TextField(
+                    value = othersText,
+                    onValueChange = {
+                        if (it.length <= 200) {
+                            onOthersTextChanged(it)
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize(),
+                    placeholder = {
+                        Text(
+                            text = slide.additionalComment?.placeholder
+                                ?: "Please enter here",
+                            color = addlTextColor.copy(alpha = 0.6f),
+                            fontSize = addlFontSize
+                        )
+                    },
+                    textStyle = androidx.compose.ui.text.TextStyle(
+                        fontSize = addlFontSize,
+                        fontWeight = addlFontWeight,
+                        fontStyle = addlFontStyle,
+                        textDecoration = addlTextDecoration,
+                        textAlign = addlTextAlign,
+                        color = addlTextColor
+                    ),
+                    maxLines = Int.MAX_VALUE,
+                    singleLine = false,
+                    colors = TextFieldDefaults.colors(
+                        focusedTextColor = addlTextColor,
+                        unfocusedTextColor = addlTextColor,
+                        unfocusedContainerColor = Color.Transparent,
+                        focusedContainerColor = Color.Transparent,
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                        cursorColor = addlTextColor
+                    )
+                )
+            }
         }
     }
 }
@@ -934,7 +1030,7 @@ private fun SurveyOptionItem(
             if (showBullet) {
                 // Number / Alpha / Roman
                 val bulletStyle = TextStyling(
-                    color = activeColors?.text,
+                    color = activeColors?.border,
                     fontFamily = activeTextStyle?.fontFamily,
                     fontSize = activeTextStyle?.fontSize ?: 12,
                     textAlign = "start",
@@ -944,15 +1040,14 @@ private fun SurveyOptionItem(
                     text = option.id,
                     styling = bulletStyle
                 )
-            }
-            else if (showCircleBullet) {
+            } else if (showCircleBullet) {
                 Box(
                     modifier = Modifier
                         .size(18.dp)
                         .clip(CircleShape)
                         .border(
-                            width = 2.dp,
-                            color = textColor,
+                            width = 1.dp,
+                            color = borderColor,
                             shape = CircleShape
                         ),
                     contentAlignment = Alignment.Center
@@ -962,7 +1057,7 @@ private fun SurveyOptionItem(
                             modifier = Modifier
                                 .size(10.dp)
                                 .clip(CircleShape)
-                                .background(textColor)
+                                .background(borderColor)
                         )
                     }
                 }

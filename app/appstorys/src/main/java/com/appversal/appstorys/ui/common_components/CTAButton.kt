@@ -112,7 +112,7 @@ fun CTAButton(
         .clickable(
             role = Role.Button,
             interactionSource = remember { MutableInteractionSource() },
-            indication = rememberRipple(bounded = true),
+            indication = null,
             onClick = onClick
         )
 

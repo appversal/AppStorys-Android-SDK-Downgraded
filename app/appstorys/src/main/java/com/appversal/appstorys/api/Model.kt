@@ -1196,7 +1196,6 @@ data class AdditionalComment(
     val placeholder: String?
 )
 
-
 @Keep
 @Serializable
 data class SurveyDetails(
@@ -1278,8 +1277,17 @@ data class SurveyThankyouTextElement(
 @Serializable
 data class SurveyThankyouPage(
     val cta: SurveyCtaConfig? = null,
+    val imageStyle: SurveyImageStyle? = null,
     val subtitle: SurveyThankyouTextElement? = null,
     val title: SurveyThankyouTextElement? = null
+)
+
+@Keep
+@Serializable
+data class SurveyImageStyle(
+    val height: Int? = null,
+    val width: Int? = null,
+    val margin: Margin? = null
 )
 
 @Keep
@@ -1847,6 +1855,7 @@ data class TriggerEventConfig(
     val value: String? = null,
     @SerialName("back_press") val backPress: Boolean? = null
 )
+
 // Spin the Wheel Models
 @Keep
 @Serializable
