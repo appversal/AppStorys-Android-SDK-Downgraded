@@ -30,7 +30,7 @@ class TestActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         App.appStorys.getScreenCampaigns(
-            "Home Screen Kotlin",
+            "Home Screen Kotlin XML",
             emptyList()
         )
         lifecycleScope.launch {

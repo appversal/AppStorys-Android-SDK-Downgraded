@@ -22,7 +22,8 @@ internal class ApiRepository(
     private val webSocketApiService: ApiService,
     private val getScreen: () -> String,
 ) {
-    private val sharedPreferences = context.getSharedPreferences("appversal_campaigns", Context.MODE_PRIVATE)
+    private val sharedPreferences =
+        context.getSharedPreferences("appversal_campaigns", Context.MODE_PRIVATE)
     private var cachedCampaignsJson: List<Campaign>? = null
     private var isCampaignsJsonFetchedThisSession = false
 
@@ -32,7 +33,12 @@ internal class ApiRepository(
         private const val PREF_DEVICE_INFO_SENT = "device_info_sent"
     }
 
-    suspend fun getAccessToken(app_id: String, account_id: String, user_id: String, context: Context): String? {
+    suspend fun getAccessToken(
+        app_id: String,
+        account_id: String,
+        user_id: String,
+        context: Context
+    ): String? {
         return withContext(Dispatchers.IO) {
 
             val deviceInfoAlreadySent = sharedPreferences.getBoolean(PREF_DEVICE_INFO_SENT, false)
@@ -48,7 +54,12 @@ internal class ApiRepository(
             when (val result = safeApiCall {
                 webSocketApiService.validateAccount(
                     accountId = account_id,
-                    ValidateAccountRequest(app_id = app_id, account_id = account_id, user_id = user_id, attributes = attributes)
+                    ValidateAccountRequest(
+                        app_id = app_id,
+                        account_id = account_id,
+                        user_id = user_id,
+                        attributes = attributes
+                    )
                 ).access_token
             }) {
                 is ApiResult.Success -> {
@@ -61,6 +72,7 @@ internal class ApiRepository(
                     }
                     result.data
                 }
+
                 is ApiResult.Error -> {
                     Log.e("ApiRepository", "Error getting access token: ${result.message}")
                     null
@@ -99,12 +111,15 @@ internal class ApiRepository(
             try {
                 // Check if already fetched this session
                 if (isCampaignsJsonFetchedThisSession) {
-                    Log.d("ApiRepository", "Campaigns already fetched this session, using cached data")
+                    Log.d(
+                        "ApiRepository",
+                        "Campaigns already fetched this session, using cached data"
+                    )
                     return@withContext true
                 }
 
                 // Below link is for prod
-                            val campaignsJsonUrl = "https://s3.ap-south-1.amazonaws.com/cdn-campaigns.appstorys.com/clients/$accountId/campaigns.json"
+                val campaignsJsonUrl = "https://s3.ap-south-1.amazonaws.com/cdn-campaigns.appstorys.com/clients/$accountId/campaigns.json"
 
                 // Below link is for dev
 //                val campaignsJsonUrl = "https://dev-cdn-campaign-appstorys.s3.ap-south-1.amazonaws.com/clients/$accountId/campaigns.json"
@@ -132,7 +147,8 @@ internal class ApiRepository(
 
                         if (jsonString != null) {
                             // Parse and cache the campaigns
-                            cachedCampaignsJson = SdkJson.decodeFromString<List<Campaign>>(jsonString)
+                            cachedCampaignsJson =
+                                SdkJson.decodeFromString<List<Campaign>>(jsonString)
 
                             // Save to SharedPreferences
                             sharedPreferences.edit {
@@ -143,34 +159,55 @@ internal class ApiRepository(
                             }
 
                             isCampaignsJsonFetchedThisSession = true
-                            Log.d("ApiRepository", "Campaigns.json fetched and cached (200 OK). Total campaigns: ${cachedCampaignsJson?.size}, ETag: $newETag")
+                            Log.d(
+                                "ApiRepository",
+                                "Campaigns.json fetched and cached (200 OK). Total campaigns: ${cachedCampaignsJson?.size}, ETag: $newETag"
+                            )
                             return@withContext true
                         }
                     }
+
                     304 -> {
                         // Not Modified - use cached data from SharedPreferences
-                        Log.d("ApiRepository", "Campaigns.json not modified (304), using local storage")
+                        Log.d(
+                            "ApiRepository",
+                            "Campaigns.json not modified (304), using local storage"
+                        )
 
-                        val cachedJsonString = sharedPreferences.getString(PREF_CAMPAIGNS_JSON, null)
+                        val cachedJsonString =
+                            sharedPreferences.getString(PREF_CAMPAIGNS_JSON, null)
                         if (cachedJsonString != null) {
-                            cachedCampaignsJson = SdkJson.decodeFromString<List<Campaign>>(cachedJsonString)
+                            cachedCampaignsJson =
+                                SdkJson.decodeFromString<List<Campaign>>(cachedJsonString)
                             isCampaignsJsonFetchedThisSession = true
-                            Log.d("ApiRepository", "Loaded ${cachedCampaignsJson?.size} campaigns from local storage")
+                            Log.d(
+                                "ApiRepository",
+                                "Loaded ${cachedCampaignsJson?.size} campaigns from local storage"
+                            )
                             return@withContext true
                         } else {
-                            Log.e("ApiRepository", "Got 304 but no cached data in SharedPreferences")
+                            Log.e(
+                                "ApiRepository",
+                                "Got 304 but no cached data in SharedPreferences"
+                            )
                             return@withContext false
                         }
                     }
+
                     else -> {
                         Log.e("ApiRepository", "Error fetching campaigns.json: ${response.code}")
 
                         // Try to use cached data as fallback
-                        val cachedJsonString = sharedPreferences.getString(PREF_CAMPAIGNS_JSON, null)
+                        val cachedJsonString =
+                            sharedPreferences.getString(PREF_CAMPAIGNS_JSON, null)
                         if (cachedJsonString != null) {
-                            cachedCampaignsJson = SdkJson.decodeFromString<List<Campaign>>(cachedJsonString)
+                            cachedCampaignsJson =
+                                SdkJson.decodeFromString<List<Campaign>>(cachedJsonString)
                             isCampaignsJsonFetchedThisSession = true
-                            Log.d("ApiRepository", "Using cached data as fallback. Total campaigns: ${cachedCampaignsJson?.size}")
+                            Log.d(
+                                "ApiRepository",
+                                "Using cached data as fallback. Total campaigns: ${cachedCampaignsJson?.size}"
+                            )
                             return@withContext true
                         }
                         return@withContext false
@@ -185,12 +222,20 @@ internal class ApiRepository(
                 val cachedJsonString = sharedPreferences.getString(PREF_CAMPAIGNS_JSON, null)
                 if (cachedJsonString != null) {
                     try {
-                        cachedCampaignsJson = SdkJson.decodeFromString<List<Campaign>>(cachedJsonString)
+                        cachedCampaignsJson =
+                            SdkJson.decodeFromString<List<Campaign>>(cachedJsonString)
                         isCampaignsJsonFetchedThisSession = true
-                        Log.d("ApiRepository", "Using cached data after exception. Total campaigns: ${cachedCampaignsJson?.size}")
+                        Log.d(
+                            "ApiRepository",
+                            "Using cached data after exception. Total campaigns: ${cachedCampaignsJson?.size}"
+                        )
                         return@withContext true
                     } catch (parseException: Exception) {
-                        Log.e("ApiRepository", "Error parsing cached data: ${parseException.message}", parseException)
+                        Log.e(
+                            "ApiRepository",
+                            "Error parsing cached data: ${parseException.message}",
+                            parseException
+                        )
                     }
                 }
                 false
@@ -204,7 +249,10 @@ internal class ApiRepository(
 
             // Check if the campaign has VariantCampaignDetails
             if (details !is VariantCampaignDetails) {
-                Log.d("ApiRepository", "Campaign ${campaign.id} does not have variants, returning as-is")
+                Log.d(
+                    "ApiRepository",
+                    "Campaign ${campaign.id} does not have variants, returning as-is"
+                )
                 return campaign
             }
 
@@ -230,10 +278,17 @@ internal class ApiRepository(
                 "SUR" -> SdkJson.decodeFromJsonElement(SurveyDetails.serializer(), variantData)
                 "MOD" -> SdkJson.decodeFromJsonElement(ModalDetails.serializer(), variantData)
                 "STR" -> SdkJson.decodeFromJsonElement(StoriesDetails.serializer(), variantData)
-                "SCRT" -> SdkJson.decodeFromJsonElement(ScratchCardDetails.serializer(), variantData)
+                "SCRT" -> SdkJson.decodeFromJsonElement(
+                    ScratchCardDetails.serializer(),
+                    variantData
+                )
+
                 "MIL" -> SdkJson.decodeFromJsonElement(MilestoneDetails.serializer(), variantData)
                 else -> {
-                    Log.w("ApiRepository", "Campaign type ${campaign.campaignType} does not support variants yet")
+                    Log.w(
+                        "ApiRepository",
+                        "Campaign type ${campaign.campaignType} does not support variants yet"
+                    )
                     null
                 }
             }
@@ -246,7 +301,11 @@ internal class ApiRepository(
             }
 
         } catch (e: Exception) {
-            Log.e("ApiRepository", "Error extracting variant from campaign ${campaign.id}: ${e.message}", e)
+            Log.e(
+                "ApiRepository",
+                "Error extracting variant from campaign ${campaign.id}: ${e.message}",
+                e
+            )
             return campaign
         }
     }
@@ -282,7 +341,8 @@ internal class ApiRepository(
                     is ApiResult.Success -> {
                         val eligibleCampaigns = eligibleCampaignsResult.data.eligibleCampaignList
                         val variants = eligibleCampaignsResult.data.variants ?: emptyList()
-                        val personalizationData = eligibleCampaignsResult.data.personalization_data ?: emptyMap()
+                        val personalizationData =
+                            eligibleCampaignsResult.data.personalization_data ?: emptyMap()
                         val testUser = eligibleCampaignsResult.data.test_user
 
                         Log.d("ApiRepository", "Eligible campaigns: $eligibleCampaigns")
@@ -313,11 +373,16 @@ internal class ApiRepository(
                             )
                         }
 
-                        val cachedCampaignIds = cachedCampaignsJson?.mapNotNull { it.id }?.toSet() ?: emptySet()
-                        val missingCampaignIds = eligibleCampaigns.filter { it !in cachedCampaignIds }
+                        val cachedCampaignIds =
+                            cachedCampaignsJson?.mapNotNull { it.id }?.toSet() ?: emptySet()
+                        val missingCampaignIds =
+                            eligibleCampaigns.filter { it !in cachedCampaignIds }
 
                         if (missingCampaignIds.isNotEmpty()) {
-                            Log.d("ApiRepository", "Missing ${missingCampaignIds.size} campaigns from cache: $missingCampaignIds")
+                            Log.d(
+                                "ApiRepository",
+                                "Missing ${missingCampaignIds.size} campaigns from cache: $missingCampaignIds"
+                            )
 
                             // Fetch missing campaigns from load-campaign-data endpoint
                             val missingCampaignsResult = safeApiCall {
@@ -330,25 +395,46 @@ internal class ApiRepository(
                             when (missingCampaignsResult) {
                                 is ApiResult.Success -> {
                                     val fetchedCampaigns = missingCampaignsResult.data
-                                    Log.d("ApiRepository", "Fetched ${fetchedCampaigns.size} missing campaigns from load-campaign-data")
+                                    Log.d(
+                                        "ApiRepository",
+                                        "Fetched ${fetchedCampaigns.size} missing campaigns from load-campaign-data"
+                                    )
 
                                     // Merge fetched campaigns with cached campaigns
-                                    cachedCampaignsJson = (cachedCampaignsJson ?: emptyList()) + fetchedCampaigns
-                                    Log.d("ApiRepository", "Total campaigns after merge: ${cachedCampaignsJson?.size}")
+                                    cachedCampaignsJson =
+                                        (cachedCampaignsJson ?: emptyList()) + fetchedCampaigns
+                                    Log.d(
+                                        "ApiRepository",
+                                        "Total campaigns after merge: ${cachedCampaignsJson?.size}"
+                                    )
 
                                     // Update SharedPreferences with merged data
                                     try {
-                                        val updatedJsonString = SdkJson.encodeToString(ListSerializer(Campaign.serializer()), cachedCampaignsJson!!)
+                                        val updatedJsonString = SdkJson.encodeToString(
+                                            ListSerializer(Campaign.serializer()),
+                                            cachedCampaignsJson!!
+                                        )
                                         sharedPreferences.edit {
                                             putString(PREF_CAMPAIGNS_JSON, updatedJsonString)
                                         }
-                                        Log.d("ApiRepository", "Updated local storage with merged campaigns")
+                                        Log.d(
+                                            "ApiRepository",
+                                            "Updated local storage with merged campaigns"
+                                        )
                                     } catch (e: Exception) {
-                                        Log.e("ApiRepository", "Error saving merged campaigns: ${e.message}", e)
+                                        Log.e(
+                                            "ApiRepository",
+                                            "Error saving merged campaigns: ${e.message}",
+                                            e
+                                        )
                                     }
                                 }
+
                                 is ApiResult.Error -> {
-                                    Log.e("ApiRepository", "Error loading missing campaigns: ${missingCampaignsResult.message}")
+                                    Log.e(
+                                        "ApiRepository",
+                                        "Error loading missing campaigns: ${missingCampaignsResult.message}"
+                                    )
                                     // Continue with cached campaigns only
                                 }
                             }
@@ -359,7 +445,8 @@ internal class ApiRepository(
                         // Step 4: Filter campaigns by screenName and eligibleCampaigns
                         val filteredCampaigns = cachedCampaignsJson?.filter { campaign ->
                             val isEligible = campaign.id in eligibleCampaigns
-                            val isScreenMatch = campaign.screen?.equals(screenName, ignoreCase = true) == true
+                            val isScreenMatch =
+                                campaign.screen?.equals(screenName, ignoreCase = true) == true
                             isEligible && isScreenMatch
                         }?.map { campaign ->
                             // Apply variant extraction if this campaign has a variant in the response
@@ -371,7 +458,10 @@ internal class ApiRepository(
                             }
                         }
 
-                        Log.d("ApiRepository", "Filtered campaigns for screen '$screenName': ${filteredCampaigns?.size ?: 0}")
+                        Log.d(
+                            "ApiRepository",
+                            "Filtered campaigns for screen '$screenName': ${filteredCampaigns?.size ?: 0}"
+                        )
 
                         ScreenCampaignResult(
                             campaigns = filteredCampaigns,
@@ -382,7 +472,10 @@ internal class ApiRepository(
                     }
 
                     is ApiResult.Error -> {
-                        Log.e("ApiRepository", "Error getting eligible campaigns: ${eligibleCampaignsResult.message}")
+                        Log.e(
+                            "ApiRepository",
+                            "Error getting eligible campaigns: ${eligibleCampaignsResult.message}"
+                        )
                         return@withContext ScreenCampaignResult(
                             campaigns = null,
                             variants = emptyList(),

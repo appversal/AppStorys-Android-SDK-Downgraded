@@ -118,6 +118,7 @@ private fun ShowcaseBackground(
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
+                .graphicsLayer(alpha = 0.99f)
         ) {
             drawRect(
                 color = backdropColor.copy(alpha = backdropAlpha),
