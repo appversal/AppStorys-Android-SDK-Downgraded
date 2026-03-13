@@ -80,6 +80,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.floatOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlin.math.roundToInt
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @OptIn(UnstableApi::class)
 @Composable
@@ -115,6 +116,7 @@ internal fun PipVideo(
     onExpandClick: () -> Unit = {}
 ) {
     var isFullScreen by remember { mutableStateOf(false) }
+    val isAppVisible by AppStorys._isVisible.collectAsStateWithLifecycle()
 
     when {
         isFullScreen && !fullScreenVideoUri.isNullOrEmpty() ->
@@ -139,7 +141,7 @@ internal fun PipVideo(
                 onButtonClick = onButtonClick
             )
 
-        AppStorys.isVisible -> {
+        isAppVisible -> {
             val density = LocalDensity.current.density
             val configuration = LocalConfiguration.current
 
@@ -439,10 +441,10 @@ fun FullScreenVideoDialog(
     }
 
     DisposableEffect(Unit) {
-        AppStorys.isVisible = false
+        AppStorys._isVisible.value = false
 
         onDispose {
-            AppStorys.isVisible = true
+            AppStorys._isVisible.value = true
         }
     }
 

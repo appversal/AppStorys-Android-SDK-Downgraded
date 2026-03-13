@@ -188,19 +188,19 @@ object AppStorys {
     private val scratchedCampaigns = MutableStateFlow<List<String>>(emptyList())
 
     // In-memory spin count per campaign — keyed by campaign ID, value = remaining spins
-    private val spinCountByCampaign = mutableStateMapOf<String, Int>()
+    private val _spinCountByCampaign = MutableStateFlow<Map<String, Int>>(emptyMap())
 
     private var accessToken = ""
 
     private var currentScreen = ""
 
-    private var isScreenCaptureEnabled by mutableStateOf(false)
+    private val _isScreenCaptureEnabled = MutableStateFlow(false)
 
-    private var showCsat by mutableStateOf(false)
+    private val _showCsat = MutableStateFlow(false)
 
-    private var showModal by mutableStateOf(true)
+    private val _showModal = MutableStateFlow(true)
 
-    private var showBottomSheet by mutableStateOf(true)
+    private val _showBottomSheet = MutableStateFlow(true)
 
     private var backPressCampaignConsumed = false
 
@@ -227,10 +227,10 @@ object AppStorys {
      * this is very important for features like pip where the sdk needs to know
      * whether the user can see the pip or not to pause/resume the pip video
      */
-    var isVisible by mutableStateOf(true)
+    internal val _isVisible = MutableStateFlow(true)
 
     private val currentMilestoneIndex = MutableStateFlow(0)
-    private var showMilestone by mutableStateOf(true)
+    private val _showMilestone = MutableStateFlow(true)
 
     private fun generateAnonymousUserId(): String {
         val timestamp = System.currentTimeMillis()
@@ -366,9 +366,9 @@ object AppStorys {
                     sdkState = AppStorysSdkState.Paused
                     campaigns.update { emptyList() }
 //                    tooltipViewed.update { emptyList() }
-                    showModal = true
-                    showCsat = false
-                    showBottomSheet = true
+                    _showModal.update { true }
+                    _showCsat.update { false }
+                    _showBottomSheet.update { true }
                     backPressCampaignConsumed = false
                     _trackedEventNames.update { emptySet() }
                     campaignsJob?.cancel()
@@ -395,9 +395,11 @@ object AppStorys {
                     // Restore persisted spin counts into in-memory map
                     val spinPrefs =
                         context.getSharedPreferences("appstorys_spin_counts", Context.MODE_PRIVATE)
-                    spinPrefs.all.forEach { (key, value) ->
-                        if (value is Int) spinCountByCampaign[key] = value
-                    }
+                    val restoredCounts = spinPrefs.all
+                        .filterValues { it is Int }
+                        .mapValues { it.value as Int }
+                    _spinCountByCampaign.update { restoredCounts }
+
                     if (campaignsJob?.isActive != true) {
                         getScreenCampaigns("Home Screen", emptyList())
                     }
@@ -444,7 +446,7 @@ object AppStorys {
                     userId = userId
                 )
 
-                isScreenCaptureEnabled = isTestUser ?: false
+                _isScreenCaptureEnabled.update { isTestUser ?: false }
 
                 personalizationData = personalizationResponse
 
@@ -726,6 +728,7 @@ object AppStorys {
     fun CSAT(
         bottomPadding: Dp = 0.dp
     ) {
+        val showCsat by _showCsat.collectAsStateWithLifecycle()
         if (!showCsat) {
             val campaignsData = campaigns.collectAsStateWithLifecycle()
 
@@ -788,7 +791,7 @@ object AppStorys {
                                 isVisibleState = false
                                 coroutineScope.launch {
                                     delay(500L)
-                                    showCsat = true
+                                    _showCsat.update { true }
                                 }
                             },
                             onSubmitFeedback = { feedback ->
@@ -1868,6 +1871,8 @@ object AppStorys {
             )
         }
 
+        val showBottomSheet by _showBottomSheet.collectAsStateWithLifecycle()
+
         if (bottomSheetDetails != null && showBottomSheet && shouldShowBottomSheet) {
 
             LaunchedEffect(Unit) {
@@ -1878,7 +1883,7 @@ object AppStorys {
 
             BottomSheetComponent(
                 onDismissRequest = {
-                    showBottomSheet = false
+                    _showBottomSheet.update { false }
                     campaign?.triggerEvent?.let { trigger ->
                         val eventName = when (trigger) {
                             is TriggerEvent.StringTrigger -> trigger.event
@@ -1968,6 +1973,8 @@ object AppStorys {
             )
         }
 
+        val showModal by _showModal.collectAsStateWithLifecycle()
+
         if (modalDetails != null && showModal && shouldShowModals) {
 
             LaunchedEffect(Unit) {
@@ -1978,7 +1985,7 @@ object AppStorys {
 
             PopupModal(
                 onCloseClick = {
-                    showModal = false
+                    _showModal.update { false }
                 },
                 modalDetails = modalDetails,
                 onModalClick = {
@@ -2008,7 +2015,7 @@ object AppStorys {
                     campaign?.id?.let { campaignId ->
                         trackEvents(campaignId, "clicked")
                         clickEvent(link = link, campaignId = campaignId)
-                        showModal = false
+                        _showModal.update { false }
                     }
                 },
             )
@@ -2199,12 +2206,13 @@ object AppStorys {
         // ── Spin count: hoist here so it survives recomposition and screen navigation ──
         val campaignId = campaign?.id
         if (spinTheWheelDetails != null && campaignId != null) {
+            val spinCountMap by _spinCountByCampaign.collectAsStateWithLifecycle()
             val initialSpins = spinTheWheelDetails.availableSpins
                 ?: spinTheWheelDetails.content?.userInteraction?.numberSpin
                 ?: 3
 
             // Seed in-memory map on first encounter (also covers post-restart restore)
-            if (!spinCountByCampaign.containsKey(campaignId)) {
+            if (!spinCountMap.containsKey(campaignId)) {
                 val persisted = getSpinCount(
                     campaignId = campaignId,
                     sharedPreferences = context.getSharedPreferences(
@@ -2212,10 +2220,10 @@ object AppStorys {
                         Context.MODE_PRIVATE
                     )
                 )
-                spinCountByCampaign[campaignId] = persisted ?: initialSpins
+                _spinCountByCampaign.update { it + (campaignId to (persisted ?: initialSpins)) }
             }
 
-            val spinsLeft = spinCountByCampaign[campaignId] ?: initialSpins
+            val spinsLeft = spinCountMap[campaignId] ?: initialSpins
 
             if (shouldShowSpinWheel && isPresented) {
 
@@ -2244,9 +2252,9 @@ object AppStorys {
                     spinTheWheelDetails = spinTheWheelDetails,
                     spinsLeft = spinsLeft,
                     onSpinUsed = {
-                        val updated = (spinCountByCampaign[campaignId] ?: initialSpins) - 1
+                        val updated = (spinCountMap[campaignId] ?: initialSpins) - 1
                         val clamped = updated.coerceAtLeast(0)
-                        spinCountByCampaign[campaignId] = clamped
+                        _spinCountByCampaign.update { it + (campaignId to clamped) }
                         saveSpinCount(
                             campaignId = campaignId,
                             count = clamped,
@@ -2302,6 +2310,7 @@ object AppStorys {
         }
 
         val currentIndex by currentMilestoneIndex.collectAsStateWithLifecycle()
+        val showMilestone by _showMilestone.collectAsStateWithLifecycle()
 
         // Track events and update milestone index
         LaunchedEffect(trackedEventNames.value.size, milestoneDetails) {
@@ -2347,7 +2356,7 @@ object AppStorys {
                         styling = milestoneDetails.styling,
                         bottomPadding = bottomPadding,
                         onClose = {
-                            showMilestone = false
+                            _showMilestone.update { false }
                             val ids = ArrayList(disabledCampaigns.value)
                             campaign.id?.let { ids.add(it) }
                             coroutineScope.launch {
@@ -2366,7 +2375,7 @@ object AppStorys {
                         styling = milestoneDetails.styling,
                         bottomPadding = bottomPadding,
                         onClose = {
-                            showMilestone = false
+                            _showMilestone.update { false }
                             val ids = ArrayList(disabledCampaigns.value)
                             campaign.id?.let { ids.add(it) }
                             coroutineScope.launch {
@@ -2404,6 +2413,8 @@ object AppStorys {
         val TAG = "TestUserButton"
 
         val activityRef = activity ?: LocalContext.current as? Activity
+
+        val isScreenCaptureEnabled by _isScreenCaptureEnabled.collectAsStateWithLifecycle()
 
         var shouldAnalyze by remember { mutableStateOf(false) }
         var isCapturing by remember { mutableStateOf(false) }
