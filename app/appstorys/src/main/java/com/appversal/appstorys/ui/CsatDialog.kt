@@ -327,49 +327,24 @@ private fun MainContent(
         val titleTextStyle = csatDetails.styling?.initialFeedback?.title?.textStyle
         val subtitleTextStyle = csatDetails.styling?.initialFeedback?.subtitle?.textStyle
 
-        // Title alignment
-        val titleAlignment = when (titleTextStyle?.alignment?.lowercase()) {
-            "left" -> androidx.compose.ui.text.style.TextAlign.Start
-            "right" -> androidx.compose.ui.text.style.TextAlign.End
-            "center" -> androidx.compose.ui.text.style.TextAlign.Center
-            else -> androidx.compose.ui.text.style.TextAlign.Start
-        }
-
-        // Title font family
-        val titleFontFamily = when (titleTextStyle?.font?.lowercase()) {
-            "serif" -> androidx.compose.ui.text.font.FontFamily.Serif
-            "monospace" -> androidx.compose.ui.text.font.FontFamily.Monospace
-            "cursive" -> androidx.compose.ui.text.font.FontFamily.Cursive
-            else -> androidx.compose.ui.text.font.FontFamily.SansSerif
-        }
-
-        // Subtitle alignment
-        val subtitleAlignment = when (subtitleTextStyle?.alignment?.lowercase()) {
-            "left" -> androidx.compose.ui.text.style.TextAlign.Start
-            "right" -> androidx.compose.ui.text.style.TextAlign.End
-            "center" -> androidx.compose.ui.text.style.TextAlign.Center
-            else -> androidx.compose.ui.text.style.TextAlign.Start
-        }
-
-        // Subtitle font family
-        val subtitleFontFamily = when (subtitleTextStyle?.font?.lowercase()) {
-            "serif" -> androidx.compose.ui.text.font.FontFamily.Serif
-            "monospace" -> androidx.compose.ui.text.font.FontFamily.Monospace
-            "cursive" -> androidx.compose.ui.text.font.FontFamily.Cursive
-            else -> androidx.compose.ui.text.font.FontFamily.SansSerif
-        }
-
         CommonText(
             modifier = Modifier
-                .padding(start = 16.dp, end = 16.dp)
+                .padding(
+                    start = (csatDetails.styling?.initialFeedback?.title?.margin?.left ?: 16).dp,
+                    end = (csatDetails.styling?.initialFeedback?.title?.margin?.right ?: 16).dp,
+                    top = (csatDetails.styling?.initialFeedback?.title?.margin?.top ?: 0).dp,
+                    bottom = (csatDetails.styling?.initialFeedback?.title?.margin?.bottom ?: 0).dp
+                )
                 .fillMaxWidth(),
             text = localContent["title"].toString(),
             styling = TextStyling(
-                color = csatDetails.styling?.initialFeedback?.title?.color,
-                fontSize = (titleTextStyle?.size ?: ((csatDetails.styling?.fontSize ?: 16) + 6)),
+                color = titleTextStyle?.color ?: csatDetails.styling?.initialFeedback?.title?.color,
+                fontSize = (titleTextStyle?.fontSize ?: titleTextStyle?.size
+                ?: ((csatDetails.styling?.fontSize ?: 16) + 6)),
                 fontFamily = titleTextStyle?.fontFamily ?: "",
-                textAlign = titleTextStyle?.alignment,
-                fontDecoration = listOf("bold")
+                textAlign = titleTextStyle?.textAlign ?: titleTextStyle?.alignment,
+                fontDecoration = titleTextStyle?.fontDecoration?.takeIf { it.isNotEmpty() }
+                    ?: listOf("bold")
             )
         )
 
@@ -377,14 +352,23 @@ private fun MainContent(
 
         CommonText(
             modifier = Modifier
-                .padding(start = 16.dp, end = 16.dp)
+                .padding(
+                    start = (csatDetails.styling?.initialFeedback?.subtitle?.margin?.left ?: 16).dp,
+                    end = (csatDetails.styling?.initialFeedback?.subtitle?.margin?.right ?: 16).dp,
+                    top = (csatDetails.styling?.initialFeedback?.subtitle?.margin?.top ?: 0).dp,
+                    bottom = (csatDetails.styling?.initialFeedback?.subtitle?.margin?.bottom
+                        ?: 0).dp
+                )
                 .fillMaxWidth(),
             text = localContent["description"].toString(),
             styling = TextStyling(
-                color = csatDetails.styling?.initialFeedback?.subtitle?.color,
-                fontSize = (subtitleTextStyle?.size ?: (csatDetails.styling?.fontSize ?: 16)),
+                color = subtitleTextStyle?.color
+                    ?: csatDetails.styling?.initialFeedback?.subtitle?.color,
+                fontSize = (subtitleTextStyle?.fontSize ?: subtitleTextStyle?.size
+                ?: (csatDetails.styling?.fontSize ?: 16)),
                 fontFamily = subtitleTextStyle?.fontFamily ?: "",
-                textAlign = subtitleTextStyle?.alignment
+                textAlign = subtitleTextStyle?.textAlign ?: subtitleTextStyle?.alignment,
+                fontDecoration = subtitleTextStyle?.fontDecoration
             )
         )
 
@@ -430,81 +414,114 @@ private fun FeedbackContent(
         modifier = Modifier.padding(top = 16.dp)
     ) {
         localContent["feedbackPrompt"]?.let { feedbackPrompt ->
+            val promptTextStyle = csatDetails.styling?.initialFeedback?.title?.textStyle
             CommonText(
                 text = feedbackPrompt,
                 styling = TextStyling(
-                    color = csatDetails.styling?.initialFeedback?.title?.color,
-                    fontSize = (csatDetails.styling?.fontSize ?: 16),
-                    fontFamily = csatDetails.styling?.initialFeedback?.title?.textStyle?.fontFamily ?: "",
+                    color = promptTextStyle?.color
+                        ?: csatDetails.styling?.initialFeedback?.title?.color,
+                    fontSize = (promptTextStyle?.fontSize ?: promptTextStyle?.size
+                    ?: csatDetails.styling?.fontSize ?: 16),
+                    fontFamily = promptTextStyle?.fontFamily ?: "",
+                    textAlign = promptTextStyle?.textAlign ?: promptTextStyle?.alignment
                 )
             )
         }
 
-        feedbackOptions?.forEach { option ->
-            val isSelected = option == selectedOption
+        val optionsConfig = csatDetails.styling?.feedbackPage?.options
+        val optionMargin = optionsConfig?.margin
+        val optionSpacing = optionsConfig?.optionsSpacing ?: 4
 
-            // Extract text style settings for options
-            val optionTextStyle = if (isSelected) {
-                csatDetails.styling?.feedbackPage?.options?.selectedOptions?.textStyle
-            } else {
-                csatDetails.styling?.feedbackPage?.options?.nonSelectedOptions?.textStyle
-            }
+        Column(
+            Modifier.padding(
+                top = (optionMargin?.top ?: 0).dp,
+                bottom = (optionMargin?.bottom ?: 0).dp,
+                start = (optionMargin?.left ?: 0).dp,
+                end = (optionMargin?.right ?: 0).dp
+            )
+        ) {
+            feedbackOptions?.forEach { option ->
+                val isSelected = option == selectedOption
 
-            val optionFontSize = (optionTextStyle?.size ?: csatDetails.styling?.fontSize ?: 16).sp
-            val optionAlignment = when (optionTextStyle?.alignment?.lowercase()) {
-                "center" -> androidx.compose.ui.text.style.TextAlign.Center
-                "right", "end" -> androidx.compose.ui.text.style.TextAlign.End
-                else -> androidx.compose.ui.text.style.TextAlign.Start
-            }
-            val optionFontFamily = when (optionTextStyle?.font?.lowercase()) {
-                "serif" -> androidx.compose.ui.text.font.FontFamily.Serif
-                "monospace" -> androidx.compose.ui.text.font.FontFamily.Monospace
-                "cursive" -> androidx.compose.ui.text.font.FontFamily.Cursive
-                else -> androidx.compose.ui.text.font.FontFamily.SansSerif
-            }
+                // Extract options-level config
+                val optionCornerRadius = optionsConfig?.cornerRadius
+                val optionHeight = optionsConfig?.optionsHeight
 
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp),
-                color = if (isSelected) styling["csatSelectedOptionBackgroundColor"] ?: Color(
-                    0xFFE3F2FD
-                )
-                else styling["csatOptionBoxColour"] ?: Color.White,
-                shape = RoundedCornerShape(24.dp),
-                border = androidx.compose.foundation.BorderStroke(
-                    width = 1.dp,
-                    color = if (isSelected) styling["csatSelectedOptionStrokeColor"] ?: Color(
-                        0xFF007AFF
-                    )
-                    else styling["csatOptionStrokeColor"] ?: Color(0xFFCCCCCC)
-                )
-            ) {
-                Box(
+                // Extract text style settings for options
+                val optionTextStyle = if (isSelected) {
+                    csatDetails.styling?.feedbackPage?.options?.selectedOptions?.textStyle
+                } else {
+                    csatDetails.styling?.feedbackPage?.options?.nonSelectedOptions?.textStyle
+                }
+
+                val optionFontSize = (optionTextStyle?.fontSize ?: optionTextStyle?.size
+                ?: csatDetails.styling?.fontSize ?: 16).sp
+                val optionAlignment =
+                    when ((optionTextStyle?.textAlign ?: optionTextStyle?.alignment)?.lowercase()) {
+                        "center" -> androidx.compose.ui.text.style.TextAlign.Center
+                        "right", "end" -> androidx.compose.ui.text.style.TextAlign.End
+                        else -> androidx.compose.ui.text.style.TextAlign.Start
+                    }
+
+                Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { onOptionSelected(option) }
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                ) {
-                    CommonText(
-                        modifier = Modifier.fillMaxWidth(),
-                        text = option,
-                        styling = TextStyling(
-                            color = if (isSelected) csatDetails.styling?.feedbackPage?.options?.selectedOptions?.colors?.text
-                            else csatDetails.styling?.feedbackPage?.options?.nonSelectedOptions?.colors?.text,
-                            fontSize = (optionTextStyle?.size ?: csatDetails.styling?.fontSize
-                            ?: 16),
-                            fontFamily = optionTextStyle?.fontFamily ?: "",
-                            textAlign = optionTextStyle?.alignment
-                        )
+                        .then(
+                            if (optionHeight != null) Modifier.height(optionHeight.dp) else Modifier
+                        ),
+                    color = if (isSelected) styling["csatSelectedOptionBackgroundColor"] ?: Color(
+                        0xFFE3F2FD
                     )
+                    else styling["csatOptionBoxColour"] ?: Color.White,
+                    shape = RoundedCornerShape(
+                        topStart = (optionCornerRadius?.topLeft ?: 24).dp,
+                        topEnd = (optionCornerRadius?.topRight ?: 24).dp,
+                        bottomStart = (optionCornerRadius?.bottomLeft ?: 24).dp,
+                        bottomEnd = (optionCornerRadius?.bottomRight ?: 24).dp
+                    ),
+                    border = androidx.compose.foundation.BorderStroke(
+                        width = if (isSelected) optionsConfig?.selectedOptions?.borderWidth?.dp
+                            ?: 1.dp else
+                            optionsConfig?.nonSelectedOptions?.borderWidth?.dp ?: 1.dp,
+                        color = if (isSelected) styling["csatSelectedOptionStrokeColor"] ?: Color(
+                            0xFF007AFF
+                        )
+                        else styling["csatOptionStrokeColor"] ?: Color(0xFFCCCCCC)
+                    )
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .then(if (optionHeight != null) Modifier.fillMaxHeight() else Modifier)
+                            .noRippleClickable() { onOptionSelected(option) }
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        CommonText(
+                            modifier = Modifier.fillMaxWidth(),
+                            text = option,
+                            styling = TextStyling(
+                                color = if (isSelected) csatDetails.styling?.feedbackPage?.options?.selectedOptions?.colors?.text
+                                else csatDetails.styling?.feedbackPage?.options?.nonSelectedOptions?.colors?.text,
+                                fontSize = (optionTextStyle?.fontSize ?: optionTextStyle?.size
+                                ?: csatDetails.styling?.fontSize
+                                ?: 16),
+                                fontFamily = optionTextStyle?.fontFamily ?: "",
+                                textAlign = optionTextStyle?.textAlign ?: optionTextStyle?.alignment
+                            )
+                        )
+                    }
+                }
+
+                if (optionSpacing > 0) {
+                    Spacer(modifier = Modifier.height(optionSpacing.dp))
                 }
             }
         }
 
-        if (feedbackOptions?.toList()?.isNotEmpty() == true) {
-            Spacer(modifier = Modifier.height(12.dp))
-        }
+//        if (feedbackOptions?.toList()?.isNotEmpty() == true) {
+//            Spacer(modifier = Modifier.height(12.dp))
+//        }
 
         // Only show additional comments if enabled (default to true for backward compatibility)
         val isAdditionalCommentsEnabled =
@@ -514,12 +531,14 @@ private fun FeedbackContent(
             // Extract text style settings for additional comments
             val commentsTextStyle = csatDetails.styling?.feedbackPage?.additionalComments?.textStyle
             val commentsFontSize =
-                (commentsTextStyle?.size ?: csatDetails.styling?.fontSize ?: 14).sp
-            val commentsAlignment = when (commentsTextStyle?.alignment?.lowercase()) {
-                "center" -> androidx.compose.ui.text.style.TextAlign.Center
-                "right", "end" -> androidx.compose.ui.text.style.TextAlign.End
-                else -> androidx.compose.ui.text.style.TextAlign.Start
-            }
+                (commentsTextStyle?.fontSize ?: commentsTextStyle?.size
+                ?: csatDetails.styling?.fontSize ?: 14).sp
+            val commentsAlignment =
+                when ((commentsTextStyle?.textAlign ?: commentsTextStyle?.alignment)?.lowercase()) {
+                    "center" -> androidx.compose.ui.text.style.TextAlign.Center
+                    "right", "end" -> androidx.compose.ui.text.style.TextAlign.End
+                    else -> androidx.compose.ui.text.style.TextAlign.Start
+                }
 
             Box(
                 modifier = Modifier
@@ -530,7 +549,7 @@ private fun FeedbackContent(
                         shape = RoundedCornerShape(18.dp)
                     )
                     .border(
-                        width = 1.dp,
+                        width = csatDetails.styling?.feedbackPage?.additionalComments?.borderWidth?.dp ?: 1.dp,
                         color = styling["csatAdditionalBorderColor"] ?: Color(0xFFCCCCCC),
                         shape = RoundedCornerShape(18.dp)
                     )
@@ -542,18 +561,20 @@ private fun FeedbackContent(
                     placeholder = {
                         CommonText(
                             modifier = Modifier.align(Alignment.TopStart),
-                            text = "Enter comments",
+                            text = csatDetails.styling?.feedbackPage?.additionalComments?.placeholder
+                                ?: "Additional Feedback",
                             styling = TextStyling(
                                 color = "#808080",
-                                fontSize = commentsTextStyle?.size,
+                                fontSize = commentsTextStyle?.fontSize ?: commentsTextStyle?.size,
                                 fontFamily = commentsTextStyle?.fontFamily ?: "",
-                                textAlign = commentsTextStyle?.alignment
+                                textAlign = commentsTextStyle?.textAlign
+                                    ?: commentsTextStyle?.alignment
                             )
                         )
                     },
                     textStyle = androidx.compose.ui.text.TextStyle(
                         fontSize = commentsFontSize,
-                        textAlign = commentsAlignment,
+//                        textAlign = commentsAlignment,
                         fontFamily = when (commentsTextStyle?.font?.lowercase()) {
                             "serif" -> androidx.compose.ui.text.font.FontFamily.Serif
                             "monospace" -> androidx.compose.ui.text.font.FontFamily.Monospace
@@ -577,105 +598,112 @@ private fun FeedbackContent(
 
 
         val submitButton = csatDetails.styling?.feedbackPage?.submitButton
+        val isSubmitEnabled = submitButton?.enabled != false
         val submitButtonMargin = submitButton?.margin ?: submitButton?.cta?.margin
 
         Spacer(modifier = Modifier.height((submitButtonMargin?.top ?: 18).dp))
 
-        val submitButtonText = submitButton?.text ?: "Submit"
-        val submitButtonRadius = submitButton?.containerRadius ?: submitButton?.cta?.cornerRadius
-        val submitButtonBorderWidth =
-            submitButton?.containerStyle?.borderWidth ?: submitButton?.cta?.container?.borderWidth
-            ?: 0
-        val submitButtonHeight =
-            submitButton?.containerStyle?.height ?: submitButton?.cta?.container?.height
-        val submitButtonAlignment =
-            submitButton?.containerStyle?.alignment ?: submitButton?.cta?.container?.alignment
-        val submitButtonFullWidth =
-            submitButton?.fullWidth ?: submitButton?.cta?.container?.ctaFullWidth ?: true
-        val submitButtonTextStyle =
-            submitButton?.textStyle ?: submitButton?.cta?.text?.let { ctaText ->
-                CsatTextStyle(
-                    color = ctaText.color,
-                    fontFamily = ctaText.fontFamily,
-                    fontSize = ctaText.fontSize,
-                    fontDecoration = ctaText.fontDecoration
-                )
+        if (isSubmitEnabled) {
+            val submitButtonText = submitButton?.text ?: "Submit"
+            val submitButtonRadius =
+                submitButton?.containerRadius ?: submitButton?.cta?.cornerRadius
+            val submitButtonBorderWidth =
+                submitButton?.containerStyle?.borderWidth
+                    ?: submitButton?.cta?.container?.borderWidth
+                    ?: 0
+            val submitButtonHeight =
+                submitButton?.containerStyle?.height ?: submitButton?.cta?.container?.height
+            val submitButtonAlignment =
+                submitButton?.containerStyle?.alignment ?: submitButton?.cta?.container?.alignment
+            val submitButtonFullWidth =
+                submitButton?.fullWidth ?: submitButton?.cta?.container?.ctaFullWidth ?: true
+            val submitButtonTextStyle =
+                submitButton?.textStyle ?: submitButton?.cta?.text?.let { ctaText ->
+                    CsatTextStyle(
+                        color = ctaText.color,
+                        fontFamily = ctaText.fontFamily,
+                        fontSize = ctaText.fontSize,
+                        fontDecoration = ctaText.fontDecoration
+                    )
+                }
+
+            // Determine button alignment
+            val buttonAlignment = when (submitButtonAlignment?.lowercase()) {
+                "left" -> Alignment.Start
+                "right" -> Alignment.End
+                else -> Alignment.CenterHorizontally
             }
 
-        // Determine button alignment
-        val buttonAlignment = when (submitButtonAlignment?.lowercase()) {
-            "left" -> Alignment.Start
-            "right" -> Alignment.End
-            else -> Alignment.CenterHorizontally
-        }
-
-        Button(
-            onClick = onSubmit,
-            modifier = Modifier
-                .align(buttonAlignment)
-                .padding(
-                    start = (submitButtonMargin?.left ?: 0).dp,
-                    end = (submitButtonMargin?.right ?: 0).dp
-                )
-                .then(
-                    if (submitButtonFullWidth) Modifier.fillMaxWidth() else Modifier
-                )
-                .then(
-                    if (submitButtonHeight != null) Modifier.height(submitButtonHeight.dp) else Modifier
-                )
-                .then(
-                    if (submitButtonBorderWidth > 0) {
-                        Modifier.border(
-                            width = submitButtonBorderWidth.dp,
-                            color = styling["csatCtaBorderColor"] ?: Color.Transparent,
-                            shape = RoundedCornerShape(
-                                topStart = (submitButtonRadius?.topLeft ?: 12).dp,
-                                topEnd = (submitButtonRadius?.topRight ?: 12).dp,
-                                bottomStart = (submitButtonRadius?.bottomLeft ?: 12).dp,
-                                bottomEnd = (submitButtonRadius?.bottomRight ?: 12).dp
+            Button(
+                onClick = onSubmit,
+                modifier = Modifier
+                    .align(buttonAlignment)
+                    .padding(
+                        start = (submitButtonMargin?.left ?: 0).dp,
+                        end = (submitButtonMargin?.right ?: 0).dp
+                    )
+                    .then(
+                        if (submitButtonFullWidth) Modifier.fillMaxWidth() else Modifier
+                    )
+                    .then(
+                        if (submitButtonHeight != null) Modifier.height(submitButtonHeight.dp) else Modifier
+                    )
+                    .then(
+                        if (submitButtonBorderWidth > 0) {
+                            Modifier.border(
+                                width = submitButtonBorderWidth.dp,
+                                color = styling["csatCtaBorderColor"] ?: Color.Transparent,
+                                shape = RoundedCornerShape(
+                                    topStart = (submitButtonRadius?.topLeft ?: 12).dp,
+                                    topEnd = (submitButtonRadius?.topRight ?: 12).dp,
+                                    bottomStart = (submitButtonRadius?.bottomLeft ?: 12).dp,
+                                    bottomEnd = (submitButtonRadius?.bottomRight ?: 12).dp
+                                )
                             )
-                        )
-                    } else Modifier
+                        } else Modifier
+                    ),
+                shape = RoundedCornerShape(
+                    topStart = (submitButtonRadius?.topLeft ?: 12).dp,
+                    topEnd = (submitButtonRadius?.topRight ?: 12).dp,
+                    bottomStart = (submitButtonRadius?.bottomLeft ?: 12).dp,
+                    bottomEnd = (submitButtonRadius?.bottomRight ?: 12).dp
                 ),
-            shape = RoundedCornerShape(
-                topStart = (submitButtonRadius?.topLeft ?: 12).dp,
-                topEnd = (submitButtonRadius?.topRight ?: 12).dp,
-                bottomStart = (submitButtonRadius?.bottomLeft ?: 12).dp,
-                bottomEnd = (submitButtonRadius?.bottomRight ?: 12).dp
-            ),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = styling["csatCtaBackgroundColor"] ?: Color(0xFF007AFF)
-            )
-        ) {
-            // Determine text alignment
-            val textAlign = when ((submitButtonTextStyle?.alignment
-                ?: submitButtonTextStyle?.textAlign)?.lowercase()) {
-                "left" -> androidx.compose.ui.text.style.TextAlign.Start
-                "right" -> androidx.compose.ui.text.style.TextAlign.End
-                else -> androidx.compose.ui.text.style.TextAlign.Center
-            }
-
-            // Determine font family
-            val fontFamily = when ((submitButtonTextStyle?.font
-                ?: submitButtonTextStyle?.fontFamily)?.lowercase()) {
-                "serif" -> androidx.compose.ui.text.font.FontFamily.Serif
-                "monospace" -> androidx.compose.ui.text.font.FontFamily.Monospace
-                "cursive" -> androidx.compose.ui.text.font.FontFamily.Cursive
-                else -> androidx.compose.ui.text.font.FontFamily.SansSerif
-            }
-
-            CommonText(
-                modifier = if (submitButtonFullWidth) Modifier.fillMaxWidth() else Modifier,
-                text = submitButtonText,
-                styling = TextStyling(
-                    color = csatDetails.styling?.feedbackPage?.submitButton?.colors?.text,
-                    fontSize = (submitButtonTextStyle?.size ?: submitButtonTextStyle?.fontSize
-                    ?: ((csatDetails.styling?.fontSize ?: 16) + 2)),
-                    fontFamily = submitButtonTextStyle?.fontFamily ?: "",
-                    textAlign = submitButtonTextStyle?.alignment ?: submitButtonTextStyle?.textAlign
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = styling["csatCtaBackgroundColor"] ?: Color(0xFF007AFF)
                 )
-            )
-        }
+            ) {
+                // Determine text alignment
+                val textAlign = when ((submitButtonTextStyle?.alignment
+                    ?: submitButtonTextStyle?.textAlign)?.lowercase()) {
+                    "left" -> androidx.compose.ui.text.style.TextAlign.Start
+                    "right" -> androidx.compose.ui.text.style.TextAlign.End
+                    else -> androidx.compose.ui.text.style.TextAlign.Center
+                }
+
+                // Determine font family
+                val fontFamily = when ((submitButtonTextStyle?.font
+                    ?: submitButtonTextStyle?.fontFamily)?.lowercase()) {
+                    "serif" -> androidx.compose.ui.text.font.FontFamily.Serif
+                    "monospace" -> androidx.compose.ui.text.font.FontFamily.Monospace
+                    "cursive" -> androidx.compose.ui.text.font.FontFamily.Cursive
+                    else -> androidx.compose.ui.text.font.FontFamily.SansSerif
+                }
+
+                CommonText(
+                    modifier = if (submitButtonFullWidth) Modifier.fillMaxWidth() else Modifier,
+                    text = submitButtonText,
+                    styling = TextStyling(
+                        color = submitButtonTextStyle?.color
+                            ?: csatDetails.styling?.feedbackPage?.submitButton?.colors?.text,
+                        fontSize = (submitButtonTextStyle?.size ?: submitButtonTextStyle?.fontSize
+                        ?: ((csatDetails.styling?.fontSize ?: 16) + 2)),
+                        fontFamily = submitButtonTextStyle?.fontFamily ?: "",
+                        textAlign = submitButtonTextStyle?.alignment
+                            ?: submitButtonTextStyle?.textAlign
+                    )
+                )
+            }
+        } // end isSubmitEnabled
 
         Spacer(modifier = Modifier.height((submitButtonMargin?.bottom ?: 0).dp))
     }
@@ -778,22 +806,16 @@ private fun ThankYouContent(
         // Extract title textStyle
         val titleConfig = csatDetails.styling?.thankyouPage?.title
         val titleTextStyle = titleConfig?.textStyle
-        val titleAlignment =
-            when ((titleConfig?.alignment ?: titleTextStyle?.alignment)?.lowercase()) {
-                "left" -> androidx.compose.ui.text.style.TextAlign.Start
-                "right" -> androidx.compose.ui.text.style.TextAlign.End
-                "center" -> androidx.compose.ui.text.style.TextAlign.Center
-                else -> androidx.compose.ui.text.style.TextAlign.Center
-            }
-        val titleFontFamily = when (titleTextStyle?.font?.lowercase()) {
-            "serif" -> androidx.compose.ui.text.font.FontFamily.Serif
-            "monospace" -> androidx.compose.ui.text.font.FontFamily.Monospace
-            "cursive" -> androidx.compose.ui.text.font.FontFamily.Cursive
-            else -> androidx.compose.ui.text.font.FontFamily.SansSerif
-        }
 
         CommonText(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    start = (titleConfig?.margin?.left ?: 0).dp,
+                    end = (titleConfig?.margin?.right ?: 0).dp,
+                    top = (titleConfig?.margin?.top ?: 0).dp,
+                    bottom = (titleConfig?.margin?.bottom ?: 0).dp
+                ),
             text = csatDetails.thankyouText
                 ?.takeIf { it.isNotBlank() }
                 ?: (
@@ -805,11 +827,14 @@ private fun ThankYouContent(
                                 ?: csatDetails.styling?.rating?.highRatingTitle
                         ) ?: "Thank You",
             styling = TextStyling(
-                color = csatDetails.styling?.thankyouPage?.title?.color,
-                fontSize = (titleTextStyle?.size ?: ((csatDetails.styling?.fontSize ?: 16) + 6)),
+                color = titleTextStyle?.color ?: csatDetails.styling?.thankyouPage?.title?.color,
+                fontSize = (titleTextStyle?.fontSize ?: titleTextStyle?.size
+                ?: ((csatDetails.styling?.fontSize ?: 16) + 6)),
                 fontFamily = titleTextStyle?.fontFamily ?: "",
-                textAlign = titleConfig?.alignment ?: titleTextStyle?.alignment,
-                fontDecoration = listOf("bold")
+                textAlign = titleTextStyle?.textAlign ?: titleConfig?.alignment
+                ?: titleTextStyle?.alignment,
+                fontDecoration = titleTextStyle?.fontDecoration?.takeIf { it.isNotEmpty() }
+                    ?: listOf("bold")
             )
         )
 
@@ -818,22 +843,16 @@ private fun ThankYouContent(
         // Extract subtitle textStyle
         val subtitleConfig = csatDetails.styling?.thankyouPage?.subtitle
         val subtitleTextStyle = subtitleConfig?.textStyle
-        val subtitleAlignment =
-            when ((subtitleConfig?.alignment ?: subtitleTextStyle?.alignment)?.lowercase()) {
-                "left" -> androidx.compose.ui.text.style.TextAlign.Start
-                "right" -> androidx.compose.ui.text.style.TextAlign.End
-                "center" -> androidx.compose.ui.text.style.TextAlign.Center
-                else -> androidx.compose.ui.text.style.TextAlign.Center
-            }
-        val subtitleFontFamily = when (subtitleTextStyle?.font?.lowercase()) {
-            "serif" -> androidx.compose.ui.text.font.FontFamily.Serif
-            "monospace" -> androidx.compose.ui.text.font.FontFamily.Monospace
-            "cursive" -> androidx.compose.ui.text.font.FontFamily.Cursive
-            else -> androidx.compose.ui.text.font.FontFamily.SansSerif
-        }
 
         CommonText(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    start = (subtitleConfig?.margin?.left ?: 0).dp,
+                    end = (subtitleConfig?.margin?.right ?: 0).dp,
+                    top = (subtitleConfig?.margin?.top ?: 0).dp,
+                    bottom = (subtitleConfig?.margin?.bottom ?: 0).dp
+                ),
             text = csatDetails.thankyouDescription
                 ?.takeIf { it.isNotBlank() }
                 ?: (
@@ -845,10 +864,14 @@ private fun ThankYouContent(
                                 ?: csatDetails.styling?.rating?.highRatingSubtitle
                         ) ?: "Thank you",
             styling = TextStyling(
-                color = csatDetails.styling?.thankyouPage?.subtitle?.color,
-                fontSize = (subtitleTextStyle?.size ?: (csatDetails.styling?.fontSize ?: 16)),
+                color = subtitleTextStyle?.color
+                    ?: csatDetails.styling?.thankyouPage?.subtitle?.color,
+                fontSize = (subtitleTextStyle?.fontSize ?: subtitleTextStyle?.size
+                ?: (csatDetails.styling?.fontSize ?: 16)),
                 fontFamily = subtitleTextStyle?.fontFamily ?: "",
-                textAlign = subtitleConfig?.alignment ?: subtitleTextStyle?.alignment
+                textAlign = subtitleTextStyle?.textAlign ?: subtitleConfig?.alignment
+                ?: subtitleTextStyle?.alignment,
+                fontDecoration = subtitleTextStyle?.fontDecoration
             )
         )
 
@@ -935,12 +958,15 @@ private fun ThankYouContent(
                     modifier = if (doneButtonFullWidth) Modifier.fillMaxWidth() else Modifier,
                     text = doneButtonText,
                     styling = TextStyling(
-                        color = csatDetails.styling?.thankyouPage?.doneButton?.colors?.text,
+                        color = doneButtonTextStyle?.color
+                            ?: csatDetails.styling?.thankyouPage?.doneButton?.colors?.text,
                         fontSize = (doneButtonTextStyle?.size ?: doneButtonTextStyle?.fontSize
                         ?: ((csatDetails.styling?.fontSize
                             ?: 16) + 2)),
                         fontFamily = doneButtonTextStyle?.fontFamily ?: "",
-                        textAlign = doneButtonTextStyle?.alignment ?: doneButtonTextStyle?.textAlign
+                        textAlign = doneButtonTextStyle?.textAlign
+                            ?: doneButtonTextStyle?.alignment,
+                        fontDecoration = doneButtonTextStyle?.fontDecoration
                     )
                 )
             }

@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -36,6 +37,7 @@ android {
     }
     buildFeatures {
         compose = true
+        dataBinding = true
     }
     composeOptions {
         kotlinCompilerExtensionVersion = libs.versions.composeCompiler.get()
@@ -44,6 +46,9 @@ android {
 }
 
 dependencies {
+    implementation(platform("com.google.firebase:firebase-bom:32.7.0"))
+    implementation("com.google.firebase:firebase-analytics")
+    implementation("com.google.firebase:firebase-messaging")
 
     implementation(libs.exoplayer)
     implementation(libs.androidx.core.ktx)
@@ -69,4 +74,16 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
+}
+
+configurations.all {
+    resolutionStrategy {
+        force(
+            "androidx.databinding:databinding-ktx:8.7.3",
+            "androidx.databinding:databinding-runtime:8.7.3",
+            "androidx.databinding:databinding-common:8.7.3",
+            "androidx.databinding:databinding-adapters:8.7.3",
+            "androidx.databinding:databinding-compiler:8.7.3"
+        )
+    }
 }

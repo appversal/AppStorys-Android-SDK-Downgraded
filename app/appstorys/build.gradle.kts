@@ -61,6 +61,8 @@ dependencies {
 
     implementation("androidx.lifecycle:lifecycle-process:2.8.7")
 
+    compileOnly("com.google.firebase:firebase-messaging:23.0.0")
+
     implementation(libs.gson)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.coil.gif)

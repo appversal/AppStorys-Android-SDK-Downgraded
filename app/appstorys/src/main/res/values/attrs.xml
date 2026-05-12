@@ -21,6 +21,7 @@
         <attr name="pipTopPadding" format="dimension" />
         <attr name="pipBottomPadding" format="dimension" />
         <attr name="csatBottomPadding" format="dimension" />
+        <attr name="insideBottomSheet" format="boolean" />
     </declare-styleable>
     <declare-styleable name="PinnedBannerView">
         <attr name="bottomPadding" />

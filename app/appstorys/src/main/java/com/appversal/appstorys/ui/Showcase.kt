@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import com.appversal.appstorys.api.Tooltip
 import com.appversal.appstorys.utils.AppStorysCoordinates
 import androidx.core.graphics.toColorInt
+import androidx.compose.ui.graphics.CompositingStrategy
 
 internal class ShowcaseDuration(val enterMillis: Int, val exitMillis: Int) {
     companion object {
@@ -118,7 +119,10 @@ private fun ShowcaseBackground(
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
-                .graphicsLayer(alpha = 0.99f)
+                .graphicsLayer{
+                    alpha = 0.99f
+                    compositingStrategy = CompositingStrategy.Offscreen
+                }
         ) {
             drawRect(
                 color = backdropColor.copy(alpha = backdropAlpha),

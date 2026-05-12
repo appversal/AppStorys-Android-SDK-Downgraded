@@ -176,7 +176,7 @@ private fun RowScope.ModalCTAButtonInRow(
         .clickable(
             role = Role.Button,
             interactionSource = remember { MutableInteractionSource() },
-            indication = rememberRipple(bounded = true),
+            indication = null,
             onClick = onClick
         )
 
@@ -260,7 +260,7 @@ fun ModalCTAButton(
                 .clickable(
                     role = Role.Button,
                     interactionSource = remember { MutableInteractionSource() },
-                    indication = rememberRipple(bounded = true),
+                    indication = null,
                     onClick = onClick
                 ),
             horizontalArrangement = Arrangement.Center,

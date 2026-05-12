@@ -1206,9 +1206,10 @@ internal fun StoryScreenWrapper(
     }
 
     DisposableEffect(Unit) {
-        AppStorys.isVisible = false
+        AppStorys._isVisible.value = false
+
         onDispose {
-            AppStorys.isVisible = true
+            AppStorys._isVisible.value = true
         }
     }
 

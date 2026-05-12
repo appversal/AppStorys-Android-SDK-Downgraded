@@ -25,6 +25,7 @@ import androidx.compose.ui.layout.boundsInParent
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
@@ -60,6 +61,12 @@ object OverlayContainer {
      * @param coordinates The `LayoutCoordinates` of the target.
      */
     fun addConstraint(id: String, coordinates: LayoutCoordinates) {
+        val bounds = coordinates.boundsInRoot()
+        Log.e(
+            "TooltipDebug",
+            "[Compose] [OverlayContainer] Storing constraint for '$id': boundsInRoot=$bounds w=${coordinates.size.width} h=${coordinates.size.height}"
+        )
+
         constraints[id] = coordinates.toAppStorysCoordinates()
     }
 
@@ -69,9 +76,31 @@ object OverlayContainer {
      * @param id The unique identifier for the target.
      * @param view The `View` object representing the target.
      */
+
     fun addViewConstraint(id: String, view: View) {
-        constraints[id] = view.toAppStorysCoordinates()
+        val coords = view.toAppStorysCoordinates()
+        val newBounds = coords.boundsInRoot()
+        // Skip update if bounds haven't changed — prevents infinite onLayoutChanges loop
+        val existingBounds = constraints[id]?.boundsInRoot?.invoke()
+        if (existingBounds == newBounds) {
+            return
+        }
+        Log.e(
+            "TooltipDebug",
+            "[OverlayContainer] Storing constraint for '$id': bounds=$newBounds w=${view.width} h=${view.height}"
+        )
+        constraints[id] = coords
     }
+//    fun addViewConstraint(id: String, view: View) {
+//        val coords = view.toAppStorysCoordinates()
+//        val bounds = coords.boundsInRoot()
+//        Log.e(
+//            "TooltipDebug",
+//            "[OverlayContainer] Storing constraint for '$id': " + "bounds=$bounds w=${view.width} h=${view.height}"
+//        )
+////        constraints[id] = view.toAppStorysCoordinates()
+//        constraints[id] = coords
+//    }
 
     /**
      * Adds a tooltip to the list of active tooltips.
@@ -213,6 +242,93 @@ object OverlayContainer {
     }
 
     /**
+     * Renders only the active tooltip Popups. Has zero layout footprint (no fillMaxSize).
+     * Call this from inside a ModalBottomSheet so the Popup gets the sheet's window
+     * token and appears above it, not behind it.
+     */
+    @Composable
+    fun TooltipsOnly() {
+        val localView = LocalView.current
+
+        LaunchedEffect(Unit) {
+            tooltipTargetView.collect { target ->
+                when (target) {
+                    null -> tooltips.clear()
+                    else -> addTooltip(target)
+                }
+            }
+        }
+
+        val visibleTooltips by remember {
+            derivedStateOf { tooltips.filter { constraints.containsKey(it.target) } }
+        }
+
+        visibleTooltips.forEach { tooltip ->
+            val coordinates by rememberUpdatedState(constraints[tooltip.target])
+            if (coordinates != null) {
+                val coords = coordinates!!
+
+                // KEY FIX: swap boundsInRoot → boundsInWindow.
+                // boundsInWindow() is always from the Android window's (0,0).
+                // The Popup below is positioned at that same window (0,0), so
+                // the Canvas coordinate space and the stored coordinates align exactly,
+                // regardless of any statusBar / inset offset applied to the AndroidComposeView
+                // within the dialog window.
+                val windowCoords = remember(coords) {
+                    AppStorysCoordinates(
+                        x = coords.x,
+                        y = coords.y,
+                        width = coords.width,
+                        height = coords.height,
+                        boundsInParent = coords.boundsInParent,
+                        boundsInRoot = coords.boundsInWindow,   // ← was coords.boundsInRoot
+                        boundsInWindow = coords.boundsInWindow
+                    )
+                }
+
+                Popup(
+                    popupPositionProvider = object : PopupPositionProvider {
+                        override fun calculatePosition(
+                            anchorBounds: IntRect,
+                            windowSize: IntSize,
+                            layoutDirection: LayoutDirection,
+                            popupContentSize: IntSize
+                        ): IntOffset {
+                            // Popup screen position = LocalView_on_screen + calculatePosition().
+                            // We want the Popup at the Android window's (0,0) on screen, because
+                            // boundsInWindow() is measured from that same origin.
+                            //
+                            // window_on_screen = LocalView_on_screen - LocalView_in_window
+                            // ∴ calculatePosition = window_on_screen - LocalView_on_screen
+                            //                     = -LocalView_in_window
+                            val localViewInWindow = IntArray(2)
+                            localView.getLocationInWindow(localViewInWindow)
+                            return IntOffset(-localViewInWindow[0], -localViewInWindow[1])
+                        }
+                    },
+                    properties = PopupProperties(
+                        focusable = true,
+                        dismissOnBackPress = true,
+                        dismissOnClickOutside = true
+                    ),
+                    onDismissRequest = ::dismissTooltip
+                ) {
+                    ShowcaseView(
+                        visible = true,
+                        targetCoordinates = windowCoords,
+                        highlight = ShowcaseHighlight.Rectangular(
+                            cornerRadius = tooltip.styling?.appearance?.highlight?.radius?.dp ?: 8.dp,
+                            padding = tooltip.styling?.appearance?.highlight?.padding?.dp ?: 8.dp
+                        ),
+                        tooltip = tooltip
+                    )
+                    TooltipContent(tooltip = tooltip, coordinates = windowCoords)
+                }
+            }
+        }
+    }
+
+    /**
      * Converts `LayoutCoordinates` to `AppStorysCoordinates`.
      *
      * @return The converted `AppStorysCoordinates`.
@@ -246,44 +362,132 @@ object OverlayContainer {
         // Get status bar height to adjust for proper positioning
         val rootRect = Rect()
         getWindowVisibleDisplayFrame(rootRect)
-        val statusBarHeight = rootRect.top
 
         // Calculate position relative to root, adjusting for status bar
-        val rootX = locationInWindow[0].toFloat()
-        val rootY = (locationInWindow[1] - statusBarHeight).toFloat()
+//        val rootX = locationInWindow[0].toFloat()
+//        val rootY = (locationInWindow[1] - statusBarHeight).toFloat()
+
+        if (width == 0 || height == 0) {
+            Log.e(
+                "TooltipDebug",
+                "[toAppStorysCoordinates] WARNING: converting view with zero dimensions (w=$width, h=$height). Highlight will be invisible!"
+            )
+        }
+
+        val loc = IntArray(2)
+        getLocationOnScreen(loc)
+
+        val statusBarHeight = androidx.core.view.ViewCompat
+            .getRootWindowInsets(this)
+            ?.getInsets(androidx.core.view.WindowInsetsCompat.Type.statusBars())
+            ?.top ?: 0
 
         return AppStorysCoordinates(
-            // TODO: Find out why I need to subtract 55 from rootX and rootY
-            x = rootX - 55,
-            y = rootY - 55,
+            x = loc[0].toFloat(),
+            y = (loc[1] - statusBarHeight).toFloat(),
+//            x = run {
+//                val loc = IntArray(2); getLocationInWindow(loc)
+//                val rootRect = Rect(); getWindowVisibleDisplayFrame(rootRect)
+//                (loc[0] - rootRect.left).toFloat()         // ← no magic -55
+//            },
+//            y = run {
+//                val loc = IntArray(2); getLocationInWindow(loc)
+//                val rootRect = Rect(); getWindowVisibleDisplayFrame(rootRect)
+//                (loc[1] - rootRect.top).toFloat()          // ← no magic -55
+//            },
             width = width,
             height = height,
             boundsInParent = {
+                // recomputed fresh every time it's called
                 androidx.compose.ui.geometry.Rect(
-                    left = left.toFloat(),
-                    top = top.toFloat(),
-                    right = right.toFloat(),
-                    bottom = bottom.toFloat()
+                    left.toFloat(),
+                    top.toFloat(),
+                    right.toFloat(),
+                    bottom.toFloat()
                 )
             },
             boundsInRoot = {
+                val locOnScreen = IntArray(2)
+                getLocationOnScreen(locOnScreen)
+                // Status bar height via WindowInsetsCompat — works on all API levels
+                // including edge-to-edge Android 15/16 where getWindowVisibleDisplayFrame returns -100000
+                val statusBarHeight = androidx.core.view.ViewCompat
+                    .getRootWindowInsets(this)
+                    ?.getInsets(androidx.core.view.WindowInsetsCompat.Type.statusBars())
+                    ?.top ?: 0
+                val rx = locOnScreen[0].toFloat()
+                val ry = (locOnScreen[1] - statusBarHeight).toFloat()
+                Log.e(
+                    "TooltipDebug",
+                    "[boundsInRoot] rx=$rx ry=$ry statusBarHeight=$statusBarHeight"
+                )
+                androidx.compose.ui.geometry.Rect(rx, ry, rx + width, ry + height)
+            },
+//            boundsInRoot = {
+//                // recomputed fresh every time it's called
+//                val loc = IntArray(2); getLocationInWindow(loc)
+//                val rootRect = android.graphics.Rect()
+//                getWindowVisibleDisplayFrame(rootRect)
+//                val rx = (loc[0] - rootRect.left).toFloat()
+//                val ry = (loc[1] - rootRect.top).toFloat()
+//                Log.e("TooltipDebug", "[boundsInRoot] id=$id rx=$rx ry=$ry w=$width h=$height rootTop=${rootRect.top}")
+//                androidx.compose.ui.geometry.Rect(rx, ry, rx + width, ry + height)
+//            },
+            boundsInWindow = {
+                val loc = IntArray(2)
+                getLocationOnScreen(loc)
+                val sbh = androidx.core.view.ViewCompat
+                    .getRootWindowInsets(this)
+                    ?.getInsets(androidx.core.view.WindowInsetsCompat.Type.statusBars())
+                    ?.top ?: 0
                 androidx.compose.ui.geometry.Rect(
-                    left = rootX,
-                    top = rootY,
-                    right = rootX + width,
-                    bottom = rootY + height
+                    loc[0].toFloat(),
+                    (loc[1] - sbh).toFloat(),
+                    (loc[0] + width).toFloat(),
+                    (loc[1] - sbh + height).toFloat()
                 )
             },
-            boundsInWindow = {
-                val locationOnScreen = IntArray(2)
-                getLocationOnScreen(locationOnScreen)
-                androidx.compose.ui.geometry.Rect(
-                    left = locationOnScreen[0].toFloat(),
-                    top = locationOnScreen[1].toFloat(),
-                    right = (locationOnScreen[0] + width).toFloat(),
-                    bottom = (locationOnScreen[1] + height).toFloat()
-                )
-            }
+//            boundsInWindow = {
+//                val loc = IntArray(2); getLocationOnScreen(loc)
+//                androidx.compose.ui.geometry.Rect(
+//                    loc[0].toFloat(), loc[1].toFloat(),
+//                    (loc[0] + width).toFloat(), (loc[1] + height).toFloat()
+//                )
+//            }
+//            x = rootX - 55,
+//            y = rootY - 55,
+//            width = width,
+//            height = height,
+//            boundsInParent = {
+//                androidx.compose.ui.geometry.Rect(
+//                    left = left.toFloat(),
+//                    top = top.toFloat(),
+//                    right = right.toFloat(),
+//                    bottom = bottom.toFloat()
+//                )
+//            },
+//            boundsInRoot = {
+//                androidx.compose.ui.geometry.Rect(
+//                    left = rootX,
+//                    top = rootY,
+//                    right = rootX + width,
+//                    bottom = rootY + height
+//                )
+//            },
+//            boundsInWindow = {
+//                val locationOnScreen = IntArray(2)
+//                getLocationOnScreen(locationOnScreen)
+//                androidx.compose.ui.geometry.Rect(
+//                    left = locationOnScreen[0].toFloat(),
+//                    top = locationOnScreen[1].toFloat(),
+//                    right = (locationOnScreen[0] + width).toFloat(),
+//                    bottom = (locationOnScreen[1] + height).toFloat()
+//                )
+//            }
         )
+    }
+    fun clearAll() {
+        constraints.clear()
+        tooltips.clear()
     }
 }

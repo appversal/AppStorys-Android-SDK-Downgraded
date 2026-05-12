@@ -548,8 +548,10 @@ data class CsatFeedbackPage(
 @Keep
 @Serializable
 data class CsatAdditionalComments(
+    val borderWidth: Int?,
     val colors: CsatColors?,
     val enabled: Boolean?,
+    val placeholder: String? = null,
     val textStyle: CsatTextStyle?
 )
 
@@ -557,12 +559,17 @@ data class CsatAdditionalComments(
 @Serializable
 data class CsatOptions(
     val nonSelectedOptions: CsatOptionStyle?,
-    val selectedOptions: CsatOptionStyle?
+    val selectedOptions: CsatOptionStyle?,
+    val cornerRadius: CornerRadius? = null,
+    val margin: Margin? = null,
+    val optionsHeight: Int? = null,
+    val optionsSpacing: Int? = null
 )
 
 @Keep
 @Serializable
 data class CsatOptionStyle(
+    val borderWidth: Int?,
     val colors: CsatColors?,
     val textStyle: CsatTextStyle?
 )
@@ -634,6 +641,7 @@ data class CsatInitialFeedback(
 data class CsatTextElement(
     val alignment: String? = null,
     val color: String? = null,
+    val margin: Margin? = null,
     val textStyle: CsatTextStyle? = null
 )
 
@@ -888,7 +896,8 @@ data class TooltipAppearance(
     val cornerRadius: CornerRadius?,
     val highlight: TooltipHighlight?,
     val imageDimensions: TooltipImageDimensions?,
-    val padding: Margin?
+    val padding: Margin?,
+    val width: Int?
 )
 
 @Keep

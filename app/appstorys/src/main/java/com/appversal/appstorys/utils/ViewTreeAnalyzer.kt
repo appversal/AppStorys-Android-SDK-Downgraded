@@ -58,6 +58,21 @@ internal object ViewTreeAnalyzer {
         }
     }
 
+    private fun getAllWindowRoots(fallback: View): List<View> {
+        return try {
+            val wmGlobal = Class.forName("android.view.WindowManagerGlobal")
+            val instance = wmGlobal.getMethod("getInstance").invoke(null)
+            val mViewsField = wmGlobal.getDeclaredField("mViews").apply { isAccessible = true }
+            @Suppress("UNCHECKED_CAST")
+            (mViewsField.get(instance) as? ArrayList<View>)
+                ?.filter { it.isShown && it.width > 0 && it.height > 0 }
+                ?: listOf(fallback)
+        } catch (e: Exception) {
+            Log.w("ViewTreeAnalyzer", "Failed to enumerate windows, using fallback", e)
+            listOf(fallback)
+        }
+    }
+
     /**
      * Analyzes the view tree starting from the root View and generates a JSON representation.
      * Includes both traditional Android Views and Compose Views embedded within.
@@ -76,16 +91,21 @@ internal object ViewTreeAnalyzer {
         context: Context
     ): kotlinx.serialization.json.JsonObject {
         Log.i("ViewTreeAnalyzer", "===== analyzeViewRoot() START =====")
+
+        val allRoots = getAllWindowRoots(root)           // ← now walks every open window
+        Log.i("ViewTreeAnalyzer", "Windows found: ${allRoots.size}")
+
         val children = buildJsonArray {
-            Log.i("ViewTreeAnalyzer", "Starting view tree analysis...")
-            analyzeViewElement(
-                root,
-                onElementAnalyzed = {
-                    Log.i("ViewTreeAnalyzer", "Element analyzed: $it")
-                    add(it)
+            allRoots.forEach { windowRoot ->
+                analyzeViewElement(
+                    windowRoot,
+                    onElementAnalyzed = {
+                        Log.i("ViewTreeAnalyzer", "Element analyzed: $it")
+                        add(it)
                     },
-                activity = activity
-            )
+                    activity = activity
+                )
+            }
         }
 
         Log.i("ViewTreeAnalyzer", "View tree analysis complete. Total elements: ${children.size}")
@@ -96,21 +116,13 @@ internal object ViewTreeAnalyzer {
         }
 
         val formattedJson = SdkJson.encodeToString(children)
-        Log.e(
-            "ViewTreeAnalyzer",
-            formattedJson
-        )
-
+        Log.e("ViewTreeAnalyzer", formattedJson)
         Log.i("ViewTreeAnalyzer", "Capturing screenshot...")
 
-        val screenshot = captureScreenshot(
-            view = root,
-            activity = activity
-        )
+        val screenshot = captureScreenshot(view = root, activity = activity)
 
         if (screenshot != null) {
             Log.i("ViewTreeAnalyzer", "Screenshot captured. Sending to server...")
-
             try {
                 repository.tooltipIdentify(
                     accessToken = accessToken,
@@ -128,70 +140,150 @@ internal object ViewTreeAnalyzer {
         return resultJson
     }
 
-    /**
-     * Captures a screenshot of the provided view and stores it in the screenBitmap variable.
-     *
-     * @param view The view to capture.
-     */
+    // ── Replace captureScreenshot — composite every window surface ─────────────
     private suspend fun captureScreenshot(activity: Activity, view: View): File? {
         Log.i("ViewTreeAnalyzer", "captureScreenshot() called")
         return try {
-            if (view.width <= 0 || view.height <= 0) {
-                Log.e("ViewTreeAnalyzer", "Cannot capture screenshot: View has invalid dimensions")
+            val (screenWidth, screenHeight) = getScreenSize(activity)
+            if (screenWidth <= 0 || screenHeight <= 0) {
+                Log.e("ViewTreeAnalyzer", "Invalid screen dimensions")
                 return null
             }
 
-            val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
-            val file = File.createTempFile("screenshot_", ".png", view.context.cacheDir)
+            val compositeBitmap =
+                Bitmap.createBitmap(screenWidth, screenHeight, Bitmap.Config.ARGB_8888)
+            val compositeCanvas = Canvas(compositeBitmap)
+            val file = File.createTempFile("screenshot_", ".png", activity.cacheDir)
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                // PixelCopy-based screenshot (API 26+)
-                suspendCancellableCoroutine<File?> { continuation ->
-                    val location = IntArray(2)
-                    view.getLocationInWindow(location)
-                    val rect = Rect(
-                        location[0],
-                        location[1],
-                        location[0] + view.width,
-                        location[1] + view.height
-                    )
+                try {
+                    // Reflect into WindowManagerGlobal to get every window's View + ViewRootImpl
+                    val wmGlobal = Class.forName("android.view.WindowManagerGlobal")
+                    val instance = wmGlobal.getMethod("getInstance").invoke(null)
 
-                    PixelCopy.request(
-                        activity.window,
-                        rect,
-                        bitmap,
-                        { result ->
-                            if (result == PixelCopy.SUCCESS) {
-                                try {
-                                    FileOutputStream(file).use { out ->
-                                        bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
-                                    }
-                                    screenBitmap = bitmap
-                                    continuation.resume(file, onCancellation = null)
-                                } catch (e: Exception) {
-                                    Log.e("ViewTreeAnalyzer", "Failed to save screenshot", e)
-                                    continuation.resumeWithException(e)
-                                }
-                            } else {
-                                val error = Exception("PixelCopy failed with code $result")
-                                Log.e("ViewTreeAnalyzer", error.message ?: "Unknown error")
-                                continuation.resumeWithException(error)
+                    val mViewsField =
+                        wmGlobal.getDeclaredField("mViews").apply { isAccessible = true }
+                    val mRootsField =
+                        wmGlobal.getDeclaredField("mRoots").apply { isAccessible = true }
+
+                    @Suppress("UNCHECKED_CAST")
+                    val allViews = mViewsField.get(instance) as? ArrayList<View> ?: listOf(view)
+
+                    @Suppress("UNCHECKED_CAST")
+                    val allRoots = mRootsField.get(instance) as? ArrayList<*> ?: emptyList<Any>()
+
+                    val viewRootClass = Class.forName("android.view.ViewRootImpl")
+                    val mSurfaceField =
+                        viewRootClass.getDeclaredField("mSurface").apply { isAccessible = true }
+
+                    allViews.forEachIndexed { index, windowView ->
+                        if (!windowView.isShown || windowView.width <= 0 || windowView.height <= 0) return@forEachIndexed
+
+                        val viewRoot = allRoots.getOrNull(index) ?: return@forEachIndexed
+                        val surface = mSurfaceField.get(viewRoot) as? android.view.Surface
+                            ?: return@forEachIndexed
+                        if (!surface.isValid) return@forEachIndexed
+
+                        val location = IntArray(2)
+                        windowView.getLocationOnScreen(location)
+
+                        val winBitmap = Bitmap.createBitmap(
+                            windowView.width,
+                            windowView.height,
+                            Bitmap.Config.ARGB_8888
+                        )
+                        val srcRect = Rect(0, 0, windowView.width, windowView.height)
+
+                        try {
+                            suspendCancellableCoroutine<Unit> { cont ->
+                                PixelCopy.request(
+                                    surface, srcRect, winBitmap,
+                                    { result ->
+                                        if (result == PixelCopy.SUCCESS) {
+                                            compositeCanvas.drawBitmap(
+                                                winBitmap,
+                                                location[0].toFloat(),
+                                                location[1].toFloat(),
+                                                null
+                                            )
+                                            Log.i(
+                                                "ViewTreeAnalyzer",
+                                                "Window $index composited at ${location[0]},${location[1]}"
+                                            )
+                                        } else {
+                                            Log.w(
+                                                "ViewTreeAnalyzer",
+                                                "PixelCopy result=$result for window $index"
+                                            )
+                                        }
+                                        cont.resume(Unit, onCancellation = null)
+                                    },
+                                    Handler(Looper.getMainLooper())
+                                )
                             }
-                        },
-                        Handler(Looper.getMainLooper())
+                        } catch (e: Exception) {
+                            Log.w(
+                                "ViewTreeAnalyzer",
+                                "PixelCopy failed for window $index, trying canvas draw",
+                                e
+                            )
+                            compositeCanvas.save()
+                            compositeCanvas.translate(location[0].toFloat(), location[1].toFloat())
+                            try {
+                                windowView.draw(compositeCanvas)
+                            } catch (ex: Exception) { /* skip */
+                            }
+                            compositeCanvas.restore()
+                        }
+                    }
+                } catch (e: Exception) {
+                    // Reflection failed — fall back to single-window PixelCopy
+                    Log.w(
+                        "ViewTreeAnalyzer",
+                        "WindowManagerGlobal reflection failed, falling back",
+                        e
                     )
+                    val fallbackBitmap =
+                        Bitmap.createBitmap(screenWidth, screenHeight, Bitmap.Config.ARGB_8888)
+                    suspendCancellableCoroutine<Unit> { cont ->
+                        PixelCopy.request(
+                            activity.window, fallbackBitmap,
+                            { result ->
+                                if (result == PixelCopy.SUCCESS) {
+                                    compositeCanvas.drawBitmap(fallbackBitmap, 0f, 0f, null)
+                                }
+                                cont.resume(Unit, onCancellation = null)
+                            },
+                            Handler(Looper.getMainLooper())
+                        )
+                    }
                 }
             } else {
-                // Software rendering fallback (for API < 26)
-                val canvas = Canvas(bitmap)
-                view.draw(canvas)
-                FileOutputStream(file).use { out ->
-                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+                // API < 26 — software canvas draw of all windows
+                getAllWindowRoots(view).forEach { windowView ->
+                    if (!windowView.isShown || windowView.width <= 0 || windowView.height <= 0) return@forEach
+                    val location = IntArray(2)
+                    windowView.getLocationOnScreen(location)
+                    compositeCanvas.save()
+                    compositeCanvas.translate(location[0].toFloat(), location[1].toFloat())
+                    try {
+                        windowView.draw(compositeCanvas)
+                    } catch (e: Exception) { /* skip */
+                    }
+                    compositeCanvas.restore()
                 }
-                screenBitmap = bitmap
-                Log.i("ViewTreeAnalyzer", "Screenshot captured successfully (fallback)")
-                file
+                Log.i("ViewTreeAnalyzer", "Screenshot captured (canvas fallback)")
             }
+
+            FileOutputStream(file).use { out ->
+                compositeBitmap.compress(
+                    Bitmap.CompressFormat.PNG,
+                    100,
+                    out
+                )
+            }
+            screenBitmap = compositeBitmap
+            file
         } catch (e: Exception) {
             Log.e("ViewTreeAnalyzer", "Error capturing screenshot", e)
             screenBitmap = null

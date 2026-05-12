@@ -25,15 +25,15 @@
         </activity>
 
         <activity
-                android:name=".TestActivity"
-                android:exported="true"
-                android:theme="@style/Theme.Carousal">
+            android:name=".TestActivity"
+            android:exported="true"
+            android:theme="@style/Theme.Carousal">
         </activity>
 
         <activity
-                android:name=".MoreActivity"
-                android:exported="true"
-                android:theme="@style/Theme.Carousal">
+            android:name=".MoreActivity"
+            android:exported="true"
+            android:theme="@style/Theme.Carousal">
         </activity>
     </application>
 

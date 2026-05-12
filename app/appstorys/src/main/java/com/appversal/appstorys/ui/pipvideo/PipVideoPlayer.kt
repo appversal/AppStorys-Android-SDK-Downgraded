@@ -112,7 +112,8 @@ internal fun PipVideo(
     minimiseImageUrl: String? = null,
 
     onClose: () -> Unit,
-    onButtonClick: () -> Unit,
+    onButtonClick: (isSmallVideo: Boolean) -> Unit,
+    onSmallVideoClick: () -> Unit = {},
     onExpandClick: () -> Unit = {}
 ) {
     var isFullScreen by remember { mutableStateOf(false) }
@@ -202,9 +203,11 @@ internal fun PipVideo(
                                 }
                                 .clickable {
                                     if (!fullScreenVideoUri.isNullOrEmpty()) {
-                                        onExpandClick()
-                                        isFullScreen = true
-                                        pipPlayer.pause()
+                                        onExpandClick(); isFullScreen = true; pipPlayer.pause()
+                                    } else if (!link.isNullOrEmpty()) {
+                                        if (AppStorys.isValidUrl(link)) AppStorys.openUrl(link)
+                                        else AppStorys.navigateToScreen(link)
+                                        onSmallVideoClick()
                                     }
                                 }
                                 .then(
@@ -417,7 +420,7 @@ fun FullScreenVideoDialog(
     unmuteButtonConfig: SoundToggleButtonConfig = SoundToggleButtonConfig(),
 
     onClose: () -> Unit,
-    onButtonClick: () -> Unit
+    onButtonClick: (isSmallVideo: Boolean) -> Unit
 ) {
     // Determine initial muted state from backend configuration
     // defaultSound = "yes" means unmuted, "no" or null means muted
@@ -634,7 +637,7 @@ fun FullScreenVideoDialog(
                                 } else {
                                     AppStorys.navigateToScreen(link)
                                 }
-                                onButtonClick()
+                                onButtonClick(false)
                             }
                         )
                     }

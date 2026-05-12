@@ -54,6 +54,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import androidx.core.net.toUri
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
@@ -139,12 +141,14 @@ import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import com.appversal.appstorys.utils.TriggerEventMatcher.TrackedEventData
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import kotlin.collections.plus
 import kotlin.toString
+import com.appversal.appstorys.notifications.OutreachEventTracker
 
 object AppStorys {
     private lateinit var context: Application
@@ -387,6 +391,15 @@ object AppStorys {
                 if (!accessToken.isNullOrBlank()) {
                     this@AppStorys.accessToken = accessToken
                     sdkState = AppStorysSdkState.Initialized
+
+                    try {
+                        OutreachEventTracker.saveUserId(context, this@AppStorys.userId)
+                        OutreachEventTracker.saveSdkAccessToken(context, accessToken)
+                        OutreachEventTracker.drainPendingQueue(context)
+                    } catch (e: Exception) {
+                        Log.e("AppStorys", "Outreach tracker setup failed: ${e.message}", e)
+                    }
+
                     val savedScratchedCampaigns = getScratchedCampaigns(
                         context.getSharedPreferences("AppStory", Context.MODE_PRIVATE)
                     )
@@ -424,6 +437,9 @@ object AppStorys {
             ensureActive()
             try {
                 if (currentScreen != screenName) {
+                    withContext(Dispatchers.Main) {   // ← add this
+                        OverlayContainer.clearAll()
+                    }
                     disabledCampaigns.emit(emptyList())
                     impressions.emit(emptyList())
                     campaigns.emit(emptyList())
@@ -522,7 +538,7 @@ object AppStorys {
                     }
                     val client = OkHttpClient()
                     val request = Request.Builder()
-                        .url("https://tracking.appstorys.com/capture-event")
+                        .url("https://tracking.appstorys.co/capture-event")
                         .post(
                             requestBody.toString()
                                 .toRequestBody("application/json".toMediaTypeOrNull())
@@ -591,6 +607,36 @@ object AppStorys {
         }
     }
 
+    fun setFirebaseToken(fcmToken: String) {
+        try {
+            if (fcmToken.isBlank()) {
+                Log.w("AppStorys", "setFirebaseToken: empty token, ignoring")
+                return
+            }
+            Log.d("AppStorys", "setFirebaseToken: updating device_push_token")
+
+            // 1. Existing flow — push device_push_token as a user attribute.
+            setUserProperties(mapOf("device_push_token" to fcmToken))
+
+            // 2. New flow — make sure the outreach access token is cached.
+            //    No-op if we already have one (cached from a previous session,
+            //    valid for ~30 days unless the server rejects it).
+            coroutineScope.launch {
+                try {
+                    if (!checkIfInitialized() || userId.isBlank()) {
+                        Log.w("AppStorys", "setFirebaseToken: SDK not ready, skipping outreach token fetch")
+                        return@launch
+                    }
+                    OutreachEventTracker.ensureAccessToken(context, userId, fcmToken)
+                } catch (e: Exception) {
+                    Log.e("AppStorys", "Outreach ensureAccessToken failed: ${e.message}", e)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("AppStorys", "setFirebaseToken failed: ${e.message}", e)
+        }
+    }
+
     fun setUserId(newUserId: String) {
         if (newUserId.isEmpty()) {
             Log.w("AppStorys", "Cannot set empty user ID")
@@ -644,6 +690,12 @@ object AppStorys {
                 isAnonymousUser = false
                 saveUserId(newUserId, false)
 
+                try {
+                    OutreachEventTracker.saveUserId(context, newUserId)
+                } catch (e: Exception) {
+                    Log.e("AppStorys", "Outreach saveUserId failed: ${e.message}", e)
+                }
+
                 Log.i("AppStorys", "User ID updated to: $newUserId")
 
             } catch (e: Exception) {
@@ -674,7 +726,16 @@ object AppStorys {
         pipTopPadding: Dp = 0.dp,
         pipBottomPadding: Dp = 0.dp,
         csatBottomPadding: Dp = 0.dp,
+        insideBottomSheet: Boolean = false,
     ) {
+        if (insideBottomSheet) {
+            // Tooltip Popups created here get the BottomSheet's window token → appear ABOVE it.
+            // TestUserButton FAB also uses Popup → zero layout impact.
+            // No Banner/Floater/CSAT — those stay at Activity level only.
+            TestUserButton(activity = activity)
+            OverlayContainer.TooltipsOnly()
+            return
+        }
 
         BackHandler(enabled = true) {
             if (isBackPressCampaignReady()) {
@@ -935,7 +996,7 @@ object AppStorys {
                 var showPip by remember { mutableStateOf(true) }
                 LaunchedEffect(Unit) {
                     campaign?.id?.let {
-                        trackEvents(it, "viewed")
+                        trackEvents(it, "viewed", mapOf("is_small_video" to true))
                     }
                 }
 
@@ -1075,16 +1136,31 @@ object AppStorys {
                                     imageUrl = unmute?.image ?: pipDetails.unmuteImage
                                 )
                             },
-
-
-                            onButtonClick = {
+                            onSmallVideoClick = {
                                 campaign?.id?.let { campaignId ->
-                                    trackEvents(campaignId, "clicked")
+                                    trackEvents(
+                                        campaignId,
+                                        "clicked",
+                                        mapOf("is_small_video" to true)
+                                    )
+                                }
+                            },
+                            onButtonClick = { isSmallVideo ->
+                                campaign?.id?.let { campaignId ->
+                                    trackEvents(
+                                        campaignId,
+                                        "clicked",
+                                        mapOf("is_small_video" to isSmallVideo)
+                                    )
                                 }
                             },
                             onExpandClick = {
                                 campaign?.id?.let { campaignId ->
-                                    trackEvents(campaignId, "viewed")
+                                    trackEvents(
+                                        campaignId,
+                                        "viewed",
+                                        mapOf("is_small_video" to false)
+                                    )
                                 }
                             }
                         )
@@ -2412,7 +2488,11 @@ object AppStorys {
     ) {
         val TAG = "TestUserButton"
 
-        val activityRef = activity ?: LocalContext.current as? Activity
+//        val activityRef = activity ?: LocalContext.current as? Activity
+        val localContext = LocalContext.current
+        val activityRef = activity ?: generateSequence(localContext) {
+            (it as? android.content.ContextWrapper)?.baseContext
+        }.filterIsInstance<Activity>().firstOrNull()
 
         val isScreenCaptureEnabled by _isScreenCaptureEnabled.collectAsStateWithLifecycle()
 
@@ -2464,36 +2544,38 @@ object AppStorys {
             }
         }
 
-        if (
-            isScreenCaptureEnabled &&
-            !isCapturing
-        ) {
-            Box(
-                modifier = Modifier.fillMaxSize()
+        if (isScreenCaptureEnabled && !isCapturing) {
+            Popup(
+                alignment = Alignment.BottomEnd,
+                properties = PopupProperties(
+                    focusable = false,
+                    dismissOnBackPress = false,
+                    dismissOnClickOutside = false
+                )
             ) {
                 FloatingActionButton(
                     onClick = {
                         Log.i(TAG, "Capture button clicked")
                         shouldAnalyze = true
-
                         Log.i(TAG, "shouldAnalyze = true")
                     },
-                    modifier = modifier
-                        .padding(bottom = 86.dp, end = 16.dp)
-                        .align(Alignment.BottomEnd),
+                    modifier = modifier.padding(bottom = 86.dp, end = 16.dp),
                     containerColor = Color.White
                 ) {
-                    Text(
-                        modifier = Modifier.padding(horizontal = 12.dp),
-                        text = "Capture Screen"
-                    )
+                    Text(modifier = Modifier.padding(horizontal = 12.dp), text = "Capture Screen")
                 }
-
+            }
+            Popup(
+                alignment = Alignment.BottomCenter,
+                properties = PopupProperties(
+                    focusable = false,
+                    dismissOnBackPress = false,
+                    dismissOnClickOutside = false
+                )
+            ) {
                 SnackbarHost(
                     hostState = snackbarHostState,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 80.dp)
+                    modifier = Modifier.padding(bottom = 80.dp)
                 )
             }
         }

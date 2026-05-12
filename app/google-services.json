@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "198017384144",
+    "project_id": "appstorys-push",
+    "storage_bucket": "appstorys-push.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:198017384144:android:f3afab132bc981b80568d5",
+        "android_client_info": {
+          "package_name": "com.example.carousal"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD0dkQMKZvI26OUJ8udrIqfT-d2KCGgbXI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

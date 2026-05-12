@@ -122,14 +122,16 @@ internal fun TooltipContent(
     val elementArrowGap = 5 * density
 
     BoxWithConstraints(
-        modifier = Modifier.fillMaxSize().clickable(onClick = { dismissTooltip() }),
+        modifier = Modifier
+            .fillMaxSize()
+            .clickable(onClick = { dismissTooltip() }),
         content = {
             // Position the arrow centered on the target element with small gap
             // Subtract half the arrow width to center it horizontally
             Box(
                 modifier = Modifier.offset {
                     IntOffset(
-                        (targetBounds.center.x - (arrowWidthPx + (arrowWidthPx/3))).roundToInt(),
+                        (targetBounds.center.x - (arrowWidthPx + (arrowWidthPx / 3))).roundToInt(),
                         when (showBelow) {
                             true -> (targetBounds.bottom + elementArrowGap).roundToInt()
                             else -> (targetBounds.top - arrowHeightPx - elementArrowGap).roundToInt()
@@ -169,14 +171,16 @@ internal fun TooltipContent(
             }
 
             // Position the tooltip content
-            if(hasImageDimensions){
+            if (hasImageDimensions) {
                 ImageContent(
-                    modifier = Modifier.offset {
-                        IntOffset(
-                            tooltipX.roundToInt(),
-                            tooltipYAdjusted.roundToInt()
-                        )
-                    }.size(tooltipWidth, tooltipHeight),
+                    modifier = Modifier
+                        .offset {
+                            IntOffset(
+                                tooltipX.roundToInt(),
+                                tooltipYAdjusted.roundToInt()
+                            )
+                        }
+                        .size(tooltipWidth, tooltipHeight),
                     tooltip = tooltip
                 )
             } else {
@@ -199,20 +203,24 @@ internal fun TooltipContent(
                                     targetBounds.center.x - actualWidth / 2 < visibleBounds.left -> {
                                         visibleBounds.left.toFloat()
                                     }
+
                                     targetBounds.center.x + actualWidth / 2 > visibleBounds.right -> {
                                         visibleBounds.right - actualWidth
                                     }
+
                                     else -> targetBounds.center.x - actualWidth / 2
                                 }
 
                                 // Calculate Y position based on available space
                                 val spaceBelow = visibleBounds.bottom - targetBounds.bottom
                                 val spaceAbove = targetBounds.top - visibleBounds.top
-                                val arrowHeight = (tooltip.styling?.appearance?.arrowStyle?.height ?: 8) * density
+                                val arrowHeight =
+                                    (tooltip.styling?.appearance?.arrowStyle?.height ?: 8) * density
                                 val elementArrowGap = 5 * density
 
-                                val showBelowDynamic = spaceBelow >= actualHeight + arrowHeight + elementArrowGap ||
-                                        spaceBelow > spaceAbove
+                                val showBelowDynamic =
+                                    spaceBelow >= actualHeight + arrowHeight + elementArrowGap ||
+                                            spaceBelow > spaceAbove
 
                                 val tooltipYDynamic = when (showBelowDynamic) {
                                     true -> targetBounds.bottom + elementArrowGap + arrowHeight
@@ -253,15 +261,19 @@ private fun ImageContent(tooltip: Tooltip, modifier: Modifier = Modifier) {
         modifier =
             modifier.then(
                 tooltip.styling?.let { padding ->
-                    Modifier.background(color = tooltip.styling.appearance?.colors?.tooltip.toColor(Color.Transparent), shape = cornerRadius)
+                    Modifier
+                        .background(
+                            color = tooltip.styling.appearance?.colors?.tooltip.toColor(
+                                Color.Transparent
+                            ), shape = cornerRadius
+                        )
                         .clip(cornerRadius)
                         .noRippleClickable(
                             onClick = {
                                 handleTooltipAction(tooltip, true)
                             }
                         )
-                } ?:
-                Modifier
+                } ?: Modifier
             ),
         content = {
             when {
@@ -391,9 +403,14 @@ private fun TextContent(tooltip: Tooltip, modifier: Modifier = Modifier) {
         else -> Alignment.CenterHorizontally
     }
 
+    val tooltipWidth = tooltip.styling?.appearance?.width?.dp
+
     Box(
         modifier = modifier
-            .wrapContentSize()
+            .then(
+                if (tooltipWidth != null) Modifier.width(tooltipWidth)
+                else Modifier.wrapContentSize()
+            )
             .background(
                 color = tooltip.styling?.appearance?.colors?.tooltip.toColor(Color.Transparent),
                 shape = cornerRadius
@@ -408,18 +425,21 @@ private fun TextContent(tooltip: Tooltip, modifier: Modifier = Modifier) {
         contentAlignment = Alignment.Center,
         content = {
             Column(
-                modifier = Modifier.width(androidx.compose.foundation.layout.IntrinsicSize.Max),
+//                modifier = Modifier.width(androidx.compose.foundation.layout.IntrinsicSize.Max),
+                modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 // Title text with margin
                 if (!tooltip.titleText.isNullOrEmpty()) {
                     CommonText(
-                        modifier = Modifier.padding(
-                            top = (titleMargin?.top ?: 0).dp,
-                            bottom = (titleMargin?.bottom ?: 0).dp,
-                            start = (titleMargin?.left ?: 0).dp,
-                            end = (titleMargin?.right ?: 0).dp
-                        ),
+                        modifier = Modifier
+                            .padding(
+                                top = (titleMargin?.top ?: 0).dp,
+                                bottom = (titleMargin?.bottom ?: 0).dp,
+                                start = (titleMargin?.left ?: 0).dp,
+                                end = (titleMargin?.right ?: 0).dp
+                            )
+                            .fillMaxWidth(),
                         text = tooltip.titleText,
                         styling = TextStyling(
                             color = titleStyling?.color,
@@ -434,12 +454,14 @@ private fun TextContent(tooltip: Tooltip, modifier: Modifier = Modifier) {
                 // Subtitle text with margin
                 if (!tooltip.subtitleText.isNullOrEmpty()) {
                     CommonText(
-                        modifier = Modifier.padding(
-                            top = (subtitleMargin?.top ?: 0).dp,
-                            bottom = (subtitleMargin?.bottom ?: 0).dp,
-                            start = (subtitleMargin?.left ?: 0).dp,
-                            end = (subtitleMargin?.right ?: 0).dp
-                        ),
+                        modifier = Modifier
+                            .padding(
+                                top = (subtitleMargin?.top ?: 0).dp,
+                                bottom = (subtitleMargin?.bottom ?: 0).dp,
+                                start = (subtitleMargin?.left ?: 0).dp,
+                                end = (subtitleMargin?.right ?: 0).dp
+                            )
+                            .fillMaxWidth(),
                         text = tooltip.subtitleText,
                         styling = TextStyling(
                             color = subtitleStyling?.color,
@@ -488,7 +510,12 @@ private fun TextContent(tooltip: Tooltip, modifier: Modifier = Modifier) {
                             .noRippleClickable(
                                 onClick = { handleTooltipAction(tooltip, true) }
                             )
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                            .then(
+                                if (ctaHeight == null && ctaWidth == null && !ctaFullWidth)
+                                    Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                                else Modifier
+                            ),
+//                            .padding(horizontal = 16.dp, vertical = 8.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         CommonText(

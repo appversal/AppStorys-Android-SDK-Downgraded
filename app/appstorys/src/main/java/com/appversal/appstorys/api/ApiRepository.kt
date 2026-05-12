@@ -119,10 +119,10 @@ internal class ApiRepository(
                 }
 
                 // Below link is for prod
-                val campaignsJsonUrl = "https://s3.ap-south-1.amazonaws.com/cdn-campaigns.appstorys.com/clients/$accountId/campaigns.json"
+//                val campaignsJsonUrl = "https://s3.ap-south-1.amazonaws.com/cdn-campaigns.appstorys.com/clients/$accountId/campaigns.json"
 
                 // Below link is for dev
-//                val campaignsJsonUrl = "https://dev-cdn-campaign-appstorys.s3.ap-south-1.amazonaws.com/clients/$accountId/campaigns.json"
+                val campaignsJsonUrl = "https://dev-cdn-campaign-appstorys.s3.ap-south-1.amazonaws.com/clients/$accountId/campaigns.json"
 
                 val savedETag = sharedPreferences.getString(PREF_ETAG, null)
 
