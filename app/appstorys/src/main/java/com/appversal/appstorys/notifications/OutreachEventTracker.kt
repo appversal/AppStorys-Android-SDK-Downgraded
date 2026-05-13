@@ -27,8 +27,8 @@ import java.util.concurrent.Executors
 internal object OutreachEventTracker {
 
     private const val TAG = "AppStorysOutreach"
-    private const val EVENT_URL = "https://tracking.appstorys.co/capture-outreach-event"
-    private const val TOKEN_URL = "https://users.appstorys.co/update-user-device-token"
+    private const val EVENT_URL = "https://tracking.appstorys.com/capture-outreach-event"
+    private const val TOKEN_URL = "https://users.appstorys.com/update-user-device-token"
 
     private const val PREFS = "appstorys_outreach"
     private const val KEY_USER_ID = "user_id"
