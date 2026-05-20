@@ -14,8 +14,13 @@
             </intent-filter>
         </service>
 
-        <receiver
-            android:name="com.appversal.appstorys.notifications.AppStorysNotificationReceiver"
-            android:exported="false" />
+        <activity
+            android:name="com.appversal.appstorys.notifications.AppStorysNotificationActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:noHistory="true"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:launchMode="singleTop" />
     </application>
 </manifest>

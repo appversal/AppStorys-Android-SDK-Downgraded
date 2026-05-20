@@ -39,13 +39,14 @@ class TestHomeFragment : Fragment() {
         binding.openMoreScreen.setOnClickListener {
             startActivity(android.content.Intent(requireContext(), MoreActivity::class.java))
         }
+        App.appStorys.getScreenCampaigns("Home Screen Kotlin XML", listOf("widget_one"))
     }
 
     override fun onResume() {
         super.onResume()
-        App.appStorys.getScreenCampaigns("Home Screen Kotlin XML", emptyList())
-        lifecycleScope.launch {
-            App.appStorys.setUserProperties(mapOf("hello" to "world"))
-        }
+
+//        lifecycleScope.launch {
+//            App.appStorys.setUserProperties(mapOf("hello" to "world"))
+//        }
     }
 }

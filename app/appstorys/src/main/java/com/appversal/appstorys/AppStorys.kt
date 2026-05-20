@@ -538,7 +538,7 @@ object AppStorys {
                     }
                     val client = OkHttpClient()
                     val request = Request.Builder()
-                        .url("https://tracking.appstorys.com/capture-event")
+                        .url("https://tracking.appstorys.co/capture-event")
                         .post(
                             requestBody.toString()
                                 .toRequestBody("application/json".toMediaTypeOrNull())
@@ -615,18 +615,18 @@ object AppStorys {
             }
             Log.d("AppStorys", "setFirebaseToken: updating device_push_token")
 
-            // 1. Existing flow — push device_push_token as a user attribute.
-            setUserProperties(mapOf("device_push_token" to fcmToken))
-
             // 2. New flow — make sure the outreach access token is cached.
             //    No-op if we already have one (cached from a previous session,
             //    valid for ~30 days unless the server rejects it).
             coroutineScope.launch {
                 try {
-                    if (!checkIfInitialized() || userId.isBlank()) {
-                        Log.w("AppStorys", "setFirebaseToken: SDK not ready, skipping outreach token fetch")
+                    if (!::context.isInitialized) {
+                        Log.w("AppStorys", "setFirebaseToken: context not ready, skipping")
                         return@launch
                     }
+                    // Persist + best-effort register. Safe to call even if userId is blank
+                    // or the SDK access token isn't cached yet — the tracker will defer
+                    // the network call and replay once initialize() completes.
                     OutreachEventTracker.ensureAccessToken(context, userId, fcmToken)
                 } catch (e: Exception) {
                     Log.e("AppStorys", "Outreach ensureAccessToken failed: ${e.message}", e)

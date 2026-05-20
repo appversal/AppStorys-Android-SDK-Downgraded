@@ -14,10 +14,18 @@ import org.json.JSONObject
 import java.util.concurrent.Executors
 
 /**
- * Self-contained outreach (push) event tracker. Uses its own access token
- * obtained from /update-user-device-token — that token is valid ~30 days
- * and cached on disk; we only refetch on first install or when the server
- * rejects it (401/403).
+ * Self-contained outreach (push) event tracker.
+ *
+ * Token flow:
+ *   1. /update-user-device-token        → { long_lived_token, refresh_token }
+ *      Authenticated with the SDK access token (from validate-account).
+ *      Called once on first install (and whenever both cached tokens are gone).
+ *   2. /capture-outreach-event          authenticated with long_lived_token.
+ *   3. If (2) returns 401/403 → call /refresh-fcm-refresh-token with
+ *      `Authorization: Bearer <refresh_token>` → { long_lived_token, refresh_token }.
+ *      Both new tokens replace the cached pair, then the event is retried.
+ *   4. If the refresh call itself returns 401/403 (refresh token also dead) we
+ *      drop both tokens and fall back to step (1) so the SDK can self-heal.
  *
  * Designed to work from cold-start contexts (FirebaseMessagingService,
  * BroadcastReceiver) where the AppStorys singleton may not be initialized.
@@ -27,13 +35,15 @@ import java.util.concurrent.Executors
 internal object OutreachEventTracker {
 
     private const val TAG = "AppStorysOutreach"
-    private const val EVENT_URL = "https://tracking.appstorys.com/capture-outreach-event"
-    private const val TOKEN_URL = "https://users.appstorys.com/update-user-device-token"
+    private const val EVENT_URL = "https://tracking.appstorys.co/capture-outreach-event"
+    private const val TOKEN_URL = "https://users.appstorys.co/update-user-device-token"
+    private const val REFRESH_URL = "https://users.appstorys.co/refresh-fcm-refresh-token"
 
     private const val PREFS = "appstorys_outreach"
     private const val KEY_USER_ID = "user_id"
     private const val KEY_DEVICE_TOKEN = "device_push_token"
     private const val KEY_OUTREACH_TOKEN = "outreach_access_token"
+    private const val KEY_REFRESH_TOKEN = "outreach_refresh_token"
     private const val KEY_QUEUE = "pending_queue"
     private const val MAX_QUEUE_SIZE = 100
 
@@ -58,10 +68,13 @@ internal object OutreachEventTracker {
             val p = prefs(context)
             val previous = p.getString(KEY_USER_ID, null)
             p.edit { putString(KEY_USER_ID, userId) }
-            // user_id changed → outreach token was bound to the old user, drop it.
+            // user_id changed → token pair was bound to the old user, drop it all.
             if (previous != null && previous != userId) {
-                p.edit { remove(KEY_OUTREACH_TOKEN) }
-                Log.i(TAG, "user_id changed, outreach token invalidated")
+                p.edit {
+                    remove(KEY_OUTREACH_TOKEN)
+                    remove(KEY_REFRESH_TOKEN)
+                }
+                Log.i(TAG, "user_id changed, outreach tokens invalidated")
             }
         } catch (e: Exception) {
             Log.e(TAG, "saveUserId failed", e)
@@ -79,8 +92,8 @@ internal object OutreachEventTracker {
 
     /**
      * Called from AppStorys.setFirebaseToken. Persists the device token and
-     * fetches an outreach access token IF we don't already have one cached.
-     * Per spec: token is valid ~30 days; we only refresh on rejection.
+     * fetches an outreach long-lived + refresh token pair IF we don't already
+     * have one cached. The pair is valid ~30 days and only re-minted on rejection.
      */
     fun ensureAccessToken(context: Context, userId: String, fcmToken: String) {
         executor.execute {
@@ -131,14 +144,18 @@ internal object OutreachEventTracker {
 
             var token = p.getString(KEY_OUTREACH_TOKEN, null)
             if (token.isNullOrBlank()) {
-                // No outreach token cached — try to mint one if we have an FCM token.
-                val fcm = p.getString(KEY_DEVICE_TOKEN, null)
-                if (fcm.isNullOrBlank()) {
-                    queueEvent(p, notificationId, event)
-                    Log.w(TAG, "No fcm token on disk — queued $event")
-                    return
+                // No cached long-lived token — try to mint one. Refresh path needs
+                // a cached refresh_token; if we have none, fall through to the full
+                // bootstrap via /update-user-device-token.
+                token = refreshLongLivedToken(p) ?: run {
+                    val fcm = p.getString(KEY_DEVICE_TOKEN, null)
+                    if (fcm.isNullOrBlank()) {
+                        queueEvent(p, notificationId, event)
+                        Log.w(TAG, "No fcm token on disk — queued $event")
+                        return
+                    }
+                    fetchAndStoreAccessToken(p, userId, fcm)
                 }
-                token = fetchAndStoreAccessToken(p, userId, fcm)
                 if (token == null) {
                     queueEvent(p, notificationId, event)
                     return
@@ -148,15 +165,8 @@ internal object OutreachEventTracker {
             when (sendEvent(userId, token, notificationId, event)) {
                 SendResult.OK -> { /* done */ }
                 SendResult.UNAUTHORIZED -> {
-                    // Token rejected — refetch once and retry.
-                    Log.w(TAG, "Outreach token rejected (401/403), refetching")
-                    p.edit { remove(KEY_OUTREACH_TOKEN) }
-                    val fcm = p.getString(KEY_DEVICE_TOKEN, null)
-                    if (fcm.isNullOrBlank()) {
-                        queueEvent(p, notificationId, event)
-                        return
-                    }
-                    val fresh = fetchAndStoreAccessToken(p, userId, fcm)
+                    Log.w(TAG, "Outreach long-lived token rejected (401/403), refreshing")
+                    val fresh = recoverLongLivedToken(p, userId)
                     if (fresh == null) {
                         queueEvent(p, notificationId, event)
                         return
@@ -215,6 +225,85 @@ internal object OutreachEventTracker {
         }
     }
 
+    /**
+     * Recover a usable long-lived token after the cached one was rejected.
+     * Strategy:
+     *   1. Drop the rejected long-lived token.
+     *   2. Try /refresh-fcm-refresh-token using the cached refresh_token.
+     *   3. If that fails (no refresh token cached, network error, or refresh
+     *      token itself rejected) fall back to a full bootstrap via
+     *      /update-user-device-token.
+     */
+    private fun recoverLongLivedToken(prefs: SharedPreferences, userId: String): String? {
+        prefs.edit { remove(KEY_OUTREACH_TOKEN) }
+
+        val refreshed = refreshLongLivedToken(prefs)
+        if (refreshed != null) return refreshed
+
+        val fcm = prefs.getString(KEY_DEVICE_TOKEN, null)
+        if (fcm.isNullOrBlank()) {
+            Log.w(TAG, "Cannot bootstrap: no fcm token cached")
+            return null
+        }
+        return fetchAndStoreAccessToken(prefs, userId, fcm)
+    }
+
+    /**
+     * Calls /refresh-fcm-refresh-token using the cached refresh_token in the
+     * Authorization header. On success, persists the new long_lived_token AND
+     * the new refresh_token (the server rotates both). Returns the new
+     * long-lived token, or null on any failure.
+     */
+    private fun refreshLongLivedToken(prefs: SharedPreferences): String? {
+        val refreshToken = prefs.getString(KEY_REFRESH_TOKEN, null)
+        if (refreshToken.isNullOrBlank()) {
+            Log.d(TAG, "No refresh_token cached — cannot call refresh-fcm-refresh-token")
+            return null
+        }
+        return try {
+            val body = JSONObject()
+                .toString()
+                .toRequestBody("application/json".toMediaTypeOrNull())
+            val request = Request.Builder()
+                .url(REFRESH_URL)
+                .post(body)
+                .addHeader("Authorization", "Bearer $refreshToken")
+                .build()
+
+            httpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    Log.e(TAG, "refresh-fcm-refresh-token failed: HTTP ${response.code}")
+                    // Refresh token itself is dead — drop the whole pair so the
+                    // next recovery step bootstraps from scratch.
+                    if (response.code == 401 || response.code == 403) {
+                        prefs.edit {
+                            remove(KEY_REFRESH_TOKEN)
+                            remove(KEY_OUTREACH_TOKEN)
+                        }
+                    }
+                    return null
+                }
+                val text = response.body?.string().orEmpty()
+                val json = JSONObject(text)
+                val newLongLived = json.optString("long_lived_token", "")
+                val newRefresh = json.optString("refresh_token", "")
+                if (newLongLived.isBlank()) {
+                    Log.e(TAG, "refresh-fcm-refresh-token: no long_lived_token in response")
+                    return null
+                }
+                prefs.edit {
+                    putString(KEY_OUTREACH_TOKEN, newLongLived)
+                    if (newRefresh.isNotBlank()) putString(KEY_REFRESH_TOKEN, newRefresh)
+                }
+                Log.i(TAG, "refresh-fcm-refresh-token: rotated tokens cached")
+                newLongLived
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "refreshLongLivedToken failed: ${e.message}", e)
+            null
+        }
+    }
+
     private fun fetchAndStoreAccessToken(
         prefs: SharedPreferences,
         userId: String,
@@ -251,14 +340,25 @@ internal object OutreachEventTracker {
                     return null
                 }
                 val text = response.body?.string().orEmpty()
-                val token = JSONObject(text).optString("long_lived_token", "")
-                if (token.isBlank()) {
+                val json = JSONObject(text)
+                val longLived = json.optString("long_lived_token", "")
+                val refresh = json.optString("refresh_token", "")
+                if (longLived.isBlank()) {
                     Log.e(TAG, "update-user-device-token: no long_lived_token in response")
                     return null
                 }
-                prefs.edit { putString(KEY_OUTREACH_TOKEN, token) }
-                Log.i(TAG, "update-user-device-token: cached new outreach access token")
-                token
+                prefs.edit {
+                    putString(KEY_OUTREACH_TOKEN, longLived)
+                    if (refresh.isNotBlank()) {
+                        putString(KEY_REFRESH_TOKEN, refresh)
+                    } else {
+                        // Server didn't return one — clear any stale refresh token
+                        // so we don't try to use it later against a different pair.
+                        remove(KEY_REFRESH_TOKEN)
+                    }
+                }
+                Log.i(TAG, "update-user-device-token: cached new outreach token pair")
+                longLived
             }
         } catch (e: Exception) {
             Log.e(TAG, "fetchAndStoreAccessToken failed: ${e.message}", e)
@@ -303,17 +403,16 @@ internal object OutreachEventTracker {
             when (sendEvent(userId, token, nId, ev)) {
                 SendResult.OK -> sent++
                 SendResult.UNAUTHORIZED -> {
-                    // refetch once mid-drain
-                    val fcm = p.getString(KEY_DEVICE_TOKEN, null)
-                    if (!fcm.isNullOrBlank()) {
-                        p.edit { remove(KEY_OUTREACH_TOKEN) }
-                        val fresh = fetchAndStoreAccessToken(p, userId, fcm)
-                        if (fresh != null) {
-                            token = fresh
-                            if (sendEvent(userId, token, nId, ev) == SendResult.OK) sent++
-                            else remaining.put(item)
-                        } else remaining.put(item)
-                    } else remaining.put(item)
+                    // Refresh once mid-drain via refresh-fcm-refresh-token,
+                    // then fall back to /update-user-device-token if needed.
+                    val fresh = recoverLongLivedToken(p, userId)
+                    if (fresh != null) {
+                        token = fresh
+                        if (sendEvent(userId, token, nId, ev) == SendResult.OK) sent++
+                        else remaining.put(item)
+                    } else {
+                        remaining.put(item)
+                    }
                 }
                 SendResult.OTHER_ERROR -> remaining.put(item)
             }
