@@ -455,14 +455,14 @@ object AppStorys {
 
                 ensureActive()
 
-                val (campaignsList, variants, personalizationResponse, isTestUser) = repository.getScreenCampaignsData(
+                val (campaignsList, variants, personalizationResponse, isTestUser, isScreenCaptureEnabled) = repository.getScreenCampaignsData(
                     accessToken = accessToken,
                     accountId = accountId,
                     screenName = currentScreen,
                     userId = userId
                 )
 
-                _isScreenCaptureEnabled.update { isTestUser ?: false }
+                _isScreenCaptureEnabled.update { isScreenCaptureEnabled ?: false }
 
                 personalizationData = personalizationResponse
 

@@ -314,7 +314,8 @@ internal class ApiRepository(
         val campaigns: List<Campaign>?,
         val variants: List<CampaignVariant>,
         val personalizationData: Map<String, String>,
-        val testUser: Boolean?
+        val testUser: Boolean?,
+        val screen_capture_enabled: Boolean?,
     )
 
     suspend fun getScreenCampaignsData(
@@ -344,6 +345,7 @@ internal class ApiRepository(
                         val personalizationData =
                             eligibleCampaignsResult.data.personalization_data ?: emptyMap()
                         val testUser = eligibleCampaignsResult.data.test_user
+                        val screen_capture_enabled = eligibleCampaignsResult.data.screen_capture_enabled
 
                         Log.d("ApiRepository", "Eligible campaigns: $eligibleCampaigns")
                         Log.d("ApiRepository", "Variants: $variants")
@@ -356,7 +358,8 @@ internal class ApiRepository(
                                 campaigns = null,
                                 variants = emptyList(),
                                 personalizationData = emptyMap(),
-                                testUser = eligibleCampaignsResult.data.test_user
+                                testUser = eligibleCampaignsResult.data.test_user,
+                                screen_capture_enabled = eligibleCampaignsResult.data.screen_capture_enabled
                             )
                         }
 
@@ -369,7 +372,8 @@ internal class ApiRepository(
                                 campaigns = null,
                                 variants = emptyList(),
                                 personalizationData = emptyMap(),
-                                testUser = false
+                                testUser = false,
+                                screen_capture_enabled = false
                             )
                         }
 
@@ -467,7 +471,8 @@ internal class ApiRepository(
                             campaigns = filteredCampaigns,
                             variants = variants,
                             personalizationData = personalizationData,
-                            testUser = testUser
+                            testUser = testUser,
+                            screen_capture_enabled = screen_capture_enabled
                         )
                     }
 
@@ -480,7 +485,8 @@ internal class ApiRepository(
                             campaigns = null,
                             variants = emptyList(),
                             personalizationData = emptyMap(),
-                            testUser = false
+                            testUser = false,
+                            screen_capture_enabled = false
                         )
                     }
                 }
@@ -490,7 +496,8 @@ internal class ApiRepository(
                     campaigns = null,
                     variants = emptyList(),
                     personalizationData = emptyMap(),
-                    testUser = false
+                    testUser = false,
+                    screen_capture_enabled = false
                 )
             }
         }
