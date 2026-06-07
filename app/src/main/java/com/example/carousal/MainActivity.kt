@@ -256,7 +256,7 @@ fun HomeScreen(
     var eventInput3 by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
-        val screenName = "Home Screen Kotlin"
+        val screenName = "Home Screen"
         val positions = listOf("widget_one")
         campaignManager.getScreenCampaigns(
             screenName,
@@ -362,7 +362,7 @@ fun HomeScreen(
 //                            }
 //                            campaignManager.setUserId("nameisprem")
                         },
-                        modifier = Modifier.appstorys("anuridhtest")
+                        modifier = Modifier.appstorys("anirudtest")
                     ) {
                         Text("Open Bottom Sheet")
                     }
@@ -464,7 +464,7 @@ fun HomeScreen(
                                 )
                             )
                         },
-                        modifier = Modifier
+                        modifier = Modifier.appstorys("toolbar_click_container")
                     ) {
                         Text("Login Event")
                     }

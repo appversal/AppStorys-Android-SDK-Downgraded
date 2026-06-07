@@ -412,9 +412,14 @@ internal fun StoryScreenContent(
     // Use a set for O(1) lookup instead of list - reset on story group change
     val completedSlides = remember(storyGroup.id) { mutableSetOf<Int>() }
 
-    val isImage = currentSlide.image != null
+    val isImage = currentSlide.video == null
     // Use slideShowTime from styling if available, otherwise default to 5 seconds
     val storyDuration = if (isImage) (storyGroup.styling?.slideShowTime ?: 5) * 1000 else 0
+
+    // INPUT-interaction keyboard focus — when true, pauses the slide timer so
+    // the user has time to type. Only set by the INPUT widget; all other
+    // interactions leave it false and the slide auto-advances normally.
+    var isInputFocused by remember(storyGroup.id, currentSlideIndex) { mutableStateOf(false) }
 
     // Optimized ExoPlayer with LoadControl for smooth playback
     val loadControl = remember {
@@ -565,8 +570,8 @@ internal fun StoryScreenContent(
     }
 
     // Optimized progress tracking with better video duration handling
-    LaunchedEffect(storyGroup.id, currentSlideIndex, isHolding, isDismissing, isVideoReady) {
-        if (isHolding || isDismissing) {
+    LaunchedEffect(storyGroup.id, currentSlideIndex, isHolding, isDismissing, isVideoReady, isInputFocused) {
+        if (isHolding || isDismissing || isInputFocused) {
             return@LaunchedEffect
         }
 
@@ -620,9 +625,9 @@ internal fun StoryScreenContent(
         isDismissing = sheetState.targetValue == SheetValue.Hidden
     }
 
-    LaunchedEffect(isHolding, isDismissing) {
+    LaunchedEffect(isHolding, isDismissing, isInputFocused) {
         when {
-            isDismissing || isHolding -> player.pause()
+            isDismissing || isHolding || isInputFocused -> player.pause()
             else -> player.play()
         }
     }
@@ -732,6 +737,10 @@ internal fun StoryScreenContent(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
+                // Background colour (solid or gradient) from styling.background.color — drawn
+                // BENEATH the background media so that media (when present) overlays it.
+                StorySlideBackgroundColour(currentSlide.styling?.background)
+
                 // Image content with support for Lottie, GIF, and regular images
                 if (currentSlide.image != null) {
                     val imageUrl = currentSlide.image
@@ -839,7 +848,31 @@ internal fun StoryScreenContent(
                     }
                 }
 
-                // CTA Button
+                // ---- Studio editor: foreground content (images, videos, text, ctas,
+                // elements, interactions). Layered ABOVE the background image/video
+                // and BELOW the legacy single-CTA button & header overlay. Pulls
+                // canva-space coordinates and per-id styling from the slide.
+                StorySlideForeground(
+                    slide = currentSlide,
+                    onCtaClick = { redirect ->
+                        if (!redirect.isNullOrEmpty()) {
+                            try {
+                                uriHandler.openUri(redirect)
+                            } catch (e: Exception) {
+                                Log.e("StoryScreen", "Failed to open CTA link: ${e.message}")
+                            }
+                        }
+                        sendEvent(Pair(currentSlide, "CLK"))
+                        sendClickEvent(Pair(currentSlide, "clicked"))
+                    },
+                    onInputFocusChanged = { focused -> isInputFocused = focused },
+                    onTrack = { event, metadata ->
+                        val withSlide = metadata + mapOf("story_slide" to (currentSlide.id ?: ""))
+                        trackEvents(campaignId, event, withSlide)
+                    }
+                )
+
+                // CTA Button (legacy single-CTA path — kept for backward compat)
                 if (currentSlide.link?.isNotEmpty() == true && currentSlide.buttonText?.isNotEmpty() == true) {
                     val styling = currentSlide.styling
                     val ctaConfig = styling?.cta

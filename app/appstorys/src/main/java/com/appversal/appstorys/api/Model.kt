@@ -216,12 +216,16 @@ data class StorySoundToggleConfig(
 data class StorySlide(
     val id: String?,
     val parent: String?,
-    val image: String?,
-    val video: String?,
+    val image: String?,                                 // Background image URL (flat/legacy + studio background)
+    val video: String?,                                 // Background video URL (flat/legacy + studio background)
     val link: String?,
     @SerialName("button_text") val buttonText: String?,
     val order: Int?,
-    val styling: StorySlideStyling?
+    val styling: StorySlideStyling?,
+
+    // ---- Studio editor (new) ----
+    val content: StorySlideContent? = null,             // Foreground media/text/ctas/elements arrays
+    val interactions: List<StoryInteraction>? = null    // Interactive widgets (poll, quiz, etc.)
 )
 
 @Keep
@@ -236,8 +240,314 @@ data class StorySlideStyling(
     val ctaText: StoryCtaText?,
     val fullWidthCta: Boolean?,
 
-    // New nested CTA structure from backend
-    val cta: StoryCtaConfig? = null
+    // New nested CTA structure from backend (single-CTA flat path)
+    val cta: StoryCtaConfig? = null,
+
+    // ---- Studio editor (new) ----
+    val editorSource: String? = null,                   // "studio" when slide is built in the new editor
+    val background: StorySlideBackground? = null,      // Solid / gradient + background media metadata
+    val text: List<StoryTextStyling>? = null,          // Per-text styling (matched by id with content.text[].id)
+    val ctas: List<StoryContentCtaStyling>? = null,    // Per-cta styling (matched by id with content.ctas[].id)
+    val image: List<StoryContentImageStyling>? = null, // Per-image styling (matched by id with content.image[].id)
+    val video: List<StoryContentVideoStyling>? = null, // Per-video styling (matched by id with content.video[].id)
+    val elements: List<StoryContentElementStyling>? = null // Per-element styling (matched by id with content.elements[].id)
+)
+
+// =====================================================================
+// Slide content (studio editor) — foreground items rendered over the
+// background in a 1080x2160 canva-space (mapped to screen via scaling)
+// =====================================================================
+
+@Keep
+@Serializable
+data class StorySlideContent(
+    val canva: StoryCanva? = null,
+    val image: List<StoryContentImage>? = null,
+    val video: List<StoryContentVideo>? = null,
+    val text: List<StoryContentText>? = null,
+    val ctas: List<StoryContentCta>? = null,
+    val elements: List<StoryContentElement>? = null
+)
+
+@Keep
+@Serializable
+data class StoryCanva(
+    val device: String? = null,
+    val width: Float? = null,
+    val height: Float? = null,
+    val x: Float? = null,
+    val y: Float? = null
+)
+
+@Keep
+@Serializable
+data class StoryPosition(
+    val x: Float? = null,
+    val y: Float? = null
+)
+
+@Keep
+@Serializable
+data class StorySize(
+    val width: Float? = null,
+    val height: Float? = null
+)
+
+@Keep
+@Serializable
+data class StoryAnimation(
+    val type: String? = null,
+    val direction: String? = null
+)
+
+@Keep
+@Serializable
+data class StoryFlip(
+    val horizontal: Boolean? = null,
+    val vertical: Boolean? = null
+)
+
+// -------- Background (slide-level) --------
+
+@Keep
+@Serializable
+data class StorySlideBackground(
+    val color: StoryBackgroundColor? = null,
+    val media: StoryBackgroundMedia? = null
+)
+
+@Keep
+@Serializable
+data class StoryBackgroundColor(
+    val type: String? = null,           // "solid" | "gradient"
+    val solid: String? = null,
+    val opacity: Float? = null,
+    val gradient: StoryGradient? = null
+)
+
+@Keep
+@Serializable
+data class StoryGradient(
+    val direction: String? = null,      // "top" | "bottom" | "left" | "right" | "tl" | "tr" | "bl" | "br"
+    val from: String? = null,
+    val to: String? = null,
+    val stops: List<StoryGradientStop>? = null
+)
+
+@Keep
+@Serializable
+data class StoryGradientStop(
+    val id: String? = null,
+    val color: String? = null,
+    val offset: Float? = null,
+    val opacity: Float? = null
+)
+
+@Keep
+@Serializable
+data class StoryBackgroundMedia(
+    val type: String? = null,           // "image" | "video"
+    val sizing: String? = null,         // "fill" | "fit"
+    val position: String? = null,       // "top-center" | "center" | "bottom-center" | ...
+    val duration: Long? = null
+)
+
+// -------- Foreground IMAGE --------
+
+@Keep
+@Serializable
+data class StoryContentImage(
+    val id: String? = null,
+    val link: String? = null,
+    val position: StoryPosition? = null,
+    val width: Float? = null,
+    val height: Float? = null,
+    val z: Int? = null,
+    val duration: JsonElement? = null
+)
+
+@Keep
+@Serializable
+data class StoryContentImageStyling(
+    val id: String? = null,
+    val opacity: Float? = null,
+    val rotation: Float? = null,
+    val cornerRadius: Float? = null,
+    val flip: StoryFlip? = null,
+    val animation: StoryAnimation? = null,
+    val duration: JsonElement? = null
+)
+
+// -------- Foreground VIDEO --------
+
+@Keep
+@Serializable
+data class StoryContentVideo(
+    val id: String? = null,
+    val link: String? = null
+)
+
+@Keep
+@Serializable
+data class StoryContentVideoStyling(
+    val id: String? = null,
+    val position: StoryPosition? = null,
+    val width: Float? = null,
+    val height: Float? = null,
+    val z: Int? = null,
+    val opacity: Float? = null,
+    val rotation: Float? = null,
+    val cornerRadius: Float? = null,
+    val loop: Boolean? = null,
+    val muted: Boolean? = null,
+    val flip: StoryFlip? = null,
+    val animation: StoryAnimation? = null,
+    val duration: JsonElement? = null
+)
+
+// -------- Foreground TEXT --------
+
+@Keep
+@Serializable
+data class StoryContentText(
+    val id: String? = null,
+    val text: String? = null
+)
+
+@Keep
+@Serializable
+data class StoryContentTextFont(
+    val fontFamily: String? = null,
+    val fontSize: Float? = null,
+    val fontWeight: Int? = null,
+    val fontDecoration: List<String>? = null
+)
+
+@Keep
+@Serializable
+data class StoryContentTextAlignment(
+    val horizontalAlignment: String? = null,   // "left" | "center" | "right"
+    val verticalAlignment: String? = null      // "top" | "middle" | "bottom"
+)
+
+@Keep
+@Serializable
+data class StoryTextStyling(
+    val id: String? = null,
+    val color: String? = null,
+    val font: StoryContentTextFont? = null,
+    val alignment: StoryContentTextAlignment? = null,
+    val position: StoryPosition? = null,
+    val size: StorySize? = null,
+    val rotation: Float? = null,
+    val opacity: Float? = null,
+    val letterSpacing: Float? = null,
+    val lineHeight: Float? = null,
+    val z: Int? = null,
+    val animation: StoryAnimation? = null,
+    val duration: JsonElement? = null
+)
+
+// -------- Foreground CTA (studio array form, distinct from legacy single-cta path) --------
+
+@Keep
+@Serializable
+data class StoryContentCta(
+    val id: String? = null,
+    val type: String? = null,                // "swipe_up" | "image" | "pill" | "rectangle" | ...
+    val text: String? = null,
+    val redirectUrl: String? = null,
+    val imageUrl: String? = null,
+    val svg: String? = null,
+    val url: String? = null
+)
+
+@Keep
+@Serializable
+data class StoryContentCtaStyling(
+    val id: String? = null,
+    val position: StoryPosition? = null,
+    val size: StorySize? = null,
+    val width: Float? = null,
+    val height: Float? = null,
+    val background: String? = null,
+    val textColor: String? = null,
+    val borderColor: String? = null,
+    val borderWidth: Float? = null,
+    val borderRadius: Float? = null,
+    val pillBorderRadius: Float? = null,
+    val fontSize: Float? = null,
+    val opacity: Float? = null,
+    val rotation: Float? = null,
+    val transparent: Boolean? = null,
+    val arrowAnimation: Boolean? = null,
+    val arrowColor: String? = null,
+    val arrowSize: Float? = null,
+    val ctaAnimation: String? = null,
+    val animation: StoryAnimation? = null,
+    val z: Int? = null
+)
+
+// -------- Foreground ELEMENTS (shapes, stickers, frames) --------
+
+@Keep
+@Serializable
+data class StoryContentElement(
+    val id: String? = null,
+    val type: String? = null,            // "shape" | "sticker" | "frame"
+    val url: String? = null,             // SVG url (fallback render)
+    val image: String? = null,           // Sticker image url
+    val svgPath: String? = null,         // Shape path
+    val styleType: String? = null,       // "filled" | "outline"
+    val fill: String? = null,
+    val stroke: String? = null,
+    val strokeWidth: Float? = null,
+    val frameStyle: String? = null,      // "classic" | "rounded" | ...
+    val shadowBlur: Float? = null,
+    val shadowColor: String? = null,
+    val shadowOffsetX: Float? = null,
+    val shadowOffsetY: Float? = null,
+    val shadowOpacity: Float? = null,
+    val cornerRadius: Float? = null,
+    val label: String? = null,
+    val source: String? = null,
+    val position: StoryPosition? = null,
+    val size: StorySize? = null,
+    val rotation: Float? = null
+)
+
+@Keep
+@Serializable
+data class StoryContentElementStyling(
+    val id: String? = null,
+    val position: StoryPosition? = null,
+    val size: StorySize? = null,
+    val color: String? = null,
+    val strokeColor: String? = null,
+    val strokeWidth: Float? = null,
+    val cornerRadius: Float? = null,
+    val opacity: Float? = null,
+    val rotation: Float? = null,
+    val flip: String? = null,
+    val animation: StoryAnimation? = null,
+    val z: Int? = null
+)
+
+// =====================================================================
+// Interactive widgets — poll, quiz, media-quiz, rating, reaction,
+// countdown, promo, input. Config + styling are interaction-specific
+// so we use JsonObject for forward compatibility.
+// =====================================================================
+
+@Keep
+@Serializable
+data class StoryInteraction(
+    val id: String? = null,
+    @SerialName("interaction_type") val interactionType: String? = null,  // "POLL" | "QUIZ" | "MEDIA_QUIZ" | "RATING" | "REACTION" | "COUNTDOWN" | "PROMO" | "INPUT"
+    val isActive: Boolean? = null,
+    val order: Int? = null,
+    val config: JsonObject? = null,
+    val styling: JsonObject? = null
 )
 
 @Keep
