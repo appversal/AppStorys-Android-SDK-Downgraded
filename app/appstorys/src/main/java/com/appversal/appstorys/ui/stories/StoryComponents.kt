@@ -902,7 +902,7 @@ internal fun StoryScreenContent(
                         borderColorString = container?.borderColor
                             ?: styling?.ctaBackground?.borderColor,
                         borderWidth = container?.borderWidth ?: styling?.borderWidth ?: 2,
-                        fullWidth = container?.ctaFullWidth ?: styling?.fullWidthCta ?: false,
+                        fullWidth = container?.ctaFullWidth ?: false,
                         backgroundColorString = container?.backgroundColor
                             ?: styling?.ctaBackground?.backgroundColor ?: "#FFFFFF",
                         alignment = alignmentStr ?: "center",

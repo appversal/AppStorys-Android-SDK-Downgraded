@@ -4,7 +4,6 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
 
 /**
  * Studio editor design space: every position/size in `content.*` and per-id
@@ -33,13 +32,13 @@ internal data class StoryCanvaScope(
     val density: Density
 ) {
     /** Convert a canva-space x coordinate to a Dp offset within the slide box. */
-    fun xDp(canvaX: Float): Dp = offsetXDp + (canvaX * scale).dp
+    fun xDp(canvaX: Float): Dp = offsetXDp + with(density) { (canvaX * scale).toDp() }
 
     /** Convert a canva-space y coordinate to a Dp offset within the slide box. */
-    fun yDp(canvaY: Float): Dp = offsetYDp + (canvaY * scale).dp
+    fun yDp(canvaY: Float): Dp = offsetYDp + with(density) { (canvaY * scale).toDp() }
 
     /** Convert a canva-space length to Dp (no offset). */
-    fun sizeDp(canvaSize: Float): Dp = (canvaSize * scale).dp
+    fun sizeDp(canvaSize: Float): Dp = with(density) { (canvaSize * scale).toDp() }
 
     /**
      * Font sizes in the studio are stored in canva-space px. Converting them to
@@ -47,7 +46,7 @@ internal data class StoryCanvaScope(
      * size — usually undesirable for pixel-perfect overlays. We convert to dp,
      * then the caller turns dp into sp via density.
      */
-    fun fontDp(canvaFontSize: Float): Dp = (canvaFontSize * scale).dp
+    fun fontDp(canvaFontSize: Float): Dp = with(density) { (canvaFontSize * scale).toDp() }
 }
 
 /**
@@ -57,13 +56,24 @@ internal data class StoryCanvaScope(
 internal fun computeCanvaScope(
     maxWidthPx: Float,
     maxHeightPx: Float,
-    density: Density
+    density: Density,
+    designWidth: Float = STORY_DESIGN_WIDTH,
+    designHeight: Float = STORY_DESIGN_HEIGHT
 ): StoryCanvaScope {
-    val widthScale = maxWidthPx / STORY_DESIGN_WIDTH
-    val heightScale = maxHeightPx / STORY_DESIGN_HEIGHT
-    val scale = minOf(widthScale, heightScale)
-    val usedWidth = STORY_DESIGN_WIDTH * scale
-    val usedHeight = STORY_DESIGN_HEIGHT * scale
+    val safeW = if (designWidth > 0f) designWidth else STORY_DESIGN_WIDTH
+    val safeH = if (designHeight > 0f) designHeight else STORY_DESIGN_HEIGHT
+
+    val widthScale = maxWidthPx / safeW
+    val heightScale = maxHeightPx / safeH
+    // Match the iOS studio renderer, which uses a COVER fit:
+    //   scale = max(screenW/canva.width, screenH/canva.height)
+    // The canvas fills the screen on both axes; the overflowing axis is centred
+    // and clipped (the caller clips the slide box). Using `min` here would
+    // letterbox instead and place every element at a different scale/offset than
+    // the iOS reference.
+    val scale = maxOf(widthScale, heightScale)
+    val usedWidth = safeW * scale
+    val usedHeight = safeH * scale
     val offsetXPx = (maxWidthPx - usedWidth) / 2f
     val offsetYPx = (maxHeightPx - usedHeight) / 2f
     return with(density) {

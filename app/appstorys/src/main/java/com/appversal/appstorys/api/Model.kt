@@ -238,7 +238,6 @@ data class StorySlideStyling(
     val ctaHeight: Int?,
     val ctaMargins: StoryCtaMargins?,
     val ctaText: StoryCtaText?,
-    val fullWidthCta: Boolean?,
 
     // New nested CTA structure from backend (single-CTA flat path)
     val cta: StoryCtaConfig? = null,

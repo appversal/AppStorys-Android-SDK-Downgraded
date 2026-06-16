@@ -23,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
@@ -92,47 +93,61 @@ internal fun StorySlideForeground(
     slide: StorySlide,
     onCtaClick: (redirectUrl: String?) -> Unit,
     onInputFocusChanged: (focused: Boolean) -> Unit,
-    onTrack: (event: String, metadata: Map<String, Any>) -> Unit
+    onTrack: (event: String, metadata: Map<String, Any>) -> Unit,
+    // Seconds elapsed since this slide started playing. Drives studio element
+    // entrance/continuous animations and per-element duration windows. Pass the
+    // real playback time from the parent (progress * slideDuration) so that
+    // duration-gated elements appear/disappear at the right moment. Defaults to
+    // 0.0, which keeps animations working for elements that have no duration set.
+    currentTime: Double = 0.0
 ) {
     val content = slide.content ?: return
     val styling = slide.styling
     val density = LocalDensity.current
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+    BoxWithConstraints(modifier = Modifier.fillMaxSize().clipToBounds()) {
         val maxWidthPx = with(density) { maxWidth.toPx() }
         val maxHeightPx = with(density) { maxHeight.toPx() }
-        val scope = remember(maxWidthPx, maxHeightPx, density) {
-            computeCanvaScope(maxWidthPx, maxHeightPx, density)
+
+        // Studio slides are authored in the editor's OWN canva space, which is
+        // not always 1080×2160 (e.g. iOS exports at 1320×2868). If we scale
+        // against the hardcoded design constants, every position/size is divided
+        // by the wrong width/height and the content overflows the screen.
+        // Drive the scale from the slide's actual canva dimensions when present.
+        val designW = content.canva?.width?.takeIf { it > 0f } ?: STORY_DESIGN_WIDTH
+        val designH = content.canva?.height?.takeIf { it > 0f } ?: STORY_DESIGN_HEIGHT
+        val scope = remember(maxWidthPx, maxHeightPx, density, designW, designH) {
+            computeCanvaScope(maxWidthPx, maxHeightPx, density, designW, designH)
         }
 
         // -------- IMAGES (foreground) --------
         content.image.orEmpty().forEach { img ->
             val styleFor = styling?.image?.firstOrNull { it.id == img.id }
-            ForegroundImage(img = img, style = styleFor, scope = scope)
+            ForegroundImage(img = img, style = styleFor, scope = scope, currentTime = currentTime)
         }
 
         // -------- VIDEOS (foreground) --------
         content.video.orEmpty().forEach { vid ->
             val styleFor = styling?.video?.firstOrNull { it.id == vid.id }
-            ForegroundVideo(vid = vid, style = styleFor, scope = scope)
+            ForegroundVideo(vid = vid, style = styleFor, scope = scope, currentTime = currentTime)
         }
 
         // -------- ELEMENTS (shapes / stickers / frames) --------
         content.elements.orEmpty().forEach { el ->
             val styleFor = styling?.elements?.firstOrNull { it.id == el.id }
-            ForegroundElement(el = el, style = styleFor, scope = scope)
+            ForegroundElement(el = el, style = styleFor, scope = scope, currentTime = currentTime)
         }
 
         // -------- TEXT --------
         content.text.orEmpty().forEach { txt ->
             val styleFor = styling?.text?.firstOrNull { it.id == txt.id }
-            ForegroundText(txt = txt, style = styleFor, scope = scope)
+            ForegroundText(txt = txt, style = styleFor, scope = scope, currentTime = currentTime)
         }
 
         // -------- CTAS (studio array form) --------
         content.ctas.orEmpty().forEach { cta ->
             val styleFor = styling?.ctas?.firstOrNull { it.id == cta.id }
-            ForegroundCta(cta = cta, style = styleFor, scope = scope, onClick = {
+            ForegroundCta(cta = cta, style = styleFor, scope = scope, currentTime = currentTime, onClick = {
                 onCtaClick(cta.redirectUrl)
                 onTrack("cta_clicked", mapOf("cta_id" to (cta.id ?: ""), "url" to (cta.redirectUrl ?: "")))
             })
@@ -219,7 +234,8 @@ internal fun StorySlideBackgroundColour(background: StorySlideBackground?) {
 private fun ForegroundImage(
     img: StoryContentImage,
     style: StoryContentImageStyling?,
-    scope: StoryCanvaScope
+    scope: StoryCanvaScope,
+    currentTime: Double = 0.0
 ) {
     val url = img.link ?: return
     val x = img.position?.x ?: 0f
@@ -245,6 +261,7 @@ private fun ForegroundImage(
             .scale(scaleX = scaleX, scaleY = scaleY)
             .clip(RoundedCornerShape(scope.sizeDp(radius)))
             .alpha(opacity)
+            .studioElementAnimation(style?.animation, style?.duration, currentTime)
     )
 }
 
@@ -257,7 +274,8 @@ private fun ForegroundImage(
 private fun ForegroundVideo(
     vid: StoryContentVideo,
     style: StoryContentVideoStyling?,
-    scope: StoryCanvaScope
+    scope: StoryCanvaScope,
+    currentTime: Double = 0.0
 ) {
     val url = vid.link ?: return
     val context = LocalContext.current
@@ -310,6 +328,7 @@ private fun ForegroundVideo(
             .scale(scaleX = if (flipH) -1f else 1f, scaleY = if (flipV) -1f else 1f)
             .clip(RoundedCornerShape(scope.sizeDp(radius)))
             .alpha(opacity)
+            .studioElementAnimation(style?.animation, style?.duration, currentTime)
     )
 }
 
@@ -321,7 +340,8 @@ private fun ForegroundVideo(
 private fun ForegroundText(
     txt: StoryContentText,
     style: StoryTextStyling?,
-    scope: StoryCanvaScope
+    scope: StoryCanvaScope,
+    currentTime: Double = 0.0
 ) {
     val text = txt.text ?: return
     val x = style?.position?.x ?: 0f
@@ -353,7 +373,8 @@ private fun ForegroundText(
             .offset(x = scope.xDp(x), y = scope.yDp(y))
             .size(width = scope.sizeDp(w), height = scope.sizeDp(h))
             .rotate(rotation)
-            .alpha(opacity),
+            .alpha(opacity)
+            .studioElementAnimation(style?.animation, style?.duration, currentTime),
         contentAlignment = boxAlign
     ) {
         androidx.compose.material3.Text(
@@ -382,6 +403,7 @@ private fun ForegroundCta(
     cta: StoryContentCta,
     style: StoryContentCtaStyling?,
     scope: StoryCanvaScope,
+    currentTime: Double = 0.0,
     onClick: () -> Unit
 ) {
     val x = style?.position?.x ?: 0f
@@ -404,6 +426,7 @@ private fun ForegroundCta(
         .size(width = scope.sizeDp(w), height = scope.sizeDp(h))
         .rotate(rotation)
         .alpha(opacity)
+        .studioElementAnimation(style?.animation, duration = null, currentTime = currentTime)
         .clip(RoundedCornerShape(radius))
         .background(if (transparent) Color.Transparent else bg)
         .let {
@@ -480,20 +503,31 @@ private fun ForegroundCta(
 private fun ForegroundElement(
     el: StoryContentElement,
     style: StoryContentElementStyling?,
-    scope: StoryCanvaScope
+    scope: StoryCanvaScope,
+    currentTime: Double = 0.0
 ) {
     val x = style?.position?.x ?: el.position?.x ?: 0f
     val y = style?.position?.y ?: el.position?.y ?: 0f
-    val w = style?.size?.width ?: el.size?.width ?: 100f
-    val h = style?.size?.height ?: el.size?.height ?: 100f
+    // iOS reads canvas-element size from the element (defaulting to 200), not
+    // the per-id styling, so mirror that here.
+    val w = el.size?.width ?: style?.size?.width ?: 200f
+    val h = el.size?.height ?: style?.size?.height ?: 200f
     val opacity = style?.opacity ?: 1f
     val rotation = style?.rotation ?: el.rotation ?: 0f
+
+    // Flip is a string on the element styling (e.g. "horizontal", "vertical",
+    // "horizontal vertical") — matches StudioElementStyling.flip on iOS.
+    val flip = (style?.flip ?: "").lowercase()
+    val flipX = if (flip.contains("horizontal")) -1f else 1f
+    val flipY = if (flip.contains("vertical")) -1f else 1f
 
     val baseModifier = Modifier
         .offset(x = scope.xDp(x), y = scope.yDp(y))
         .size(width = scope.sizeDp(w), height = scope.sizeDp(h))
+        .scale(scaleX = flipX, scaleY = flipY)
         .rotate(rotation)
         .alpha(opacity)
+        .studioElementAnimation(style?.animation, duration = null, currentTime = currentTime)
 
     when (el.type) {
         "sticker" -> {
