@@ -473,9 +473,7 @@ fun HomeScreen(
 
                 Button(
                     onClick = {
-                        campaignManager.trackEvents(
-                            event = "accounts"
-                        )
+                        campaignManager.subscribeNotifications()
                     },
                     modifier = Modifier.appstorys("toolbar")
                 ) {
@@ -484,9 +482,7 @@ fun HomeScreen(
 
                 Button(
                     onClick = {
-                        campaignManager.trackEvents(
-                            event = "Purchased"
-                        )
+                        campaignManager.unsubscribeNotifications()
                     },
                     modifier = Modifier
                 ) {

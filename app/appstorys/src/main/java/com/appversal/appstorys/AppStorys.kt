@@ -2,6 +2,7 @@ package com.appversal.appstorys
 
 import android.app.Activity
 import android.app.Application
+import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
@@ -56,6 +57,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.net.toUri
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
@@ -70,6 +72,7 @@ import com.appversal.appstorys.api.CSATDetails
 import com.appversal.appstorys.api.Campaign
 import com.appversal.appstorys.api.CampaignVariant
 import com.appversal.appstorys.api.CsatFeedbackPostRequest
+import com.appversal.appstorys.api.FcmSubscriptionRequest
 import com.appversal.appstorys.api.FloaterDetails
 import com.appversal.appstorys.api.MilestoneDetails
 import com.appversal.appstorys.api.ModalDetails
@@ -236,6 +239,9 @@ object AppStorys {
     private val currentMilestoneIndex = MutableStateFlow(0)
     private val _showMilestone = MutableStateFlow(true)
 
+    private const val KEY_NOTIF_REACHABILITY = "notif_reachability_enabled"
+    private const val OUTREACH_CHANNEL_ID = "appstorys_outreach"
+
     private fun generateAnonymousUserId(): String {
         val timestamp = System.currentTimeMillis()
         val deviceModel = Build.MODEL.replace(" ", "_").lowercase()
@@ -364,6 +370,7 @@ object AppStorys {
                         sdkState = AppStorysSdkState.Initialized
                         getScreenCampaigns(currentScreen, emptyList())
                     }
+                    syncNotificationReachability()
                 }
 
                 override fun onStop(owner: LifecycleOwner) {
@@ -399,6 +406,8 @@ object AppStorys {
                     } catch (e: Exception) {
                         Log.e("AppStorys", "Outreach tracker setup failed: ${e.message}", e)
                     }
+
+                    syncNotificationReachability()
 
                     val savedScratchedCampaigns = getScratchedCampaigns(
                         context.getSharedPreferences("AppStory", Context.MODE_PRIVATE)
@@ -714,6 +723,113 @@ object AppStorys {
         } else {
             onNavigate()
         }
+    }
+
+    fun subscribeNotifications() {
+        coroutineScope.launch {
+            if (userId.isBlank() || !checkIfInitialized()) {
+                Log.e(
+                    "AppStorys",
+                    "Cannot subscribe to notifications: SDK not initialized or user ID not available"
+                )
+                return@launch
+            }
+
+            val result = safeApiCall {
+                webSocketService.subscribeFcm(
+                    token = "Bearer $accessToken",
+                    request = FcmSubscriptionRequest(user_id = userId)
+                )
+            }
+
+            when (result) {
+                is ApiResult.Success -> {
+                    Log.i("AppStorys", "Subscribed to notifications successfully for user: $userId")
+                }
+                is ApiResult.Error -> {
+                    Log.e("AppStorys", "Error subscribing to notifications: ${result.message}")
+                }
+            }
+        }
+    }
+
+    fun unsubscribeNotifications() {
+        coroutineScope.launch {
+            if (userId.isBlank() || !checkIfInitialized()) {
+                Log.e(
+                    "AppStorys",
+                    "Cannot unsubscribe from notifications: SDK not initialized or user ID not available"
+                )
+                return@launch
+            }
+
+            val result = safeApiCall {
+                webSocketService.unsubscribeFcm(
+                    token = "Bearer $accessToken",
+                    request = FcmSubscriptionRequest(user_id = userId)
+                )
+            }
+
+            when (result) {
+                is ApiResult.Success -> {
+                    Log.i("AppStorys", "Unsubscribed from notifications successfully for user: $userId")
+                }
+                is ApiResult.Error -> {
+                    Log.e("AppStorys", "Error unsubscribing from notifications: ${result.message}")
+                }
+            }
+        }
+    }
+
+    private fun currentNotificationsEnabled(): Boolean {
+        val nm = NotificationManagerCompat.from(context)
+        if (!nm.areNotificationsEnabled()) return false
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = nm.getNotificationChannel(OUTREACH_CHANNEL_ID)
+            if (channel != null && channel.importance == NotificationManager.IMPORTANCE_NONE) {
+                return false
+            }
+        }
+        return true
+    }
+
+    private fun syncNotificationReachability() {
+        coroutineScope.launch {
+            try {
+                // Only run once we can actually reach the backend. If not ready yet,
+                // the post-init hook (or the next foreground) will run this.
+                if (!::context.isInitialized) return@launch
+                if (userId.isBlank() ||
+                    sdkState != AppStorysSdkState.Initialized ||
+                    accessToken.isBlank()
+                ) return@launch
+
+                val enabled = currentNotificationsEnabled()
+                val prefs = context.getSharedPreferences("AppStory", Context.MODE_PRIVATE)
+                val last: Boolean? =
+                    if (prefs.contains(KEY_NOTIF_REACHABILITY))
+                        prefs.getBoolean(KEY_NOTIF_REACHABILITY, false)
+                    else null
+
+                if (last == enabled) return@launch  // nothing changed since last sync
+
+                // Reuse the existing backend calls (subscribe-fcm / unsubscribe-fcm).
+                if (enabled) subscribeNotifications() else unsubscribeNotifications()
+
+                prefs.edit().putBoolean(KEY_NOTIF_REACHABILITY, enabled).apply()
+                Log.i(
+                    "AppStorys",
+                    "Notification reachability changed → enabled=$enabled " +
+                            "(was ${last ?: "unset"}); synced to backend"
+                )
+            } catch (e: Exception) {
+                Log.e("AppStorys", "syncNotificationReachability failed: ${e.message}", e)
+            }
+        }
+    }
+
+    fun onNotificationPermissionResult() {
+        syncNotificationReachability()
     }
 
     @Composable

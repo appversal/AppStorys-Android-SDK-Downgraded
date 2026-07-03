@@ -34,6 +34,12 @@ data class CampaignVariant(
 
 @Keep
 @Serializable
+data class FcmSubscriptionRequest(
+    val user_id: String
+)
+
+@Keep
+@Serializable
 data class VariantCampaignDetails(
     val variants: JsonObject
 ) : CampaignDetails()
@@ -433,7 +439,7 @@ data class StoryContentTextAlignment(
 @Serializable
 data class StoryTextStyling(
     val id: String? = null,
-    val color: String? = null,
+    val color: JsonElement? = null,
     val font: StoryContentTextFont? = null,
     val alignment: StoryContentTextAlignment? = null,
     val position: StoryPosition? = null,
@@ -469,9 +475,9 @@ data class StoryContentCtaStyling(
     val size: StorySize? = null,
     val width: Float? = null,
     val height: Float? = null,
-    val background: String? = null,
-    val textColor: String? = null,
-    val borderColor: String? = null,
+    val background: JsonElement? = null,   // hex string (legacy) or {color, opacity} object
+    val textColor: JsonElement? = null,    // hex string (legacy) or {color, opacity} object
+    val borderColor: JsonElement? = null,  // hex string (legacy) or {color, opacity} object
     val borderWidth: Float? = null,
     val borderRadius: Float? = null,
     val pillBorderRadius: Float? = null,
@@ -480,10 +486,11 @@ data class StoryContentCtaStyling(
     val rotation: Float? = null,
     val transparent: Boolean? = null,
     val arrowAnimation: Boolean? = null,
-    val arrowColor: String? = null,
+    val arrowColor: JsonElement? = null,   // hex string (legacy) or {color, opacity} object
     val arrowSize: Float? = null,
     val ctaAnimation: String? = null,
     val animation: StoryAnimation? = null,
+    val pillH: Float? = null,
     val z: Int? = null
 )
 
@@ -498,8 +505,8 @@ data class StoryContentElement(
     val image: String? = null,           // Sticker image url
     val svgPath: String? = null,         // Shape path
     val styleType: String? = null,       // "filled" | "outline"
-    val fill: String? = null,
-    val stroke: String? = null,
+    val fill: JsonElement? = null,       // hex string (legacy) or {color, opacity} object
+    val stroke: JsonElement? = null,     // hex string (legacy) or {color, opacity} object
     val strokeWidth: Float? = null,
     val frameStyle: String? = null,      // "classic" | "rounded" | ...
     val shadowBlur: Float? = null,
@@ -521,8 +528,8 @@ data class StoryContentElementStyling(
     val id: String? = null,
     val position: StoryPosition? = null,
     val size: StorySize? = null,
-    val color: String? = null,
-    val strokeColor: String? = null,
+    val color: JsonElement? = null,        // hex string (legacy) or {color, opacity} object
+    val strokeColor: JsonElement? = null,  // hex string (legacy) or {color, opacity} object
     val strokeWidth: Float? = null,
     val cornerRadius: Float? = null,
     val opacity: Float? = null,

@@ -52,6 +52,18 @@ internal interface ApiService {
         @Body request: UpdateUserPropertiesRequest
     ): Response<Unit>
 
+    @POST("subscribe-fcm")
+    suspend fun subscribeFcm(
+        @Header("Authorization") token: String,
+        @Body request: FcmSubscriptionRequest
+    ): Response<Unit>
+
+    @POST("unsubscribe-fcm")
+    suspend fun unsubscribeFcm(
+        @Header("Authorization") token: String,
+        @Body request: FcmSubscriptionRequest
+    ): Response<Unit>
+
     @POST("api/v1/campaigns/capture-csat-response/")
     suspend fun sendCSATResponse(
         @Header("Authorization") token: String,
