@@ -257,7 +257,7 @@ fun HomeScreen(
 
     LaunchedEffect(Unit) {
 //        val screenName = "Home Screen Kotlin"
-        val screenName = "Suraj iOS Tab View"
+        val screenName = "Home Screen Kotlin"
         val positions = listOf("widget_one")
         campaignManager.getScreenCampaigns(
             screenName,
