@@ -30,22 +30,27 @@ class App : Application() {
             appId = "f69bdccf-b20f-4938-b39e-7075d76db791",  // dev test
             accountId = "12a9eac5-94ee-4735-9aa6-b8a94cb8fbbb",  // dev test
 //            userId = userId,
-            userId = "nameisanirudh",
-//            userId = "b119f894-37fe-44a2-9108-77d06dedf912",
+//            userId = "nameisanirudh",
+            userId = "001e77ce-7c2b-407e-a099-98ab5627948b",
             navigateToScreen = { screen ->
                 println("Navigating to $screen")
                 navigateToScreen(screen)
             }
         )
 
-        FirebaseMessaging.getInstance().token
-            .addOnSuccessListener { token ->
-                AppStorys.setFirebaseToken(token)
-                Log.d("FCM_TOKEN", token)
-            }
-            .addOnFailureListener { e ->
-                Log.w("FCM_TOKEN", "FCM token fetch failed", e)
-            }
+        Log.d("FCM_TOKEN", "requesting token...")
+        try {
+            FirebaseMessaging.getInstance().token
+                .addOnSuccessListener { token ->
+                    AppStorys.setFirebaseToken(token)
+                    Log.d("FCM_TOKEN", "success: $token")
+                }
+                .addOnFailureListener { e ->
+                    Log.w("FCM_TOKEN", "FCM token fetch failed", e)
+                }
+        } catch (e: Exception) {
+            Log.e("FCM_TOKEN", "getInstance().token threw synchronously", e)
+        }
 
         appStorys = AppStorys
     }

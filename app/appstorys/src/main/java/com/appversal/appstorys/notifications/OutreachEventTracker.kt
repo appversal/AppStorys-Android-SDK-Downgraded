@@ -118,12 +118,12 @@ internal object OutreachEventTracker {
     }
 
     /** Async fire-and-forget. Used by AppStorysMessagingService. */
-    fun fireEvent(context: Context, notificationId: String, event: String) {
-        executor.execute { fireEventBlocking(context, notificationId, event) }
+    fun fireEvent(context: Context, notificationId: String, event: String, variantId: String? = null) {
+        executor.execute { fireEventBlocking(context, notificationId, event, variantId) }
     }
 
     /** Synchronous variant — for BroadcastReceiver.goAsync() worker thread. */
-    fun fireEventBlocking(context: Context, notificationId: String, event: String) {
+    fun fireEventBlocking(context: Context, notificationId: String, event: String, variantId: String? = null) {
         try {
             if (notificationId.isBlank()) {
                 Log.w(TAG, "fireEvent: blank notificationId")
@@ -137,7 +137,7 @@ internal object OutreachEventTracker {
             val p = prefs(context)
             val userId = p.getString(KEY_USER_ID, null)
             if (userId.isNullOrBlank()) {
-                queueEvent(p, notificationId, event)
+                queueEvent(p, notificationId, event, variantId)
                 Log.w(TAG, "No user_id yet — queued $event for $notificationId")
                 return
             }
@@ -150,43 +150,52 @@ internal object OutreachEventTracker {
                 token = refreshLongLivedToken(p) ?: run {
                     val fcm = p.getString(KEY_DEVICE_TOKEN, null)
                     if (fcm.isNullOrBlank()) {
-                        queueEvent(p, notificationId, event)
+                        queueEvent(p, notificationId, event, variantId)
                         Log.w(TAG, "No fcm token on disk — queued $event")
                         return
                     }
                     fetchAndStoreAccessToken(p, userId, fcm)
                 }
                 if (token == null) {
-                    queueEvent(p, notificationId, event)
+                    queueEvent(p, notificationId, event, variantId)
                     return
                 }
             }
 
-            when (sendEvent(userId, token, notificationId, event)) {
-                SendResult.OK -> { /* done */ }
+            when (sendEvent(userId, token, notificationId, event, variantId)) {
+                SendResult.OK -> { /* done */
+                }
+
                 SendResult.UNAUTHORIZED -> {
                     Log.w(TAG, "Outreach long-lived token rejected (401/403), refreshing")
                     val fresh = recoverLongLivedToken(p, userId)
                     if (fresh == null) {
-                        queueEvent(p, notificationId, event)
+                        queueEvent(p, notificationId, event, variantId)
                         return
                     }
-                    if (sendEvent(userId, fresh, notificationId, event) != SendResult.OK) {
-                        queueEvent(p, notificationId, event)
+                    if (sendEvent(userId, fresh, notificationId, event, variantId) != SendResult.OK) {
+                        queueEvent(p, notificationId, event, variantId)
                     }
                 }
-                SendResult.OTHER_ERROR -> queueEvent(p, notificationId, event)
+
+                SendResult.OTHER_ERROR -> queueEvent(p, notificationId, event, variantId)
             }
         } catch (e: Exception) {
             Log.e(TAG, "fireEventBlocking failed", e)
-            try { queueEvent(prefs(context), notificationId, event) } catch (_: Exception) { }
+            try {
+                queueEvent(prefs(context), notificationId, event, variantId)
+            } catch (_: Exception) {
+            }
         }
     }
 
     fun drainPendingQueue(context: Context) {
         executor.execute {
-            try { drainPendingQueueLocked(prefs(context)) }
-            catch (e: Exception) { Log.e(TAG, "drainPendingQueue failed", e) }
+            try {
+                drainPendingQueueLocked(prefs(context))
+            } catch (e: Exception) {
+                Log.e(TAG, "drainPendingQueue failed", e)
+            }
         }
     }
 
@@ -198,13 +207,19 @@ internal object OutreachEventTracker {
         userId: String,
         outreachToken: String,
         notificationId: String,
-        event: String
+        event: String,
+        variantId: String? = null
     ): SendResult {
         return try {
             val body = JSONObject().apply {
                 put("user_id", userId)
                 put("campaign_id", notificationId)
                 put("event", event)
+                if (!variantId.isNullOrBlank()) {
+                    put("metadata", JSONObject().apply {
+                        put("variant_id", variantId)
+                    })
+                }
             }
             val request = Request.Builder()
                 .url(EVENT_URL)
@@ -366,7 +381,7 @@ internal object OutreachEventTracker {
         }
     }
 
-    private fun queueEvent(p: SharedPreferences, notificationId: String, event: String) {
+    private fun queueEvent(p: SharedPreferences, notificationId: String, event: String,  variantId: String? = null) {
         try {
             val existing = p.getString(KEY_QUEUE, null)
             val queue = if (existing != null) JSONArray(existing) else JSONArray()
@@ -378,6 +393,7 @@ internal object OutreachEventTracker {
                 put("notification_id", notificationId)
                 put("event", event)
                 put("ts", System.currentTimeMillis())
+                if (!variantId.isNullOrBlank()) put("variant_id", variantId)
             })
             p.edit { putString(KEY_QUEUE, queue.toString()) }
         } catch (e: Exception) {
@@ -398,9 +414,10 @@ internal object OutreachEventTracker {
             val item = queue.optJSONObject(i) ?: continue
             val nId = item.optString("notification_id")
             val ev = item.optString("event")
+            val variantId = item.optString("variant_id").takeIf { it.isNotBlank() }
             if (nId.isBlank() || ev.isBlank()) continue
 
-            when (sendEvent(userId, token, nId, ev)) {
+            when (sendEvent(userId, token, nId, ev, variantId)) {
                 SendResult.OK -> sent++
                 SendResult.UNAUTHORIZED -> {
                     // Refresh once mid-drain via refresh-fcm-refresh-token,
@@ -408,16 +425,69 @@ internal object OutreachEventTracker {
                     val fresh = recoverLongLivedToken(p, userId)
                     if (fresh != null) {
                         token = fresh
-                        if (sendEvent(userId, token, nId, ev) == SendResult.OK) sent++
+                        if (sendEvent(userId, token, nId, ev, variantId) == SendResult.OK) sent++
                         else remaining.put(item)
                     } else {
                         remaining.put(item)
                     }
                 }
+
                 SendResult.OTHER_ERROR -> remaining.put(item)
             }
         }
         p.edit { putString(KEY_QUEUE, remaining.toString()) }
         Log.i(TAG, "Drained outreach queue: $sent sent, ${remaining.length()} retained")
+    }
+
+    fun getCachedDeviceToken(context: Context): String? =
+        try {
+            prefs(context).getString(KEY_DEVICE_TOKEN, null)
+        } catch (e: Exception) {
+            null
+        }
+
+    fun invalidateOutreachToken(context: Context) {
+        try {
+            prefs(context).edit { remove(KEY_OUTREACH_TOKEN) }
+            Log.i(TAG, "Outreach token invalidated locally (backend unsubscribed)")
+        } catch (e: Exception) {
+            Log.e(TAG, "invalidateOutreachToken failed", e)
+        }
+    }
+
+    /**
+     * Unconditionally re-registers the device token with the backend, bypassing
+     * the outreach-token cache check. Must be called right after a successful
+     * subscribe-fcm — its handler resets the server-side token, so the normal
+     * cache-skip in ensureAccessToken() would otherwise leave the backend
+     * without a token until the cached outreach token happens to expire/reject.
+     */
+    fun forceResyncDeviceToken(context: Context, userId: String, fcmToken: String) {
+        executor.execute {
+            try {
+                val p = prefs(context)
+                p.edit {
+                    putString(KEY_USER_ID, userId)
+                    putString(KEY_DEVICE_TOKEN, fcmToken)
+                }
+                fetchAndStoreAccessToken(p, userId, fcmToken)
+                drainPendingQueueLocked(p)
+            } catch (e: Exception) {
+                Log.e(TAG, "forceResyncDeviceToken failed", e)
+            }
+        }
+    }
+
+    /** Persists user_id + device token locally only — no network call. */
+    fun cacheDeviceTokenLocally(context: Context, userId: String, fcmToken: String) {
+        try {
+            val p = prefs(context)
+            p.edit {
+                putString(KEY_USER_ID, userId)
+                putString(KEY_DEVICE_TOKEN, fcmToken)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "cacheDeviceTokenLocally failed", e)
+        }
     }
 }

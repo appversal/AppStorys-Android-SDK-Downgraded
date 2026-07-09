@@ -35,7 +35,8 @@ data class CampaignVariant(
 @Keep
 @Serializable
 data class FcmSubscriptionRequest(
-    val user_id: String
+    val user_id: String,
+    val device_push_token: String? = null
 )
 
 @Keep

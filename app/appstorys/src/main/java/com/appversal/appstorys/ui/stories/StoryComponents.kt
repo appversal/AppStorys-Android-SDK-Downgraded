@@ -20,6 +20,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -75,6 +76,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
@@ -407,6 +409,10 @@ internal fun StoryScreenContent(
     var isVideoReady by remember { mutableStateOf(false) }
     var videoDuration by remember { mutableStateOf(0L) }
     var isBuffering by remember { mutableStateOf(false) }
+    // Natural aspect ratio (width / height) of the currently loaded background video,
+    // used so its "position" styling can be honoured the same way it is for images —
+    // see the RESIZE_MODE_FIT branch below.
+    var videoAspectRatio by remember { mutableStateOf<Float?>(null) }
 
     val scope = rememberCoroutineScope()
 
@@ -506,6 +512,14 @@ internal fun StoryScreenContent(
                     }
                 }
             }
+
+            override fun onVideoSizeChanged(videoSize: VideoSize) {
+                videoAspectRatio = if (videoSize.width > 0 && videoSize.height > 0) {
+                    (videoSize.width.toFloat() * videoSize.pixelWidthHeightRatio) / videoSize.height.toFloat()
+                } else {
+                    null
+                }
+            }
         }
         player.addListener(listener)
 
@@ -554,6 +568,7 @@ internal fun StoryScreenContent(
         isVideoReady = false
         isBuffering = false
         videoDuration = 0L
+        videoAspectRatio = null
         sendEvent(Pair(currentSlide, "IMP"))
 
         player.stop()
@@ -851,21 +866,38 @@ internal fun StoryScreenContent(
                 if (currentSlide.video != null) {
                     // fit and fill are both resolved against the full screen now (not the
                     // canva-letterboxed box); RESIZE_MODE_FIT/ZOOM below does the fit/crop math.
-                    val vidMod = Modifier.fillMaxSize()
-                    AndroidView(
-                        factory = { ctx ->
-                            PlayerView(ctx).apply {
-                                this.player = player
-                                layoutParams = FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT)
-                                useController = false
-                            }
-                        },
-                        update = { view ->
-                            // RESIZE_MODE_ZOOM (4) = crop-fill; RESIZE_MODE_FIT (0) = letterbox
-                            view.resizeMode = if (sizingFill) 4 else 0
-                        },
-                        modifier = vidMod
-                    )
+                    val playerViewFactory: (Context) -> PlayerView = { ctx ->
+                        PlayerView(ctx).apply {
+                            this.player = player
+                            layoutParams = FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT)
+                            useController = false
+                        }
+                    }
+
+                    if (sizingFill || videoAspectRatio == null) {
+                        // Crop-fill (or aspect ratio not known yet) — fill the screen and let
+                        // ExoPlayer's resize mode do the crop/fit math, same as before.
+                        AndroidView(
+                            factory = playerViewFactory,
+                            update = { view ->
+                                // RESIZE_MODE_ZOOM (4) = crop-fill; RESIZE_MODE_FIT (0) = letterbox
+                                view.resizeMode = if (sizingFill) 4 else 0
+                            },
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        // "fit" sizing with a known aspect ratio — size the player view to the
+                        // video's own aspect ratio (like ContentScale.Fit does for images) and
+                        // align it within the full screen using the same `position` styling the
+                        // image path above already honours.
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = mediaAlign) {
+                            AndroidView(
+                                factory = playerViewFactory,
+                                update = { view -> view.resizeMode = 0 },
+                                modifier = Modifier.aspectRatio(videoAspectRatio!!)
+                            )
+                        }
+                    }
 
                     // Show loading indicator only while initially buffering
                     if (isBuffering) {

@@ -1,6 +1,8 @@
 package com.appversal.appstorys.ui.stories
 
 import android.annotation.SuppressLint
+import android.content.Context
+import androidx.core.content.edit
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
@@ -83,6 +85,7 @@ import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -142,6 +145,46 @@ private fun JsonObject?.bool(key: String): Boolean? =
 // parseStoryColorElement (StoryCanvaUtils.kt) handles both transparently.
 private fun JsonObject?.color(key: String): Color? =
     parseStoryColorElement(this?.get(key))
+
+// borderRadius is sent by the backend as a PERCENTAGE OF THE CANVA (design) HEIGHT —
+// the same unit `StoryCanvaScope.heightPctDp` expects — for every interaction's outer
+// container. `heightPctDp` returns a Dp meant for the *outer*, un-overridden density,
+// but this file's interaction composables run under a LocalDensity override equal to
+// `scope.scale` (see StoryInteractionRenderer, "1.dp == 1 canva-space px" there), so the
+// physical size has to be re-expressed in that overridden density's terms: convert the
+// percentage to a real px amount first, then divide by `scope.scale` to get the
+// equivalent literal Dp number under the overridden density.
+private fun StoryCanvaScope.borderRadiusPctToLocalDp(pct: Float): Dp {
+    val realPx = with(density) { heightPctDp(pct).toPx() }
+    return (realPx / scale).dp
+}
+
+// Falls back to the previous ratio-based calculation when the backend doesn't
+// provide a borderRadius value.
+private fun JsonObject?.borderRadiusDp(scope: StoryCanvaScope, fallback: Dp): Dp =
+    this.float("borderRadius")?.let { scope.borderRadiusPctToLocalDp(it) } ?: fallback
+
+// ----------------------- Persisted interaction responses -------------------
+//
+// Once someone answers an interactive element (poll / quiz / media quiz / rating /
+// reaction / input), that answer is locked in permanently — the same durability
+// model already used for viewed-story tracking (SharedPreferences), so it survives
+// process death and full app restarts, not just recomposition or navigation.
+private const val INTERACTION_RESPONSES_PREFS = "AppStoryInteractionResponses"
+
+private fun loadInteractionResponse(context: Context, interactionId: String?): String? {
+    if (interactionId.isNullOrEmpty()) return null
+    return context
+        .getSharedPreferences(INTERACTION_RESPONSES_PREFS, Context.MODE_PRIVATE)
+        .getString(interactionId, null)
+}
+
+private fun saveInteractionResponse(context: Context, interactionId: String?, value: String) {
+    if (interactionId.isNullOrEmpty()) return
+    context
+        .getSharedPreferences(INTERACTION_RESPONSES_PREFS, Context.MODE_PRIVATE)
+        .edit { putString(interactionId, value) }
+}
 
 // ----------------------- Local box-fit sizing helpers ---------------------
 //
@@ -351,7 +394,8 @@ private fun PollInteraction(
         else -> optionPairs.indices.map { 100 / optionPairs.size.coerceAtLeast(1) }
     }
 
-    var selected by remember(id) { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
+    var selected by remember(id) { mutableStateOf(loadInteractionResponse(context, id)) }
     val density = LocalDensity.current
 
     // Show result bars when configured from the start OR after the user has voted
@@ -378,7 +422,7 @@ private fun PollInteraction(
         val h = maxHeight
 
         val unit = minOf(w, h) * 0.08f
-        val containerRadius = (w * 0.06f).coerceAtMost(h * 0.22f)
+        val containerRadius = styling.borderRadiusDp(scope, (w * 0.06f).coerceAtMost(h * 0.22f))
         val containerPadding = unit
         val optionPaddingV = unit * 0.32f
         val optionPaddingH = unit * 0.32f
@@ -499,6 +543,7 @@ private fun PollInteraction(
                                     ) {
                                         leftKey?.let {
                                             selected = it
+                                            saveInteractionResponse(context, id, it)
                                             onTrack(
                                                 "clicked", mapOf(
                                                     "interaction_type" to "poll",
@@ -521,6 +566,7 @@ private fun PollInteraction(
                                     ) {
                                         rightKey?.let {
                                             selected = it
+                                            saveInteractionResponse(context, id, it)
                                             onTrack(
                                                 "clicked", mapOf(
                                                     "interaction_type" to "poll",
@@ -612,7 +658,7 @@ private fun PollInteraction(
                                 contentAlignment = Alignment.Center
                             ) {
                                 BasicTextWrap(
-                                    text = if (displayResults) "$leftLabel $leftPct%" else leftLabel,
+                                    text = if (showResults) "$leftLabel $leftPct%" else leftLabel,
                                     color = optionTextColor,
                                     fontSizeSp = with(density) { optionSize.toSp() },
                                     fontWeight = FontWeight(800),
@@ -627,7 +673,7 @@ private fun PollInteraction(
                                 contentAlignment = Alignment.Center
                             ) {
                                 BasicTextWrap(
-                                    text = if (displayResults) "$rightLabel $rightPct%" else rightLabel,
+                                    text = if (showResults) "$rightLabel $rightPct%" else rightLabel,
                                     color = optionTextColor,
                                     fontSizeSp = with(density) { optionSize.toSp() },
                                     fontWeight = FontWeight(800),
@@ -680,6 +726,7 @@ private fun PollInteraction(
                                         indication = null
                                     ) {
                                         selected = key
+                                        saveInteractionResponse(context, id, key)
                                         onTrack(
                                             "clicked", mapOf(
                                                 "interaction_type" to "poll",
@@ -700,7 +747,7 @@ private fun PollInteraction(
                                     )
                                 }
                                 BasicTextWrap(
-                                    text = if (displayResults) "$label $pct%" else label,
+                                    text = if (showResults) "$label $pct%" else label,
                                     color = optionTextColor,
                                     fontSizeSp = with(density) { optionSize.toSp() },
                                     fontWeight = FontWeight(800),
@@ -751,6 +798,7 @@ private fun PollInteraction(
                                         indication = null
                                     ) {
                                         selected = key
+                                        saveInteractionResponse(context, id, key)
                                         onTrack(
                                             "clicked", mapOf(
                                                 "interaction_type" to "poll",
@@ -771,7 +819,7 @@ private fun PollInteraction(
                                     )
                                 }
                                 BasicTextWrap(
-                                    text = if (displayResults) "$label $pct%" else label,
+                                    text = if (showResults) "$label $pct%" else label,
                                     color = optionTextColor,
                                     fontSizeSp = with(density) { optionSize.toSp() },
                                     fontWeight = FontWeight(800),
@@ -802,6 +850,8 @@ private fun QuizInteraction(
     val correctId =
         config.str("correctAnswerId") ?: config.str("isCorrect") ?: config.str("correctOption")
     val optionPairs = parseOptionPairs(config)
+    val showExplanation = config.bool("showExplanation") ?: false
+    val explanation = config.str("explanation") ?: ""
 
     val transparent = styling.bool("transparent") ?: styling.bool("transparentBackground") ?: false
     val opacity = ((styling.float("opacity") ?: 100f) / 100f).coerceIn(0f, 1f)
@@ -818,7 +868,8 @@ private fun QuizInteraction(
     val borderRadiusRatio = 0.0574f
     val optionRadiusRatio = 0.174f
 
-    var selected by remember(id) { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
+    var selected by remember(id) { mutableStateOf(loadInteractionResponse(context, id)) }
     val density = LocalDensity.current
     val textMeasurer = rememberTextMeasurer()
     val n = optionPairs.size.coerceAtLeast(1)
@@ -832,7 +883,7 @@ private fun QuizInteraction(
         val w = maxWidth
         val h = maxHeight
 
-        val containerRadius = w * borderRadiusRatio
+        val containerRadius = styling.borderRadiusDp(scope, w * borderRadiusRatio)
 
         val qHPad = w * 0.08f
         val qVPad = w * 0.05f
@@ -891,10 +942,27 @@ private fun QuizInteraction(
         val labelFont = minOf(w * 0.05f, optRowH * 0.42f)
         val pctFont = minOf(w * 0.10f, optRowH * 0.5f)
 
+        val explanationVisible = showExplanation && selected != null && explanation.isNotEmpty()
+        // Bottom corners smoothly flatten as the explanation panel appears, so the two
+        // pieces merge into one continuous rounded shape instead of two separate cards
+        // with a gap at the seam — same idea as InputInteraction's animatedBottomRadius.
+        val animatedCardBottomRadius by animateDpAsState(
+            targetValue = if (explanationVisible) 0.dp else containerRadius,
+            animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing),
+            label = "quizCardBottomRadius"
+        )
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .clip(RoundedCornerShape(containerRadius))
+                .clip(
+                    RoundedCornerShape(
+                        topStart = containerRadius,
+                        topEnd = containerRadius,
+                        bottomStart = animatedCardBottomRadius,
+                        bottomEnd = animatedCardBottomRadius
+                    )
+                )
                 .background(if (transparent) Color.Transparent else bg)
         ) {
             if (hasQuestion) {
@@ -973,6 +1041,7 @@ private fun QuizInteraction(
                                 indication = null
                             ) {
                                 selected = key
+                                saveInteractionResponse(context, id, key)
                                 onTrack(
                                     "clicked", mapOf(
                                         "interaction_type" to "quiz",
@@ -1017,6 +1086,37 @@ private fun QuizInteraction(
                         }
                     }
                 }
+            }
+        }
+
+        // ── Explanation — shown below the last option once the user has answered,
+        // expanding the quiz card downward rather than shrinking the options to fit.
+        // The parent wrapper Box (StorySlideContent) doesn't clip its children, so
+        // this is free to overflow the interaction's own assigned height — same
+        // overflow pattern used for the Send button in InputInteraction below.
+        AnimatedVisibility(
+            visible = explanationVisible,
+            modifier = Modifier
+                .fillMaxWidth()
+                .offset(y = h),
+            enter = fadeIn(tween(220)) + expandVertically(tween(280, easing = FastOutSlowInEasing)),
+            exit = fadeOut(tween(160)) + shrinkVertically(tween(180))
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(bottomStart = containerRadius, bottomEnd = containerRadius))
+                    .background(if (transparent) Color.Transparent else bg)
+                    .padding(horizontal = qHPad, vertical = qVPad)
+            ) {
+                BasicTextWrap(
+                    text = explanation,
+                    color = optionTextColor,
+                    fontSizeSp = with(density) { labelFont.toSp() },
+                    lineHeight = with(density) { (labelFont * 1.25f).toSp() },
+                    align = TextAlign.Start,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         }
     }
@@ -1078,7 +1178,8 @@ private fun MediaQuizInteraction(
     val correctBorderColor = styling.color("correctBorderColor") ?: Color(0xFF10B981)
     val labelColor = styling.color("labelColor") ?: Color(0xFF4B5563)
 
-    var selected by remember(id) { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
+    var selected by remember(id) { mutableStateOf(loadInteractionResponse(context, id)) }
     val density = LocalDensity.current
 
     // Chunk options into rows
@@ -1104,7 +1205,7 @@ private fun MediaQuizInteraction(
         val w = maxWidth
         val h = maxHeight
 
-        val containerRadius = w * 0.06f
+        val containerRadius = styling.borderRadiusDp(scope, w * 0.06f)
         val gridPadding = w * 0.035f
 
         // Question header — sized off width, capped so it can't claim more than a
@@ -1223,6 +1324,7 @@ private fun MediaQuizInteraction(
                                             indication = null
                                         ) {
                                             selected = opt.id
+                                            saveInteractionResponse(context, id, opt.id)
                                             onTrack(
                                                 "clicked", mapOf(
                                                     "interaction_type" to "media_quiz",
@@ -1307,7 +1409,15 @@ private fun RatingInteraction(
         styling.color("sliderTrack") ?: styling.obj("colors").color("sliderTrack")
         ?: Color(0xFFF3F4F6)
 
-    var rating by remember(id) { mutableIntStateOf(initialRating.coerceIn(0, maxRating)) }
+    val context = LocalContext.current
+    var rating by remember(id) {
+        mutableIntStateOf(
+            loadInteractionResponse(context, id)?.toIntOrNull() ?: initialRating.coerceIn(0, maxRating)
+        )
+    }
+    // Once the person rates, the response is locked — persisted so it survives
+    // process death / app restarts, same as viewed-story tracking.
+    var answered by remember(id) { mutableStateOf(loadInteractionResponse(context, id) != null) }
     val density = LocalDensity.current
     val n = maxRating.coerceAtLeast(1)
 
@@ -1340,7 +1450,7 @@ private fun RatingInteraction(
         val w = maxWidth
         val h = maxHeight
 
-        val borderRadius = minOf(w, h) * 0.09f
+        val borderRadius = styling.borderRadiusDp(scope, minOf(w, h) * 0.09f)
         val padding = minOf(w, h) * 0.15f
         val rowGap = minOf(w, h) * 0.15f
 
@@ -1404,27 +1514,35 @@ private fun RatingInteraction(
                             .align(Alignment.Center)
                             .clip(RoundedCornerShape(trackHeight / 2))
                             .background(sliderTrack)
-                            .pointerInput(maxRating, id) {
-                                detectHorizontalDragGestures(
-                                    onDragEnd = {
-                                        lastThumbCoordinates?.let {
-                                            spawnFlyingEmoji(it, with(density) { emojiSize.toSp() })
+                            .let { m ->
+                                if (answered) {
+                                    m
+                                } else {
+                                    m.pointerInput(maxRating, id) {
+                                        detectHorizontalDragGestures(
+                                            onDragEnd = {
+                                                answered = true
+                                                saveInteractionResponse(context, id, rating.toString())
+                                                lastThumbCoordinates?.let {
+                                                    spawnFlyingEmoji(it, with(density) { emojiSize.toSp() })
+                                                }
+                                            }
+                                        ) { change, _ ->
+                                            change.consume()
+                                            val fraction = (change.position.x / size.width).coerceIn(0f, 1f)
+                                            val newRating =
+                                                (fraction * maxRating).roundToInt().coerceIn(0, maxRating)
+                                            if (newRating != rating) {
+                                                rating = newRating
+                                                onTrack(
+                                                    "clicked", mapOf(
+                                                        "interaction_type" to "rating",
+                                                        "interaction_id" to (id ?: ""),
+                                                        "value" to newRating
+                                                    )
+                                                )
+                                            }
                                         }
-                                    }
-                                ) { change, _ ->
-                                    change.consume()
-                                    val fraction = (change.position.x / size.width).coerceIn(0f, 1f)
-                                    val newRating =
-                                        (fraction * maxRating).roundToInt().coerceIn(0, maxRating)
-                                    if (newRating != rating) {
-                                        rating = newRating
-                                        onTrack(
-                                            "clicked", mapOf(
-                                                "interaction_type" to "rating",
-                                                "interaction_id" to (id ?: ""),
-                                                "value" to newRating
-                                            )
-                                        )
                                     }
                                 }
                             }
@@ -1476,10 +1594,13 @@ private fun RatingInteraction(
                                 .graphicsLayer { alpha = if (isActive) 1f else 0.4f }
                                 .onGloballyPositioned { starCoordinates[i] = it }
                                 .clickable(
+                                    enabled = !answered,
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null
                                 ) {
                                     rating = i + 1
+                                    answered = true
+                                    saveInteractionResponse(context, id, rating.toString())
                                     onTrack(
                                         "clicked", mapOf(
                                             "interaction_type" to "rating",
@@ -1597,6 +1718,7 @@ private fun ReactionInteraction(
     onTrack: (event: String, metadata: Map<String, Any>) -> Unit
 ) {
     val emojiPairs = parseReactionEmojis(config)
+    val showCount = config.bool("showCount") ?: true
 
     // transparent: check both keys
     val transparent = styling.bool("transparent") ?: styling.bool("transparentBackground") ?: false
@@ -1612,7 +1734,8 @@ private fun ReactionInteraction(
     val bubbleBorder = styling.color("bubbleBorderColor") ?: Color(0xFFE5E7EB)
     val countColor = styling.color("countColor") ?: Color(0xFF374151)
 
-    var picked by remember(id) { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
+    var picked by remember(id) { mutableStateOf(loadInteractionResponse(context, id)) }
     val density = LocalDensity.current
     val n = emojiPairs.size.coerceAtLeast(1)
 
@@ -1675,10 +1798,12 @@ private fun ReactionInteraction(
         val expandedHeight = bubbleSize * 1.3f
         val countSize = emojiSize * 0.42f
         val gap = emojiSize * gapRatio
+        val containerRadius = styling.borderRadiusDp(scope, 0.dp)
 
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .clip(RoundedCornerShape(containerRadius))
                 .background(if (transparent) Color.Transparent else bg),
             contentAlignment = Alignment.Center
         ) {
@@ -1690,8 +1815,9 @@ private fun ReactionInteraction(
                 emojiPairs.forEach { (key, emoji) ->
                     val isPicked = picked == key
                     // Every bubble expands together the moment ANY pick is made, so the
-                    // row stays visually aligned.
-                    val isExpanded = picked != null
+                    // row stays visually aligned. When showCount is false, skip the
+                    // expansion/count entirely — just the emoji tap animation plays.
+                    val isExpanded = picked != null && showCount
                     val animatedBubbleHeight by animateDpAsState(
                         targetValue = if (isExpanded) expandedHeight else restingHeight,
                         animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing),
@@ -1711,6 +1837,7 @@ private fun ReactionInteraction(
                                 indication = null
                             ) {
                                 picked = key
+                                saveInteractionResponse(context, id, key)
                                 onTrack(
                                     "clicked", mapOf(
                                         "interaction_type" to "reaction",
@@ -1856,6 +1983,19 @@ private fun CountdownInteraction(
     val numUnits = units.size
     val hasTitle = title.isNotEmpty()
 
+    // Celebrate once the countdown reaches zero — an Instagram-style confetti burst
+    // around the countdown box. `celebrated` ensures this fires exactly once even
+    // though `remaining` stays at 0 on every subsequent recomposition/tick.
+    val isFinished = endDate.isNotEmpty() && remaining <= 0L
+    var celebrated by remember(id) { mutableStateOf(false) }
+    var confettiTrigger by remember(id) { mutableIntStateOf(0) }
+    LaunchedEffect(isFinished) {
+        if (isFinished && !celebrated) {
+            celebrated = true
+            confettiTrigger++
+        }
+    }
+
     // ── Ratios (fixed; not backend-driven) — every internal dimension is expressed
     // as a multiple of `digitSize`, then `digitSize` itself is solved below from this
     // interaction's own measured width/height so the assembled row of digit cells +
@@ -1878,7 +2018,7 @@ private fun CountdownInteraction(
         val w = maxWidth
         val h = maxHeight
 
-        val containerRadius = minOf(w, h) * 0.08f
+        val containerRadius = styling.borderRadiusDp(scope, minOf(w, h) * 0.08f)
         val padding = minOf(w, h) * 0.1f
         val titleRowGap = padding * 0.5f
 
@@ -1930,10 +2070,13 @@ private fun CountdownInteraction(
                 // Title — left-aligned (matches React alignItems: 'flex-start')
                 if (hasTitle) {
                     BasicTextWrap(
-                        modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 8.dp),
+                        modifier = Modifier
+                            .padding(start = 8.dp, end = 8.dp, top = 8.dp)
+                            .fillMaxWidth(),
                         text = title,
                         color = titleColor,
                         fontSizeSp = with(density) { titleSize.toSp() },
+                        lineHeight = with(density) { (titleSize * 1.25f).toSp() },
                         fontWeight = FontWeight(800)
                     )
                 }
@@ -1979,6 +2122,9 @@ private fun CountdownInteraction(
                 }
             }
         }
+
+        // Instagram-style confetti burst around the countdown once it hits zero.
+        CountdownConfettiBurst(trigger = confettiTrigger, boxWidth = w, boxHeight = h)
     }
 }
 
@@ -2035,6 +2181,135 @@ private fun CountdownDigitCell(
     }
 }
 
+// ============================================================
+// COUNTDOWN — confetti burst (plays once, when the countdown hits zero)
+// ============================================================
+
+private data class ConfettiPiece(
+    val id: Long = System.nanoTime() + (0..1_000_000).random(),
+    val startXFraction: Float,   // 0f..1f across the confetti canvas width
+    val color: Color,
+    val sizeDp: Dp,
+    val delayMs: Int,
+    val fallDurationMs: Int,
+    val driftPx: Float,
+    val rotationDegrees: Float
+)
+
+/**
+ * A short-lived confetti burst rendered "around" the countdown box, matching the
+ * Instagram-style celebration when a countdown finishes. `trigger` is bumped
+ * exactly once (by the caller) the moment the countdown hits zero; `key(trigger)`
+ * below restarts the whole burst if it's ever bumped again. The overlay is sized
+ * larger than the countdown's own box and offset outward on every side — the
+ * parent wrapper Box (StorySlideContent) doesn't clip its children, so this is
+ * free to render beyond the interaction's own assigned bounds, same overflow
+ * pattern used elsewhere in this file (Input's Send button, Quiz's explanation).
+ */
+@Composable
+private fun CountdownConfettiBurst(
+    trigger: Int,
+    boxWidth: Dp,
+    boxHeight: Dp
+) {
+    if (trigger <= 0) return
+    key(trigger) {
+        val confettiColors = remember {
+            listOf(
+                Color(0xFFFF3B30), Color(0xFFFFCC00), Color(0xFF34C759),
+                Color(0xFF007AFF), Color(0xFFAF52DE), Color(0xFFFF9500), Color(0xFFFF2D55)
+            )
+        }
+        val pieceCount = 32
+        val pieces = remember(trigger) {
+            List(pieceCount) {
+                ConfettiPiece(
+                    startXFraction = (0..100).random() / 100f,
+                    color = confettiColors.random(),
+                    sizeDp = (5..10).random().dp,
+                    delayMs = (0..220).random(),
+                    fallDurationMs = (1000..1700).random(),
+                    driftPx = (-90..90).random().toFloat(),
+                    rotationDegrees = (360..1080).random().toFloat() * (if ((0..1).random() == 0) 1f else -1f)
+                )
+            }
+        }
+        var visible by remember(trigger) { mutableStateOf(true) }
+        LaunchedEffect(trigger) {
+            delay(2000L)
+            visible = false
+        }
+
+        if (visible) {
+            val overlayWidth = boxWidth * 1.3f
+            val overlayHeight = boxHeight * 2.1f
+            Box(
+                modifier = Modifier
+                    .offset(x = -boxWidth * 0.15f, y = -boxHeight * 0.7f)
+                    .size(width = overlayWidth, height = overlayHeight)
+            ) {
+                pieces.forEach { piece ->
+                    key(piece.id) {
+                        ConfettiPieceView(
+                            piece = piece,
+                            canvasWidth = overlayWidth,
+                            canvasHeight = overlayHeight
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ConfettiPieceView(piece: ConfettiPiece, canvasWidth: Dp, canvasHeight: Dp) {
+    val translateY = remember { Animatable(0f) }
+    val translateX = remember { Animatable(0f) }
+    val rotation = remember { Animatable(0f) }
+    val alpha = remember { Animatable(1f) }
+    val density = LocalDensity.current
+
+    LaunchedEffect(piece.id) {
+        val fallDistancePx = with(density) { canvasHeight.toPx() }
+        delay(piece.delayMs.toLong())
+        launch {
+            translateY.animateTo(
+                fallDistancePx,
+                animationSpec = tween(piece.fallDurationMs, easing = LinearOutSlowInEasing)
+            )
+        }
+        launch {
+            translateX.animateTo(
+                piece.driftPx,
+                animationSpec = tween(piece.fallDurationMs, easing = FastOutSlowInEasing)
+            )
+        }
+        launch {
+            rotation.animateTo(
+                piece.rotationDegrees,
+                animationSpec = tween(piece.fallDurationMs, easing = LinearEasing)
+            )
+        }
+        launch {
+            delay((piece.fallDurationMs * 0.6f).toLong())
+            alpha.animateTo(0f, animationSpec = tween((piece.fallDurationMs * 0.4f).toInt()))
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .offset(x = canvasWidth * piece.startXFraction, y = 0.dp)
+            .offset { IntOffset(translateX.value.roundToInt(), translateY.value.roundToInt()) }
+            .size(piece.sizeDp)
+            .graphicsLayer {
+                rotationZ = rotation.value
+                this.alpha = alpha.value
+            }
+            .background(piece.color, RoundedCornerShape(1.dp))
+    )
+}
+
 @SuppressLint("UnusedBoxWithConstraintsScope")
 @Composable
 private fun PromoInteraction(
@@ -2087,7 +2362,7 @@ private fun PromoInteraction(
         val h = maxHeight
 
         val borderRadiusDp =
-            minOf(w, h) * 0.11f   // TicketShape clamps it to minOf(w,h)/4 internally
+            styling.borderRadiusDp(scope, minOf(w, h) * 0.11f)   // TicketShape clamps it to minOf(w,h)/4 internally
         val notchRadiusDp = h * 0.18f
         val iconSizeDp = h * 0.38f
         val copyIconSizeDp = h * 0.32f
@@ -2335,8 +2610,10 @@ private fun InputInteraction(
     val inputTextColor = styling.color("inputTextColor") ?: Color(0xFF9CA3AF)
     val submitBg = styling.color("submitBackground") ?: Color(0xFFF97316)
 
-    var value by remember(id) { mutableStateOf("") }
-    var submitted by remember(id) { mutableStateOf(false) }
+    val context = LocalContext.current
+    val persistedValue = remember(id) { loadInteractionResponse(context, id) }
+    var value by remember(id) { mutableStateOf(persistedValue ?: "") }
+    var submitted by remember(id) { mutableStateOf(persistedValue != null) }
     val keyboard = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
     val density = LocalDensity.current
@@ -2375,7 +2652,7 @@ private fun InputInteraction(
         val interactionHeight = maxHeight
         val h = interactionHeight
 
-        val borderRadius = minOf(w, h) * 0.12f
+        val borderRadius = styling.borderRadiusDp(scope, minOf(w, h) * 0.12f)
         val padding = minOf(w, h) * 0.1f
         val optionRadius = minOf(w, h) * 0.09f
         val titleSize = minOf(h * 0.19f, w * 0.08f)
@@ -2522,6 +2799,7 @@ private fun InputInteraction(
                     onClick = {
                         if (!submitted) {
                             submitted = true
+                            saveInteractionResponse(context, id, value)
                             keyboard?.hide()
                             focusManager.clearFocus()
                             onFocusChanged(false)
@@ -2567,6 +2845,7 @@ private fun BasicTextWrap(
     align: TextAlign = TextAlign.Start,
     maxLines: Int = Int.MAX_VALUE,
     overflow: TextOverflow = TextOverflow.Clip,
+    lineHeight: androidx.compose.ui.unit.TextUnit = androidx.compose.ui.unit.TextUnit.Unspecified,
     modifier: Modifier = Modifier
 ) {
     androidx.compose.material3.Text(
@@ -2575,6 +2854,7 @@ private fun BasicTextWrap(
         fontSize = fontSizeSp,
         fontWeight = fontWeight,
         textAlign = align,
+        lineHeight = lineHeight,
         modifier = modifier,
         maxLines = maxLines,
         overflow = overflow

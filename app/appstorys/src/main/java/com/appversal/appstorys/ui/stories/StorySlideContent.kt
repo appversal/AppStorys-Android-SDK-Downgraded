@@ -3,6 +3,12 @@ package com.appversal.appstorys.ui.stories
 import android.annotation.SuppressLint
 import android.util.Log
 import android.view.ViewGroup
+import androidx.compose.animation.core.EaseInOut
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -73,13 +79,15 @@ import com.appversal.appstorys.api.StorySlideBackground
 import com.appversal.appstorys.api.StoryTextStyling
 import com.appversal.appstorys.utils.VideoCache
 import com.appversal.appstorys.utils.FontCache
+import com.appversal.appstorys.utils.isLottieUrl
+import com.airbnb.lottie.compose.LottieAnimation
+import com.airbnb.lottie.compose.LottieCompositionSpec
+import com.airbnb.lottie.compose.LottieConstants
+import com.airbnb.lottie.compose.rememberLottieComposition
 import androidx.core.net.toUri
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.ui.graphics.asComposePath
-import androidx.compose.ui.graphics.drawscope.Fill
-import androidx.compose.ui.graphics.drawscope.Stroke as DrawStroke
+import com.appversal.appstorys.api.StoryAnimation
 import kotlinx.serialization.json.JsonElement
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
@@ -346,19 +354,31 @@ private fun ForegroundImage(
     val scaleX = if (flipH) -1f else 1f
     val scaleY = if (flipV) -1f else 1f
 
-    Image(
-        painter = rememberAsyncImagePainter(url),
-        contentDescription = null,
-        contentScale = ContentScale.Crop,
-        modifier = Modifier
-            .offset(x = scope.xPctDp(x), y = scope.yPctDp(y))
-            .size(width = scope.widthPctDp(w), height = scope.heightPctDp(h))
-            .rotate(rotation)
-            .scale(scaleX = scaleX, scaleY = scaleY)
-            .clip(RoundedCornerShape(scope.heightPctDp(radius)))   // was sizeDp
-            .alpha(opacity)
-            .studioElementAnimation(style?.animation, style?.duration, currentTime)
-    )
+    val imgModifier = Modifier
+        .offset(x = scope.xPctDp(x), y = scope.yPctDp(y))
+        .size(width = scope.widthPctDp(w), height = scope.heightPctDp(h))
+        .rotate(rotation)
+        .scale(scaleX = scaleX, scaleY = scaleY)
+        .clip(RoundedCornerShape(scope.heightPctDp(radius)))   // was sizeDp
+        .alpha(opacity)
+        .studioElementAnimation(style?.animation, style?.duration, currentTime)
+
+    if (isLottieUrl(url)) {
+        val composition by rememberLottieComposition(spec = LottieCompositionSpec.Url(url))
+        LottieAnimation(
+            composition = composition,
+            iterations = LottieConstants.IterateForever,
+            contentScale = ContentScale.Crop,
+            modifier = imgModifier
+        )
+    } else {
+        Image(
+            painter = rememberAsyncImagePainter(url),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = imgModifier
+        )
+    }
 }
 
 // =====================================================================
@@ -611,19 +631,41 @@ private fun ForegroundCta(
             // Outer container is fully transparent — no background at this level, ever.
             // The gray "bg" fill applies ONLY to the pill below; the arrow sits on the
             // plain slide background above it, matching the reference look.
-            //
-            // rememberUpdatedState so the long-running gesture-detector coroutines
-            // below always call the latest onClick, even though pointerInput itself
-            // is keyed on Unit (started once) rather than restarted every recomposition.
             val currentOnClick = rememberUpdatedState(onClick)
             // Minimum upward drag distance before a swipe counts as "swipe up".
             val swipeUpThresholdPx = with(density) { 24.dp.toPx() }
+
+            // Swipe-up CTAs animate by default: whole element bobs (shared "bounce") AND the
+            // chevron stretches vertically (scaleY 1.0 → 1.10) in lockstep. A configured
+            // animation wins and skips the pulse.
+            val configuredAnimationType = style?.animation?.type?.trim()?.lowercase()
+            val useDefaultBounce =
+                configuredAnimationType.isNullOrEmpty() || configuredAnimationType == "none"
+            val swipeUpAnimation: StoryAnimation = style?.animation
+                ?.takeUnless { it.type.isNullOrBlank() || it.type?.trim()?.lowercase() == "none" }
+                ?: StoryAnimation(type = "bounce")
+
+            // Chevron vertical pulse — same 550ms / easeInOut / autoreverse timing as the
+            // bounce, starting from 1.0, so the arrow is tallest at the top of the bob and
+            // 1.0x at the bottom: vertical stretch and upward movement stay in phase.
+            val chevronPulse = rememberInfiniteTransition(label = "swipeUpChevronPulse")
+            val chevronScaleRaw by chevronPulse.animateFloat(
+                initialValue = 0.5f,
+                targetValue = 0.8f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(durationMillis = 550, easing = EaseInOut),
+                    repeatMode = RepeatMode.Reverse,
+                ),
+                label = "swipeUpChevronScale",
+            )
+            val chevronScale = if (useDefaultBounce) chevronScaleRaw else 1f
+
             val swipeUpModifier = Modifier
                 .offset(x = scope.xPctDp(x), y = scope.yPctDp(y))
                 .size(width = scope.widthPctDp(w), height = scope.heightPctDp(h))
                 .rotate(rotation)
                 .alpha(opacity)
-                .studioElementAnimation(style?.animation, duration = null, currentTime = currentTime)
+                .studioElementAnimation(swipeUpAnimation, duration = null, currentTime = currentTime)
                 .pointerInput(Unit) {
                     coroutineScope {
                         // Tap → same as a regular CTA click.
@@ -634,14 +676,31 @@ private fun ForegroundCta(
                         // "swipe up" affordance shown to the user.
                         launch {
                             var totalDragY = 0f
+                            var hasTriggered = false
                             detectVerticalDragGestures(
-                                onDragStart = { totalDragY = 0f },
+                                onDragStart = {
+                                    totalDragY = 0f
+                                    hasTriggered = false
+                                },
                                 onVerticalDrag = { change, dragAmount ->
                                     totalDragY += dragAmount
                                     change.consume()
+                                    // Fire the moment the threshold is crossed, rather than
+                                    // waiting for lift-off. A real swipe often decelerates
+                                    // (and sometimes drifts back down a little) right before
+                                    // the finger leaves the screen — checking only at
+                                    // onDragEnd can miss a perfectly good swipe-up because
+                                    // totalDragY dips back under threshold in that last frame.
+                                    if (!hasTriggered && totalDragY < -swipeUpThresholdPx) {
+                                        hasTriggered = true
+                                        currentOnClick.value()
+                                    }
                                 },
                                 onDragEnd = {
-                                    if (totalDragY < -swipeUpThresholdPx) {
+                                    // Fallback: covers a very fast/low-sample-rate swipe where
+                                    // no intermediate onVerticalDrag frame happened to land past
+                                    // the threshold, but the net movement still cleared it.
+                                    if (!hasTriggered && totalDragY < -swipeUpThresholdPx) {
                                         currentOnClick.value()
                                     }
                                 }
@@ -650,10 +709,7 @@ private fun ForegroundCta(
                     }
                 }
 
-            // pillH (0–100) now describes how the TOTAL element height (h) splits between
-            // the pill and the arrow above it — not a fraction of some already-fixed pill
-            // box. Coerced so neither the arrow nor the pill can ever collapse to zero.
-            val pillHeightFraction = ((56f) / 100f).coerceIn(0.3f, 0.9f)
+            val pillHeightFraction = ((62f) / 100f).coerceIn(0.3f, 0.9f)
             val arrowColor = parseStoryColorElement(style?.arrowColor) ?: textColor
 
             androidx.compose.foundation.layout.Column(
@@ -661,10 +717,7 @@ private fun ForegroundCta(
                 horizontalAlignment  = Alignment.CenterHorizontally,
                 verticalArrangement  = androidx.compose.foundation.layout.Arrangement.Bottom
             ) {
-                // ── Chevron arrow — reserved space is whatever's left after the pill's
-                // share, drawn as a thin open stroke (not a filled glyph) so it reads as
-                // an outline "^" regardless of color or scale. No background, no pill —
-                // it floats directly on the slide behind it. ──
+                // ── Chevron arrow ──
                 androidx.compose.foundation.layout.Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -675,10 +728,12 @@ private fun ForegroundCta(
                         scope.fontPctDp(style?.arrowSize ?: 2.08f).coerceAtLeast(10.dp)
                     }
                     val chevronWidth = chevronHeight * 1.9f
-                    val strokeWidthPx = with(density) { chevronHeight.toPx() } * 0.16f
+                    val strokeWidthPx = with(density) { chevronHeight.toPx() } * 0.3f
 
                     androidx.compose.foundation.Canvas(
-                        modifier = Modifier.size(chevronWidth, chevronHeight)
+                        modifier = Modifier
+                            .size(chevronWidth, chevronHeight)
+                            .scale(scaleX = 1f, scaleY = chevronScale)   // ← vertical-only stretch
                     ) {
                         val path = androidx.compose.ui.graphics.Path().apply {
                             moveTo(0f, size.height)
@@ -697,13 +752,12 @@ private fun ForegroundCta(
                     }
                 }
 
-                // ── Pill — contains ONLY the CTA text now. Background (or transparency)
-                // is applied exclusively here, never on the outer container. ──
+                // ── Pill (text only) — NOT scaled ──
                 androidx.compose.foundation.layout.Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(pillHeightFraction)
-                        .clip(RoundedCornerShape(50))          // pill shape
+                        .clip(RoundedCornerShape(50))
                         .background(if (transparent) Color.Transparent else bg),
                     contentAlignment = Alignment.Center
                 ) {
@@ -795,60 +849,16 @@ private fun ForegroundElement(
             )
         }
         "shape" -> {
-            val fillColor   = parseStoryColorElement(style?.color ?: el.fill)   ?: Color.Transparent
-            val strokeColor = parseStoryColorElement(style?.strokeColor ?: el.stroke) ?: Color.Transparent
-            // strokeWidth in JSON is fraction of the 100×100 SVG viewBox;
-            // scale it relative to element size in px for Canvas drawing.
-            val svgStrokeW  = style?.strokeWidth ?: el.strokeWidth ?: 0f
-            val svgPath     = el.svgPath
-
-            if (!svgPath.isNullOrEmpty()) {
-                // Primary: render via parsed SVG path on Canvas — faithful to the
-                // dashboard's exact shape with correct fill + stroke colours.
-                Canvas(modifier = baseModifier) {
-                    val androidPath: android.graphics.Path? = runCatching {
-                        androidx.core.graphics.PathParser.createPathFromPathData(svgPath)
-                    }.getOrNull()
-
-                    if (androidPath != null) {
-                        // SVG paths are authored in a 100×100 viewBox; scale to canvas px.
-                        val matrix = android.graphics.Matrix()
-                        matrix.setScale(size.width / 100f, size.height / 100f)
-                        androidPath.transform(matrix)
-                        val composePath = androidPath.asComposePath()
-
-                        if (fillColor != Color.Transparent) {
-                            drawPath(composePath, fillColor)
-                        }
-                        if (strokeColor != Color.Transparent && svgStrokeW > 0f) {
-                            // Scale stroke: svgStrokeW is in 0-100 SVG units → px
-                            val strokePx = svgStrokeW * (minOf(size.width, size.height) / 100f)
-                                .coerceAtLeast(0.5f * density)
-                            drawPath(
-                                composePath,
-                                strokeColor,
-                                style = DrawStroke(width = strokePx)
-                            )
-                        }
-                    } else {
-                        // PathParser failed — solid box fallback
-                        drawRect(if (fillColor != Color.Transparent) fillColor else strokeColor)
-                    }
-                }
-            } else {
-                // No svgPath — try URL (requires Coil-SVG dependency), then solid box
-                val img = el.url
-                if (!img.isNullOrEmpty()) {
-                    Image(
-                        painter = rememberAsyncImagePainter(img),
-                        contentDescription = null,
-                        contentScale = ContentScale.Fit,
-                        modifier = baseModifier
-                    )
-                } else {
-                    val cr = scope.sizeDp(style?.cornerRadius ?: el.cornerRadius ?: 0f)
-                    Box(modifier = baseModifier.clip(RoundedCornerShape(cr)).background(fillColor))
-                }
+            // Shapes are rendered exactly as authored via their SVG url — no fill/stroke
+            // colour fields are mapped, so the shape's own colouring is preserved as-is.
+            val img = el.url
+            if (!img.isNullOrEmpty()) {
+                Image(
+                    painter = rememberAsyncImagePainter(img),
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = baseModifier
+                )
             }
         }
         else -> {

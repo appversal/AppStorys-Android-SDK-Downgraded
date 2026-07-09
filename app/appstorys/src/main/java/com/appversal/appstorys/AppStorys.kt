@@ -152,6 +152,9 @@ import org.json.JSONObject
 import kotlin.collections.plus
 import kotlin.toString
 import com.appversal.appstorys.notifications.OutreachEventTracker
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.time.Duration.Companion.milliseconds
 
 object AppStorys {
     private lateinit var context: Application
@@ -241,6 +244,8 @@ object AppStorys {
 
     private const val KEY_NOTIF_REACHABILITY = "notif_reachability_enabled"
     private const val OUTREACH_CHANNEL_ID = "appstorys_outreach"
+
+    private val subscribeSyncDeferred = CompletableDeferred<Unit>()
 
     private fun generateAnonymousUserId(): String {
         val timestamp = System.currentTimeMillis()
@@ -624,18 +629,21 @@ object AppStorys {
             }
             Log.d("AppStorys", "setFirebaseToken: updating device_push_token")
 
-            // 2. New flow — make sure the outreach access token is cached.
-            //    No-op if we already have one (cached from a previous session,
-            //    valid for ~30 days unless the server rejects it).
+            // Cache locally right away — no gating, no network. This is what lets
+            // subscribeNotificationsInternal() find a token to put in subscribe-fcm's
+            // body, even on a fresh install where this is the very first call ever.
+            if (::context.isInitialized) {
+                OutreachEventTracker.cacheDeviceTokenLocally(context, userId, fcmToken)
+            }
+
             coroutineScope.launch {
                 try {
                     if (!::context.isInitialized) {
-                        Log.w("AppStorys", "setFirebaseToken: context not ready, skipping")
+                        Log.w("AppStores", "setFirebaseToken: context not ready, skipping")
                         return@launch
                     }
-                    // Persist + best-effort register. Safe to call even if userId is blank
-                    // or the SDK access token isn't cached yet — the tracker will defer
-                    // the network call and replay once initialize() completes.
+                    // Only the network registration waits for subscribe-fcm's first pass.
+                    withTimeoutOrNull(5_000.milliseconds) { subscribeSyncDeferred.await() }
                     OutreachEventTracker.ensureAccessToken(context, userId, fcmToken)
                 } catch (e: Exception) {
                     Log.e("AppStorys", "Outreach ensureAccessToken failed: ${e.message}", e)
@@ -726,57 +734,72 @@ object AppStorys {
     }
 
     fun subscribeNotifications() {
-        coroutineScope.launch {
-            if (userId.isBlank() || !checkIfInitialized()) {
-                Log.e(
-                    "AppStorys",
-                    "Cannot subscribe to notifications: SDK not initialized or user ID not available"
+        coroutineScope.launch { subscribeNotificationsInternal() }
+    }
+
+    private suspend fun subscribeNotificationsInternal(): Boolean {
+        if (userId.isBlank() || !checkIfInitialized()) {
+            Log.e(
+                "AppStorys",
+                "Cannot subscribe to notifications: SDK not initialized or user ID not available"
+            )
+            return false
+        }
+
+        val currentFcmToken = OutreachEventTracker.getCachedDeviceToken(context)
+
+        val result = safeApiCall {
+            webSocketService.subscribeFcm(
+                token = "Bearer $accessToken",
+                request = FcmSubscriptionRequest(
+                    user_id = userId,
+                    device_push_token = currentFcmToken?.takeIf { it.isNotBlank() }
                 )
-                return@launch
+            )
+        }
+
+        return when (result) {
+            is ApiResult.Success -> {
+                Log.i("AppStorys", "Subscribed to notifications successfully for user: $userId")
+                true
             }
 
-            val result = safeApiCall {
-                webSocketService.subscribeFcm(
-                    token = "Bearer $accessToken",
-                    request = FcmSubscriptionRequest(user_id = userId)
-                )
-            }
-
-            when (result) {
-                is ApiResult.Success -> {
-                    Log.i("AppStorys", "Subscribed to notifications successfully for user: $userId")
-                }
-                is ApiResult.Error -> {
-                    Log.e("AppStorys", "Error subscribing to notifications: ${result.message}")
-                }
+            is ApiResult.Error -> {
+                Log.e("AppStorys", "Error subscribing to notifications: ${result.message}")
+                false
             }
         }
     }
 
     fun unsubscribeNotifications() {
-        coroutineScope.launch {
-            if (userId.isBlank() || !checkIfInitialized()) {
-                Log.e(
-                    "AppStorys",
-                    "Cannot unsubscribe from notifications: SDK not initialized or user ID not available"
-                )
-                return@launch
+        coroutineScope.launch { unsubscribeNotificationsInternal() }
+    }
+
+    private suspend fun unsubscribeNotificationsInternal(): Boolean {
+        if (userId.isBlank() || !checkIfInitialized()) {
+            Log.e(
+                "AppStorys",
+                "Cannot unsubscribe from notifications: SDK not initialized or user ID not available"
+            )
+            return false
+        }
+
+        val result = safeApiCall {
+            webSocketService.unsubscribeFcm(
+                token = "Bearer $accessToken",
+                request = FcmSubscriptionRequest(user_id = userId)
+            )
+        }
+
+        return when (result) {
+            is ApiResult.Success -> {
+                Log.i("AppStorys", "Unsubscribed from notifications successfully for user: $userId")
+                true
             }
 
-            val result = safeApiCall {
-                webSocketService.unsubscribeFcm(
-                    token = "Bearer $accessToken",
-                    request = FcmSubscriptionRequest(user_id = userId)
-                )
-            }
-
-            when (result) {
-                is ApiResult.Success -> {
-                    Log.i("AppStorys", "Unsubscribed from notifications successfully for user: $userId")
-                }
-                is ApiResult.Error -> {
-                    Log.e("AppStorys", "Error unsubscribing from notifications: ${result.message}")
-                }
+            is ApiResult.Error -> {
+                Log.e("AppStorys", "Error unsubscribing from notifications: ${result.message}")
+                false
             }
         }
     }
@@ -795,15 +818,13 @@ object AppStorys {
 
     private fun syncNotificationReachability() {
         coroutineScope.launch {
-            try {
-                // Only run once we can actually reach the backend. If not ready yet,
-                // the post-init hook (or the next foreground) will run this.
-                if (!::context.isInitialized) return@launch
-                if (userId.isBlank() ||
-                    sdkState != AppStorysSdkState.Initialized ||
-                    accessToken.isBlank()
-                ) return@launch
+            if (!::context.isInitialized) return@launch
+            if (userId.isBlank() ||
+                sdkState != AppStorysSdkState.Initialized ||
+                accessToken.isBlank()
+            ) return@launch   // not ready yet — deferred stays open, waiters keep waiting
 
+            try {
                 val enabled = currentNotificationsEnabled()
                 val prefs = context.getSharedPreferences("AppStory", Context.MODE_PRIVATE)
                 val last: Boolean? =
@@ -811,19 +832,46 @@ object AppStorys {
                         prefs.getBoolean(KEY_NOTIF_REACHABILITY, false)
                     else null
 
-                if (last == enabled) return@launch  // nothing changed since last sync
-
-                // Reuse the existing backend calls (subscribe-fcm / unsubscribe-fcm).
-                if (enabled) subscribeNotifications() else unsubscribeNotifications()
-
-                prefs.edit().putBoolean(KEY_NOTIF_REACHABILITY, enabled).apply()
-                Log.i(
-                    "AppStorys",
-                    "Notification reachability changed → enabled=$enabled " +
-                            "(was ${last ?: "unset"}); synced to backend"
-                )
+                if (last != enabled) {
+                    if (enabled) {
+                        val subscribed = subscribeNotificationsInternal()
+                        val currentFcmToken = OutreachEventTracker.getCachedDeviceToken(context)
+                        if (!currentFcmToken.isNullOrBlank()) {
+                            if (subscribed) {
+                                OutreachEventTracker.forceResyncDeviceToken(
+                                    context,
+                                    userId,
+                                    currentFcmToken
+                                )  // ← was ensureAccessToken
+                            } else {
+                                Log.w(
+                                    "AppStorys",
+                                    "subscribe-fcm failed — skipping device token resync"
+                                )
+                            }
+                        } else {
+                            Log.w(
+                                "AppStorys",
+                                "No cached fcm token on device — cannot resync after subscribe"
+                            )
+                        }
+                    } else {
+                        val unsubscribed = unsubscribeNotificationsInternal()
+                        if (unsubscribed) {
+                            OutreachEventTracker.invalidateOutreachToken(context)
+                        }
+                    }
+                    prefs.edit().putBoolean(KEY_NOTIF_REACHABILITY, enabled).apply()
+                    Log.i(
+                        "AppStorys",
+                        "Notification reachability changed → enabled=$enabled (was ${last ?: "unset"}); synced to backend"
+                    )
+                }
             } catch (e: Exception) {
                 Log.e("AppStorys", "syncNotificationReachability failed: ${e.message}", e)
+            } finally {
+                // First real pass this session is done (whatever the outcome) — release any setFirebaseToken() waiters.
+                subscribeSyncDeferred.complete(Unit)
             }
         }
     }
