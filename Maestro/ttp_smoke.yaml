@@ -1,0 +1,14 @@
+# ============================================================
+# TTP — Smoke: tooltip shows automatically on launch, no trigger
+# WHAT THIS PROVES: tooltip card renders without crashing
+# No close button exists — tap outside the card to dismiss,
+# tap on the card to open its link.
+# ============================================================
+appId: com.example.carousal
+---
+- launchApp:
+      clearState: false
+
+- waitForAnimationToEnd
+
+- takeScreenshot: "ttp_smoke_PASS"

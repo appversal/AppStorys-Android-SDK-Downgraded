@@ -1,0 +1,22 @@
+# ============================================================
+# BTS — Smoke: bottom sheet slides up after trigger
+# ============================================================
+appId: com.example.carousal
+---
+- launchApp:
+    clearState: false
+
+- waitForAnimationToEnd
+
+# BTS is usually triggered by an event or button — adjust as needed
+- tapOn:
+    text: "Open Bottom Sheet"
+
+- waitForAnimationToEnd
+
+# Bottom sheet has a CrossButton — "Close"
+- extendedWaitUntil:
+    visible: "Close"
+    timeout: 12000
+
+- takeScreenshot: "bts_smoke_PASS"

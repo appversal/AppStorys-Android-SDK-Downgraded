@@ -1,0 +1,52 @@
+# QA-tracker: "In poll it shows result even if it is off from studio"
+#
+# DASHBOARD SETUP (required before running):
+#   - STR campaign whose FIRST displayed slide has a POLL interaction
+#   - Poll has "Show results" = OFF
+#
+# PASS = after voting, NO percentage figures appear.
+# FAIL = percentages appear although results are off (the tracker bug).
+#
+# Run:
+#   maestro test bhv_str_poll_results_off.yaml ^
+#     -e GROUP_NAME="Group 1" -e OPTION_TEXT="YES"
+appId: com.example.carousal
+env:
+  GROUP_NAME: "Group 1"
+  OPTION_TEXT: "YES"
+---
+- launchApp:
+    stopApp: true
+    clearState: false
+
+- extendedWaitUntil:
+    visible: "${GROUP_NAME}"
+    timeout: 30000
+
+- tapOn:
+    text: "${GROUP_NAME}"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 2000
+
+- extendedWaitUntil:
+    visible: "${OPTION_TEXT}"
+    timeout: 4000
+- tapOn:
+    text: "${OPTION_TEXT}"
+    retryTapIfNoChange: false
+- takeScreenshot: "bhv_poll_off_01_voted"
+
+# THE CHECK: results are OFF, so no "NN%" may appear anywhere.
+# Text selectors are regexes — this matches any percentage figure.
+- extendedWaitUntil:
+    notVisible: "\\d+%"
+    timeout: 6000
+- takeScreenshot: "bhv_poll_off_02_no_results"
+
+- swipe:
+    start: "50%,40%"
+    end: "50%,90%"
+    duration: 300
+- extendedWaitUntil:
+    visible: "Parties"
+    timeout: 8000

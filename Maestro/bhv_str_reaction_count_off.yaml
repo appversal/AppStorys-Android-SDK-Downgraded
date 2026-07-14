@@ -1,0 +1,57 @@
+# QA-tracker: "Reaction count shows always even if it is off from studio"
+#
+# DASHBOARD SETUP (required before running):
+#   - STR campaign whose FIRST displayed slide has a REACTION interaction
+#   - Reaction has "Show count" = OFF
+#   - React once first (manually or via a previous run) so a non-zero
+#     count EXISTS server-side — otherwise "no count shown" proves nothing
+#
+# PASS = after reacting, no bare count figure appears next to the emoji.
+# FAIL = a count appears although it is off (the tracker bug).
+#
+# COUNT_REGEX matches a standalone 1-4 digit number (the count label).
+# If the slide legitimately shows other standalone numbers, tighten it.
+#
+# Run:
+#   maestro test bhv_str_reaction_count_off.yaml ^
+#     -e GROUP_NAME="Group 1" -e EMOJI_TEXT="🔥"
+appId: com.example.carousal
+env:
+  GROUP_NAME: "Group 1"
+  EMOJI_TEXT: "🔥"
+  COUNT_REGEX: "\\d{1,4}"
+---
+- launchApp:
+    stopApp: true
+    clearState: false
+
+- extendedWaitUntil:
+    visible: "${GROUP_NAME}"
+    timeout: 30000
+
+- tapOn:
+    text: "${GROUP_NAME}"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 2000
+
+- extendedWaitUntil:
+    visible: "${EMOJI_TEXT}"
+    timeout: 4000
+- tapOn:
+    text: "${EMOJI_TEXT}"
+    retryTapIfNoChange: false
+- takeScreenshot: "bhv_reaction_01_reacted"
+
+# THE CHECK: count is OFF — no standalone number may appear
+- extendedWaitUntil:
+    notVisible: "${COUNT_REGEX}"
+    timeout: 6000
+- takeScreenshot: "bhv_reaction_02_no_count"
+
+- swipe:
+    start: "50%,40%"
+    end: "50%,90%"
+    duration: 300
+- extendedWaitUntil:
+    visible: "Parties"
+    timeout: 8000

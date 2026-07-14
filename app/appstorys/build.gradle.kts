@@ -4,6 +4,33 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     id("maven-publish")
     id("kotlin-parcelize")
+    // QA: Paparazzi snapshot tests (Layer 3 of the AppStorys-QA pipeline)
+    id("app.cash.paparazzi") version "1.3.5"
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// QA pipeline build isolation — active ONLY when AppStorys-QA passes
+// -PqaRunId=<id>. Android Studio, `./gradlew assembleRelease`, JitPack and
+// every publish task never pass it, so they keep building into build/ exactly
+// as before. Nothing about the shipped SDK changes; this only moves where
+// intermediate files land on the local disk.
+//
+// Why it exists: the QA pipeline, the IDE's background indexer and Windows
+// Defender all read/write app/appstorys/build/. On Windows one open handle is
+// enough to make Gradle's own output cleanup fail with
+//   "Unable to delete directory ...\build\tmp\kotlin-classes\debug"
+// which killed compileDebugKotlin before a single snapshot was ever rendered.
+// Giving the pipeline a private build root removes the contention entirely,
+// on any machine, with no admin rights and no IDE babysitting.
+//
+// WARNING: never pass -PqaRunId to a publish task — the AAR would then be
+// assembled out of build-qa/ instead of build/.
+// This must run before the android { } block: AGP reads buildDirectory during
+// configuration.
+// ─────────────────────────────────────────────────────────────────────────────
+val qaRunId = providers.gradleProperty("qaRunId")
+if (qaRunId.isPresent) {
+    layout.buildDirectory.set(layout.projectDirectory.dir("build-qa"))
 }
 
 android {
@@ -77,6 +104,14 @@ dependencies {
     implementation(libs.androidx.media3.exoplayer.dash)
     implementation(libs.androidx.media3.exoplayer.hls)
     implementation(libs.androidx.glance.preview)
+
+    // QA: Paparazzi test suite (Layer 3)
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("io.coil-kt:coil-test:2.6.0")
+    // Dispatchers.setMain(Unconfined) in screenshot tests — Coil's
+    // AsyncImagePainter otherwise parks on the main dispatcher queue and
+    // Paparazzi renders its single frame before the image ever delivers.
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
 }
 
 afterEvaluate {
@@ -89,5 +124,25 @@ afterEvaluate {
                 version = "3.7.2"
             }
         }
+    }
+}
+
+// Second half of the QA-only block (see the buildDirectory redirect above).
+// Each pipeline run writes its test results to a fresh qa-<runId> directory,
+// so even inside build-qa/ nothing contested ever needs deleting.
+if (qaRunId.isPresent) {
+    val runDir = "test-results/qa-${qaRunId.get()}"
+    tasks.withType<Test>().configureEach {
+        binaryResultsDirectory.set(layout.buildDirectory.dir("$runDir/binary"))
+        reports.junitXml.outputLocation.set(layout.buildDirectory.dir("$runDir/xml"))
+        // Paparazzi 1.3.5's PaparazziTestReporter calls a Gradle internal
+        // (org.gradle.api.internal.tasks.testing.junit.result.TestFailure)
+        // that no longer exists in Gradle 8.13. It only runs while building
+        // the HTML test report, so whenever a snapshot genuinely differed the
+        // real failure was replaced by a bogus "NoClassDefFoundError" and the
+        // tester had no idea which snapshot broke. The pipeline reads the
+        // failure PNGs, never this report, so turning it off costs nothing.
+        reports.html.required.set(false)
+        reports.html.outputLocation.set(layout.buildDirectory.dir("reports/tests/qa-${qaRunId.get()}"))
     }
 }

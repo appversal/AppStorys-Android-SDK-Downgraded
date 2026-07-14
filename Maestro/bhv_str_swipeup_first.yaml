@@ -1,0 +1,60 @@
+# QA-tracker: "Swipe Up CTA Button Redirecting on Second Time Swipe up"
+#
+# DASHBOARD SETUP (required before running):
+#   - STR campaign whose FIRST displayed slide has a swipe-up CTA
+#     (studio CTA type "swipe_up" with a redirect URL)
+#   - SLIDE_TEXT below = any text element visible on that same slide
+#     (used to detect that the viewer left the screen after the redirect)
+#
+# PASS = ONE swipe-up leaves the story viewer (external browser/redirect
+#        opened, so the slide's text is gone).
+# FAIL = slide text still visible after the first swipe — redirect only
+#        fires on the second swipe (the tracker bug).
+#
+# Run:
+#   maestro test bhv_str_swipeup_first.yaml ^
+#     -e GROUP_NAME="Group 1" -e SLIDE_TEXT="Heading"
+appId: com.example.carousal
+env:
+  GROUP_NAME: "Group 1"
+  SLIDE_TEXT: "Heading"
+---
+- launchApp:
+    stopApp: true
+    clearState: false
+
+- extendedWaitUntil:
+    visible: "${GROUP_NAME}"
+    timeout: 30000
+
+- tapOn:
+    text: "${GROUP_NAME}"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 2000
+
+- extendedWaitUntil:
+    visible: "${SLIDE_TEXT}"
+    timeout: 4000
+- takeScreenshot: "bhv_swipeup_01_slide_open"
+
+# THE ACTION: exactly ONE swipe-up on the CTA area
+- swipe:
+    start: "50%,80%"
+    end: "50%,30%"
+    duration: 300
+
+# THE CHECK: redirect must have fired on the FIRST swipe — the slide's
+# own text must no longer be on screen (browser/redirect took over)
+- extendedWaitUntil:
+    notVisible: "${SLIDE_TEXT}"
+    timeout: 5000
+- takeScreenshot: "bhv_swipeup_02_redirected"
+
+# Return from the external browser (back here is safe — we are outside
+# the viewer; the in-app BackHandler crash only applies inside it)
+- pressKey: back
+- extendedWaitUntil:
+    visible: "Parties"
+    timeout: 10000
+    optional: true
+- takeScreenshot: "bhv_swipeup_03_back_in_app"

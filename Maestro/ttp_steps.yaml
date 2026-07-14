@@ -1,0 +1,28 @@
+# ============================================================
+# TTP — Steps: advance through both tooltips by tapping outside
+# Tap outside the tooltip card -> dismisses current, advances to next
+# Tap on the tooltip card itself -> opens its link instead
+# ============================================================
+appId: com.example.carousal
+---
+- launchApp:
+      clearState: false
+
+- waitForAnimationToEnd
+
+- takeScreenshot: "ttp_step_1"
+
+# Tap far corner — outside tooltip card area — to advance
+- tapOn:
+      point: "5%,5%"
+
+- waitForAnimationToEnd
+
+- takeScreenshot: "ttp_step_2"
+
+- tapOn:
+      point: "5%,5%"
+
+- waitForAnimationToEnd
+
+- takeScreenshot: "ttp_steps_PASS"

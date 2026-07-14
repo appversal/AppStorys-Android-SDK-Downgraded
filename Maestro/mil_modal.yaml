@@ -1,0 +1,31 @@
+# ============================================================
+# MIL — Modal: tap streak banner → step detail modal opens
+# (only applies when showStreaksAs = "modals")
+# ============================================================
+appId: com.example.carousal
+---
+- launchApp:
+    clearState: false
+
+- waitForAnimationToEnd
+
+- takeScreenshot: "mil_banner_visible"
+
+# Tap streak banner area (~25% from top, full width)
+- tapOn:
+    point: "50%,28%"
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible: "Close"
+    timeout: 12000
+
+- takeScreenshot: "mil_modal_open"
+
+- tapOn:
+    text: "Close"
+
+- waitForAnimationToEnd
+
+- takeScreenshot: "mil_modal_PASS"

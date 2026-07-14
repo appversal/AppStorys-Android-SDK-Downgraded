@@ -1,0 +1,146 @@
+{
+  "button_text": "ZZZSENTINELZZZ.",
+  "crossButtonImage": null,
+  "height": 148,
+  "id": "09aba3e8-4a0e-439c-ada3-b205c4e0096a",
+  "large_video": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/pip/WhatsApp_Video_2026-06-04_at_5.34.21_PM.mp4",
+  "link": "https://google.com",
+  "maximiseImage": null,
+  "minimiseImage": null,
+  "muteImage": null,
+  "position": "right",
+  "small_video": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/pip/WhatsApp_Video_2026-06-04_at_5.34.21_PM.mp4",
+  "styling": {
+    "appearance": {
+      "defaultSound": "yes",
+      "pipHeight": "148",
+      "pipWidth": "98"
+    },
+    "crossButton": {
+      "color": {
+        "cross": "#FFFFFF",
+        "fill": "#000000",
+        "stroke": ""
+      },
+      "enabled": true,
+      "image": "",
+      "margin": {
+        "bottom": 4,
+        "left": 4,
+        "right": 4,
+        "top": 4
+      },
+      "selectedStyle": "cross3",
+      "size": 18
+    },
+    "cta": {
+      "container": {
+        "alignment": "center",
+        "backgroundColor": "#F7921C",
+        "borderColor": "#FE6B35",
+        "borderWidth": 2,
+        "ctaFullWidth": false,
+        "ctaWidth": 120,
+        "height": 50
+      },
+      "cornerRadius": {
+        "bottomLeft": 12,
+        "bottomRight": 12,
+        "topLeft": 12,
+        "topRight": 12
+      },
+      "margin": {
+        "bottom": 4,
+        "left": 4,
+        "right": 4,
+        "top": 4
+      },
+      "text": {
+        "color": "#FFFFFF",
+        "fontDecoration": [],
+        "fontFamily": "Helvetica",
+        "fontSize": 14
+      }
+    },
+    "expandControls": {
+      "enabled": true,
+      "maximise": {
+        "color": {
+          "cross": "#FFFFFF",
+          "fill": "#000000",
+          "stroke": ""
+        },
+        "image": "",
+        "margin": {
+          "bottom": 4,
+          "left": 4,
+          "right": 4,
+          "top": 4
+        },
+        "selectedStyle": "maximise3",
+        "size": 18
+      },
+      "minimise": {
+        "color": {
+          "cross": "#FFFFFF",
+          "fill": "#000000",
+          "stroke": ""
+        },
+        "image": "",
+        "margin": {
+          "bottom": 4,
+          "left": 4,
+          "right": 4,
+          "top": 4
+        },
+        "selectedStyle": "minimise3",
+        "size": 18
+      },
+      "option": "default"
+    },
+    "expandablePip": "yes",
+    "isMovable": true,
+    "pipBottomPadding": 0,
+    "pipTopPadding": 0,
+    "soundToggle": {
+      "defaultSound": "yes",
+      "enabled": true,
+      "mute": {
+        "color": {
+          "cross": "#FFFFFF",
+          "fill": "#000000",
+          "stroke": ""
+        },
+        "image": "",
+        "margin": {
+          "bottom": 4,
+          "left": 4,
+          "right": 4,
+          "top": 4
+        },
+        "selectedStyle": "mute3",
+        "size": 18
+      },
+      "option": "default",
+      "unmute": {
+        "color": {
+          "cross": "#FFFFFF",
+          "fill": "#000000",
+          "stroke": ""
+        },
+        "image": "",
+        "margin": {
+          "bottom": 4,
+          "left": 4,
+          "right": 4,
+          "top": 4
+        },
+        "selectedStyle": "unmute3",
+        "size": 18
+      }
+    },
+    "videoSelection": "same"
+  },
+  "unmuteImage": null,
+  "width": 98
+}

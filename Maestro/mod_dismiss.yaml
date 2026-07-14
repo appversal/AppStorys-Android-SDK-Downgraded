@@ -1,0 +1,24 @@
+# ============================================================
+# MOD — Dismiss: tap X → modal closes
+# ============================================================
+appId: com.example.carousal
+---
+- launchApp:
+    clearState: false
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible: "Close"
+    timeout: 12000
+
+- tapOn:
+    text: "Close"
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    notVisible: "Close"
+    timeout: 6000
+
+- takeScreenshot: "mod_dismiss_PASS"

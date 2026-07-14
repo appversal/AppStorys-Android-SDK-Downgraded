@@ -1,0 +1,27 @@
+# ============================================================
+# BEHAVIOR — Trigger: On Launch
+# DASHBOARD SETUP: Trigger tab → "On Launch"
+#                  Frequency → Unlimited (so re-runs are stable)
+#
+# HOW IT WORKS IN THE SDK:
+#   trigger_event is null/empty in campaigns.json →
+#   TriggerEventMatcher.shouldShowCampaign() returns true
+#   immediately → campaign renders as soon as the eligibility
+#   call (track-user-res) + campaigns.json fetch complete.
+#
+# TIMING: no fixed sleep — extendedWaitUntil polls for up to
+#   15s, which covers slow network fetch on first cold start.
+# ============================================================
+appId: com.example.carousal
+---
+- launchApp:
+    stopApp: true
+    clearState: false
+
+# Campaign must appear WITHOUT any user interaction
+- extendedWaitUntil:
+    visible:
+      text: "Close"
+    timeout: 15000
+
+- takeScreenshot: "bhv_onlaunch_PASS"

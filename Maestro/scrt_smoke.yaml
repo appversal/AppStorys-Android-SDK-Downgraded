@@ -1,0 +1,20 @@
+# ============================================================
+# SCRT — Smoke: scratch card modal appears after trigger event
+# ============================================================
+appId: com.example.carousal
+---
+- launchApp:
+    clearState: false
+
+- waitForAnimationToEnd
+
+- tapOn:
+    text: "Purchased Event"
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible: "Close"
+    timeout: 12000
+
+- takeScreenshot: "scrt_smoke_PASS"

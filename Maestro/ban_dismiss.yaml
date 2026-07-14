@@ -1,0 +1,51 @@
+# ============================================================
+# BAN — Dismiss: the cross button hides the banner
+#
+# WHAT THE SDK DOES (AppStorys.kt PinnedBanner + ui/PinnedBanner.kt):
+#   The banner is pinned with .align(Alignment.BottomCenter).fillMaxWidth().
+#   It renders a real CrossButton (contentDescription "Close") whenever
+#   `styling.crossButton.enabled` is not explicitly false:
+#       exitIcon = (style?.crossButton?.enabled ?: style?.enableCloseButton) != false
+#   Tapping it runs `exitUnit`, which appends the campaign id to
+#   disabledCampaigns — so the banner disappears for the rest of the session.
+#
+# This is the half of the old ban_interaction.yaml that is ALWAYS valid,
+# regardless of whether the campaign has a link. The CTA half moved to
+# ban_interaction.yaml, which Layer 4 skips when the banner has no link.
+#
+# NOTE ON "Close": several campaign types draw a cross with the same
+# contentDescription (PIP, MOD, BTS, ...). If one of those renders at the same
+# time as the banner, this selector is ambiguous. Keep only one such campaign
+# active while testing BAN.
+# ============================================================
+appId: com.example.carousal
+---
+- launchApp:
+    clearState: false
+
+- waitForAnimationToEnd
+
+# PROVE the banner rendered. Bounded: cold start must finish token ->
+# eligible campaigns -> campaigns.json -> image load first.
+- extendedWaitUntil:
+    visible: "Close"
+    timeout: 12000
+
+- takeScreenshot: "ban_01_visible"
+
+# Dismiss via the SDK's own cross button.
+- tapOn: "Close"
+
+- waitForAnimationToEnd
+
+# PROVE it is gone — exitUnit disabled the campaign.
+- extendedWaitUntil:
+    notVisible: "Close"
+    timeout: 6000
+
+# ...and the app is still alive behind it.
+- extendedWaitUntil:
+    visible: "Parties"
+    timeout: 8000
+
+- takeScreenshot: "ban_02_dismissed_PASS"

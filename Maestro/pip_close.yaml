@@ -1,0 +1,32 @@
+# ============================================================
+# PIP Dismiss — small card cross button closes the PIP
+# Campaign: PIP  (trigger = On Launch)
+
+# Real expand coverage lives in
+# pip_lifecycle.yaml / pip_interaction.yaml.
+# ============================================================
+appId: com.example.carousal
+---
+- launchApp:
+    clearState: false
+
+- waitForAnimationToEnd
+
+# PIP renders on launch -> cross button "Close" appears.
+- extendedWaitUntil:
+    visible: "Close"
+    timeout: 12000
+
+- takeScreenshot: "pip_before_expand"
+
+# Tap the cross button -> onClose hides the PIP.
+- tapOn: "Close"
+
+- waitForAnimationToEnd
+
+# PROVE it dismissed — "Close" is gone, app still alive.
+- extendedWaitUntil:
+    notVisible: "Close"
+    timeout: 6000
+
+- takeScreenshot: "pip_dismiss_PASS"

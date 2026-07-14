@@ -1,0 +1,87 @@
+# STR viewer — open a story group, navigate slides, dismiss.
+# Viewer mechanics (StoryComponents.kt):
+#   - tap right half  -> next slide      - tap left half -> previous slide
+#   - swipe down -> dismiss (ModalBottomSheet)
+#   - the group name appears BOTH under the circle and in the viewer header.
+#
+# TIMING (learned the hard way): slides auto-advance every slideShowTime
+# seconds (dashboard-configurable, can be 5s) and the viewer AUTO-CLOSES
+# after the last slide. Progress bars animate continuously, so
+# waitForAnimationToEnd inside the viewer blocks until its full timeout —
+# NEVER use it there. All viewer steps must run back-to-back, else the
+# viewer closes mid-flow and the half-screen taps land on the home screen
+# (and can open a widget link in Chrome).
+#
+# TAP POINTS: never hardcode them. Studio slides place CTAs at arbitrary
+# coordinates, and the old fixed "85%,50%" advance point sat inside a
+# "Shop Now" CTA on Group 1 slide 1 (x 77-115%, y 44-49%). Every run opened
+# https://example.com in Chrome, and the screenshot saved as
+# "str_03_next_slide" was a web page — a silent false pass. The pipeline now
+# computes ADVANCE_POINT / PREV_POINT from the live campaign geometry so the
+# tap lands where no CTA or interaction can swallow it. The values below are
+# fallbacks for manual runs only.
+appId: com.example.carousal
+env:
+  GROUP_NAME: "Group 1"
+  ADVANCE_POINT: "95%,70%"
+  PREV_POINT: "5%,70%"
+---
+- launchApp:
+    stopApp: true
+    clearState: false
+
+# Circles load after the SDK fetches campaigns — generous timeout: cold
+# launch refetches campaign JSON + slide media on possibly slow wifi.
+- extendedWaitUntil:
+    visible: "${GROUP_NAME}"
+    timeout: 30000
+- takeScreenshot: "str_01_circles"
+
+# One tap only: the viewer's ModalBottomSheet is slow to reach the
+# accessibility tree, so Maestro's default retry tap would land on the
+# now-open viewer and navigate it away.
+- tapOn:
+    text: "${GROUP_NAME}"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 2000
+
+# Viewer header shows the same group name
+- extendedWaitUntil:
+    visible: "${GROUP_NAME}"
+    timeout: 8000
+- takeScreenshot: "str_02_viewer_open"
+
+# Right-half tap -> next slide (immediately — racing auto-advance)
+- tapOn:
+    point: "${ADVANCE_POINT}"
+    retryTapIfNoChange: false
+
+# Still inside the viewer? If the tap hit a CTA instead of the advance zone,
+# the device is now in Chrome and every step below would be testing a web
+# page. Fail here, where the message is the truth, instead of three steps
+# later on something unrelated.
+- extendedWaitUntil:
+    visible: "${GROUP_NAME}"
+    timeout: 12000
+- takeScreenshot: "str_03_next_slide"
+
+# Left-half tap -> previous slide
+- tapOn:
+    point: "${PREV_POINT}"
+    retryTapIfNoChange: false
+
+# Dismiss via swipe-down. DO NOT use pressKey: back — SDK bug #6: the
+# overlayElements BackHandler recurses and CRASHES the app with
+# StackOverflowError when no back_press campaign is armed.
+# If the viewer already auto-closed, this swipe is a harmless scroll.
+- swipe:
+    start: "50%,40%"
+    end: "50%,90%"
+    duration: 300
+
+# Back on the home screen — assert the bottom nav (campaign-independent
+# anchor; the circles row may lag behind a refetch).
+- extendedWaitUntil:
+    visible: "Parties"
+    timeout: 8000
+- takeScreenshot: "str_04_dismissed"

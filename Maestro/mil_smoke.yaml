@@ -1,0 +1,18 @@
+# ============================================================
+# MIL — Smoke: streak/milestone banner appears on launch
+# ============================================================
+appId: com.example.carousal
+---
+- launchApp:
+    clearState: false
+
+- waitForAnimationToEnd
+
+- takeScreenshot: "mil_launch"
+
+# Streak banner is inline — verify app is alive and showing content
+- extendedWaitUntil:
+    visible: "yash1"
+    timeout: 12000
+
+- takeScreenshot: "mil_smoke_PASS"

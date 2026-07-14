@@ -1,0 +1,39 @@
+# ============================================================
+# BTS — Back press dismisses bottom sheet, app stays foreground
+# BottomSheetComponent uses Material3 ModalBottomSheet, which
+# dismisses on hardware back by default.
+# ============================================================
+appId: com.example.carousal
+---
+- launchApp:
+    clearState: false
+
+- waitForAnimationToEnd
+
+# BTS is usually triggered by an event or button — adjust as needed
+- tapOn:
+    text: "Open Bottom Sheet"
+    optional: true
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible: "Close"
+    timeout: 12000
+
+- takeScreenshot: "bts_backpress_01_shown"
+
+- pressKey: back
+
+- waitForAnimationToEnd
+
+# Sheet gone, app still on the same screen
+- extendedWaitUntil:
+    notVisible: "Close"
+    timeout: 6000
+
+- extendedWaitUntil:
+    visible: "More"
+    timeout: 12000
+
+- takeScreenshot: "bts_backpress_02_PASS"

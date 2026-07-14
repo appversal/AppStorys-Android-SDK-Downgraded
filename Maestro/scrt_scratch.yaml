@@ -1,0 +1,53 @@
+# ============================================================
+# SCRT — Scratch: swipe on card → reward reveals → tap CTA
+# ============================================================
+appId: com.example.carousal
+---
+- launchApp:
+    clearState: false
+
+- waitForAnimationToEnd
+
+- tapOn:
+    text: "Purchased Event"
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible: "Close"
+    timeout: 12000
+
+- takeScreenshot: "scrt_cover_visible"
+
+# Scratch the card — swipe across the cover area
+# `startPoint:`/`endPoint:` with nested x/y is NOT Maestro syntax — the flow
+# died with "Parsing Failed" before running a single command, so this scratch
+# test has never actually executed. The working form, used by every bhv_str_*
+# flow in this directory, is start/end as "x%,y%" strings.
+- swipe:
+    start: "30%,50%"
+    end: "70%,50%"
+    duration: 300
+
+- waitForAnimationToEnd
+
+- swipe:
+    start: "30%,55%"
+    end: "70%,55%"
+    duration: 300
+
+- waitForAnimationToEnd
+
+- takeScreenshot: "scrt_revealed"
+
+# Tap CTA button on revealed card
+- tapOn:
+    point: "50%,75%"
+
+- waitForAnimationToEnd
+
+- pressKey: back
+
+- waitForAnimationToEnd
+
+- takeScreenshot: "scrt_scratch_PASS"

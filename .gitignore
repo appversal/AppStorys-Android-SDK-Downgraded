@@ -9,6 +9,8 @@
 /.idea/assetWizardSettings.xml
 .DS_Store
 /build
+# AppStorys-QA pipeline's private build root (-PqaRunId)
+build-qa/
 /captures
 .externalNativeBuild
 .cxx
@@ -25,3 +27,32 @@ CSAT_README.md
 CSAT_TESTING_CHECKLIST.md
 PIP_CTA_OPTIMIZATION_SUMMARY.md
 
+graphify-out
+
+# QA pipeline transient output — regenerated on every run, never a baseline
+Maestro/screenshots/
+.idea/shelf/
+
+# Maestro writes takeScreenshot output into its working directory, so running a
+# flow by hand (`maestro test ban_smoke.yaml` from Maestro/) drops PNGs right
+# here. Pure run evidence, ~4.6 MB and growing per run.
+Maestro/*.png
+# Maestro's own cache/working dir.
+Maestro/.maestro/
+
+# Device-golden RUN OUTPUT: <TYPE>_smoke_current.png is this run's capture and
+# <TYPE>_smoke_diff.png is the comparison image. Both are regenerated every run.
+# The BASELINE — Maestro/device-goldens/<TYPE>_smoke.png — is deliberately NOT
+# ignored: Layer 3.5 has nothing to compare against without it.
+Maestro/device-goldens/*_current.png
+Maestro/device-goldens/*_diff.png
+
+# Campaign media pulled fresh from the CDN by Layer 3 before every run (~30 MB,
+# str_images alone is 21 MB). Tracking it meant every campaign edit rewrote
+# megabytes of binaries and left the tree dirty after each run.
+# NOT ignored, deliberately:
+#   campaign-data/*.json  — 95 KB of text; the diffs show what changed
+#   backgrounds/          — stable app-screenshot fixtures, not regenerated
+# Consequence: on a fresh clone `gradlew verifyPaparazziDebug` has no campaign
+# media until the pipeline has run once (Layer 3 downloads it).
+app/appstorys/src/test/resources/*_images/

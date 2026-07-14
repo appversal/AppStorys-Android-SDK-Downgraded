@@ -24,6 +24,7 @@ internal class ApiRepository(
 ) {
     private val sharedPreferences =
         context.getSharedPreferences("appversal_campaigns", Context.MODE_PRIVATE)
+    private val appContext = context.applicationContext
     private var cachedCampaignsJson: List<Campaign>? = null
     private var isCampaignsJsonFetchedThisSession = false
 
@@ -365,6 +366,9 @@ internal class ApiRepository(
 
                         // Step 3: Fetch campaigns.json (with caching)
                         val fetchSuccess = fetchCampaignsJson(accountId)
+
+                        // Debug dump: write what the SDK parsed so the QA tool can diff it
+                        AppStorysDebugDump.dumpParsedCampaigns(cachedCampaignsJson, appContext)
 
                         if (!fetchSuccess) {
                             Log.e("ApiRepository", "Failed to fetch campaigns.json")

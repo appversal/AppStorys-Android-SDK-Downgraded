@@ -1,0 +1,72 @@
+# ============================================================
+# WID — Interaction: tap widget → deep link opens → return
+#
+# WHAT THE SDK DOES (AppStorys.kt FullWidget + ui/AutoSlidingCarousel.kt):
+#   A "full" widget is an auto-sliding carousel of widget_images. Every image
+#   is contentDescription = null, so NOTHING selects it. Each image's onClick
+#   is gated on its own link:
+#       if (link.isNotEmpty()) { clickEvent(...); trackEvents(id,"clicked",{widget_image}) }
+#   There is no close button.
+#
+# This flow used to assert NOTHING: launch, tap a coordinate, press back,
+# screenshot "wid_interaction_PASS". It reported a pass whether the widget
+# existed, whether the deep link fired, or whether the tap hit empty background.
+#
+# WHY ${WID_POINT}: even after assertions were added it tapped a literal
+# "50%,35%" -> y=840px, while the widget actually occupies y 946..1610
+# (measured on device). The tap landed ABOVE the widget, so nothing was
+# clicked and the redirect assertion could never pass. Layer 4 now measures
+# the widget by ASPECT RATIO: "largest clickable" picks the pinned banner
+# (bigger, and it overlaps the widget), and the campaign's width/height are
+# source-image pixels rather than rendered dp. Measured 1060/664 = 1.596 vs
+# campaign 1586/992 = 1.599; the banner is 1.519, so 3% tolerance separates them.
+#
+# NOTE: the carousel AUTO-SLIDES, so the image under the tap may differ between
+# runs. Fine here — every image in this campaign carries a link, so any of them
+# exercises the redirect path, and Layer 5 records which widget_image it was.
+# ============================================================
+appId: com.example.carousal
+env:
+  # Default only — Layer 4 overwrites this from a live measurement each run.
+  WID_POINT: "50%,53%"
+---
+- launchApp:
+    clearState: false
+
+- waitForAnimationToEnd
+
+# Anchor: the demo app's bottom nav. Proves the app is up before we tap, and
+# is the thing whose disappearance proves the deep link fired. The widget has
+# no selector of its own — Layer 5's "viewed" is what proves it rendered.
+- extendedWaitUntil:
+    visible: "Parties"
+    timeout: 15000
+
+- takeScreenshot: "wid_before_tap"
+
+# Tap the MEASURED widget, not a guessed point.
+- tapOn:
+    point: "${WID_POINT}"
+
+- waitForAnimationToEnd
+
+# PROVE the deep link fired: the bottom nav must leave the screen, which only
+# happens if we were sent out to a browser. A broken link or a tap that
+# missed the widget now fails here instead of reporting PASS.
+- extendedWaitUntil:
+    notVisible: "Parties"
+    timeout: 10000
+
+- takeScreenshot: "wid_after_tap_redirected"
+
+# Return by resuming the task, not by pressing back — back is ambiguous
+# (browser history vs in-app screen) and crashes the SDK on stories (bug #6).
+# Resuming also proves the app survived being backgrounded.
+- launchApp:
+    stopApp: false
+
+- extendedWaitUntil:
+    visible: "Parties"
+    timeout: 10000
+
+- takeScreenshot: "wid_interaction_PASS"

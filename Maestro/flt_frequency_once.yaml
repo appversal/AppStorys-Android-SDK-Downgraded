@@ -1,0 +1,43 @@
+# ============================================================
+# FLT — Frequency once: floater must NOT re-appear after close
+# BEFORE RUNNING: set floater frequency to "Once" in dashboard
+# ============================================================
+appId: com.example.carousal
+---
+- launchApp:
+    clearState: false
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible: "Close"
+    timeout: 12000
+
+- takeScreenshot: "flt_freq_once_first_launch"
+
+- tapOn:
+    text: "Close"
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    notVisible: "Close"
+    timeout: 6000
+
+# Navigate away then return
+- tapOn:
+    text: "More"
+
+- waitForAnimationToEnd
+
+- tapOn:
+    text: "Parties"
+
+- waitForAnimationToEnd
+
+# Floater must NOT re-appear
+- extendedWaitUntil:
+    notVisible: "Close"
+    timeout: 6000
+
+- takeScreenshot: "flt_freq_once_PASS"

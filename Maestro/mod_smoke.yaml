@@ -1,0 +1,15 @@
+# ============================================================
+# MOD — Smoke: modal appears on launch or trigger event
+# ============================================================
+appId: com.example.carousal
+---
+- launchApp:
+    clearState: false
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible: "Close"
+    timeout: 12000
+
+- takeScreenshot: "mod_smoke_PASS"

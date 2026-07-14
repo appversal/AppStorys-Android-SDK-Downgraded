@@ -1,0 +1,51 @@
+# Counterpart of bhv_str_poll_results_off.yaml — proves the toggle works
+# in BOTH directions (off-flow alone would also pass if results never render).
+#
+# DASHBOARD SETUP (required before running):
+#   - STR campaign whose FIRST displayed slide has a POLL interaction
+#   - Poll has "Show results" = ON
+#
+# PASS = after voting, percentage figures appear.
+# FAIL = no percentages although results are on.
+#
+# Run:
+#   maestro test bhv_str_poll_results_on.yaml ^
+#     -e GROUP_NAME="Group 1" -e OPTION_TEXT="YES"
+appId: com.example.carousal
+env:
+  GROUP_NAME: "Group 1"
+  OPTION_TEXT: "YES"
+---
+- launchApp:
+    stopApp: true
+    clearState: false
+
+- extendedWaitUntil:
+    visible: "${GROUP_NAME}"
+    timeout: 30000
+
+- tapOn:
+    text: "${GROUP_NAME}"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 2000
+
+- extendedWaitUntil:
+    visible: "${OPTION_TEXT}"
+    timeout: 4000
+- tapOn:
+    text: "${OPTION_TEXT}"
+    retryTapIfNoChange: false
+
+# THE CHECK: results are ON, a percentage figure must appear after voting
+- extendedWaitUntil:
+    visible: "\\d+%"
+    timeout: 3000
+- takeScreenshot: "bhv_poll_on_01_results_visible"
+
+- swipe:
+    start: "50%,40%"
+    end: "50%,90%"
+    duration: 300
+- extendedWaitUntil:
+    visible: "Parties"
+    timeout: 8000

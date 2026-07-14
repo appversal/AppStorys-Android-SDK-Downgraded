@@ -1,0 +1,29 @@
+# ============================================================
+# WID — Smoke: widget renders below app header on launch
+# WHAT THIS PROVES: widget card is visible in the content area
+# NOTE: widgets have no close button — verified by screenshot
+#       and by confirming the app doesn't crash
+# ============================================================
+appId: com.example.carousal
+---
+- launchApp:
+    clearState: false
+
+- waitForAnimationToEnd
+
+- takeScreenshot: "wid_smoke_launch"
+
+# Widget occupies the area just below the blue app header.
+# Assert the app is alive and the content area is visible.
+#
+# This asserted "yash1" — a string that is not on the demo app's home screen
+# (device dump 2026-07-25) and reads like leftover campaign content from a
+# specific old widget. The step's stated intent is a LIVENESS check, so use a
+# real, campaign-independent app anchor. Widgets carry no matchable text of
+# their own (wid_details.json is images + links), so Layer 5's "viewed" event
+# remains the actual proof that the widget rendered.
+- extendedWaitUntil:
+    visible: "Parties"
+    timeout: 12000
+
+- takeScreenshot: "wid_smoke_PASS"

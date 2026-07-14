@@ -1,0 +1,57 @@
+# QA-tracker: "Quiz explanation is not showing"
+#
+# DASHBOARD SETUP (required before running):
+#   - STR campaign whose FIRST displayed slide has a QUIZ interaction
+#   - Quiz has "Show explanation" = ON and an explanation text filled in
+#
+# PASS = after tapping an answer option, the explanation text appears.
+# FAIL = option tapped, explanation never shows (the tracker bug).
+#
+# Run:
+#   maestro test bhv_str_quiz_explanation.yaml ^
+#     -e GROUP_NAME="Group 1" ^
+#     -e OPTION_TEXT="Paris" ^
+#     -e EXPLANATION_TEXT="Paris is the capital of France"
+appId: com.example.carousal
+env:
+  GROUP_NAME: "Group 1"
+  OPTION_TEXT: "Paris"
+  EXPLANATION_TEXT: "Paris is the capital of France"
+---
+- launchApp:
+    stopApp: true
+    clearState: false
+
+- extendedWaitUntil:
+    visible: "${GROUP_NAME}"
+    timeout: 30000
+
+# One tap only — a retry-tap would land inside the opened viewer
+- tapOn:
+    text: "${GROUP_NAME}"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 2000
+
+# Quiz must be on the first displayed slide (slides auto-advance ~5s)
+- extendedWaitUntil:
+    visible: "${OPTION_TEXT}"
+    timeout: 4000
+- tapOn:
+    text: "${OPTION_TEXT}"
+    retryTapIfNoChange: false
+- takeScreenshot: "bhv_quiz_expl_01_answered"
+
+# THE CHECK: explanation must appear after answering
+- extendedWaitUntil:
+    visible: "${EXPLANATION_TEXT}"
+    timeout: 3000
+- takeScreenshot: "bhv_quiz_expl_02_explanation_visible"
+
+# Dismiss via swipe-down (never pressKey back inside the viewer — SDK bug #6)
+- swipe:
+    start: "50%,40%"
+    end: "50%,90%"
+    duration: 300
+- extendedWaitUntil:
+    visible: "Parties"
+    timeout: 8000

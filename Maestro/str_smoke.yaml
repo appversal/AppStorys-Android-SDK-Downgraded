@@ -1,0 +1,19 @@
+# STR smoke — story circles render on the home screen.
+# GROUP_NAME: the story group's name as set in the dashboard (rendered as
+# text under its circle). Override per run:
+#   maestro test str_smoke.yaml -e GROUP_NAME="My Group"
+appId: com.example.carousal
+env:
+  GROUP_NAME: "Group  testing 1"
+---
+- launchApp:
+    stopApp: true
+    clearState: false
+- waitForAnimationToEnd
+
+# Story circles load after the SDK fetches campaigns — wait, don't sleep.
+# Generous: cold launch refetches campaign JSON + slide media on slow wifi.
+- extendedWaitUntil:
+    visible: "${GROUP_NAME}"
+    timeout: 30000
+- takeScreenshot: "str_01_circles"

@@ -1,0 +1,100 @@
+# STR studio slide — verify a studio-rendered element is visible on device,
+# and optionally tap it (interactive types: POLL, QUIZ, MEDIA_QUIZ, RATING,
+# REACTION, PROMO, INPUT — see StoryInteractions.kt).
+#
+# Studio elements carry NO testTags, so selection is by the visible text the
+# element renders (poll question, quiz question, countdown title...).
+# The pipeline injects GROUP_NAME + ELEMENT_TEXT + SLIDE_TAPS/HAS_TAPS from
+# the live campaign, so the defaults below are only fallbacks for manual runs.
+#
+# NAVIGATION: the element does NOT need to be on the first slide. SLIDE_TAPS
+# = number of right-taps (right tap = next slide) needed to reach the slide
+# holding the element; the pipeline computes it from display order. HAS_TAPS
+# gates the tap block ("true" when SLIDE_TAPS > 0).
+#
+# TIMING: slides auto-advance every slideShowTime seconds (can be 5s) and
+# the viewer auto-closes after the last slide. Every step after opening runs
+# back-to-back — no waitForAnimationToEnd inside the viewer (progress bars
+# animate forever).
+#
+#   TAP_ELEMENT — "true" to tap the element after asserting (polls/quiz).
+#                 Keep "false" for display-only elements (countdown, text).
+# Manual run:
+#   maestro test str_studio.yaml -e ELEMENT_TEXT="Vote now" -e SLIDE_TAPS=2 -e HAS_TAPS=true
+appId: com.example.carousal
+env:
+  GROUP_NAME: "Group 1"
+  ELEMENT_TEXT: "What is the capital of France?"
+  TAP_ELEMENT: "false"
+  SLIDE_TAPS: "0"
+  HAS_TAPS: "false"
+  # Computed per campaign by the pipeline — see the note in str_view.yaml.
+  # The old hardcoded "85%,50%" sat inside a CTA and opened Chrome, which is
+  # why this flow used to fail asserting an element that was never on screen.
+  ADVANCE_POINT: "95%,70%"
+---
+- launchApp:
+    stopApp: true
+    clearState: false
+
+# Generous timeout: cold launch refetches campaign JSON + media on slow wifi
+- extendedWaitUntil:
+    visible: "${GROUP_NAME}"
+    timeout: 30000
+
+# One tap only — same rule as str_view.yaml: retry-tap would land on the
+# opened viewer and navigate it away.
+- tapOn:
+    text: "${GROUP_NAME}"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 2000
+
+# Navigate to the slide holding the element: right tap = next slide
+- runFlow:
+    when:
+      true: ${HAS_TAPS}
+    commands:
+      - repeat:
+          times: ${SLIDE_TAPS}
+          commands:
+            - tapOn:
+                point: "${ADVANCE_POINT}"
+                retryTapIfNoChange: false
+
+# Confirm we are still in the viewer and not in a browser. Without this the
+# next assert fails with "ELEMENT_TEXT not visible", which sends the tester
+# hunting for a rendering bug that does not exist.
+- extendedWaitUntil:
+    visible: "${GROUP_NAME}"
+    timeout: 12000
+
+# Studio element (entrance animations delay it a moment; must appear well
+# inside its slide's slideShowTime window)
+- extendedWaitUntil:
+    visible: "${ELEMENT_TEXT}"
+    timeout: 4000
+- takeScreenshot: "str_05_studio_element"
+
+# Interactive elements only
+- runFlow:
+    when:
+      true: ${TAP_ELEMENT}
+    commands:
+      - tapOn:
+          text: "${ELEMENT_TEXT}"
+          retryTapIfNoChange: false
+      - takeScreenshot: "str_06_studio_after_tap"
+
+# Dismiss via swipe-down. DO NOT pressKey: back — SDK bug #6 (BackHandler
+# StackOverflow crash when no back_press campaign is armed). Harmless
+# scroll if the viewer already auto-closed.
+- swipe:
+    start: "50%,40%"
+    end: "50%,90%"
+    duration: 300
+
+# Back on home — campaign-independent anchor
+- extendedWaitUntil:
+    visible: "Parties"
+    timeout: 8000
+- takeScreenshot: "str_07_studio_dismissed"

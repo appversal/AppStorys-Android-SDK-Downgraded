@@ -1,0 +1,48 @@
+# ============================================================
+# CSAT — Rate + Submit: select rating → feedback page → submit
+# ============================================================
+appId: com.example.carousal
+---
+- launchApp:
+    clearState: false
+
+- waitForAnimationToEnd
+
+- tapOn:
+    text: "AppStorys Success Event"
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible: "Close"
+    timeout: 12000
+
+- takeScreenshot: "csat_rating_page"
+
+# Tap a rating item (middle of rating area ~60% down screen)
+- tapOn:
+    point: "50%,60%"
+
+- waitForAnimationToEnd
+
+- takeScreenshot: "csat_feedback_page"
+
+# Tap submit button
+- tapOn:
+    point: "50%,85%"
+
+- waitForAnimationToEnd
+
+- takeScreenshot: "csat_thankyou_page"
+
+# Dismiss thank you page
+- tapOn:
+    text: "Close"
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    notVisible: "Close"
+    timeout: 6000
+
+- takeScreenshot: "csat_submit_PASS"

@@ -1,0 +1,55 @@
+# QA-tracker: "Countdown need animation when timer reaches 0" /
+#             "Countdown preview is wrong (if we remove days and hours)"
+#
+# DASHBOARD SETUP (required before running):
+#   - STR campaign whose FIRST displayed slide has a COUNTDOWN interaction
+#   - Countdown TARGET TIME ALREADY IN THE PAST (so it is at zero now)
+#   - COUNTDOWN_TITLE below = the countdown's title text
+#
+# PASS = countdown renders its zero/ended state: title visible, and NO
+#        negative numbers anywhere (a broken timer keeps counting into
+#        "-1", "-02" etc.).
+# FAIL = negative figures visible, or countdown element missing entirely.
+#
+# The reach-zero ANIMATION itself cannot be asserted from a snapshot —
+# judge it from the screenshot this flow takes.
+#
+# Run:
+#   maestro test bhv_str_countdown_ended.yaml ^
+#     -e GROUP_NAME="Group 1" -e COUNTDOWN_TITLE="Sale ends in"
+appId: com.example.carousal
+env:
+  GROUP_NAME: "Group 1"
+  COUNTDOWN_TITLE: "Sale ends in"
+---
+- launchApp:
+    stopApp: true
+    clearState: false
+
+- extendedWaitUntil:
+    visible: "${GROUP_NAME}"
+    timeout: 30000
+
+- tapOn:
+    text: "${GROUP_NAME}"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 2000
+
+# Countdown must be on the first displayed slide
+- extendedWaitUntil:
+    visible: "${COUNTDOWN_TITLE}"
+    timeout: 4000
+
+# THE CHECK: an ended countdown must never show negative time
+- extendedWaitUntil:
+    notVisible: "-\\d+"
+    timeout: 6000
+- takeScreenshot: "bhv_countdown_01_at_zero"
+
+- swipe:
+    start: "50%,40%"
+    end: "50%,90%"
+    duration: 300
+- extendedWaitUntil:
+    visible: "Parties"
+    timeout: 8000

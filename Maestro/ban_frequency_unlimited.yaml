@@ -1,0 +1,33 @@
+# ============================================================
+# BAN — Frequency unlimited: re-appears after navigation
+# BEFORE RUNNING: set banner frequency to "Unlimited"
+# ============================================================
+appId: com.example.carousal
+---
+- launchApp:
+    clearState: false
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible: "Close"
+    timeout: 12000
+
+- takeScreenshot: "ban_freq_unlimited_first_load"
+
+- tapOn:
+    text: "More"
+
+- waitForAnimationToEnd
+
+- tapOn:
+    text: "Parties"
+
+- waitForAnimationToEnd
+
+# Banner MUST re-appear
+- extendedWaitUntil:
+    visible: "Close"
+    timeout: 12000
+
+- takeScreenshot: "ban_freq_unlimited_PASS"

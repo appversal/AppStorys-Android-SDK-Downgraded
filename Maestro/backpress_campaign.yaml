@@ -1,0 +1,60 @@
+# ============================================================
+# BACK-PRESS TRIGGER — campaign fires on first back press
+# BEFORE RUNNING: configure a campaign with trigger_event
+#                 "back_press" in the dashboard
+# WHAT THIS PROVES:
+#   1. First back press is CONSUMED by the SDK — the
+#      BACK_PRESS_SENTINEL unlocks the campaign, screen does
+#      not navigate away (AppStorys.kt BackHandler).
+#   2. Campaign renders after that back press.
+#   3. After dismissing it, the next back press passes through
+#      to the app normally (backPressCampaignConsumed = true).
+# ============================================================
+appId: com.example.carousal
+---
+- launchApp:
+    clearState: false
+
+- waitForAnimationToEnd
+
+# Navigate one level deep so a pass-through back press has
+# somewhere to go (instead of exiting the app)
+- tapOn:
+    text: "More"
+
+- waitForAnimationToEnd
+
+- takeScreenshot: "backpress_01_before"
+
+# First back press — SDK must consume it and show the campaign
+- pressKey: back
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible: "Close"
+    timeout: 12000
+
+- takeScreenshot: "backpress_02_campaign_shown"
+
+# Dismiss the campaign
+- tapOn:
+    text: "Close"
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    notVisible: "Close"
+    timeout: 6000
+
+# Second back press — must now pass through to the app
+# (campaign already consumed, must NOT re-appear)
+- pressKey: back
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    notVisible: "Close"
+    timeout: 6000
+
+- takeScreenshot: "backpress_03_passthrough_PASS"

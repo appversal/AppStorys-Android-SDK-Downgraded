@@ -1,0 +1,68 @@
+# ============================================================
+# WID — Carousel: swipe the widget to advance a slide
+#
+# The swipe used y = "35%" -> 840px, but the widget occupies y 946..1610
+# (measured on device). So the swipe never touched the carousel — it dragged
+# empty app background. The flow then asserted "Parties" is still visible,
+# which is trivially true whether or not anything advanced, so it PASSED while
+# proving nothing at all. Now it swipes across the MEASURED widget (${WID_Y}).
+#
+# HONEST SCOPE — what proves the carousel actually advanced:
+#   Not this file. Widget images are contentDescription = null, so no Maestro
+#   selector can read which slide is showing, and there is no assertion for
+#   "the pixels changed". The real oracles are:
+#     * Layer 5 — FullWidget fires trackEvents(id, "viewed", {widget_image})
+#       once per image id (deduped via `impressions`), so N distinct
+#       widget_image values in the payloads means N slides were actually shown.
+#     * Layer 3.5 — the device-golden pixel compare.
+#   The screenshots below are evidence for a human, not an assertion.
+#
+# NOTE: the carousel AUTO-SLIDES on its own, so slides advance even without a
+# swipe. This flow proves a MANUAL swipe is handled and does not break the app.
+# ============================================================
+appId: com.example.carousal
+---
+- launchApp:
+    clearState: false
+
+- waitForAnimationToEnd
+
+# Liveness before touching anything.
+- extendedWaitUntil:
+    visible: "Parties"
+    timeout: 15000
+
+- takeScreenshot: "wid_slide_1"
+
+# Swipe left ACROSS THE WIDGET to advance the carousel.
+#
+# TWO things were wrong here:
+#  1. `startPoint:`/`endPoint:` with nested x/y is NOT Maestro syntax. The flow
+#     died with "Parsing Failed" before running a single command, so it had
+#     never actually executed. The working form — used by every bhv_str_* flow
+#     in this directory — is start/end as "x%,y%" strings.
+#  2. The y was "35%" (840px) while the widget occupies y 946..1610, so the
+#     swipe dragged empty background. The flow then asserted only that
+#     "Parties" was still visible, which is true either way, so it PASSED
+#     while touching nothing.
+#
+# The coordinates below are a literal FALLBACK so this file stays runnable with
+# a plain `maestro test wid_carousel.yaml`. During a pipeline run Layer 4
+# replaces them with the widget's measured position. They are not written as
+# ${VARS} because Maestro parses swipe coordinates BEFORE env interpolation —
+# `start: "${VAR}"` fails to parse, even though `tapOn: point: "${VAR}"` works.
+- swipe:
+    start: "80%,53%"
+    end: "20%,53%"
+    duration: 300
+
+- waitForAnimationToEnd
+
+# A swipe on the widget must not navigate away or kill the app. It must also
+# not have opened a link: a swipe is not a tap, so the bottom nav stays put.
+# (If the swipe were misread as a click we would be in a browser here.)
+- extendedWaitUntil:
+    visible: "Parties"
+    timeout: 8000
+
+- takeScreenshot: "wid_slide_2_PASS"

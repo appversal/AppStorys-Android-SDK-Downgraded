@@ -1,0 +1,43 @@
+# ============================================================
+# BEHAVIOR — Frequency: Impression-Based "Unlimited"
+# DASHBOARD SETUP: Frequency tab → Impression-Based → Unlimited
+#                  Trigger → On Launch
+#
+# Backend must keep returning the campaign as eligible on every
+# eligibility call, no matter how many impressions the user has.
+# FLOW: show → restart → must show AGAIN.
+# ============================================================
+appId: com.example.carousal
+---
+- launchApp:
+    stopApp: true
+    clearState: false
+
+# 1st launch
+- extendedWaitUntil:
+    visible:
+      text: "Close"
+    timeout: 15000
+
+- takeScreenshot: "bhv_freq_unlimited_01_first_show"
+
+# Dwell so the impression is reported (proves reshow happens
+# even AFTER the backend knows about a prior impression)
+- extendedWaitUntil:
+    visible:
+      text: "___impression_flush_wait___"
+    timeout: 4000
+    optional: true
+
+# 2nd launch — fresh process, same user
+- launchApp:
+    stopApp: true
+    clearState: false
+
+# Campaign must appear again
+- extendedWaitUntil:
+    visible:
+      text: "Close"
+    timeout: 15000
+
+- takeScreenshot: "bhv_freq_unlimited_02_reshow_PASS"

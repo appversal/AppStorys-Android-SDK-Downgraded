@@ -1,0 +1,49 @@
+# ============================================================
+# BEHAVIOR — Frequency: "Only once" is PER USER
+# DASHBOARD SETUP: Frequency tab → Impression-Based → Only once
+#                  Trigger → On Launch
+#
+# HOW IT WORKS:
+#   The SDK's user id lives in SharedPreferences ("AppStory").
+#   clearState wipes it → the SDK generates a NEW user id on
+#   next launch → the backend sees a brand-new user with zero
+#   impressions → the "Only once" campaign must show again.
+#
+# This is both a real behavior test (once-per-USER, not
+# once-per-DEVICE) and the reset lever that makes
+# bhv_freq_once.yaml repeatable without dashboard changes.
+#
+# RUN ORDER: run bhv_freq_once.yaml first (consumes the
+# impression for the current user), then this flow.
+# ============================================================
+appId: com.example.carousal
+---
+# Same user, impression already consumed — campaign must NOT show
+- launchApp:
+    stopApp: true
+    clearState: false
+
+- extendedWaitUntil:
+    visible:
+      text: "___give_campaign_time_to_appear___"
+    timeout: 15000
+    optional: true
+
+- extendedWaitUntil:
+    notVisible: "Close"
+    timeout: 6000
+
+- takeScreenshot: "bhv_once_user_01_old_user_blocked"
+
+# Wipe state → new user id on next start
+- launchApp:
+    stopApp: true
+    clearState: true
+
+# New user → campaign must show again
+- extendedWaitUntil:
+    visible:
+      text: "Close"
+    timeout: 20000
+
+- takeScreenshot: "bhv_once_user_02_new_user_shows_PASS"

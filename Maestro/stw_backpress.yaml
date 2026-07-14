@@ -1,0 +1,31 @@
+# ============================================================
+# STW — Back press dismisses spin-the-wheel dialog
+# SpinTheWheel uses Dialog(dismissOnBackPress = true).
+# Back must close ONLY the wheel — app stays in foreground.
+# ============================================================
+appId: com.example.carousal
+---
+- launchApp:
+    clearState: false
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible: "Close"
+    timeout: 12000
+
+- takeScreenshot: "stw_backpress_01_shown"
+
+- pressKey: back
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    notVisible: "Close"
+    timeout: 6000
+
+- extendedWaitUntil:
+    visible: "More"
+    timeout: 12000
+
+- takeScreenshot: "stw_backpress_02_PASS"

@@ -1,0 +1,88 @@
+{
+  "tooltips": [
+    {
+      "_id": "4afbabf4-6310-42bf-a778-130615a6be33",
+      "arrowPosition": null,
+      "clickAction": "nextStep",
+      "ctaText": null,
+      "enableBackdrop": true,
+      "eventName": "",
+      "link": "https://google.com",
+      "order": 0,
+      "position": "left",
+      "styling": {
+        "appearance": {
+          "arrowStyle": {
+            "height": 12,
+            "width": 6
+          },
+          "backdropOpacity": 70,
+          "colors": {
+            "arrow": "#fe6b35",
+            "backdrop": "#000000"
+          },
+          "cornerRadius": {
+            "bottomLeft": 12,
+            "bottomRight": 12,
+            "topLeft": 12,
+            "topRight": 12
+          },
+          "highlight": {
+            "padding": 4,
+            "radius": 12
+          },
+          "imageDimensions": {
+            "height": 200,
+            "width": 200
+          }
+        }
+      },
+      "subtitleText": null,
+      "target": "toolbar_click_container",
+      "titleText": null,
+      "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/WhatsApp%20Image%202026-05-13%20at%203.48.55%20PM_hccrn.jpeg"
+    },
+    {
+      "_id": "cfe4c618-6f7f-4cfe-a111-7b91646bee55",
+      "arrowPosition": null,
+      "clickAction": "nextStep",
+      "ctaText": null,
+      "enableBackdrop": true,
+      "eventName": "",
+      "link": "https://google.com",
+      "order": 1,
+      "position": "left",
+      "styling": {
+        "appearance": {
+          "arrowStyle": {
+            "height": 12,
+            "width": 6
+          },
+          "backdropOpacity": 70,
+          "colors": {
+            "arrow": "#fe6b35",
+            "backdrop": "#000000"
+          },
+          "cornerRadius": {
+            "bottomLeft": 12,
+            "bottomRight": 12,
+            "topLeft": 12,
+            "topRight": 12
+          },
+          "highlight": {
+            "padding": 4,
+            "radius": 12
+          },
+          "imageDimensions": {
+            "height": 200,
+            "width": 200
+          }
+        }
+      },
+      "subtitleText": null,
+      "target": "tooltip_home_prem_test",
+      "titleText": null,
+      "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/ChatGPT%20Image%20May%2013%2C%202026%2C%2003_49_38%20PM_emaho.png"
+    }
+  ]
+}

@@ -1,0 +1,63 @@
+# ============================================================
+# BEHAVIOR — Frequency: Impression-Based "Only once"
+# DASHBOARD SETUP: Frequency tab → Impression-Based → Only once
+#                  Trigger → On Launch (keeps flow simple)
+#
+# HOW IT WORKS:
+#   Frequency is enforced by the BACKEND, not the SDK: the
+#   track-user-res eligibility call returns the campaign only
+#   while the user hasn't consumed their impression. Once the
+#   SDK reports the impression, the NEXT eligibility call
+#   excludes the campaign entirely.
+#
+# FLOW:
+#   1. Fresh process, same user → campaign shows (1st and only)
+#   2. Dwell so the impression reaches the backend
+#   3. Full restart, same user → backend excludes it → NOT shown
+#
+# RE-RUNNING THIS TEST: the user has consumed the impression
+#   permanently. Either reset the campaign in the dashboard or
+#   run bhv_freq_once_new_user.yaml (clearState → new user id).
+# ============================================================
+appId: com.example.carousal
+---
+- launchApp:
+    stopApp: true
+    clearState: false
+
+# 1st launch — campaign must appear
+- extendedWaitUntil:
+    visible:
+      text: "Close"
+    timeout: 15000
+
+- takeScreenshot: "bhv_freq_once_01_first_show"
+
+# Dwell ~4s so the impression call reaches the backend before
+# we kill the process. (extendedWaitUntil on a never-existing
+# element + optional = a bounded wait that never fails the flow)
+- extendedWaitUntil:
+    visible:
+      text: "___impression_flush_wait___"
+    timeout: 4000
+    optional: true
+
+# 2nd launch — same user, fresh process
+- launchApp:
+    stopApp: true
+    clearState: false
+
+# Wait long enough that IF the campaign were going to show, it
+# would have (same window as the positive case above)...
+- extendedWaitUntil:
+    visible:
+      text: "___give_campaign_time_to_appear___"
+    timeout: 15000
+    optional: true
+
+# ...then assert it did NOT
+- extendedWaitUntil:
+    notVisible: "Close"
+    timeout: 6000
+
+- takeScreenshot: "bhv_freq_once_02_no_reshow_PASS"

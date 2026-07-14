@@ -1,0 +1,34 @@
+# ============================================================
+# MOD — Back press dismisses modal, app stays in foreground
+# PopupModal / FullPageCarouselModal / MediaOnlyModal all use
+# Dialog(dismissOnBackPress = true), so hardware back must
+# close ONLY the modal — never the screen behind it.
+# ============================================================
+appId: com.example.carousal
+---
+- launchApp:
+    clearState: false
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible: "Close"
+    timeout: 12000
+
+- takeScreenshot: "mod_backpress_01_shown"
+
+- pressKey: back
+
+- waitForAnimationToEnd
+
+# Modal gone…
+- extendedWaitUntil:
+    notVisible: "Close"
+    timeout: 6000
+
+# …but the app must still be in the foreground on the same screen
+- extendedWaitUntil:
+    visible: "More"
+    timeout: 12000
+
+- takeScreenshot: "mod_backpress_02_PASS"

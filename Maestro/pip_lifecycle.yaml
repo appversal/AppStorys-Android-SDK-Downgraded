@@ -1,0 +1,86 @@
+# ============================================================
+# PIP Lifecycle — render → expand → CTA path (for L5/L6)
+# Campaign: PIP  (trigger = On Launch)
+#
+# PURPOSE: this is the flow L5/L6 need. It walks the full PIP
+# lifecycle so the SDK emits trackEvents:
+#
+#   1. launch -> PIP renders  -> viewed {is_small_video:true}
+#   2. tap "Maximize"         -> expand to fullscreen
+#                                viewed {is_small_video:false}
+#   3. tap "Continue" CTA     -> clicked {is_small_video:false}
+#
+# PIP is On Launch — no trigger event needed (the old "Login Event"
+# gate was a test and is now dead). The real failure in the
+# auto-generated flow was asserting "Close" with no bounded wait;
+# every step here has a real oracle with a proper timeout.
+# Logcat proof (manual): adb logcat -s "Event Captured"
+#
+# Anchors:
+#   "Close"    = cross button contentDescription (small card + fullscreen)
+#   "Maximize" = expand button contentDescription (small card)
+#   "Parties"  = demo app bottom nav; gone == fullscreen active
+#   "Continue" = PIP CTA button_text (fullscreen only)
+# ============================================================
+appId: com.example.carousal
+env:
+  # Default only — Layer 4 overwrites this from the live campaign JSON before
+  # every run. A stale value here can never break the flow.
+  PIP_CTA_TEXT: "Continue"
+---
+- launchApp:
+    clearState: false
+
+- waitForAnimationToEnd
+
+# --- 1. PIP renders on launch --------------------------------
+# PROVE render -> fires viewed {is_small_video:true}.
+# Generous timeout covers cold-start eligibility + campaigns fetch.
+- extendedWaitUntil:
+    visible: "Close"
+    timeout: 12000
+
+- takeScreenshot: "pip_01_rendered"
+
+# --- 2. Expand to fullscreen ---------------------------------
+# Expand button (bottom-end of card) -> onExpandClick fires
+# viewed {is_small_video:false}, then opens fullscreen dialog.
+- tapOn: "Maximize"
+
+- waitForAnimationToEnd
+
+# PROVE it expanded: the control flips Maximize -> Minimize, which only
+# happens in fullscreen. This replaced `notVisible: "Parties"` (the app's
+# bottom nav): notVisible passes vacuously whenever the anchor is absent for
+# ANY reason, so it could not fail for the right reason and "proved" the
+# expansion even on runs where nothing expanded.
+- extendedWaitUntil:
+    visible: "Minimize"
+    timeout: 8000
+
+- takeScreenshot: "pip_02_expanded"
+
+# --- 3. CTA click --------------------------------------------
+# Fullscreen CTA -> clicked {is_small_video:false}, then opens the link
+# (leaves the app; fine — the capture-event POST dispatched before the
+# redirect).
+#
+# The CTA LABEL IS CAMPAIGN CONTENT, so it is injected, never hardcoded. This
+# step used to say text: "Continue"; the live campaign's button_text is
+# "ZZZSENTINELZZZ.", so the flow failed with "Element not found: Continue" —
+# it was written against a campaign config that no longer exists. Layer 4
+# rewrites the env default below from the live campaign JSON on every run
+# (flowgen buildFlowEnv -> PIP_CTA_TEXT), so editing the dashboard can no
+# longer silently break this flow.
+- tapOn:
+    text: "${PIP_CTA_TEXT}"
+
+- waitForAnimationToEnd
+
+- takeScreenshot: "pip_03_cta_clicked_PASS"
+
+# Leave the device where the next flow expects it: the CTA opened a browser,
+# so come back to the app. Without this the following flow starts in Chrome.
+- pressKey: back
+
+- waitForAnimationToEnd

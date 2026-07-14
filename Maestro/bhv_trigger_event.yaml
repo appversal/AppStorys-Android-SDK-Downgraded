@@ -1,0 +1,53 @@
+# ============================================================
+# BEHAVIOR — Trigger: Event-Based
+# DASHBOARD SETUP: Trigger tab → "Event-Based" → pick an event
+#                  the test app can fire (e.g. Login).
+#
+# HOW IT WORKS IN THE SDK:
+#   trigger_event = { event: "<name>", event_config: [...] } →
+#   campaign is HELD BACK until the host app calls
+#   trackEvents("<name>") — the test app's event buttons do this.
+#
+# TWO-PART ASSERT:
+#   1. Campaign must NOT be visible before the event fires
+#      (this catches "renders on launch despite event trigger")
+#   2. Campaign MUST appear after the event button is tapped
+#
+# Override the button via env: TRIGGER_BUTTON
+#   maestro test -e TRIGGER_BUTTON="Purchased Event" bhv_trigger_event.yaml
+# ============================================================
+appId: com.example.carousal
+env:
+  TRIGGER_BUTTON: "Login Event"
+---
+- launchApp:
+    stopApp: true
+    clearState: false
+
+# Give the SDK time to fetch campaign data first, so the
+# negative assert below is meaningful (not just "data not
+# loaded yet"). Waits for the trigger button itself = screen
+# is fully rendered and SDK init has had time to complete.
+- extendedWaitUntil:
+    visible:
+      text: "${TRIGGER_BUTTON}"
+    timeout: 15000
+
+# 1. Event not fired yet — campaign must NOT be on screen
+- extendedWaitUntil:
+    notVisible: "Close"
+    timeout: 6000
+
+- takeScreenshot: "bhv_event_01_before_event"
+
+# 2. Fire the tracked event
+- tapOn:
+    text: "${TRIGGER_BUTTON}"
+
+# Campaign must now appear
+- extendedWaitUntil:
+    visible:
+      text: "Close"
+    timeout: 10000
+
+- takeScreenshot: "bhv_event_02_after_event_PASS"

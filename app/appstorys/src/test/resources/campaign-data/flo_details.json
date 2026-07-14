@@ -1,0 +1,19 @@
+{
+  "height": 60,
+  "id": "9e96555b-a280-474f-96be-5e6cb0ffcc22",
+  "image": null,
+  "link": "https://google.com",
+  "lottie_data": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/lottie_data/couple.json",
+  "position": "left",
+  "styling": {
+    "bottomLeftRadius": 12,
+    "bottomRightRadius": 12,
+    "marginBottom": 4,
+    "marginLeft": 4,
+    "marginRight": 0,
+    "marginTop": 0,
+    "topLeftRadius": 12,
+    "topRightRadius": 12
+  },
+  "width": 60
+}

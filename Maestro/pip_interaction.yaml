@@ -1,0 +1,66 @@
+# ============================================================
+# PIP Interaction — expand card to full screen, then collapse
+# Campaign: PIP  (trigger = On Launch)
+#
+# This flow used to assert NOTHING: launch, tap a coordinate, press back,
+# screenshot "pip_03_dismissed_PASS". Whether the card existed, whether it
+# expanded, and whether back collapsed it were all unverified — only a crash
+# could fail it.
+#
+# It was then given assertions but still tapped a GUESSED coordinate,
+# "85%,30%". Measured on device 2026-07-25 the expand control actually sits at
+# bounds [1000,2099][1036,2135] — about 94%,88%. The old point was near the TOP
+# of the screen and never hit it, so the flow failed on a later assertion
+# instead of where the real problem was. Tap the control by its accessibility
+# label, not by a coordinate that must be re-guessed whenever layout moves.
+#
+# Anchors are the SDK's own contentDescriptions, read off the device:
+#   small card : Close, Maximize, Mute
+#   fullscreen : Close, Minimize, Unmute
+# Maximize -> Minimize is POSITIVE proof of expansion. The old flow proved it
+# by asserting the app's bottom nav "Parties" had disappeared, which is much
+# weaker: notVisible passes vacuously whenever the anchor is missing for ANY
+# reason, so that step could never fail for the right reason.
+#
+# The back press here is NOT a browser return (unlike ban/mod/bts/wid): it is
+# the real way to collapse an expanded PIP, so it stays.
+# ============================================================
+appId: com.example.carousal
+---
+- launchApp:
+    clearState: false
+
+- waitForAnimationToEnd
+
+# PIP renders on launch -> the small card's expand control appears.
+# Generous timeout covers cold-start eligibility + campaigns fetch + render.
+- extendedWaitUntil:
+    visible: "Maximize"
+    timeout: 12000
+
+- takeScreenshot: "pip_01_card_visible"
+
+# Expand to fullscreen.
+- tapOn: "Maximize"
+
+- waitForAnimationToEnd
+
+# PROVE it expanded — the control flips to Minimize only in fullscreen.
+- extendedWaitUntil:
+    visible: "Minimize"
+    timeout: 8000
+
+- takeScreenshot: "pip_02_expanded"
+
+# Collapse back to the small card.
+- pressKey: back
+
+- waitForAnimationToEnd
+
+# PROVE it collapsed — the small card's expand control is back, and the app is
+# still alive (a crash would fail this too).
+- extendedWaitUntil:
+    visible: "Maximize"
+    timeout: 8000
+
+- takeScreenshot: "pip_03_collapsed_PASS"

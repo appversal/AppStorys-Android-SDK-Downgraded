@@ -1,0 +1,64 @@
+# ============================================================
+# FLT — Interaction: tapping the floater fires its redirect
+#
+# OverlayFloater has no text, and until 2026-07-25 it had
+# `contentDescription = null` on a CLICKABLE image — unreachable by any
+# selector and silent to screen readers. It now sets
+# `semantics { contentDescription = "Floater" }` on its clickable Surface
+# (labelling the container covers the Lottie branch too), so this flow selects
+# the control directly instead of guessing where it is.
+#
+# WHAT THIS PROVES:
+#   1. the floater actually rendered  — tapOn "Floater" resolves
+#   2. its onClick ran                — clickEvent(link) + trackEvents("clicked")
+#      opens the campaign link, so the app goes to the background
+#
+# HISTORY — why this flow is written this way:
+#   * it waited for / tapped / re-asserted "Close". A floater has NO cross
+#     button and cannot be dismissed at all, so those steps described a
+#     campaign type that does not exist.
+#   * it then tapped the literal point "85%,88%" — the RIGHT edge — while this
+#     campaign's own `position` is "left" (floater measured at ~11%,86%).
+#   * the measured-coordinate version (${FLT_POINT}) worked but was fragile;
+#     Layer 4 still measures the floater as a cross-check and for other
+#     label-less elements, but a real selector beats a coordinate every time.
+# ============================================================
+appId: com.example.carousal
+---
+- launchApp:
+    clearState: false
+
+- waitForAnimationToEnd
+
+# PROVE the floater rendered. Bounded: cold start has to do token ->
+# eligible campaigns -> campaigns.json -> image load before it can appear.
+- extendedWaitUntil:
+    visible: "Floater"
+    timeout: 15000
+
+- takeScreenshot: "flt_01_before_tap"
+
+# Tap the floater itself -> "clicked" event + open link.
+- tapOn: "Floater"
+
+- waitForAnimationToEnd
+
+# PROVE the redirect fired: the browser is now in front, so the app's bottom
+# nav is gone. If onClick had not run, "Parties" would still be visible and
+# this fails — which is the point.
+- extendedWaitUntil:
+    notVisible: "Parties"
+    timeout: 10000
+
+- takeScreenshot: "flt_02_redirect_opened"
+
+# Return to the app so the next flow starts from a known state.
+- pressKey: back
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible: "Parties"
+    timeout: 10000
+
+- takeScreenshot: "flt_03_returned_PASS"

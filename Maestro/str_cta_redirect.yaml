@@ -1,0 +1,108 @@
+# STR studio CTA — tap a CTA that has a redirectUrl, prove the redirect
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# actually fired, then come back and prove the app survived it.
+#
+# WHY THIS EXISTS: story CTA redirects had zero coverage. str_view and
+# str_studio deliberately avoid CTAs, and the flows that do tap a CTA
+# (ban_interaction, mod_cta, ...) "handle" the browser with a bare
+#     - pressKey: back        # If CTA opened browser, go back
+# which asserts nothing. If the redirect silently never fires, back just
+# dismisses something else and the flow still passes — a false green.
+#
+# WHY NOT pressKey: back HERE: SDK bug #6 — the overlayElements BackHandler
+# recurses and crashes the app with StackOverflowError when no back_press
+# campaign is armed. Pressing back is exactly how you would return from
+# Chrome, so story redirects were untestable. `launchApp: stopApp: false`
+# resumes the existing task instead, so the app never sees a back press.
+#
+# The pipeline injects CTA_POINT (centre of the first CTA that actually has a
+# redirectUrl, clamped to the screen), CTA_URL, and CTA_SLIDE_TAPS/
+# CTA_HAS_TAPS to reach its slide. Targeting is by POINT, never by text: a
+# slide routinely holds two CTAs both labelled "Shop Now" where only one
+# redirects, and Maestro would tap whichever it matched first.
+#
+# PASS  = tapping the CTA leaves the app, and the app is intact on return.
+# FAIL  = the viewer is still on screen after the tap (redirect never fired),
+#         or the app is dead/blank when resumed.
+#
+# Manual run:
+#   maestro test str_cta_redirect.yaml -e CTA_POINT="89%,46%" -e CTA_SLIDE_TAPS=0 -e CTA_HAS_TAPS=false
+appId: com.example.carousal
+env:
+  GROUP_NAME: "Group 1"
+  CTA_POINT: "89%,46%"
+  CTA_SLIDE_TAPS: "0"
+  CTA_HAS_TAPS: "false"
+  ADVANCE_POINT: "95%,70%"
+---
+- launchApp:
+    stopApp: true
+    clearState: false
+
+- extendedWaitUntil:
+    visible: "${GROUP_NAME}"
+    timeout: 30000
+
+# One tap only — retry-tap would land on the opened viewer and navigate it.
+- tapOn:
+    text: "${GROUP_NAME}"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 2000
+
+# Reach the slide carrying the redirecting CTA
+- runFlow:
+    when:
+      true: ${CTA_HAS_TAPS}
+    commands:
+      - repeat:
+          times: ${CTA_SLIDE_TAPS}
+          commands:
+            - tapOn:
+                point: "${ADVANCE_POINT}"
+                retryTapIfNoChange: false
+
+- extendedWaitUntil:
+    visible: "${GROUP_NAME}"
+    timeout: 12000
+- takeScreenshot: "str_08_before_cta"
+
+# Fire the redirect
+- tapOn:
+    point: "${CTA_POINT}"
+    retryTapIfNoChange: false
+
+# THE CHECK: the viewer header must be gone. Still visible means the tap
+# missed the CTA or the redirect never fired — the exact silent failure the
+# blind `pressKey: back` pattern hides everywhere else.
+- extendedWaitUntil:
+    notVisible: "${GROUP_NAME}"
+    timeout: 6000
+- takeScreenshot: "str_09_redirected"
+
+# Return WITHOUT a back press (SDK bug #6). stopApp:false resumes the running
+# task rather than restarting it, so this also proves the app survived being
+# backgrounded mid-story.
+- launchApp:
+    stopApp: false
+
+- extendedWaitUntil:
+    visible: "Parties"
+    timeout: 10000
+- takeScreenshot: "str_10_returned_PASS"

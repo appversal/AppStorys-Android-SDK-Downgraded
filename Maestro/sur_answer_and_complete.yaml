@@ -1,0 +1,47 @@
+# ============================================================
+# SUR — Answer + Complete: go through survey slides to end
+# ============================================================
+appId: com.example.carousal
+---
+- launchApp:
+    clearState: false
+
+- waitForAnimationToEnd
+
+- tapOn:
+    text: "Login Event"
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible: "Close"
+    timeout: 12000
+
+- takeScreenshot: "sur_slide_1"
+
+# Select first option
+- tapOn:
+    point: "50%,60%"
+
+- waitForAnimationToEnd
+
+# Tap Next/Submit button
+- tapOn:
+    point: "50%,85%"
+
+- waitForAnimationToEnd
+
+- takeScreenshot: "sur_slide_2_or_thankyou"
+
+# If more slides, answer and submit again
+- tapOn:
+    point: "50%,60%"
+    optional: true
+
+- tapOn:
+    point: "50%,85%"
+    optional: true
+
+- waitForAnimationToEnd
+
+- takeScreenshot: "sur_complete_PASS"

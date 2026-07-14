@@ -1,0 +1,36 @@
+# ============================================================
+# STW — Spin: tap SPIN button → wheel animates → reward shows
+# ============================================================
+appId: com.example.carousal
+---
+- launchApp:
+    clearState: false
+
+- waitForAnimationToEnd
+
+- tapOn:
+    text: "Login Event"
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible: "Close"
+    timeout: 12000
+
+- takeScreenshot: "stw_before_spin"
+
+# Tap spin button (bottom of modal, below the wheel)
+- tapOn:
+    point: "50%,80%"
+
+- waitForAnimationToEnd
+
+- takeScreenshot: "stw_reward_popup"
+
+# Dismiss reward popup
+- tapOn:
+    text: "Close"
+
+- waitForAnimationToEnd
+
+- takeScreenshot: "stw_spin_PASS"

@@ -1,0 +1,53 @@
+# ============================================================
+# BEHAVIOR — Frequency: Impression-Based "Cooldown"
+# DASHBOARD SETUP: Frequency tab → Impression-Based → Cooldown
+#                  (set the shortest wait period available)
+#                  Trigger → On Launch
+#
+# Backend must exclude the campaign from eligibility while the
+# cooldown window since the last impression is still open.
+#
+# THIS FLOW verifies the blocking half automatically:
+#   show → restart immediately → must NOT show (inside window)
+# The un-blocking half (shows again after the window passes)
+# needs a wait longer than any sane flow timeout — re-run
+# bhv_trigger_onlaunch.yaml manually after the cooldown expires.
+# ============================================================
+appId: com.example.carousal
+---
+- launchApp:
+    stopApp: true
+    clearState: false
+
+# 1st show
+- extendedWaitUntil:
+    visible:
+      text: "Close"
+    timeout: 15000
+
+- takeScreenshot: "bhv_cooldown_01_first_show"
+
+# Let the impression reach the backend
+- extendedWaitUntil:
+    visible:
+      text: "___impression_flush_wait___"
+    timeout: 4000
+    optional: true
+
+# Immediate restart — still inside the cooldown window
+- launchApp:
+    stopApp: true
+    clearState: false
+
+- extendedWaitUntil:
+    visible:
+      text: "___give_campaign_time_to_appear___"
+    timeout: 15000
+    optional: true
+
+# Must be suppressed
+- extendedWaitUntil:
+    notVisible: "Close"
+    timeout: 6000
+
+- takeScreenshot: "bhv_cooldown_02_suppressed_PASS"

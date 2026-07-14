@@ -1,0 +1,27 @@
+# ============================================================
+# MOD — CTA: tap primary CTA button in modal
+# ============================================================
+appId: com.example.carousal
+---
+- launchApp:
+    clearState: false
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible: "Close"
+    timeout: 12000
+
+- takeScreenshot: "mod_before_cta"
+
+# Tap primary CTA (centre-bottom of modal)
+- tapOn:
+    point: "50%,70%"
+
+- waitForAnimationToEnd
+
+- pressKey: back
+
+- waitForAnimationToEnd
+
+- takeScreenshot: "mod_cta_PASS"

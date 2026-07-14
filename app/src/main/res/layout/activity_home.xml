@@ -63,6 +63,11 @@
                     app:placeholder="@drawable/ic_launcher_foreground"
                     app:position="widget_one" />
 
+                <com.appversal.appstorys.ui.xml.StoriesView
+                    android:id="@+id/stories_view"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
                 <ImageView
                     android:id="@+id/app_logo"
                     android:layout_width="match_parent"

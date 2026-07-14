@@ -1,0 +1,71 @@
+# QA-tracker: "State is not saving of any interactive"
+#
+# DASHBOARD SETUP (required before running):
+#   - STR campaign whose FIRST displayed slide has a POLL interaction
+#   - Poll has "Show results" = ON  (results are the visible proof of a
+#     saved answer: a poll whose state persisted shows percentages
+#     IMMEDIATELY on reopen, without voting again)
+#
+# PASS = vote, close the story, reopen it -> percentages already visible.
+# FAIL = reopen shows the un-voted poll again (the tracker bug: state lost).
+#
+# Run:
+#   maestro test bhv_str_state_save.yaml ^
+#     -e GROUP_NAME="Group 1" -e OPTION_TEXT="YES"
+appId: com.example.carousal
+env:
+  GROUP_NAME: "Group 1"
+  OPTION_TEXT: "YES"
+---
+- launchApp:
+    stopApp: true
+    clearState: false
+
+- extendedWaitUntil:
+    visible: "${GROUP_NAME}"
+    timeout: 30000
+
+# ── Round 1: vote ────────────────────────────────────────────────
+- tapOn:
+    text: "${GROUP_NAME}"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 2000
+- extendedWaitUntil:
+    visible: "${OPTION_TEXT}"
+    timeout: 4000
+- tapOn:
+    text: "${OPTION_TEXT}"
+    retryTapIfNoChange: false
+- extendedWaitUntil:
+    visible: "\\d+%"
+    timeout: 3000
+- takeScreenshot: "bhv_state_01_voted"
+
+# Close the viewer (swipe-down; never pressKey back — SDK bug #6)
+- swipe:
+    start: "50%,40%"
+    end: "50%,90%"
+    duration: 300
+- extendedWaitUntil:
+    visible: "${GROUP_NAME}"
+    timeout: 8000
+
+# ── Round 2: reopen, state must have survived ────────────────────
+- tapOn:
+    text: "${GROUP_NAME}"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 2000
+
+# THE CHECK: results visible immediately, WITHOUT voting again
+- extendedWaitUntil:
+    visible: "\\d+%"
+    timeout: 4000
+- takeScreenshot: "bhv_state_02_state_persisted"
+
+- swipe:
+    start: "50%,40%"
+    end: "50%,90%"
+    duration: 300
+- extendedWaitUntil:
+    visible: "Parties"
+    timeout: 8000

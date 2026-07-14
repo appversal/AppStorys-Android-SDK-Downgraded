@@ -18,6 +18,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.ImageLoader
@@ -33,6 +35,13 @@ import com.airbnb.lottie.compose.LottieCompositionSpec
 import com.airbnb.lottie.compose.LottieConstants
 import com.airbnb.lottie.compose.rememberLottieComposition
 import com.appversal.appstorys.utils.isGifUrl
+
+/**
+ * Accessibility label for the floater's clickable surface. Named so it can be
+ * referenced from tests instead of being duplicated as a magic string.
+ */
+internal const val FLOATER_CONTENT_DESCRIPTION = "Floater"
+
 
 @Composable
 internal fun OverlayFloater(
@@ -62,6 +71,16 @@ internal fun OverlayFloater(
             .height(height)
             .width(width)
             .clip(borderRadiusValues)
+            // The floater is a clickable control whose content is purely an
+            // image or a Lottie animation — it has no text. Without a label
+            // here it was announced as nothing by screen readers and was
+            // unreachable by any UI-automation selector, so tests had to guess
+            // its screen coordinates. Labelling the clickable container (and
+            // leaving the inner image/animation decorative) covers BOTH the
+            // image and Lottie branches, which is why it lives here rather
+            // than on the Image itself. Matches the labels the SDK already
+            // gives its other surfaces: "Banner", "Wheel", "Prize", "Close".
+            .semantics { contentDescription = FLOATER_CONTENT_DESCRIPTION }
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -111,6 +130,8 @@ internal fun OverlayFloater(
 
                     Image(
                         painter = painter,
+                        // Decorative: the clickable Surface above carries the
+                        // label for the whole control (see its semantics).
                         contentDescription = null,
                         contentScale = ContentScale.Fit,
                         modifier = Modifier
@@ -120,6 +141,7 @@ internal fun OverlayFloater(
                 } else {
                     AsyncImage(
                         model = imageRequest,
+                        // Decorative — see the Surface's semantics above.
                         contentDescription = null,
                         contentScale = ContentScale.FillBounds,
                         modifier = modifier

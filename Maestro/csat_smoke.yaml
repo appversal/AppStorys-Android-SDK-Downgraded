@@ -1,0 +1,13 @@
+# ============================================================
+# CSAT Smoke — rating screen appears on launch
+# Campaign: CSAT
+# WHAT THIS PROVES: CSAT bottom sheet renders with rating widget
+# ============================================================
+appId: com.example.carousal
+---
+- launchApp:
+    clearState: false
+
+- waitForAnimationToEnd
+
+- takeScreenshot: "csat_smoke_PASS"

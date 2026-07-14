@@ -1,0 +1,75 @@
+# ============================================================
+# BAN — Interaction: tapping the banner fires its redirect
+#
+# ONLY MEANINGFUL WHEN THE CAMPAIGN HAS A LINK. The SDK's onClick is:
+#
+#     onClick = {
+#         if (bannerDetails.link.toString().trim().removeSurrounding("\"").isNotEmpty()) {
+#             clickEvent(link = ..., campaignId = it)
+#             trackEvents(it, "clicked")
+#         }
+#     }
+#
+# With an empty link the tap does NOTHING — no event, no redirect, nothing
+# moves on screen. The previous version tapped the banner and then asserted
+# `notVisible: "Close"`, i.e. required the campaign to vanish. Against the
+# banner that actually renders today (link = "") that can never pass, and it
+# would have been reported as a product failure. Its comment even admitted the
+# assertion was ambiguous: "we either left the app (redirect fired) or the
+# campaign dismissed itself; either way the tap was handled" — two very
+# different outcomes collapsed into one assertion. Layer 4 now SKIPS this flow
+# when the campaign has no link, the same way it skips str_studio when a story
+# has no interactive element.
+#
+# WHY ${BAN_POINT}: every image in ui/PinnedBanner.kt is
+# `contentDescription = null`, so nothing selects the banner BODY — only its
+# cross button is labelled. The old flow tapped a literal "50%,75%". Layer 4
+# now measures the banner on the live device (largest clickable node in the
+# lower half of the screen) and rewrites the default below.
+#
+# Dismissal is NOT tested here — that is ban_dismiss.yaml, which stays valid
+# whether or not the campaign has a link.
+# ============================================================
+appId: com.example.carousal
+env:
+  # Default only — Layer 4 overwrites this from a live measurement each run.
+  BAN_POINT: "50%,75%"
+---
+- launchApp:
+    clearState: false
+
+- waitForAnimationToEnd
+
+# PROVE the banner rendered before tapping it.
+- extendedWaitUntil:
+    visible: "Close"
+    timeout: 12000
+
+- takeScreenshot: "ban_01_before_tap"
+
+# Tap the banner body (NOT the cross button) -> clickEvent + "clicked".
+- tapOn:
+    point: "${BAN_POINT}"
+
+- waitForAnimationToEnd
+
+# PROVE the redirect fired: the link opened in a browser, so the app's bottom
+# nav is gone. A tap that hit nothing would leave "Parties" visible and fail
+# here — which is exactly what we want it to do. This is a single unambiguous
+# outcome, unlike the old `notVisible: "Close"`.
+- extendedWaitUntil:
+    notVisible: "Parties"
+    timeout: 10000
+
+- takeScreenshot: "ban_02_redirect_opened"
+
+# Return to the app so the next flow starts from a known state.
+- pressKey: back
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible: "Parties"
+    timeout: 10000
+
+- takeScreenshot: "ban_03_returned_PASS"

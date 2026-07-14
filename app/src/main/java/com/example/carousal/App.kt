@@ -1,12 +1,8 @@
 package com.example.carousal
 
 import android.app.Application
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.content.Context
-import android.os.Build
 import android.util.Log
-import androidx.annotation.RequiresApi
 import com.appversal.appstorys.AppStorys
 import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.MainScope
@@ -19,7 +15,6 @@ class App : Application() {
     val screenNameNavigation = MutableStateFlow("")
     private val appScope = MainScope()
 
-    @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate() {
         super.onCreate()
 
@@ -34,24 +29,17 @@ class App : Application() {
 //            accountId = "4350bf8e-0c9a-46bd-b953-abb65ab21d11",  // prod test
             appId = "f69bdccf-b20f-4938-b39e-7075d76db791",  // dev test
             accountId = "12a9eac5-94ee-4735-9aa6-b8a94cb8fbbb",  // dev test
-//            userId = userId,
-//            userId = "nameisanirudh",
-            userId = "001e756sdf27948b",
+//            userId = "001e77ce-7c2b-407e-a099-98ab5627948b",
+            // The QA pipeline stamps a unique id here before each run (see
+            // qaOverrideUserId) so its analytics are attributable to that run
+            // alone -- the dev server is shared, and a hardcoded id made every
+            // tester the same analytics user (and the same frequency subject).
+            userId = qaOverrideUserId() ?: userId,
             navigateToScreen = { screen ->
                 println("Navigating to $screen")
                 navigateToScreen(screen)
             }
         )
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                "appstorys_outreach",
-                "Outreach",
-                NotificationManager.IMPORTANCE_HIGH
-            )
-            val mgr = getSystemService(NotificationManager::class.java)
-            mgr.createNotificationChannel(channel)
-        }
 
         Log.d("FCM_TOKEN", "requesting token...")
         try {
@@ -69,6 +57,16 @@ class App : Application() {
 
         appStorys = AppStorys
     }
+
+    /**
+     * Per-run user id written by the QA pipeline into shared_prefs/qa_override.xml
+     * (via `adb shell run-as`, while the process is force-stopped). Absent on a
+     * normal install, so real users always fall through to getOrCreateUserId().
+     */
+    private fun qaOverrideUserId(): String? =
+        getSharedPreferences("qa_override", Context.MODE_PRIVATE)
+            .getString("userId", null)
+            ?.takeIf { it.isNotBlank() }
 
     private fun getOrCreateUserId(): String {
         val prefs = getSharedPreferences("app_prefs", Context.MODE_PRIVATE)

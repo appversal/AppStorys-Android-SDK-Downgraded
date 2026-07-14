@@ -1,0 +1,20 @@
+# ============================================================
+# STW — Smoke: spin the wheel modal appears after trigger
+# ============================================================
+appId: com.example.carousal
+---
+- launchApp:
+    clearState: false
+
+- waitForAnimationToEnd
+
+- tapOn:
+    text: "Login Event"
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible: "Close"
+    timeout: 12000
+
+- takeScreenshot: "stw_smoke_PASS"

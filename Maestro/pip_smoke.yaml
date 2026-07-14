@@ -1,0 +1,28 @@
+# ============================================================
+# PIP Smoke — PIP video card renders on launch
+# Campaign: PIP  (trigger = On Launch)
+# WHAT THIS PROVES: the floating PIP card renders on cold start
+# (its "Close" cross button becomes visible). Render also fires
+# viewed {is_small_video:true} so L5 sees one event.
+#
+# The old version asserted pip_expand_button with optional:true —
+# a can-never-fail assert. And [dynamic] PIP_smoke fails because it
+# asserts "Close" with no bounded wait, before cold-start render
+# finishes. Fix = a real extendedWaitUntil that covers the
+# eligibility call + campaigns.json fetch + render.
+# ============================================================
+appId: com.example.carousal
+---
+- launchApp:
+    clearState: false
+
+- waitForAnimationToEnd
+
+# Real oracle: cross button contentDescription "Close" is visible
+# only when the PIP card is actually on screen. Generous timeout
+# covers cold-start eligibility + campaigns fetch + render.
+- extendedWaitUntil:
+    visible: "Close"
+    timeout: 12000
+
+- takeScreenshot: "pip_smoke_PASS"

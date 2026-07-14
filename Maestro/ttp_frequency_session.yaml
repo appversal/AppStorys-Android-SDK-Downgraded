@@ -1,0 +1,54 @@
+# ============================================================
+# TTP — Session frequency: tooltips show once per app SESSION
+# tooltipViewed is an in-memory MutableStateFlow — it survives
+# navigation but NOT a process restart.
+# WHAT THIS PROVES:
+#   1. Tooltips appear on first screen visit.
+#   2. After viewing all steps, navigating away and back does
+#      NOT re-show them (in-memory state).
+#   3. A full process restart (stopApp) DOES re-show them.
+# NOTE: no "Close" button exists on tooltips — tap OUTSIDE the
+#       card to advance/dismiss (TooltipContent.kt).
+# ============================================================
+appId: com.example.carousal
+---
+- launchApp:
+    clearState: false
+
+- waitForAnimationToEnd
+
+- takeScreenshot: "ttp_freq_01_first_visit"
+
+# Advance through both tooltip steps by tapping outside the card
+- tapOn:
+    point: "5%,5%"
+
+- waitForAnimationToEnd
+
+- tapOn:
+    point: "5%,5%"
+
+- waitForAnimationToEnd
+
+# Navigate away then return — tooltips must NOT re-appear
+- tapOn:
+    text: "More"
+
+- waitForAnimationToEnd
+
+- tapOn:
+    text: "Parties"
+
+- waitForAnimationToEnd
+
+- takeScreenshot: "ttp_freq_02_no_reshow_same_session"
+
+# Full process restart — in-memory tooltipViewed is cleared,
+# tooltips MUST show again
+- launchApp:
+    stopApp: true
+    clearState: false
+
+- waitForAnimationToEnd
+
+- takeScreenshot: "ttp_freq_03_reshow_after_restart_PASS"

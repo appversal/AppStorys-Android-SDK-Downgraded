@@ -1,0 +1,17 @@
+# ============================================================
+# BAN — Smoke: banner renders on app launch
+# WHAT THIS PROVES: banner appears at bottom of screen with
+#                   its cross button visible
+# ============================================================
+appId: com.example.carousal
+---
+- launchApp:
+    clearState: false
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible: "Close"
+    timeout: 12000
+
+- takeScreenshot: "ban_smoke_PASS"

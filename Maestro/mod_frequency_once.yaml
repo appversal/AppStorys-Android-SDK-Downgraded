@@ -1,0 +1,43 @@
+# ============================================================
+# MOD — Frequency once: modal must NOT re-appear after dismiss
+# BEFORE RUNNING: set modal frequency to "Once" in dashboard
+# ============================================================
+appId: com.example.carousal
+---
+- launchApp:
+    clearState: false
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible: "Close"
+    timeout: 12000
+
+- takeScreenshot: "mod_freq_once_first_launch"
+
+- tapOn:
+    text: "Close"
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    notVisible: "Close"
+    timeout: 6000
+
+# Navigate away then return
+- tapOn:
+    text: "More"
+
+- waitForAnimationToEnd
+
+- tapOn:
+    text: "Parties"
+
+- waitForAnimationToEnd
+
+# Modal must NOT re-appear
+- extendedWaitUntil:
+    notVisible: "Close"
+    timeout: 6000
+
+- takeScreenshot: "mod_freq_once_PASS"

@@ -525,7 +525,7 @@ data class StoryContentElement(
     val strokeWidth: Float? = null,
     val frameStyle: String? = null,      // "classic" | "rounded" | ...
     val shadowBlur: Float? = null,
-    val shadowColor: String? = null,
+    val shadowColor: JsonElement? = null,
     val shadowOffsetX: Float? = null,
     val shadowOffsetY: Float? = null,
     val shadowOpacity: Float? = null,

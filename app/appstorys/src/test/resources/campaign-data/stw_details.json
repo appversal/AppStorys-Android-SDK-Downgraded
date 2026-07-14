@@ -1,0 +1,817 @@
+{
+  "availableSpins": 1,
+  "content": {
+    "availableSpinsText": "Spins left",
+    "rewardConfiguration": {
+      "rewardEnableBackdrop": true,
+      "rewardPopupDescription": "",
+      "rewardPopupTitle": ""
+    },
+    "userInteraction": {
+      "hapticFeedback": false
+    },
+    "wheelConfiguration": {
+      "spinDirection": "clockwise",
+      "totalSliceCount": 4
+    }
+  },
+  "enableBackdrop": true,
+  "id": "727b2ac8-4b6b-4ff9-a45a-38baeb4b2543",
+  "popupDescription": "",
+  "popupTitle": "",
+  "rewardDisplayMode": "pop-up",
+  "slices": [
+    {
+      "id": "e95d6670-7c0c-4f0c-8771-f4528b4de4cb",
+      "noPrize": false,
+      "parent": "727b2ac8-4b6b-4ff9-a45a-38baeb4b2543",
+      "prizeLabel": "",
+      "rewards": [
+        {
+          "buttonCta": "",
+          "id": "a8063d4e-1c03-49d4-805d-9aa513226e21",
+          "link": "",
+          "prizeName": "",
+          "sliceId": "e95d6670-7c0c-4f0c-8771-f4528b4de4cb",
+          "styling": {
+            "couponCodeCta": {
+              "container": {
+                "alignment": "center",
+                "backgroundColor": "#FFF7ED",
+                "borderColor": "#fd5f03",
+                "borderWidth": 1,
+                "ctaFullWidth": true,
+                "ctaWidth": 200,
+                "height": 40
+              },
+              "cornerRadius": {
+                "bottomLeft": 8,
+                "bottomRight": 8,
+                "topLeft": 8,
+                "topRight": 8
+              },
+              "margin": {
+                "bottom": 0,
+                "left": 0,
+                "right": 0,
+                "top": 0
+              },
+              "text": {
+                "color": "#fd5f03",
+                "fontDecoration": [
+                  "bold"
+                ],
+                "fontFamily": "monospace",
+                "fontSize": 11
+              }
+            },
+            "cta": {
+              "container": {
+                "alignment": "center",
+                "backgroundColor": "#2563EB",
+                "borderColor": "#2563EB",
+                "borderWidth": 2,
+                "ctaFullWidth": true,
+                "ctaWidth": 120,
+                "height": 48
+              },
+              "cornerRadius": {
+                "bottomLeft": 12,
+                "bottomRight": 12,
+                "topLeft": 12,
+                "topRight": 12
+              },
+              "margin": {
+                "bottom": 0,
+                "left": 0,
+                "right": 0,
+                "top": 0
+              },
+              "text": {
+                "color": "#FFFFFF",
+                "fontDecoration": [
+                  "bold"
+                ],
+                "fontFamily": "Helvetica",
+                "fontSize": 15
+              }
+            },
+            "priceLabel": {
+              "textStyle": {
+                "color": "#000000",
+                "fontDecoration": [],
+                "fontFamily": "Helvetica",
+                "fontSize": 18,
+                "margin": {
+                  "bottom": 4,
+                  "left": 4,
+                  "right": 4,
+                  "top": 4
+                },
+                "textAlign": "center"
+              }
+            },
+            "subtitleText": {
+              "textStyle": {
+                "color": "#666666",
+                "fontDecoration": [],
+                "fontFamily": "Helvetica",
+                "fontSize": 14,
+                "margin": {
+                  "bottom": 4,
+                  "left": 4,
+                  "right": 4,
+                  "top": 4
+                },
+                "textAlign": "center"
+              }
+            }
+          },
+          "subText": "",
+          "tNcCta": "Know more to claim",
+          "termsNConditions": ""
+        }
+      ],
+      "styling": {
+        "wheelStyling": {
+          "color": {
+            "background": "#F97316",
+            "stroke": "#F97316"
+          },
+          "cornerRadius": {
+            "bottomLeft": 0,
+            "bottomRight": 0,
+            "topLeft": 0,
+            "topRight": 0
+          },
+          "image": {
+            "cornerRadius": {
+              "bottomLeft": 12,
+              "bottomRight": 12,
+              "topLeft": 12,
+              "topRight": 12
+            },
+            "rotation": 0
+          },
+          "margin": {
+            "bottom": 4,
+            "left": 4,
+            "right": 4,
+            "top": 4
+          },
+          "priceLabel": {
+            "margin": {
+              "bottom": 4,
+              "left": 4,
+              "right": 4,
+              "top": 4
+            },
+            "textStyle": {
+              "color": "#FFFFFF",
+              "fontSize": 12
+            }
+          },
+          "strokeWidth": 2
+        }
+      },
+      "weight": 50
+    },
+    {
+      "id": "10d6be3f-48ed-4813-b91a-f67b469429f3",
+      "noPrize": false,
+      "parent": "727b2ac8-4b6b-4ff9-a45a-38baeb4b2543",
+      "prizeLabel": "",
+      "rewards": [
+        {
+          "buttonCta": "",
+          "id": "99d0c2d5-c942-4c93-a2a9-a77a724ceb88",
+          "link": "",
+          "prizeName": "",
+          "sliceId": "10d6be3f-48ed-4813-b91a-f67b469429f3",
+          "styling": {
+            "couponCodeCta": {
+              "container": {
+                "alignment": "center",
+                "backgroundColor": "#FFF7ED",
+                "borderColor": "#fd5f03",
+                "borderWidth": 1,
+                "ctaFullWidth": true,
+                "ctaWidth": 200,
+                "height": 40
+              },
+              "cornerRadius": {
+                "bottomLeft": 8,
+                "bottomRight": 8,
+                "topLeft": 8,
+                "topRight": 8
+              },
+              "margin": {
+                "bottom": 0,
+                "left": 0,
+                "right": 0,
+                "top": 0
+              },
+              "text": {
+                "color": "#fd5f03",
+                "fontDecoration": [
+                  "bold"
+                ],
+                "fontFamily": "monospace",
+                "fontSize": 11
+              }
+            },
+            "cta": {
+              "container": {
+                "alignment": "center",
+                "backgroundColor": "#2563EB",
+                "borderColor": "#2563EB",
+                "borderWidth": 2,
+                "ctaFullWidth": true,
+                "ctaWidth": 120,
+                "height": 48
+              },
+              "cornerRadius": {
+                "bottomLeft": 12,
+                "bottomRight": 12,
+                "topLeft": 12,
+                "topRight": 12
+              },
+              "margin": {
+                "bottom": 0,
+                "left": 0,
+                "right": 0,
+                "top": 0
+              },
+              "text": {
+                "color": "#FFFFFF",
+                "fontDecoration": [
+                  "bold"
+                ],
+                "fontFamily": "Helvetica",
+                "fontSize": 15
+              }
+            },
+            "priceLabel": {
+              "textStyle": {
+                "color": "#000000",
+                "fontDecoration": [],
+                "fontFamily": "Helvetica",
+                "fontSize": 18,
+                "margin": {
+                  "bottom": 4,
+                  "left": 4,
+                  "right": 4,
+                  "top": 4
+                },
+                "textAlign": "center"
+              }
+            },
+            "subtitleText": {
+              "textStyle": {
+                "color": "#666666",
+                "fontDecoration": [],
+                "fontFamily": "Helvetica",
+                "fontSize": 14,
+                "margin": {
+                  "bottom": 4,
+                  "left": 4,
+                  "right": 4,
+                  "top": 4
+                },
+                "textAlign": "center"
+              }
+            }
+          },
+          "subText": "",
+          "tNcCta": "Know more to claim",
+          "termsNConditions": ""
+        }
+      ],
+      "styling": {
+        "wheelStyling": {
+          "color": {
+            "background": "#A855F7",
+            "stroke": "#A855F7"
+          },
+          "cornerRadius": {
+            "bottomLeft": 0,
+            "bottomRight": 0,
+            "topLeft": 0,
+            "topRight": 0
+          },
+          "image": {
+            "cornerRadius": {
+              "bottomLeft": 12,
+              "bottomRight": 12,
+              "topLeft": 12,
+              "topRight": 12
+            },
+            "rotation": 0
+          },
+          "margin": {
+            "bottom": 4,
+            "left": 4,
+            "right": 4,
+            "top": 4
+          },
+          "priceLabel": {
+            "margin": {
+              "bottom": 4,
+              "left": 4,
+              "right": 4,
+              "top": 4
+            },
+            "textStyle": {
+              "color": "#FFFFFF",
+              "fontSize": 12
+            }
+          },
+          "strokeWidth": 2
+        }
+      },
+      "weight": 50
+    },
+    {
+      "id": "f2390d6f-da8c-44f5-bebf-a4af4faa40c9",
+      "noPrize": false,
+      "parent": "727b2ac8-4b6b-4ff9-a45a-38baeb4b2543",
+      "prizeLabel": "",
+      "rewards": [
+        {
+          "buttonCta": "",
+          "id": "043a269c-9f8f-4b61-bbe7-378540a7c2da",
+          "link": "",
+          "prizeName": "",
+          "sliceId": "f2390d6f-da8c-44f5-bebf-a4af4faa40c9",
+          "styling": {
+            "couponCodeCta": {
+              "container": {
+                "alignment": "center",
+                "backgroundColor": "#FFF7ED",
+                "borderColor": "#fd5f03",
+                "borderWidth": 1,
+                "ctaFullWidth": true,
+                "ctaWidth": 200,
+                "height": 40
+              },
+              "cornerRadius": {
+                "bottomLeft": 8,
+                "bottomRight": 8,
+                "topLeft": 8,
+                "topRight": 8
+              },
+              "margin": {
+                "bottom": 0,
+                "left": 0,
+                "right": 0,
+                "top": 0
+              },
+              "text": {
+                "color": "#fd5f03",
+                "fontDecoration": [
+                  "bold"
+                ],
+                "fontFamily": "monospace",
+                "fontSize": 11
+              }
+            },
+            "cta": {
+              "container": {
+                "alignment": "center",
+                "backgroundColor": "#2563EB",
+                "borderColor": "#2563EB",
+                "borderWidth": 2,
+                "ctaFullWidth": true,
+                "ctaWidth": 120,
+                "height": 48
+              },
+              "cornerRadius": {
+                "bottomLeft": 12,
+                "bottomRight": 12,
+                "topLeft": 12,
+                "topRight": 12
+              },
+              "margin": {
+                "bottom": 0,
+                "left": 0,
+                "right": 0,
+                "top": 0
+              },
+              "text": {
+                "color": "#FFFFFF",
+                "fontDecoration": [
+                  "bold"
+                ],
+                "fontFamily": "Helvetica",
+                "fontSize": 15
+              }
+            },
+            "priceLabel": {
+              "textStyle": {
+                "color": "#000000",
+                "fontDecoration": [],
+                "fontFamily": "Helvetica",
+                "fontSize": 18,
+                "margin": {
+                  "bottom": 4,
+                  "left": 4,
+                  "right": 4,
+                  "top": 4
+                },
+                "textAlign": "center"
+              }
+            },
+            "subtitleText": {
+              "textStyle": {
+                "color": "#666666",
+                "fontDecoration": [],
+                "fontFamily": "Helvetica",
+                "fontSize": 14,
+                "margin": {
+                  "bottom": 4,
+                  "left": 4,
+                  "right": 4,
+                  "top": 4
+                },
+                "textAlign": "center"
+              }
+            }
+          },
+          "subText": "",
+          "tNcCta": "Know more to claim",
+          "termsNConditions": ""
+        }
+      ],
+      "styling": {
+        "wheelStyling": {
+          "color": {
+            "background": "#3B82F6",
+            "stroke": "#3B82F6"
+          },
+          "cornerRadius": {
+            "bottomLeft": 0,
+            "bottomRight": 0,
+            "topLeft": 0,
+            "topRight": 0
+          },
+          "image": {
+            "cornerRadius": {
+              "bottomLeft": 12,
+              "bottomRight": 12,
+              "topLeft": 12,
+              "topRight": 12
+            },
+            "rotation": 0
+          },
+          "margin": {
+            "bottom": 4,
+            "left": 4,
+            "right": 4,
+            "top": 4
+          },
+          "priceLabel": {
+            "margin": {
+              "bottom": 4,
+              "left": 4,
+              "right": 4,
+              "top": 4
+            },
+            "textStyle": {
+              "color": "#FFFFFF",
+              "fontSize": 12
+            }
+          },
+          "strokeWidth": 2
+        }
+      },
+      "weight": 50
+    },
+    {
+      "id": "5ebe6627-067e-49fc-802b-e2bc88aef959",
+      "noPrize": false,
+      "parent": "727b2ac8-4b6b-4ff9-a45a-38baeb4b2543",
+      "prizeLabel": "",
+      "rewards": [
+        {
+          "buttonCta": "",
+          "id": "a737d109-7dda-420a-b839-26e4c23cd793",
+          "link": "",
+          "prizeName": "",
+          "sliceId": "5ebe6627-067e-49fc-802b-e2bc88aef959",
+          "styling": {
+            "couponCodeCta": {
+              "container": {
+                "alignment": "center",
+                "backgroundColor": "#FFF7ED",
+                "borderColor": "#fd5f03",
+                "borderWidth": 1,
+                "ctaFullWidth": true,
+                "ctaWidth": 200,
+                "height": 40
+              },
+              "cornerRadius": {
+                "bottomLeft": 8,
+                "bottomRight": 8,
+                "topLeft": 8,
+                "topRight": 8
+              },
+              "margin": {
+                "bottom": 0,
+                "left": 0,
+                "right": 0,
+                "top": 0
+              },
+              "text": {
+                "color": "#fd5f03",
+                "fontDecoration": [
+                  "bold"
+                ],
+                "fontFamily": "monospace",
+                "fontSize": 11
+              }
+            },
+            "cta": {
+              "container": {
+                "alignment": "center",
+                "backgroundColor": "#2563EB",
+                "borderColor": "#2563EB",
+                "borderWidth": 2,
+                "ctaFullWidth": true,
+                "ctaWidth": 120,
+                "height": 48
+              },
+              "cornerRadius": {
+                "bottomLeft": 12,
+                "bottomRight": 12,
+                "topLeft": 12,
+                "topRight": 12
+              },
+              "margin": {
+                "bottom": 0,
+                "left": 0,
+                "right": 0,
+                "top": 0
+              },
+              "text": {
+                "color": "#FFFFFF",
+                "fontDecoration": [
+                  "bold"
+                ],
+                "fontFamily": "Helvetica",
+                "fontSize": 15
+              }
+            },
+            "priceLabel": {
+              "textStyle": {
+                "color": "#000000",
+                "fontDecoration": [],
+                "fontFamily": "Helvetica",
+                "fontSize": 18,
+                "margin": {
+                  "bottom": 4,
+                  "left": 4,
+                  "right": 4,
+                  "top": 4
+                },
+                "textAlign": "center"
+              }
+            },
+            "subtitleText": {
+              "textStyle": {
+                "color": "#666666",
+                "fontDecoration": [],
+                "fontFamily": "Helvetica",
+                "fontSize": 14,
+                "margin": {
+                  "bottom": 4,
+                  "left": 4,
+                  "right": 4,
+                  "top": 4
+                },
+                "textAlign": "center"
+              }
+            }
+          },
+          "subText": "",
+          "tNcCta": "Know more to claim",
+          "termsNConditions": ""
+        }
+      ],
+      "styling": {
+        "wheelStyling": {
+          "color": {
+            "background": "#10B981",
+            "stroke": "#10B981"
+          },
+          "cornerRadius": {
+            "bottomLeft": 0,
+            "bottomRight": 0,
+            "topLeft": 0,
+            "topRight": 0
+          },
+          "image": {
+            "cornerRadius": {
+              "bottomLeft": 12,
+              "bottomRight": 12,
+              "topLeft": 12,
+              "topRight": 12
+            },
+            "rotation": 0
+          },
+          "margin": {
+            "bottom": 4,
+            "left": 4,
+            "right": 4,
+            "top": 4
+          },
+          "priceLabel": {
+            "margin": {
+              "bottom": 4,
+              "left": 4,
+              "right": 4,
+              "top": 4
+            },
+            "textStyle": {
+              "color": "#FFFFFF",
+              "fontSize": 12
+            }
+          },
+          "strokeWidth": 2
+        }
+      },
+      "weight": 50
+    }
+  ],
+  "spinButtonText": "",
+  "styling": {
+    "rewardConfiguration": {
+      "backdropColor": "#000000ff",
+      "confetti": {
+        "color": {
+          "cross": "",
+          "fill": "",
+          "stroke": ""
+        },
+        "image": "",
+        "selectedStyle": "none"
+      },
+      "crossButton": {
+        "color": {
+          "cross": "#FFFFFF",
+          "fill": "#000000",
+          "stroke": "#FFFFFF"
+        },
+        "enabled": true,
+        "image": "",
+        "margin": {
+          "bottom": 4,
+          "left": 4,
+          "right": -12,
+          "top": -12
+        },
+        "selectedStyle": "cross4",
+        "size": 30
+      },
+      "subtitle": {
+        "textStyle": {
+          "color": "#FE6B35",
+          "fontDecoration": [],
+          "fontFamily": "Helvetica",
+          "fontSize": 14,
+          "margin": {
+            "bottom": 4,
+            "left": 4,
+            "right": 4,
+            "top": 4
+          },
+          "textAlign": "center"
+        }
+      },
+      "title": {
+        "textStyle": {
+          "color": "#FE6B35",
+          "fontDecoration": [],
+          "fontFamily": "Helvetica",
+          "fontSize": 18,
+          "margin": {
+            "bottom": 4,
+            "left": 4,
+            "right": 4,
+            "top": 4
+          },
+          "textAlign": "center"
+        }
+      }
+    },
+    "spinTheWheel": {
+      "crossButton": {
+        "alignment": "center",
+        "color": {
+          "cross": "#FFFFFF",
+          "fill": "#000000",
+          "stroke": "#FFFFFF"
+        },
+        "enabled": true,
+        "image": "",
+        "margin": {
+          "bottom": 4,
+          "left": 4,
+          "right": 4,
+          "top": 4
+        },
+        "selectedStyle": "cross4",
+        "size": 30
+      },
+      "visualTextCommunication": {
+        "availableSpinText": {
+          "textStyle": {
+            "color": "#000000",
+            "fontDecoration": [],
+            "fontFamily": "Arial",
+            "fontSize": 12,
+            "fontStyle": "normal",
+            "fontWeight": "normal",
+            "margin": {
+              "bottom": 4,
+              "left": 4,
+              "right": 4,
+              "top": 4
+            },
+            "textAlign": "center"
+          }
+        },
+        "backdropColor": "#000000",
+        "backdropOpacity": 70,
+        "spinButton": {
+          "container": {
+            "alignment": "center",
+            "backgroundColor": "#FFB545",
+            "borderColor": "#FFB545",
+            "borderWidth": 2,
+            "cornerRadius": {
+              "bottomLeft": 12,
+              "bottomRight": 12,
+              "topLeft": 12,
+              "topRight": 12
+            },
+            "fullWidth": false,
+            "height": 50,
+            "width": 120
+          },
+          "margin": {
+            "bottom": 4,
+            "left": 4,
+            "right": 4,
+            "top": 4
+          },
+          "text": {
+            "color": "#FFFFFF",
+            "fontDecoration": [],
+            "fontFamily": "Arial",
+            "fontSize": 12,
+            "fontStyle": "normal",
+            "fontWeight": "bold"
+          }
+        },
+        "subtitle": {
+          "textStyle": {
+            "color": "#E5E7EB",
+            "fontDecoration": [],
+            "fontFamily": "Helvetica",
+            "fontSize": 11,
+            "fontStyle": "normal",
+            "fontWeight": "normal",
+            "margin": {
+              "bottom": 4,
+              "left": 4,
+              "right": 4,
+              "top": 4
+            },
+            "textAlign": "center"
+          }
+        },
+        "title": {
+          "textStyle": {
+            "color": "#FFB545",
+            "fontDecoration": [],
+            "fontFamily": "Helvetica",
+            "fontSize": 18,
+            "fontStyle": "normal",
+            "fontWeight": "normal",
+            "margin": {
+              "bottom": 4,
+              "left": 4,
+              "right": 4,
+              "top": 4
+            },
+            "textAlign": "center"
+          }
+        }
+      },
+      "wheelConfiguration": {
+        "borderColor": "#FFFFFF",
+        "borderWidth": 4
+      }
+    }
+  }
+}

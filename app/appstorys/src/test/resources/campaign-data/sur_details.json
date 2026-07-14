@@ -1,0 +1,270 @@
+{
+  "id": "ee84729d-d007-4be4-8500-be347460d485",
+  "name": "Test",
+  "slides": [
+    {
+      "additionalComment": {
+        "enabled": false,
+        "placeholder": ""
+      },
+      "id": "37deb60c-d0a1-4a6b-9551-e34e91adbce5",
+      "logic": [],
+      "options": {
+        "option1": "Options Text *",
+        "option2": "Options Text * 2",
+        "option3": "Options Text * 3",
+        "option4": "Options Text * 4"
+      },
+      "order": 0,
+      "parent": "ee84729d-d007-4be4-8500-be347460d485",
+      "question": "Title Text *",
+      "submitButtonText": "Submit",
+      "subtitle": "Title Text *",
+      "title": "Title Text *"
+    },
+    {
+      "additionalComment": {
+        "enabled": true,
+        "placeholder": ""
+      },
+      "id": "ed6ccfda-007f-4a58-96c9-bdc024b6a96f",
+      "logic": [],
+      "options": {
+        "option1": "Options Text *",
+        "option2": "Options Text * 2"
+      },
+      "order": 1,
+      "parent": "ee84729d-d007-4be4-8500-be347460d485",
+      "question": "Title Text * 2",
+      "submitButtonText": "Submit",
+      "subtitle": "Subtitle Text 2",
+      "title": "Title Text * 2"
+    }
+  ],
+  "styling": {
+    "appearance": {
+      "backdropColor": "#000000",
+      "backdropOpacity": 50,
+      "backgroundColor": "#FFFFFF",
+      "cornerRadius": {
+        "topLeft": 12,
+        "topRight": 12
+      },
+      "displayDelay": 4
+    },
+    "content": {
+      "isIntroductionPage": false,
+      "isThankyouPage": true
+    },
+    "crossButton": {
+      "color": {
+        "cross": "#FFFFFF",
+        "fill": "#000000",
+        "stroke": "#FFFFFF"
+      },
+      "enabled": true,
+      "image": "",
+      "margin": {
+        "bottom": 4,
+        "left": 4,
+        "right": 4,
+        "top": 4
+      },
+      "selectedStyle": "cross4",
+      "size": 15
+    },
+    "cta": {
+      "container": {
+        "alignment": "center",
+        "backgroundColor": "#1f35db",
+        "borderColor": "#60e109",
+        "borderWidth": 0,
+        "ctaFullWidth": false,
+        "ctaWidth": 141,
+        "height": 50
+      },
+      "cornerRadius": {
+        "bottomLeft": 7,
+        "bottomRight": 7,
+        "topLeft": 7,
+        "topRight": 7
+      },
+      "margin": {
+        "bottom": 0,
+        "left": 4,
+        "right": 4,
+        "top": 12
+      },
+      "text": {
+        "color": "#ffffff",
+        "fontDecoration": [],
+        "fontFamily": "Arial",
+        "fontSize": 20
+      }
+    },
+    "options": {
+      "additionalComments": {
+        "colors": {
+          "background": "#FFFFFF",
+          "border": "#E5E7EB",
+          "text": "#6B7280"
+        },
+        "textStyle": {
+          "borderwidth": 2,
+          "fontDecoration": [],
+          "fontFamily": "",
+          "fontSize": 20,
+          "textAlign": "left"
+        }
+      },
+      "bulletSpacing": 12,
+      "cornerRadius": {
+        "bottomLeft": 7,
+        "bottomRight": 7,
+        "topLeft": 7,
+        "topRight": 7
+      },
+      "nonSelectedOptions": {
+        "colors": {
+          "background": "#FFFFFF",
+          "border": "#E5E7EB",
+          "text": "#111827"
+        },
+        "textStyle": {
+          "borderwidth": 2,
+          "fontDecoration": [],
+          "fontFamily": "",
+          "fontSize": 20,
+          "textAlign": "left"
+        }
+      },
+      "optionListStyle": "bulleted",
+      "optionsHeight": 48,
+      "optionsSpacing": 6,
+      "selectedOptions": {
+        "colors": {
+          "background": "#F3F4F6",
+          "border": "#111827",
+          "text": "#111827"
+        },
+        "textStyle": {
+          "borderwidth": 2,
+          "fontDecoration": [],
+          "fontFamily": "",
+          "fontSize": 20,
+          "textAlign": "left"
+        }
+      }
+    },
+    "subtitle": {
+      "textStyle": {
+        "color": "#6B7280",
+        "fontDecoration": [],
+        "fontFamily": "",
+        "fontSize": 16,
+        "margin": {
+          "bottom": 4,
+          "left": 4,
+          "right": 4,
+          "top": 4
+        },
+        "textAlign": "left"
+      }
+    },
+    "thankyouPage": {
+      "cta": {
+        "container": {
+          "alignment": "center",
+          "backgroundColor": "#1f35db",
+          "borderColor": "#60e109",
+          "borderWidth": 2,
+          "ctaFullWidth": false,
+          "ctaWidth": 120,
+          "height": 50
+        },
+        "cornerRadius": {
+          "bottomLeft": 12,
+          "bottomRight": 12,
+          "topLeft": 12,
+          "topRight": 12
+        },
+        "margin": {
+          "bottom": 4,
+          "left": 4,
+          "right": 4,
+          "top": 4
+        },
+        "text": {
+          "color": "#ffffff",
+          "fontDecoration": [],
+          "fontFamily": "Arial",
+          "fontSize": 14
+        }
+      },
+      "imageStyle": {
+        "height": 80,
+        "margin": {
+          "bottom": 12,
+          "left": 12,
+          "right": 12,
+          "top": 12
+        },
+        "width": 80
+      },
+      "subtitle": {
+        "textStyle": {
+          "color": "#6B7280",
+          "fontDecoration": [],
+          "fontFamily": "",
+          "fontSize": 10,
+          "margin": {
+            "bottom": 4,
+            "left": 4,
+            "right": 4,
+            "top": 4
+          },
+          "textAlign": "left"
+        }
+      },
+      "title": {
+        "textStyle": {
+          "color": "#6B7280",
+          "fontDecoration": [],
+          "fontFamily": "",
+          "fontSize": 10,
+          "margin": {
+            "bottom": 4,
+            "left": 4,
+            "right": 4,
+            "top": 4
+          },
+          "textAlign": "left"
+        }
+      }
+    },
+    "title": {
+      "textStyle": {
+        "color": "#111827",
+        "fontDecoration": [],
+        "fontFamily": "",
+        "fontSize": 22,
+        "margin": {
+          "bottom": 4,
+          "left": 4,
+          "right": 4,
+          "top": 4
+        },
+        "textAlign": "left"
+      }
+    }
+  },
+  "thankYouButtonConfig": {
+    "action": "redirect",
+    "enabled": true,
+    "redirectUrl": "https://google.com"
+  },
+  "thankYouButtonText": "Options Text *",
+  "thankYouImage": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/survey_thankyou/download_5.png",
+  "thankYouText": "Options Text *",
+  "thankYouTitle": "Options Text *"
+}

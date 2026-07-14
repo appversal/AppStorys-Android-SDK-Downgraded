@@ -1,0 +1,40 @@
+# ============================================================
+# FLT — Smoke: floater renders on app launch
+#
+# WHAT THE SDK ACTUALLY DOES (ui/floater/OverlayFloater.kt):
+#   The floater is ONE clickable Image/Lottie, bottom-aligned (BottomStart for
+#   position "left", BottomEnd for "right"), sized to the campaign's
+#   width/height in dp, inset by a fixed 16dp.
+#     - contentDescription = null  -> NO accessibility label
+#     - no text                    -> nothing to match on
+#     - NO cross button            -> the floater CANNOT be dismissed
+#   Render fires trackEvents(id, "viewed"); tapping fires "clicked" and opens
+#   the campaign's link.
+#
+# This flow used to wait for `visible: "Close"`, and its comment claimed
+# "Floater uses CrossButton — contentDescription = Close". The SDK source says
+# otherwise: OverlayFloater renders no CrossButton at all. The assertion
+# described a campaign type that does not exist, so it could only ever time
+# out. The same mistake was in flt_dismiss / flt_interaction /
+# flt_frequency_once.
+#
+# This flow could originally prove nothing about the floater: with
+# contentDescription = null there was no selector to match, so it fell back to
+# an app-liveness check. OverlayFloater now labels its clickable Surface
+# (`semantics { contentDescription = "Floater" }`), so the smoke test asserts
+# the actual campaign again.
+# ============================================================
+appId: com.example.carousal
+---
+- launchApp:
+    clearState: false
+
+- waitForAnimationToEnd
+
+# PROVE the floater rendered. Bounded: cold start must complete token ->
+# eligible campaigns -> campaigns.json -> image load before it can appear.
+- extendedWaitUntil:
+    visible: "Floater"
+    timeout: 15000
+
+- takeScreenshot: "flt_smoke_PASS"

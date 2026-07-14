@@ -1,0 +1,44 @@
+# ============================================================
+# BEHAVIOR — Trigger: via AppStorys Campaigns (campaign chain)
+# DASHBOARD SETUP:
+#   Campaign B: Trigger tab → "via AppStorys Campaigns"
+#   Campaign A: any visible campaign whose CTA link is set to
+#               campaign B's ID.
+#
+# HOW IT WORKS IN THE SDK:
+#   Campaign B's trigger_event = "viaAppStorys" (string).
+#   TriggerEventMatcher matches it against the tracked event
+#   "viaAppStorys<B-id>", which clickEvent() emits when
+#   campaign A's CTA is clicked with B's id as the link.
+#   So: tap A's CTA → B renders. B must NOT render before that.
+#
+# NOTE: CTA tap point may need adjusting per campaign A's type.
+# ============================================================
+appId: com.example.carousal
+---
+- launchApp:
+    stopApp: true
+    clearState: false
+
+# Campaign A (the chain source) must appear first
+- extendedWaitUntil:
+    visible:
+      text: "Close"
+    timeout: 15000
+
+- takeScreenshot: "bhv_chain_01_campaign_A"
+
+# Tap campaign A's CTA — center of the campaign area.
+# clickEvent() fires "viaAppStorys<B-id>" internally.
+- tapOn:
+    point: "50%,65%"
+
+- waitForAnimationToEnd
+
+# Campaign B must now render (chained trigger)
+- extendedWaitUntil:
+    visible:
+      text: "Close"
+    timeout: 10000
+
+- takeScreenshot: "bhv_chain_02_campaign_B_PASS"

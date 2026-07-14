@@ -1,0 +1,38 @@
+# ============================================================
+# FLT — Dismiss:  DISABLED — TESTS A FEATURE THAT DOES NOT EXIST
+#
+# Removed from pipeline-config.json maestroFlows.FLT on 2026-07-25.
+# Kept on disk as a record of the wrong assumption, not deleted, so nobody
+# re-adds it later.
+#
+# THE PROBLEM: a floater cannot be dismissed. ui/floater/OverlayFloater.kt is a
+# single clickable Image/Lottie inside a Surface:
+#     - no CrossButton anywhere (grep CrossButton — Floater is not in the list)
+#     - contentDescription = null on both the Image and the AsyncImage
+#     - the only gesture handler is .clickable { onClick } , which opens the
+#       campaign's link; there is no dismiss/close/swipe path at all
+# So this flow waited for "Close", tapped "Close", and asserted "Close" had
+# gone — three steps against a control the SDK never draws. It could only ever
+# time out, and it did so as a FAIL that read like a product bug.
+#
+# IF DISMISSAL IS EVER ADDED to the floater, re-enable this flow, re-add it to
+# maestroFlows.FLT, and anchor it on whatever the new control actually exposes
+# — confirmed against the SDK source, not assumed.
+#
+# What DOES cover the floater today:
+#     flt_smoke.yaml       — app liveness + screenshot
+#     flt_interaction.yaml — taps the MEASURED floater and requires the
+#                            redirect to fire (the real on-screen proof)
+#     Layer 5              — the "viewed" / "clicked" events the SDK sends
+#     Layer 3.5            — device-golden pixel compare
+# ============================================================
+appId: com.example.carousal
+---
+# Intentionally inert: launching and screenshotting only, so that running this
+# file by hand cannot report a misleading pass or fail.
+- launchApp:
+    clearState: false
+
+- waitForAnimationToEnd
+
+- takeScreenshot: "flt_dismiss_DISABLED"

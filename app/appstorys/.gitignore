@@ -1,1 +1,3 @@
 /build
+# AppStorys-QA pipeline's private build root (-PqaRunId)
+/build-qa

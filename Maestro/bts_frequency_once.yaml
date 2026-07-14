@@ -1,0 +1,46 @@
+# ============================================================
+# BTS — Frequency once: sheet must NOT re-appear after dismiss
+# BEFORE RUNNING: set bottom sheet frequency to "Once" in
+#                 dashboard
+# ============================================================
+appId: com.example.carousal
+---
+- launchApp:
+    clearState: false
+
+- waitForAnimationToEnd
+
+# BTS is usually triggered by an event or button — adjust as needed
+- tapOn:
+    text: "Open Bottom Sheet"
+    optional: true
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible: "Close"
+    timeout: 12000
+
+- takeScreenshot: "bts_freq_once_first_show"
+
+- tapOn:
+    text: "Close"
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    notVisible: "Close"
+    timeout: 6000
+
+# Fire the same trigger again — sheet must NOT re-appear
+- tapOn:
+    text: "Open Bottom Sheet"
+    optional: true
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    notVisible: "Close"
+    timeout: 6000
+
+- takeScreenshot: "bts_freq_once_PASS"

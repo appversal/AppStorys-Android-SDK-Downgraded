@@ -1,0 +1,36 @@
+{
+  "height": 853,
+  "id": "39f783e9-b2b6-453c-b415-ecb5d8c5097c",
+  "image": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/banners/WhatsApp_Image_2026-05-13_at_3.48.55_PM.jpeg",
+  "link": "https://google.com",
+  "styling": {
+    "bottomLeftRadius": 50,
+    "bottomRightRadius": 0,
+    "crossButton": {
+      "color": {
+        "cross": "#FFFFFF",
+        "fill": "#000000",
+        "stroke": "#bca9fa"
+      },
+      "enabled": true,
+      "image": "",
+      "margin": {
+        "bottom": 0,
+        "left": 0,
+        "right": 4,
+        "top": 4
+      },
+      "selectedStyle": "cross4",
+      "size": 50
+    },
+    "marginBottom": 10,
+    "marginLeft": 10,
+    "marginRight": 0,
+    "originalHeight": 853,
+    "originalWidth": 1280,
+    "topLeftRadius": 50,
+    "topRightRadius": 0,
+    "userModifiedHeight": false
+  },
+  "width": 1280
+}
