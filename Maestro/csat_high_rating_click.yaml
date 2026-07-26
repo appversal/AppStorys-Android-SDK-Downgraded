@@ -1,0 +1,79 @@
+# ============================================================
+# CSAT — HIGH rating path: skips feedback, thank-you, done -> "clicked"
+#
+# THIS IS THE ONLY FLOW THAT REACHES CsatDialog.kt:913
+#   trackEvents(csatDetails.campaign, "clicked")
+# which is gated on BOTH conditions:
+#   if (csatDetails.link.isNullOrEmpty() || selectedStars < 4) onDone()
+#   else { trackEvents(...); open link }
+# The old csat_rate_and_submit tapped Star 3, so this branch had never
+# executed once — CSAT click tracking was completely unverified, and
+# Layer 5 saw zero "clicked" events on every CSAT run.
+#
+# SDK FACTS (CsatDialog.kt):
+#   - stars >= 4 -> onStarSelected launches a coroutine that delays
+#     1000ms, submits, then sets showThanks. The feedback page is NEVER
+#     shown. That 1s delay is why the thank-you wait below is generous.
+#   - ThankYouContent renders only when thankyouImage != null.
+#   - Done-button label = doneButton.text if non-blank, else
+#     high/lowStarText, else "Done". NOTE the SDK's `?: "Done"` cannot
+#     rescue an EMPTY string, so a campaign with a blank doneButton.text
+#     and highStarText "" renders a label-less button.
+#   - Tapping done opens the link in an external browser, so this flow
+#     ends by returning to the app to leave the device usable for the
+#     next flow.
+#
+# Layer 4 skips this flow unless CSAT_HAS_LINK, CSAT_THANKYOU_TEXT and
+# CSAT_DONE_TEXT are all injected — without a link the SDK's else-branch
+# is unreachable and there is no "clicked" to prove.
+# ============================================================
+appId: com.example.carousal
+env:
+  CSAT_TITLE: "Did you like our service ?"
+  CSAT_HIGH_ANCHOR: "Star 5"
+  CSAT_THANKYOU_TEXT: "TITLE"
+  CSAT_DONE_TEXT: "KUDOS"
+---
+- launchApp:
+    stopApp: true
+    clearState: false
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible: "Close"
+    timeout: 12000
+
+- extendedWaitUntil:
+    visible: "${CSAT_TITLE}"
+    timeout: 8000
+
+# High rating -> feedback page must be SKIPPED entirely.
+- tapOn: "${CSAT_HIGH_ANCHOR}"
+
+- waitForAnimationToEnd
+
+# Thank-you appears after the SDK's 1000ms delay + submit.
+- extendedWaitUntil:
+    visible: "${CSAT_THANKYOU_TEXT}"
+    timeout: 12000
+
+- takeScreenshot: "csat_high_01_thankyou"
+
+# The done button carries the campaign-attributed "clicked" event.
+- extendedWaitUntil:
+    visible: "${CSAT_DONE_TEXT}"
+    timeout: 8000
+
+- tapOn:
+    text: "${CSAT_DONE_TEXT}"
+
+- waitForAnimationToEnd
+
+- takeScreenshot: "csat_high_02_after_click_PASS"
+
+# Tapping done launched the browser — come back so the next flow starts
+# from the demo app rather than Chrome.
+- launchApp:
+    stopApp: true
+    clearState: false

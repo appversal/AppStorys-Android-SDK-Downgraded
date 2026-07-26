@@ -1,0 +1,318 @@
+{
+  "campaign": "c6b5373a-ad85-473e-8243-5354ec01aa84",
+  "description_text": "BE REAL",
+  "feedback_option": {
+    "option1": "NO",
+    "option2": "YES",
+    "option3": "I'll Pass"
+  },
+  "height": 80,
+  "highStarText": "",
+  "id": "6f0b24e3-ed0c-4e6b-9c97-02893bd02fc8",
+  "link": "https://google.com",
+  "lowStarText": "",
+  "styling": {
+    "appearance": {
+      "backgroundColor": "#ffddd1",
+      "borderRadius": 20,
+      "displayDelay": 0,
+      "margin": {
+        "bottom": 0,
+        "left": 0,
+        "right": 0,
+        "top": 0
+      },
+      "padding": {
+        "bottom": 20,
+        "left": 10,
+        "right": 10,
+        "top": 10
+      }
+    },
+    "crossButton": {
+      "color": {
+        "cross": "#FFFFFF",
+        "fill": "#000000",
+        "stroke": "#FFFFFF"
+      },
+      "enabled": true,
+      "image": "",
+      "margin": {
+        "bottom": 4,
+        "left": 4,
+        "right": 4,
+        "top": 4
+      },
+      "selectedStyle": "cross4",
+      "size": 18
+    },
+    "feedbackPage": {
+      "additionalComments": {
+        "borderWidth": 1,
+        "colors": {
+          "background": "#ededed",
+          "border": "#d9d9d9",
+          "text": "#050505"
+        },
+        "enabled": true,
+        "placeholder": "Additional COmments",
+        "textStyle": {
+          "color": "#050505",
+          "fontDecoration": [],
+          "fontFamily": "Arial",
+          "fontSize": 14,
+          "textAlign": "left"
+        }
+      },
+      "options": {
+        "cornerRadius": {
+          "bottomLeft": 7,
+          "bottomRight": 7,
+          "topLeft": 7,
+          "topRight": 7
+        },
+        "margin": {
+          "bottom": 0,
+          "left": 0,
+          "right": 0,
+          "top": 10
+        },
+        "nonSelectedOptions": {
+          "borderWidth": 2,
+          "colors": {
+            "background": "#e8e8e8",
+            "border": "#e8e8e8",
+            "text": "#050505"
+          },
+          "textStyle": {
+            "color": "#050505",
+            "fontDecoration": [],
+            "fontFamily": "Arial",
+            "fontSize": 14,
+            "textAlign": "center"
+          }
+        },
+        "optionsHeight": 45,
+        "optionsSpacing": 5,
+        "selectedOptions": {
+          "borderWidth": 2,
+          "colors": {
+            "background": "#ffd1b3",
+            "border": "#ff5900",
+            "text": "#000000"
+          },
+          "textStyle": {
+            "color": "#000000",
+            "fontDecoration": [],
+            "fontFamily": "Arial",
+            "fontSize": 14,
+            "textAlign": "center"
+          }
+        }
+      },
+      "submitButton": {
+        "cta": {
+          "container": {
+            "alignment": "center",
+            "backgroundColor": "#ff8624",
+            "borderColor": "#fa6837",
+            "borderWidth": 0,
+            "ctaFullWidth": false,
+            "ctaWidth": 192,
+            "height": 45
+          },
+          "cornerRadius": {
+            "bottomLeft": 7,
+            "bottomRight": 7,
+            "topLeft": 7,
+            "topRight": 7
+          },
+          "margin": {
+            "bottom": 4,
+            "left": 4,
+            "right": 4,
+            "top": 14
+          },
+          "text": {
+            "color": "#ffffff",
+            "fontDecoration": [],
+            "fontFamily": "Inter",
+            "fontSize": 18
+          }
+        },
+        "enabled": true,
+        "text": "Submit"
+      }
+    },
+    "fontSize": 12,
+    "initialFeedback": {
+      "subtitle": {
+        "margin": {
+          "bottom": 0,
+          "left": 0,
+          "right": 0,
+          "top": 0
+        },
+        "textStyle": {
+          "color": "#32302f",
+          "fontDecoration": [],
+          "fontFamily": "Inter",
+          "fontSize": 16,
+          "textAlign": "left"
+        }
+      },
+      "title": {
+        "margin": {
+          "bottom": 0,
+          "left": 0,
+          "right": 0,
+          "top": 0
+        },
+        "textStyle": {
+          "color": "#161413",
+          "fontDecoration": [],
+          "fontFamily": "Inter",
+          "fontSize": 21,
+          "textAlign": "left"
+        }
+      }
+    },
+    "rating": {
+      "alignment": "center",
+      "cornerRadius": {
+        "bottomLeft": 7,
+        "bottomRight": 7,
+        "topLeft": 7,
+        "topRight": 7
+      },
+      "displayText": "same",
+      "emoji": null,
+      "highRatingSubtitle": "",
+      "highRatingTitle": "",
+      "lowRatingSubtitle": "",
+      "lowRatingTitle": "",
+      "number": null,
+      "ratingType": "star",
+      "spacing": 8,
+      "star": {
+        "high": {
+          "stylingContainer": {
+            "background": "#ededed",
+            "border": "#161413",
+            "borderWidth": 1
+          },
+          "stylingStar": {
+            "background": "#ededed",
+            "border": "#161413",
+            "borderWidth": 1
+          }
+        },
+        "low": {
+          "stylingContainer": {
+            "background": "#ededed",
+            "border": "#FE6B35",
+            "borderWidth": 1
+          },
+          "stylingStar": {
+            "background": "#161413",
+            "border": "#FE6B35",
+            "borderWidth": 1
+          }
+        },
+        "unselected": {
+          "stylingContainer": {
+            "background": "#ededed",
+            "border": "#32302f",
+            "borderWidth": 1
+          },
+          "stylingStar": {
+            "background": "#161413",
+            "border": "#32302f",
+            "borderWidth": 1
+          }
+        }
+      }
+    },
+    "thankyouPage": {
+      "doneButton": {
+        "cta": {
+          "container": {
+            "alignment": "center",
+            "backgroundColor": "#ff7e29",
+            "borderColor": "#fa6837",
+            "borderWidth": 0,
+            "ctaFullWidth": false,
+            "ctaWidth": 176,
+            "height": 45
+          },
+          "cornerRadius": {
+            "bottomLeft": 7,
+            "bottomRight": 7,
+            "topLeft": 7,
+            "topRight": 7
+          },
+          "margin": {
+            "bottom": 4,
+            "left": 4,
+            "right": 4,
+            "top": 4
+          },
+          "text": {
+            "color": "#ffffff",
+            "fontDecoration": [
+              "bold"
+            ],
+            "fontFamily": "Inter",
+            "fontSize": 17
+          }
+        },
+        "text": "KUDOS"
+      },
+      "imageStyle": {
+        "height": 80,
+        "margin": {
+          "bottom": 12,
+          "left": 12,
+          "right": 12,
+          "top": 12
+        },
+        "width": 80
+      },
+      "subtitle": {
+        "margin": {
+          "bottom": 0,
+          "left": 0,
+          "right": 0,
+          "top": 0
+        },
+        "textStyle": {
+          "color": "#FE6B35",
+          "fontDecoration": [],
+          "fontFamily": "Arial",
+          "fontSize": 16,
+          "textAlign": "center"
+        }
+      },
+      "title": {
+        "margin": {
+          "bottom": 0,
+          "left": 0,
+          "right": 0,
+          "top": 0
+        },
+        "textStyle": {
+          "color": "#FE6B35",
+          "fontDecoration": [],
+          "fontFamily": "Arial",
+          "fontSize": 20,
+          "textAlign": "center"
+        }
+      }
+    }
+  },
+  "thankyouDescription": "Subtitle",
+  "thankyouImage": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/thankyouImage/ChatGPT_Image_Jun_9_2026_12_01_44_PM.png",
+  "thankyouText": "TITLE",
+  "title": "Did you like our service ?",
+  "width": 80
+}

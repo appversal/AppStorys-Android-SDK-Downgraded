@@ -1,47 +1,92 @@
 # ============================================================
-# SUR — Answer + Complete: go through survey slides to end
+# SUR — Answer + Complete: walk every slide through to thank-you
+#
+# NO CAMPAIGN CONTENT IS HARDCODED. Every question, option label,
+# CTA caption and thank-you string below is injected by
+# buildFlowEnv (lib/maestro/flowgen.js) from the LIVE campaign, so
+# a tester creating a brand-new survey does not break this flow.
+# The env defaults are only there so the file can be run by hand;
+# the pipeline always overrides them.
+#
+# WHY THIS FLOW WAS REWRITTEN (was a false green):
+#   The old version tapped blind coordinates ("50%,60%" / "50%,85%")
+#   and had NO assertions after the taps, so it reported PASS while
+#   never leaving slide 1. Its own artefacts proved it:
+#   sur_slide_2_or_thankyou.png and sur_complete_PASS.png both showed
+#   slide 1 with 3 options ticked and the keyboard open. Selecting
+#   "Others" opens the additional-comment box, which raises the IME
+#   over the bottom of the screen — so the "85%" tap meant to hit the
+#   CTA was landing on the keyboard, not the button.
+#
+# SDK FACTS THIS FLOW RELIES ON (SurveyBottomSheet.kt):
+#   - No trigger event on this campaign (CDN trigger_event: ""), so
+#     the sheet shows on its own after appearance.displayDelay.
+#     Do NOT tap "Login Event" — it gates nothing and fires a stray
+#     "Login" analytics event.
+#   - Options are MULTI-select (onOptionSelected toggles membership).
+#   - The CTA is inert until something is selected
+#     (`if (!isCurrentSlideValidInRow) return@CTAButton`).
+#   - SUR_SLIDE1_OPTION is chosen by buildFlowEnv to be an option with
+#     NO branching rule, so the walk stays linear. The branching case
+#     is covered by sur_logic_skip.yaml.
+#   - Layer 4 skips this flow when the campaign is single-slide, has
+#     no plain first option, or has no thank-you page.
 # ============================================================
 appId: com.example.carousal
+env:
+  SUR_SLIDE1_TITLE: "What is your name?"
+  SUR_SLIDE1_OPTION: "Saarthak"
+  SUR_SLIDE1_CTA: "Next"
+  SUR_SLIDE2_TITLE: "If Next then Its Next"
+  SUR_SLIDE2_OPTION: "YES"
+  SUR_SLIDE2_CTA: "SUBMIT"
+  SUR_THANKYOU_TEXT: "ERROR"
 ---
 - launchApp:
+    stopApp: true
     clearState: false
 
 - waitForAnimationToEnd
 
-- tapOn:
-    text: "Login Event"
-
-- waitForAnimationToEnd
-
+# Sheet auto-appears after displayDelay; allow well past it.
 - extendedWaitUntil:
     visible: "Close"
     timeout: 12000
 
-- takeScreenshot: "sur_slide_1"
+# Prove slide 1 is on screen before touching anything.
+- extendedWaitUntil:
+    visible: "${SUR_SLIDE1_TITLE}"
+    timeout: 8000
 
-# Select first option
+- takeScreenshot: "sur_01_slide1"
+
 - tapOn:
-    point: "50%,60%"
+    text: "${SUR_SLIDE1_OPTION}"
+
+- tapOn:
+    text: "${SUR_SLIDE1_CTA}"
 
 - waitForAnimationToEnd
 
-# Tap Next/Submit button
+# THE REAL ASSERT: slide 2 must be on screen. This is what the old
+# flow never checked and why it passed without navigating.
+- extendedWaitUntil:
+    visible: "${SUR_SLIDE2_TITLE}"
+    timeout: 8000
+
+- takeScreenshot: "sur_02_slide2"
+
 - tapOn:
-    point: "50%,85%"
+    text: "${SUR_SLIDE2_OPTION}"
+
+- tapOn:
+    text: "${SUR_SLIDE2_CTA}"
 
 - waitForAnimationToEnd
 
-- takeScreenshot: "sur_slide_2_or_thankyou"
+# Thank-you page (only reached when thankYouButtonConfig.enabled).
+- extendedWaitUntil:
+    visible: "${SUR_THANKYOU_TEXT}"
+    timeout: 8000
 
-# If more slides, answer and submit again
-- tapOn:
-    point: "50%,60%"
-    optional: true
-
-- tapOn:
-    point: "50%,85%"
-    optional: true
-
-- waitForAnimationToEnd
-
-- takeScreenshot: "sur_complete_PASS"
+- takeScreenshot: "sur_03_thankyou_PASS"

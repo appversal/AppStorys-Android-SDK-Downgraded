@@ -151,6 +151,19 @@ class SurveyScreenshotTest {
         )
         val optSpacing    = (optCfg?.optionsSpacing?.toIntOrNull() ?: 12).dp
         val bulletSpacing = (optCfg?.bulletSpacing?.toIntOrNull() ?: 12).dp
+        // SurveyOptionItem: fixed row height when optionsHeight is set, else
+        // wrapContentHeight. This campaign sends 48, and on the device the
+        // option text midpoints sit 137px = 53.7dp apart = optionsHeight(48)
+        // + optionsSpacing(6). The test used to always wrapContentHeight and
+        // drew visibly shorter rows than the device.
+        val optHeight = optCfg?.optionsHeight
+        // Border width comes from textStyle.borderwidth (a JsonElement), parsed
+        // exactly as SurveyOptionItem does. Campaign sends 2; this was hardcoded 1.
+        val optBorderW = (optCfg?.nonSelectedOptions?.textStyle?.borderwidth
+            ?.let {
+                if (it.toString() == "null") null
+                else it.toString().removeSuffix(".0").toIntOrNull()
+            } ?: 1).dp
         val optionListStyle = optCfg?.optionListStyle ?: "number"
         val optTextSize   = (optCfg?.nonSelectedOptions?.textStyle?.fontSize ?: 14).sp
 
@@ -170,6 +183,16 @@ class SurveyScreenshotTest {
             bottomStart = (ctaCfg?.cornerRadius?.bottomLeft  ?: 12).dp,
             bottomEnd   = (ctaCfg?.cornerRadius?.bottomRight ?: 12).dp
         )
+        // CTAButton sizing, copied from common_components/CTAButton.kt:
+        //   fullWidth -> fillMaxWidth, else width(config.width), else intrinsic.
+        // SurveyBottomSheet passes fullWidth = ctaContainer?.ctaFullWidth ?: true.
+        // This campaign sends ctaFullWidth=false + ctaWidth=141, and the device
+        // measures the button at exactly 141dp — an earlier version of this test
+        // used fillMaxWidth() and drew a full-bleed button that never existed.
+        val ctaFullWidth  = ctaCfg?.container?.ctaFullWidth ?: true
+        val ctaWidthDp    = ctaCfg?.container?.ctaWidth
+        val ctaBorderW    = ctaCfg?.container?.borderWidth ?: 0
+        val ctaBorderCol  = safeColor(ctaCfg?.container?.borderColor, Color.Transparent)
 
         // Title / subtitle — real code falls back to surveyQuestionColor for BOTH
         val titleColor = safeColor(
@@ -180,6 +203,18 @@ class SurveyScreenshotTest {
             styling?.subtitle?.textStyle?.color ?: styling?.surveyQuestionColor, Color.Black
         )
         val subtitleSize = (styling?.subtitle?.textStyle?.fontSize ?: 14).sp
+
+        // Alignment / weight come from the campaign, NOT hardcoded. The device
+        // routes every one of these strings through CommonText.parseTextAlign,
+        // and this campaign sends "left" everywhere — an earlier version of this
+        // test hardcoded TextAlign.Center and produced goldens that did not match
+        // the real screen.
+        val titleAlign     = sdkTextAlign(styling?.title?.textStyle?.textAlign)
+        val titleWeight    = sdkFontWeight(styling?.title?.textStyle?.fontDecoration)
+        val subtitleAlign  = sdkTextAlign(styling?.subtitle?.textStyle?.textAlign)
+        val subtitleWeight = sdkFontWeight(styling?.subtitle?.textStyle?.fontDecoration)
+        val optTextAlign   = sdkTextAlign(optCfg?.nonSelectedOptions?.textStyle?.textAlign)
+        val optTextWeight  = sdkFontWeight(optCfg?.nonSelectedOptions?.textStyle?.fontDecoration)
 
         // Cross button — enabled unless explicitly false
         val crossButton   = styling?.crossButton
@@ -267,11 +302,13 @@ class SurveyScreenshotTest {
                             val slideTitle = slide.title
                             if (!slideTitle.isNullOrBlank()) {
                                 Text(
-                                    text      = slideTitle,
-                                    color     = titleColor,
-                                    fontSize  = titleSize,
-                                    textAlign = TextAlign.Center,
-                                    modifier  = Modifier.fillMaxWidth()
+                                    text       = slideTitle,
+                                    color      = titleColor,
+                                    fontSize   = titleSize,
+                                    fontWeight = titleWeight,
+                                    textAlign  = titleAlign,
+                                    modifier   = Modifier.fillMaxWidth()
+                                        .then(marginPadding(styling?.title?.textStyle?.margin))
                                 )
                             }
 
@@ -281,11 +318,13 @@ class SurveyScreenshotTest {
                             val slideSubtitle = slide.subtitle
                             if (!slideSubtitle.isNullOrBlank()) {
                                 Text(
-                                    text      = slideSubtitle,
-                                    color     = subtitleColor,
-                                    fontSize  = subtitleSize,
-                                    textAlign = TextAlign.Center,
-                                    modifier  = Modifier.fillMaxWidth()
+                                    text       = slideSubtitle,
+                                    color      = subtitleColor,
+                                    fontSize   = subtitleSize,
+                                    fontWeight = subtitleWeight,
+                                    textAlign  = subtitleAlign,
+                                    modifier   = Modifier.fillMaxWidth()
+                                        .then(marginPadding(styling?.subtitle?.textStyle?.margin))
                                 )
                             }
 
@@ -304,10 +343,13 @@ class SurveyScreenshotTest {
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .wrapContentHeight()
+                                        .then(
+                                            if (optHeight != null) Modifier.height(optHeight.dp)
+                                            else Modifier.wrapContentHeight()
+                                        )
                                         .clip(optShape)
                                         .background(nonSelBg)
-                                        .border(1.dp, nonSelBdr, optShape),
+                                        .border(optBorderW, nonSelBdr, optShape),
                                     contentAlignment = Alignment.CenterStart
                                 ) {
                                     Row(
@@ -333,11 +375,12 @@ class SurveyScreenshotTest {
                                         }
                                         Spacer(Modifier.width(bulletSpacing))
                                         Text(
-                                            text      = option,
-                                            color     = nonSelTxt,
-                                            fontSize  = optTextSize,
-                                            textAlign = TextAlign.Center,
-                                            modifier  = Modifier.weight(1f)
+                                            text       = option,
+                                            color      = nonSelTxt,
+                                            fontSize   = optTextSize,
+                                            fontWeight = optTextWeight,
+                                            textAlign  = optTextAlign,
+                                            modifier   = Modifier.weight(1f)
                                         )
                                     }
                                 }
@@ -351,9 +394,21 @@ class SurveyScreenshotTest {
                             // NEXT / SUBMIT button (device: 56dp, full width)
                             Box(
                                 modifier = Modifier
-                                    .fillMaxWidth()
+                                    .then(
+                                        when {
+                                            ctaFullWidth       -> Modifier.fillMaxWidth()
+                                            ctaWidthDp != null -> Modifier.width(ctaWidthDp.dp)
+                                            else               -> Modifier
+                                        }
+                                    )
+                                    .align(Alignment.CenterHorizontally)
                                     .height(ctaHeight)
-                                    .background(ctaBg, ctaShape),
+                                    .background(ctaBg, ctaShape)
+                                    .then(
+                                        if (ctaBorderW > 0)
+                                            Modifier.border(ctaBorderW.dp, ctaBorderCol, ctaShape)
+                                        else Modifier
+                                    ),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
@@ -455,9 +510,12 @@ class SurveyScreenshotTest {
                                     thankyouPage?.title?.textStyle?.color, Color.Black
                                 ),
                                 fontSize  = (thankyouPage?.title?.textStyle?.fontSize ?: 20).sp,
-                                fontWeight = FontWeight.Bold,
-                                textAlign = TextAlign.Center,
+                                // Weight comes from fontDecoration like CommonText does;
+                                // it is NOT unconditionally bold on the device.
+                                fontWeight = sdkFontWeight(thankyouPage?.title?.textStyle?.fontDecoration),
+                                textAlign = sdkTextAlign(thankyouPage?.title?.textStyle?.textAlign),
                                 modifier  = Modifier.fillMaxWidth()
+                                    .then(marginPadding(thankyouPage?.title?.textStyle?.margin))
                             )
                         }
 
@@ -469,8 +527,10 @@ class SurveyScreenshotTest {
                                     thankyouPage?.subtitle?.textStyle?.color, Color.Black
                                 ),
                                 fontSize  = (thankyouPage?.subtitle?.textStyle?.fontSize ?: 14).sp,
-                                textAlign = TextAlign.Center,
+                                fontWeight = sdkFontWeight(thankyouPage?.subtitle?.textStyle?.fontDecoration),
+                                textAlign = sdkTextAlign(thankyouPage?.subtitle?.textStyle?.textAlign),
                                 modifier  = Modifier.fillMaxWidth()
+                                    .then(marginPadding(thankyouPage?.subtitle?.textStyle?.margin))
                             )
                         }
 
@@ -487,12 +547,30 @@ class SurveyScreenshotTest {
                             bottomStart = (tyCta?.cornerRadius?.bottomLeft  ?: 12).dp,
                             bottomEnd   = (tyCta?.cornerRadius?.bottomRight ?: 12).dp
                         )
+                        // Same CTAButton sizing/border rules as the slide CTA above.
+                        // This campaign sends ctaWidth=120 and a 2dp #60e109 border,
+                        // both visible on the device and both previously missing here.
+                        val tyFullWidth = tyCta?.container?.ctaFullWidth ?: false
+                        val tyWidthDp   = tyCta?.container?.ctaWidth
+                        val tyBorderW   = tyCta?.container?.borderWidth ?: 0
+                        val tyBorderCol = safeColor(tyCta?.container?.borderColor, Color.Transparent)
                         Box(
                             modifier = Modifier
+                                .then(
+                                    when {
+                                        tyFullWidth       -> Modifier.fillMaxWidth()
+                                        tyWidthDp != null -> Modifier.width(tyWidthDp.dp)
+                                        else              -> Modifier.padding(horizontal = 32.dp)
+                                    }
+                                )
                                 .align(Alignment.CenterHorizontally)
                                 .height((tyCta?.container?.height ?: 50).dp)
                                 .background(tyBtnBg, tyBtnShape)
-                                .padding(horizontal = 32.dp),
+                                .then(
+                                    if (tyBorderW > 0)
+                                        Modifier.border(tyBorderW.dp, tyBorderCol, tyBtnShape)
+                                    else Modifier
+                                ),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
@@ -607,6 +685,42 @@ class SurveyScreenshotTest {
                 File(moduleDir, "app/appstorys/src/test/resources/$rel")
             ).firstOrNull { it.exists() }?.inputStream()?.use { BitmapFactory.decodeStream(it) }
         }.getOrNull()
+    }
+
+    /**
+     * Mirrors CommonText.parseTextAlign in the SDK (common_components/CommonText.kt).
+     * Note the default is CENTER, but "left"/"start" map to Start — this campaign
+     * sends "left" for every text element.
+     */
+    private fun sdkTextAlign(alignment: String?): TextAlign = when (alignment?.lowercase()) {
+        "left", "start" -> TextAlign.Start
+        "right", "end"  -> TextAlign.End
+        "justify"       -> TextAlign.Justify
+        else            -> TextAlign.Center
+    }
+
+    /**
+     * CommonText applies styling.margin as PADDING around the text
+     * (modifier.then(Modifier.padding(start/end/top/bottom))). The test used to
+     * drop it entirely, so every title/subtitle sat 4dp off from the device.
+     */
+    private fun marginPadding(m: com.appversal.appstorys.api.Margin?): Modifier =
+        Modifier.padding(
+            start  = (m?.left   ?: 0).dp,
+            end    = (m?.right  ?: 0).dp,
+            top    = (m?.top    ?: 0).dp,
+            bottom = (m?.bottom ?: 0).dp
+        )
+
+    /** Mirrors CommonText's fontDecoration -> FontWeight mapping. */
+    private fun sdkFontWeight(decoration: List<String>?): FontWeight {
+        val d = decoration.orEmpty()
+        return when {
+            d.contains("bold")     -> FontWeight.Bold
+            d.contains("semibold") -> FontWeight.SemiBold
+            d.contains("medium")   -> FontWeight.Medium
+            else                   -> FontWeight.Normal
+        }
     }
 
     private fun safeColor(hex: String?, fallback: Color): Color {

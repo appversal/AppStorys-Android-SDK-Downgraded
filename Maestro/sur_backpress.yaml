@@ -6,6 +6,7 @@
 appId: com.example.carousal
 ---
 - launchApp:
+    stopApp: true
     clearState: false
 
 - waitForAnimationToEnd

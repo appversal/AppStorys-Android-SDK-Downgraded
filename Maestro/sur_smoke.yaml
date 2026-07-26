@@ -1,20 +1,39 @@
 # ============================================================
-# SUR — Smoke: survey bottom sheet appears after trigger
+# SUR — Smoke: survey bottom sheet appears on its own
+#
+# NO TRIGGER EVENT on this campaign. The CDN sends trigger_event: ""
+# and the dashboard stores trigger: {}, so
+# TriggerEventMatcher.shouldShowCampaign returns true immediately and
+# the sheet renders after styling.appearance.displayDelay. The old
+# version tapped "Login Event" first — that gates nothing here and
+# fires a stray "Login" analytics event, so it is gone.
+#
+# stopApp: true is required. Dismissal lives in Compose state
+# (`var showSurvey by remember` in AppStorys.Survey), so a plain
+# relaunch of a still-running process keeps the dismissed state and
+# the sheet never comes back.
+#
+# SUR_SLIDE1_TITLE is injected from the live campaign by
+# buildFlowEnv — never hardcode dashboard content.
 # ============================================================
 appId: com.example.carousal
+env:
+  SUR_SLIDE1_TITLE: "What is your name?"
 ---
 - launchApp:
+    stopApp: true
     clearState: false
-
-- waitForAnimationToEnd
-
-- tapOn:
-    text: "Login Event"
 
 - waitForAnimationToEnd
 
 - extendedWaitUntil:
     visible: "Close"
     timeout: 12000
+
+# Anchor on real campaign content, not just SDK chrome, so this
+# cannot pass on some other campaign's sheet.
+- extendedWaitUntil:
+    visible: "${SUR_SLIDE1_TITLE}"
+    timeout: 8000
 
 - takeScreenshot: "sur_smoke_PASS"

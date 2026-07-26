@@ -1,15 +1,40 @@
 # ============================================================
-# CSAT — Rate + Submit: select rating → feedback page → submit
+# CSAT — LOW rating path: rating -> feedback page -> submit -> thank-you
+#
+# WHY THIS WAS REWRITTEN (was a false green):
+#   The old flow tapped blind coordinates and asserted nothing except a
+#   trailing notVisible (which passes vacuously). Measured against a real
+#   uiautomator dump on the RMX3395:
+#     "50%,60%" = y1440 -> the HOST APP's event buttons (it fired a
+#                 stray "Logout" analytics event, visible in logcat)
+#     "50%,85%" = y2040 -> Star 3  (stars span y2032..2124)
+#   So the two taps were effectively inverted: the step commented
+#   "Tap submit button" was actually selecting the rating, and the
+#   rating tap was hitting the app behind the sheet. It still PASSED,
+#   because tapOn:point always succeeds and nothing was asserted.
+#
+# SDK FACTS (CsatDialog.kt):
+#   - onStarSelected: stars >= 4 skips the feedback page entirely and
+#     goes straight to thank-you; stars < 4 opens the feedback page.
+#     This flow covers the LOW path — the high path (and the only path
+#     that fires "clicked") lives in csat_high_rating_click.yaml.
+#   - All three rating types are repeat(5) with the same >=4 rule, but
+#     the anchor differs: star -> contentDescription "Star N",
+#     emoji -> the raw emoji as text, number -> the digit. buildFlowEnv
+#     injects the right one, so this flow works for any ratingType.
+#   - No trigger event on this campaign; the sheet shows on its own.
 # ============================================================
 appId: com.example.carousal
+env:
+  CSAT_TITLE: "Did you like our service ?"
+  CSAT_LOW_ANCHOR: "Star 2"
+  CSAT_FEEDBACK_OPTION: "NO"
+  CSAT_SUBMIT_TEXT: "Submit"
+  CSAT_THANKYOU_TEXT: "TITLE"
 ---
 - launchApp:
+    stopApp: true
     clearState: false
-
-- waitForAnimationToEnd
-
-- tapOn:
-    text: "AppStorys Success Event"
 
 - waitForAnimationToEnd
 
@@ -17,32 +42,35 @@ appId: com.example.carousal
     visible: "Close"
     timeout: 12000
 
-- takeScreenshot: "csat_rating_page"
-
-# Tap a rating item (middle of rating area ~60% down screen)
-- tapOn:
-    point: "50%,60%"
-
-- waitForAnimationToEnd
-
-- takeScreenshot: "csat_feedback_page"
-
-# Tap submit button
-- tapOn:
-    point: "50%,85%"
-
-- waitForAnimationToEnd
-
-- takeScreenshot: "csat_thankyou_page"
-
-# Dismiss thank you page
-- tapOn:
-    text: "Close"
-
-- waitForAnimationToEnd
-
 - extendedWaitUntil:
-    notVisible: "Close"
-    timeout: 6000
+    visible: "${CSAT_TITLE}"
+    timeout: 8000
 
-- takeScreenshot: "csat_submit_PASS"
+- takeScreenshot: "csat_01_rating_page"
+
+# Low rating -> must open the feedback page.
+- tapOn: "${CSAT_LOW_ANCHOR}"
+
+- waitForAnimationToEnd
+
+# THE REAL ASSERT: the feedback page actually appeared. The old flow
+# never checked this and so never proved the low-rating branch runs.
+- extendedWaitUntil:
+    visible: "${CSAT_FEEDBACK_OPTION}"
+    timeout: 8000
+
+- takeScreenshot: "csat_02_feedback_page"
+
+- tapOn: "${CSAT_FEEDBACK_OPTION}"
+
+- tapOn:
+    text: "${CSAT_SUBMIT_TEXT}"
+
+- waitForAnimationToEnd
+
+# Thank-you page (renders only when thankyouImage is set).
+- extendedWaitUntil:
+    visible: "${CSAT_THANKYOU_TEXT}"
+    timeout: 8000
+
+- takeScreenshot: "csat_03_thankyou_PASS"

@@ -1,44 +1,52 @@
 {
-  "id": "ee84729d-d007-4be4-8500-be347460d485",
-  "name": "Test",
+  "id": "c36e16be-24f0-40af-831d-0f8bdad367e2",
+  "name": "🙂Survey_Campaign",
   "slides": [
+    {
+      "additionalComment": {
+        "enabled": true,
+        "placeholder": "Else is else Shuuu"
+      },
+      "id": "95cf5e57-976b-410d-9641-94eb2a99faaa",
+      "logic": [
+        {
+          "redirectTo": "thank-you",
+          "selectOption": [
+            "Prem"
+          ]
+        }
+      ],
+      "options": {
+        "option1": "Prem",
+        "option2": "Saarthak",
+        "option3": "Yash",
+        "option4": "Kabir",
+        "option5": "Dinesh"
+      },
+      "order": 0,
+      "parent": "c36e16be-24f0-40af-831d-0f8bdad367e2",
+      "question": "What is your name?",
+      "submitButtonText": "Next",
+      "subtitle": "Tell me",
+      "title": "What is your name?"
+    },
     {
       "additionalComment": {
         "enabled": false,
         "placeholder": ""
       },
-      "id": "37deb60c-d0a1-4a6b-9551-e34e91adbce5",
+      "id": "c36473db-f86b-4de7-a8e6-d1af3c059e04",
       "logic": [],
       "options": {
-        "option1": "Options Text *",
-        "option2": "Options Text * 2",
-        "option3": "Options Text * 3",
-        "option4": "Options Text * 4"
-      },
-      "order": 0,
-      "parent": "ee84729d-d007-4be4-8500-be347460d485",
-      "question": "Title Text *",
-      "submitButtonText": "Submit",
-      "subtitle": "Title Text *",
-      "title": "Title Text *"
-    },
-    {
-      "additionalComment": {
-        "enabled": true,
-        "placeholder": ""
-      },
-      "id": "ed6ccfda-007f-4a58-96c9-bdc024b6a96f",
-      "logic": [],
-      "options": {
-        "option1": "Options Text *",
-        "option2": "Options Text * 2"
+        "option1": "YES",
+        "option2": "NO"
       },
       "order": 1,
-      "parent": "ee84729d-d007-4be4-8500-be347460d485",
-      "question": "Title Text * 2",
-      "submitButtonText": "Submit",
-      "subtitle": "Subtitle Text 2",
-      "title": "Title Text * 2"
+      "parent": "c36e16be-24f0-40af-831d-0f8bdad367e2",
+      "question": "If Next then Its Next",
+      "submitButtonText": "SUBMIT",
+      "subtitle": "You are in already",
+      "title": "If Next then Its Next"
     }
   ],
   "styling": {
@@ -71,7 +79,7 @@
         "top": 4
       },
       "selectedStyle": "cross4",
-      "size": 15
+      "size": 30
     },
     "cta": {
       "container": {
@@ -263,8 +271,8 @@
     "enabled": true,
     "redirectUrl": "https://google.com"
   },
-  "thankYouButtonText": "Options Text *",
-  "thankYouImage": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/survey_thankyou/download_5.png",
-  "thankYouText": "Options Text *",
-  "thankYouTitle": "Options Text *"
+  "thankYouButtonText": "BYE",
+  "thankYouImage": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/survey_thankyou/web-site-under-construction-6s-2561x1441.jpg",
+  "thankYouText": "BYE",
+  "thankYouTitle": "ERROR"
 }

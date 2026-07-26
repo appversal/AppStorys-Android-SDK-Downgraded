@@ -1,13 +1,29 @@
-# ============================================================
-# CSAT Smoke — rating screen appears on launch
+﻿# CSAT Smoke — rating sheet appears on launch
 # Campaign: CSAT
 # WHAT THIS PROVES: CSAT bottom sheet renders with rating widget
-# ============================================================
+# NO TRIGGER EVENT. The CDN sends trigger_event: "" and
+# appearance.displayDelay is 0, so TriggerEventMatcher returns true
+# immediately and the sheet is on screen straight after launch.
+# stopApp: true is required — the dialog's dismissed state lives in
+# Compose `remember`, so relaunching a live process keeps it hidden.
+# CSAT_TITLE is injected from the live campaign by buildFlowEnv; never hardcode dashboard content.
+
 appId: com.example.carousal
+env:
+  CSAT_TITLE: "Did you like our service ?"
 ---
 - launchApp:
+    stopApp: true
     clearState: false
 
 - waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible: "Close"
+    timeout: 12000
+
+- extendedWaitUntil:
+    visible: "${CSAT_TITLE}"
+    timeout: 8000
 
 - takeScreenshot: "csat_smoke_PASS"

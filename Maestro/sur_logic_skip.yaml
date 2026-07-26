@@ -1,0 +1,56 @@
+# ============================================================
+# SUR — Branching logic: an option with a redirect rule SKIPS slides
+#
+# SurveyBottomSheet.resolveLogicRedirect() reads the FIRST selected
+# option and looks it up in slide.logic; "thank_you"/"thank-you" both
+# normalise to the thank-you branch, jumping past the later slides.
+#
+# This is real business logic that nothing else covers:
+# sur_answer_and_complete.yaml deliberately picks an option with NO
+# rule so it can test the linear path. This flow proves the skip.
+#
+# SUR_LOGIC_OPTION is the option buildFlowEnv found carrying a
+# thank-you rule; SUR_SLIDE2_TITLE is the slide that must therefore
+# NOT appear. Both come from the live campaign — nothing hardcoded.
+# Layer 4 skips this flow when no such rule exists.
+# ============================================================
+appId: com.example.carousal
+env:
+  SUR_SLIDE1_TITLE: "What is your name?"
+  SUR_LOGIC_OPTION: "Prem"
+  SUR_SLIDE1_CTA: "Next"
+  SUR_SLIDE2_TITLE: "If Next then Its Next"
+  SUR_THANKYOU_TEXT: "ERROR"
+---
+- launchApp:
+    stopApp: true
+    clearState: false
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible: "Close"
+    timeout: 12000
+
+- extendedWaitUntil:
+    visible: "${SUR_SLIDE1_TITLE}"
+    timeout: 8000
+
+# The option carrying the redirect rule.
+- tapOn:
+    text: "${SUR_LOGIC_OPTION}"
+
+- tapOn:
+    text: "${SUR_SLIDE1_CTA}"
+
+- waitForAnimationToEnd
+
+# Must land on thank-you...
+- extendedWaitUntil:
+    visible: "${SUR_THANKYOU_TEXT}"
+    timeout: 8000
+
+# ...and the next slide must have been skipped entirely.
+- assertNotVisible: "${SUR_SLIDE2_TITLE}"
+
+- takeScreenshot: "sur_logic_skip_PASS"
