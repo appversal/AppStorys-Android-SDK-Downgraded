@@ -1,0 +1,47 @@
+{
+  "height": 853,
+  "id": "c248965b-d5a7-486b-8b24-d11f08d622fd",
+  "styling": {
+    "borderRadius": 0,
+    "bottomLeftRadius": 16,
+    "bottomMargin": 4,
+    "bottomRightRadius": 16,
+    "leftMargin": 4,
+    "rightMargin": 4,
+    "topLeftRadius": 16,
+    "topMargin": 4,
+    "topRightRadius": 16
+  },
+  "type": "half",
+  "widget_images": [
+    {
+      "cohorts": {},
+      "id": "485bb3f7-6db0-444e-88ab-d3e8225a4711",
+      "image": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/widget_image/ChatGPT_Image_Jul_21_2026_01_36_05_PM.png",
+      "link": "https://google.com",
+      "order": 0
+    },
+    {
+      "cohorts": {},
+      "id": "9faf883f-8314-4f24-8abe-d8e8c3d1ac37",
+      "image": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/widget_image/WhatsApp_Image_2026-05-13_at_3_48_55_PM.jpeg",
+      "link": "https://google.com",
+      "order": 1
+    },
+    {
+      "cohorts": {},
+      "id": "6d0ddb10-018c-413b-83db-f5d2c51a86c7",
+      "image": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/widget_image/db7209f5c5f960be9e4c9b3a387a94f3.png",
+      "link": "https://google.com",
+      "order": 2
+    },
+    {
+      "cohorts": {},
+      "id": "93cdb0d1-6c61-43d8-a284-4c0f6f13d9e7",
+      "image": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/widget_image/ChatGPT_Image_Apr_15_2026_01_39_32_PM.png",
+      "link": "https://google.com",
+      "order": 3
+    }
+  ],
+  "width": 1280
+}
