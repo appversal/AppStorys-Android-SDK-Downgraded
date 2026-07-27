@@ -482,7 +482,8 @@ data class StoryContentCtaStyling(
     val borderWidth: Float? = null,
     val borderRadius: Float? = null,
     val pillBorderRadius: Float? = null,
-    val fontSize: Float? = null,
+    val fontSize: Float? = null,        // legacy flat field — kept for backward compatibility
+    val font: StoryContentTextFont? = null, // new nested font object (fontFamily, fontSize, fontWeight, fontDecoration)
     val opacity: Float? = null,
     val rotation: Float? = null,
     val transparent: Boolean? = null,

@@ -459,10 +459,10 @@ fun HomeScreen(
                         onClick = {
                             campaignManager.trackEvents(
                                 event = "Login",
-                                metadata = mapOf(
-                                    "name" to eventInput1,
-                                    "age" to eventInput2
-                                )
+//                                metadata = mapOf(
+//                                    "name" to eventInput1,
+//                                    "age" to eventInput2
+//                                )
                             )
                         },
                         modifier = Modifier.appstorys("toolbar_click_container")
