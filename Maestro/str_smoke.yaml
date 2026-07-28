@@ -4,11 +4,21 @@
 #   maestro test str_smoke.yaml -e GROUP_NAME="My Group"
 appId: com.example.carousal
 env:
-  GROUP_NAME: "Group  testing 1"
+  SCREEN_NAV_TAB: "Lab"
+  GROUP_NAME: "GGs"
 ---
 - launchApp:
     stopApp: true
     clearState: false
+
+# ── Navigate to the campaign's OWN screen ────────────────────────────────
+# The SDK only renders a campaign on the screen the host app last reported via
+# getScreenCampaigns(). SCREEN_NAV_TAB is injected by Layer 4 from the
+# campaign's `screen` field; the default below is only for standalone runs.
+# Tapping the tab that is already selected is a harmless no-op, so this is safe
+# even when the campaign lives on the app's default screen.
+- tapOn:
+    text: "${SCREEN_NAV_TAB}"
 - waitForAnimationToEnd
 
 # Story circles load after the SDK fetches campaigns — wait, don't sleep.

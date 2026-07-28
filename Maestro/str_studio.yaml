@@ -23,7 +23,8 @@
 #   maestro test str_studio.yaml -e ELEMENT_TEXT="Vote now" -e SLIDE_TAPS=2 -e HAS_TAPS=true
 appId: com.example.carousal
 env:
-  GROUP_NAME: "Group 1"
+  SCREEN_NAV_TAB: "Lab"
+  GROUP_NAME: "GGs"
   ELEMENT_TEXT: "What is the capital of France?"
   TAP_ELEMENT: "false"
   SLIDE_TAPS: "0"
@@ -36,6 +37,16 @@ env:
 - launchApp:
     stopApp: true
     clearState: false
+
+# ── Navigate to the campaign's OWN screen ────────────────────────────────
+# The SDK only renders a campaign on the screen the host app last reported via
+# getScreenCampaigns(). SCREEN_NAV_TAB is injected by Layer 4 from the
+# campaign's `screen` field; the default below is only for standalone runs.
+# Tapping the tab that is already selected is a harmless no-op, so this is safe
+# even when the campaign lives on the app's default screen.
+- tapOn:
+    text: "${SCREEN_NAV_TAB}"
+- waitForAnimationToEnd
 
 # Generous timeout: cold launch refetches campaign JSON + media on slow wifi
 - extendedWaitUntil:
@@ -50,17 +61,20 @@ env:
     waitToSettleTimeoutMs: 2000
 
 # Navigate to the slide holding the element: right tap = next slide
-- runFlow:
-    when:
-      true: ${HAS_TAPS}
-    commands:
-      - repeat:
-          times: ${SLIDE_TAPS}
-          commands:
-            - tapOn:
-                point: "${ADVANCE_POINT}"
-                retryTapIfNoChange: false
-
+# DO NOT TAP TO REACH THE SLIDE. Stories auto-advance on their own timer, so
+# tapping N times races that timer: the taps and the timer BOTH advance, the
+# flow overshoots the target slide, and there is no way back — which is why
+# this flow failed intermittently (verified standalone on an unchanged flow:
+# run 1 PASSED, run 2 FAILED with the identical env).
+#
+# The SDK only pauses the timer while a finger is physically held down
+# (`isHolding` in StoryComponents.kt), which Maestro cannot sustain between
+# taps, so pausing is not an option either.
+#
+# Instead let auto-advance do the navigating and simply WAIT for the element.
+# extendedWaitUntil polls, so it passes as long as the slide is on screen at
+# any point in the window — that cannot overshoot. Right-tap advancing is
+# already covered by str_view.yaml, so no coverage is lost here.
 # Confirm we are still in the viewer and not in a browser. Without this the
 # next assert fails with "ELEMENT_TEXT not visible", which sends the tester
 # hunting for a rendering bug that does not exist.
@@ -72,7 +86,7 @@ env:
 # inside its slide's slideShowTime window)
 - extendedWaitUntil:
     visible: "${ELEMENT_TEXT}"
-    timeout: 4000
+    timeout: 30000
 - takeScreenshot: "str_05_studio_element"
 
 # Interactive elements only

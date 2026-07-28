@@ -38,16 +38,19 @@
 # slide routinely holds two CTAs both labelled "Shop Now" where only one
 # redirects, and Maestro would tap whichever it matched first.
 #
-# PASS  = tapping the CTA leaves the app, and the app is intact on return.
-# FAIL  = the viewer is still on screen after the tap (redirect never fired),
-#         or the app is dead/blank when resumed.
+# PASS  = tapping the CTA lands the browser on the CTA's own host, and the app
+#         is intact on return.
+# FAIL  = the browser never reached that host (tap missed the CTA, or the
+#         redirect never fired), or the app is dead/blank when resumed.
 #
 # Manual run:
 #   maestro test str_cta_redirect.yaml -e CTA_POINT="89%,46%" -e CTA_SLIDE_TAPS=0 -e CTA_HAS_TAPS=false
 appId: com.example.carousal
 env:
-  GROUP_NAME: "Group 1"
+  SCREEN_NAV_TAB: "Lab"
+  GROUP_NAME: "GGs"
   CTA_POINT: "89%,46%"
+  CTA_URL_HOST: "example.com"
   CTA_SLIDE_TAPS: "0"
   CTA_HAS_TAPS: "false"
   ADVANCE_POINT: "95%,70%"
@@ -55,6 +58,16 @@ env:
 - launchApp:
     stopApp: true
     clearState: false
+
+# ── Navigate to the campaign's OWN screen ────────────────────────────────
+# The SDK only renders a campaign on the screen the host app last reported via
+# getScreenCampaigns(). SCREEN_NAV_TAB is injected by Layer 4 from the
+# campaign's `screen` field; the default below is only for standalone runs.
+# Tapping the tab that is already selected is a harmless no-op, so this is safe
+# even when the campaign lives on the app's default screen.
+- tapOn:
+    text: "${SCREEN_NAV_TAB}"
+- waitForAnimationToEnd
 
 - extendedWaitUntil:
     visible: "${GROUP_NAME}"
@@ -81,19 +94,32 @@ env:
 - extendedWaitUntil:
     visible: "${GROUP_NAME}"
     timeout: 12000
-- takeScreenshot: "str_08_before_cta"
 
-# Fire the redirect
+# Fire the redirect IMMEDIATELY. Stories auto-advance on their own timer, so
+# every round-trip between the viewer opening and this tap is a chance for the
+# slide to change underneath us — the CTA is then no longer at CTA_POINT, the
+# redirect never fires, and the flow fails for a reason that is not a product
+# bug. A "before" screenshot used to sit right here and spent ~1-2s of that
+# budget; it now runs AFTER the tap, which costs nothing and still proves what
+# was on screen. Measured flakiness before this change: 2 failures in 7 runs.
+#
+# The CTA must be hit by POINT, not by text: a slide routinely carries two CTAs
+# labelled "Shop Now" and only one of them has a redirectUrl.
 - tapOn:
     point: "${CTA_POINT}"
     retryTapIfNoChange: false
+- takeScreenshot: "str_08_cta_tapped"
 
-# THE CHECK: the viewer header must be gone. Still visible means the tap
-# missed the CTA or the redirect never fired — the exact silent failure the
-# blind `pressKey: back` pattern hides everywhere else.
+# THE CHECK — POSITIVE oracle. This used to assert `notVisible GROUP_NAME`,
+# which passes vacuously whenever the header is absent for ANY reason (viewer
+# still animating, story auto-closed, app backgrounded) and so could not tell a
+# real redirect from a missed tap. Assert instead that the browser actually
+# landed on the CTA's host: the address bar renders it as plain text (verified
+# on device — opening https://example.com shows text="example.com").
+# CTA_URL_HOST is derived from the campaign's own redirectUrl by buildFlowEnv.
 - extendedWaitUntil:
-    notVisible: "${GROUP_NAME}"
-    timeout: 6000
+    visible: "${CTA_URL_HOST}"
+    timeout: 10000
 - takeScreenshot: "str_09_redirected"
 
 # Return WITHOUT a back press (SDK bug #6). stopApp:false resumes the running

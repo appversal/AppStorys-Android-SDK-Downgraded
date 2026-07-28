@@ -1,104 +1,37 @@
 [
   {
     "cohorts": null,
-    "id": "444ffad3-6fec-46ae-b462-c0175cf9c8f2",
-    "name": "Group 1",
-    "nameColor": "#FF9933",
+    "id": "280fa11f-cca5-4879-a3e6-cc53893d6eed",
+    "name": "GGs",
+    "nameColor": "#FFFFFF",
     "order": 0,
-    "ringColor": "#FF6633",
+    "ringColor": "#823f83",
     "slides": [
       {
         "button_text": null,
         "content": {
           "canva": {
-            "device": "ios",
-            "height": 2868,
-            "width": 1320,
+            "device": "android",
+            "height": 2400,
+            "width": 1080,
             "x": 9,
-            "y": 19.5
-          }
+            "y": 20
+          },
+          "ctas": [
+            {
+              "id": "9_FJuh2bO1zutiaIk_HPa",
+              "imageUrl": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/ChatGPT%20Image%20Jun%209%2C%202026%2C%2012_01_44%20PM_ksjms.png",
+              "redirectUrl": "https://example.com",
+              "svg": "blob:https://studio.appstorys.com/006e501e-7695-466d-b5c2-c622ad50d25b",
+              "text": "",
+              "type": "image",
+              "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/ChatGPT%20Image%20Jun%209%2C%202026%2C%2012_01_44%20PM_ksjms.png"
+            }
+          ]
         },
-        "id": "632b2767-caab-453f-adb5-1addad5a128c",
+        "id": "3ef9bfda-ff67-41bd-b42f-7e436ccf5aa6",
         "image": null,
         "interactions": [
-          {
-            "config": {
-              "currentRating": 3,
-              "duration": {
-                "end": 5,
-                "start": 0
-              },
-              "emoji": "😍",
-              "maxRating": 5,
-              "title": "Do you like my space?",
-              "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/interactive_rating_rating-632b2767-caab-453f-adb5-1addad5a128c_hlpxk.svg",
-              "variant": "slider"
-            },
-            "id": "8ce88137-bb85-4c46-824f-504e4be8ae4b",
-            "interaction_type": "RATING",
-            "isActive": true,
-            "order": 0,
-            "styling": {
-              "animation": {
-                "direction": "none",
-                "type": "fade"
-              },
-              "background": {
-                "color": "#FFFFFF",
-                "opacity": 100
-              },
-              "borderRadius": 2.309623430962343,
-              "colors": {
-                "background": {
-                  "color": "#FFB9B9",
-                  "opacity": 100
-                },
-                "cardBackground": {
-                  "color": "#FFFFFF",
-                  "opacity": 100
-                },
-                "sliderFill": {
-                  "color": "#E11D48",
-                  "opacity": 100
-                },
-                "sliderTrack": {
-                  "color": "#F3F4F6",
-                  "opacity": 100
-                },
-                "titleColor": {
-                  "color": "#FF0000",
-                  "opacity": 100
-                }
-              },
-              "duration": {
-                "end": 5,
-                "start": 0
-              },
-              "opacity": 100,
-              "padding": 2.09,
-              "position": {
-                "x": 10.83,
-                "y": 64.49
-              },
-              "rotation": 0,
-              "size": {
-                "height": 12.83,
-                "width": 78.41
-              },
-              "typography": {
-                "emojiSize": 4.18,
-                "titleFont": {
-                  "fontDecoration": [
-                    "bold"
-                  ],
-                  "fontFamily": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/font/uploads/PlaywriteNZGuides-Regular_856468a9_latin.ttf",
-                  "fontSize": 0.52,
-                  "fontWeight": 600,
-                  "textAlign": "center"
-                }
-              }
-            }
-          },
           {
             "config": {
               "currentRating": null,
@@ -111,19 +44,19 @@
                 "option2": "👍"
               },
               "showCount": false,
-              "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/interactive_reaction_reaction-632b2767-caab-453f-adb5-1addad5a128c_xvatc.svg"
+              "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/interactive_reaction_V62Vu3F_a1MuO5E87DiN6_qttpo.svg"
             },
-            "id": "104d81c2-9f40-45d6-a153-494def1df8bc",
+            "id": "3e39b419-152c-42dc-8c53-494d53b1b3e4",
             "interaction_type": "REACTION",
             "isActive": true,
             "order": 0,
             "styling": {
               "animation": {
                 "direction": "none",
-                "type": "fade"
+                "type": "none"
               },
               "background": {
-                "color": "#A02F2F",
+                "color": "#0E1C1B",
                 "opacity": 100
               },
               "borderRadius": 0,
@@ -131,23 +64,23 @@
                 "color": "#374151",
                 "opacity": 100
               },
-              "countSize": 2.09,
+              "countSize": 2.5,
               "duration": {
                 "end": 5,
                 "start": 0
               },
-              "emojiSize": 4.18,
+              "emojiSize": 5,
               "opacity": 100,
               "padding": 0,
               "position": {
-                "x": 10.83,
-                "y": 84.06
+                "x": 28.15,
+                "y": 73.2
               },
               "radius": 0,
               "rotation": 0,
               "size": {
-                "height": 9.62,
-                "width": 78.41
+                "height": 10.39,
+                "width": 45.83
               },
               "transparentBackground": true
             }
@@ -168,9 +101,9 @@
               },
               "question": "Are you excited for the grand sale?",
               "showResults": false,
-              "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/interactive_poll_poll-632b2767-caab-453f-adb5-1addad5a128c_abakg.svg"
+              "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/interactive_poll_pFKKeE39pftFhr34yzEBJ_dxrsb.svg"
             },
-            "id": "b531ab3d-af69-4dd5-8953-494df5495742",
+            "id": "0879f027-b2d7-425c-ae53-494d20a07161",
             "interaction_type": "POLL",
             "isActive": true,
             "order": 0,
@@ -181,13 +114,13 @@
               },
               "animation": {
                 "direction": "none",
-                "type": "fade"
+                "type": "none"
               },
               "background": {
-                "color": "#FFC600",
-                "opacity": 100
+                "color": "#FFFFFF",
+                "opacity": 0
               },
-              "borderRadius": 3.713389121338913,
+              "borderRadius": 0,
               "duration": {
                 "end": 5,
                 "start": 0
@@ -197,7 +130,7 @@
                 "opacity": 100
               },
               "opacity": 100,
-              "optionRadius": 7.425034867503487,
+              "optionRadius": 8.875,
               "options": {
                 "background": {
                   "color": "#1A1A1A",
@@ -206,20 +139,20 @@
                 "font": {
                   "fontDecoration": [],
                   "fontFamily": "",
-                  "fontSize": 0.52,
+                  "fontSize": 0.63,
                   "fontWeight": 700,
                   "textAlign": "center"
                 },
-                "radius": 7.425034867503487,
+                "radius": 8.875,
                 "textColor": {
                   "color": "#FFFFFF",
                   "opacity": 100
                 }
               },
-              "padding": 1.39,
+              "padding": 1.67,
               "position": {
-                "x": 16.76,
-                "y": 9.31
+                "x": 11.11,
+                "y": 8.27
               },
               "question": {
                 "color": {
@@ -232,17 +165,17 @@
                     "underline"
                   ],
                   "fontFamily": "",
-                  "fontSize": 0.63,
+                  "fontSize": 0.75,
                   "fontWeight": 800,
                   "textAlign": "center"
                 }
               },
               "rotation": 0,
               "size": {
-                "height": 14.85,
-                "width": 63.64
+                "height": 17.75,
+                "width": 77.78
               },
-              "transparent": false
+              "transparent": true
             }
           },
           {
@@ -260,23 +193,23 @@
               },
               "question": "What is the capital of France?",
               "showExplanation": false,
-              "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/interactive_quiz_quiz-632b2767-caab-453f-adb5-1addad5a128c_gapww.svg"
+              "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/interactive_quiz_8dgK-215TUFGnmHm8cnQ__lraqt.svg"
             },
-            "id": "c147dcb8-047a-49cb-a353-494dcd56ff21",
+            "id": "d56b7dc6-ce0b-40da-b053-494d81dc9515",
             "interaction_type": "QUIZ",
             "isActive": true,
             "order": 0,
             "styling": {
               "animation": {
                 "direction": "none",
-                "type": "fade"
+                "type": "none"
               },
               "background": {
-                "color": "#D3D2EC",
+                "color": "#FFFFFF",
                 "opacity": 100
               },
-              "borderRadius": 6.90817991631799,
-              "containerPadding": 0.7,
+              "borderRadius": 0,
+              "containerPadding": 0.83,
               "correctColor": {
                 "color": "#10B981",
                 "opacity": 100
@@ -291,15 +224,16 @@
               },
               "opacity": 100,
               "optionBgColor": {
-                "color": "#F6E6FB",
+                "color": "#F9FAFB",
                 "opacity": 100
               },
               "optionFont": {
                 "fontDecoration": [
-                  "bold"
+                  "bold",
+                  "underline"
                 ],
                 "fontFamily": "",
-                "fontSize": 0.49,
+                "fontSize": 0.58,
                 "fontWeight": 500,
                 "textAlign": "left"
               },
@@ -309,11 +243,11 @@
                 "opacity": 100
               },
               "position": {
-                "x": 13.41,
-                "y": 30.23
+                "x": 10.76,
+                "y": 26.08
               },
               "questionBgColor": {
-                "color": "#5B5B82",
+                "color": "#000000",
                 "opacity": 100
               },
               "questionColor": {
@@ -321,36 +255,149 @@
                 "opacity": 100
               },
               "questionFont": {
-                "fontDecoration": [
-                  "bold",
-                  "underline"
-                ],
-                "fontFamily": "",
-                "fontSize": 0.56,
+                "fontDecoration": [],
+                "fontFamily": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/font/uploads/Overthinker_fa3aa5df_latin.ttf",
+                "fontSize": 0.67,
                 "fontWeight": 700,
                 "textAlign": "center"
               },
-              "rotation": 360,
+              "rotation": 0,
               "size": {
-                "height": 28.2,
-                "width": 73.18
+                "height": 29.3,
+                "width": 77.78
+              }
+            }
+          },
+          {
+            "config": {
+              "currentRating": 3,
+              "duration": {
+                "end": 5,
+                "start": 0
+              },
+              "emoji": "😍",
+              "maxRating": 5,
+              "title": "Do you like my space?",
+              "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/interactive_rating_8lMd4gugdDYcRC0LBmq3H_vvphz.svg",
+              "variant": "slider"
+            },
+            "id": "3ec725a3-c885-439a-b053-494d9d132b1e",
+            "interaction_type": "RATING",
+            "isActive": true,
+            "order": 0,
+            "styling": {
+              "animation": {
+                "direction": "none",
+                "type": "none"
+              },
+              "background": {
+                "color": "#FFFFFF",
+                "opacity": 100
+              },
+              "borderRadius": 6.666666666666667,
+              "colors": {
+                "background": {
+                  "color": "#FFFFFF",
+                  "opacity": 100
+                },
+                "cardBackground": {
+                  "color": "#FFFFFF",
+                  "opacity": 100
+                },
+                "sliderFill": {
+                  "color": "#E11D48",
+                  "opacity": 100
+                },
+                "sliderTrack": {
+                  "color": "#F3F4F6",
+                  "opacity": 100
+                },
+                "titleColor": {
+                  "color": "#000000",
+                  "opacity": 100
+                }
+              },
+              "duration": {
+                "end": 5,
+                "start": 0
+              },
+              "opacity": 100,
+              "padding": 2.5,
+              "position": {
+                "x": 8.69,
+                "y": 58.33
+              },
+              "rotation": 0,
+              "size": {
+                "height": 13.33,
+                "width": 83.33
+              },
+              "typography": {
+                "emojiSize": 5,
+                "titleFont": {
+                  "fontDecoration": [
+                    "bold",
+                    "underline"
+                  ],
+                  "fontFamily": "",
+                  "fontSize": 0.63,
+                  "fontWeight": 600,
+                  "textAlign": "center"
+                }
               }
             }
           }
         ],
         "link": null,
         "order": 2,
-        "parent": "444ffad3-6fec-46ae-b462-c0175cf9c8f2",
+        "parent": "280fa11f-cca5-4879-a3e6-cc53893d6eed",
         "personalizationData": {},
         "styling": {
           "background": {
             "color": {
               "opacity": 100,
-              "solid": "#FFFFFF",
+              "solid": "#58E79A",
               "type": "solid"
             },
             "media": null
           },
+          "ctas": [
+            {
+              "animation": {
+                "direction": "none",
+                "type": "none"
+              },
+              "borderColor": {
+                "color": "#FFFFFF",
+                "opacity": 100
+              },
+              "borderRadius": 7.4375,
+              "borderWidth": 0,
+              "duration": null,
+              "font": {
+                "fontDecoration": [],
+                "fontFamily": "Arial",
+                "fontSize": 0.67,
+                "fontWeight": 500
+              },
+              "height": 14.88,
+              "id": "9_FJuh2bO1zutiaIk_HPa",
+              "opacity": 82,
+              "position": {
+                "x": 19.74,
+                "y": 84.3
+              },
+              "redirectType": "url",
+              "rotation": 0,
+              "size": {
+                "height": 14.88,
+                "width": 60.74
+              },
+              "transparent": false,
+              "width": 60.74,
+              "z": 0
+            }
+          ],
           "editorSource": "studio"
         },
         "video": null
@@ -359,147 +406,16 @@
         "button_text": null,
         "content": {
           "canva": {
-            "device": "ios",
-            "height": 2868,
-            "width": 1320,
+            "device": "android",
+            "height": 2400,
+            "width": 1080,
             "x": 9,
-            "y": 19.5
+            "y": 20
           }
         },
-        "id": "10f94f01-c085-4bf0-abb7-3eb419257a28",
+        "id": "d922a6b2-3524-4b6c-b173-abf8ef4d25cf",
         "image": null,
         "interactions": [
-          {
-            "config": {
-              "copyButton": true,
-              "couponCode": "OFFER20",
-              "position": {
-                "x": 19.7,
-                "y": 30.42
-              },
-              "size": 1,
-              "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/interactive_promo_promo-10f94f01-c085-4bf0-abb7-3eb419257a28_fpoos.svg"
-            },
-            "id": "8de03d2a-0d20-404f-8f53-494dd5ad1f11",
-            "interaction_type": "PROMO",
-            "isActive": true,
-            "order": 0,
-            "styling": {
-              "animation": {
-                "direction": "none",
-                "type": "fade"
-              },
-              "background": {
-                "color": "#BFBEE8",
-                "opacity": 100
-              },
-              "borderRadius": 3.50418410041841,
-              "couponCodeFont": {
-                "fontDecoration": [
-                  "bold",
-                  "underline"
-                ],
-                "fontFamily": "",
-                "fontSize": 0.98,
-                "fontWeight": 700,
-                "textAlign": "center"
-              },
-              "duration": {
-                "end": 5,
-                "start": 0
-              },
-              "opacity": 100,
-              "position": {
-                "x": 25.61,
-                "y": 36.18
-              },
-              "rotation": 0,
-              "size": {
-                "height": 7.01,
-                "width": 48.79
-              },
-              "text": {
-                "color": "#000000",
-                "opacity": 100
-              },
-              "z": 0
-            }
-          },
-          {
-            "config": {
-              "display": {
-                "showDays": true,
-                "showHours": true,
-                "showMinutes": true,
-                "showSeconds": true
-              },
-              "duration": {
-                "end": 5,
-                "start": 0
-              },
-              "endDate": "2026-07-27",
-              "endTime": "23:59",
-              "title": "It's almost my b-day!",
-              "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/interactive_countdown_countdown-10f94f01-c085-4bf0-abb7-3eb419257a28-12960_bluxh.svg"
-            },
-            "id": "997c79c1-cd32-4341-b053-494da0d37a6e",
-            "interaction_type": "COUNTDOWN",
-            "isActive": true,
-            "order": 0,
-            "styling": {
-              "animation": {
-                "direction": "none",
-                "type": "fade"
-              },
-              "background": {
-                "color": "#F4E9FF",
-                "opacity": 100
-              },
-              "borderRadius": 7.024930264993026,
-              "digitBackground": {
-                "color": "#F69292",
-                "opacity": 100
-              },
-              "digitColor": {
-                "color": "#1F2937",
-                "opacity": 100
-              },
-              "digitSize": 0.98,
-              "duration": {
-                "end": 5,
-                "start": 0
-              },
-              "labelColor": {
-                "color": "#00AF75",
-                "opacity": 100
-              },
-              "opacity": 100,
-              "padding": 0.84,
-              "position": {
-                "x": 10.83,
-                "y": 11.6
-              },
-              "rotation": 0,
-              "size": {
-                "height": 14.05,
-                "width": 78.41
-              },
-              "titleColor": {
-                "color": "#1F2937",
-                "opacity": 100
-              },
-              "titleFont": {
-                "fontDecoration": [
-                  "bold",
-                  "underline"
-                ],
-                "fontFamily": "",
-                "fontSize": 0.7,
-                "fontWeight": 500,
-                "textAlign": "center"
-              }
-            }
-          },
           {
             "config": {
               "allowAnonymous": true,
@@ -510,22 +426,22 @@
               "maxLength": 200,
               "placeholder": "Type your answer...",
               "title": "Ask me anything",
-              "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/interactive_question_question-10f94f01-c085-4bf0-abb7-3eb419257a28_qikyx.svg"
+              "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/interactive_question_q0mDERCkFFD3L7O_bkdhu_pyvqd.svg"
             },
-            "id": "3f2eee4e-9cf5-4e37-9f4f-504ec95ad1c2",
+            "id": "4d33d790-fb91-48dd-a24f-504e31b9ad63",
             "interaction_type": "INPUT",
             "isActive": true,
             "order": 0,
             "styling": {
               "animation": {
                 "direction": "none",
-                "type": "fade"
+                "type": "none"
               },
               "background": {
-                "color": "#96BDD1",
+                "color": "#FFFFFF",
                 "opacity": 100
               },
-              "borderRadius": 9.623430962343097,
+              "borderRadius": 1.4000000000000001,
               "duration": {
                 "end": 5,
                 "start": 0
@@ -539,32 +455,93 @@
                 "opacity": 100
               },
               "opacity": 100,
-              "optionRadius": 9.623430962343097,
-              "padding": 2.09,
+              "optionRadius": 10,
+              "padding": 2.5,
               "position": {
-                "x": 13.41,
-                "y": 49.46
+                "x": 12.88,
+                "y": 27.08
               },
               "questionColor": {
                 "color": "#1F2937",
                 "opacity": 100
               },
               "questionFont": {
-                "fontDecoration": [],
+                "fontDecoration": [
+                  "bold",
+                  "italic",
+                  "underline"
+                ],
                 "fontFamily": "",
-                "fontSize": 2.06,
+                "fontSize": 2.46,
                 "fontWeight": 500,
                 "textAlign": "center"
               },
               "rotation": 0,
               "size": {
-                "height": 19.25,
-                "width": 73.18
+                "height": 20,
+                "width": 77.78
               },
               "submitBackground": {
                 "color": "#F97316",
                 "opacity": 100
               }
+            }
+          },
+          {
+            "config": {
+              "copyButton": true,
+              "couponCode": "OFFER20",
+              "position": {
+                "x": 24.07,
+                "y": 36.35
+              },
+              "size": 1,
+              "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/interactive_promo_4DFiS47ruJKrDU13yrCG__vfzze.svg"
+            },
+            "id": "0dd90ec3-f6fd-4ad5-bd53-494dbe267a77",
+            "interaction_type": "PROMO",
+            "isActive": true,
+            "order": 0,
+            "styling": {
+              "animation": {
+                "direction": "none",
+                "type": "none"
+              },
+              "background": {
+                "color": "#F3F3F3",
+                "opacity": 100
+              },
+              "borderRadius": 5.399198571486508,
+              "couponCodeFont": {
+                "fontDecoration": [
+                  "bold",
+                  "italic",
+                  "underline"
+                ],
+                "fontFamily": "",
+                "fontSize": 1.17,
+                "fontWeight": 700,
+                "textAlign": "center"
+              },
+              "duration": {
+                "end": 5,
+                "start": 0
+              },
+              "opacity": 100,
+              "position": {
+                "x": 12.6,
+                "y": 9.99
+              },
+              "rotation": 0,
+              "size": {
+                "height": 10.8,
+                "width": 76.79
+              },
+              "text": {
+                "color": "#000000",
+                "opacity": 100
+              },
+              "z": 0
             }
           },
           {
@@ -579,38 +556,38 @@
               "options": [
                 {
                   "id": "option1",
-                  "imageUrl": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/images_mwslt.jpg",
+                  "imageUrl": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/images_xywvs.jpg",
                   "isCorrect": true,
                   "label": "Option 1"
                 },
                 {
                   "id": "option2",
-                  "imageUrl": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/995dc29c-3ed8-4308-86a4-dfef0d4a877b_mvofg.jpg",
+                  "imageUrl": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/download%20(4)_vehzd.jpg",
                   "isCorrect": false,
                   "label": "Option 2"
                 }
               ],
               "question": "Which one is correct?",
-              "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/interactive_media_quiz_image-quiz-10f94f01-c085-4bf0-abb7-3eb419257a28-7215_yfdnw.svg"
+              "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/interactive_media_quiz_-QdazyilCa3SsMKAFRvnN_bsuel.svg"
             },
-            "id": "100cbe7d-0e2c-4810-af53-494d7b93b3df",
+            "id": "883d043a-5dfe-4038-9153-494dce3077b2",
             "interaction_type": "MEDIA_QUIZ",
             "isActive": true,
             "order": 0,
             "styling": {
               "animation": {
                 "direction": "none",
-                "type": "fade"
+                "type": "none"
               },
               "background": {
-                "color": "#C7CBCD",
+                "color": "#FFFFFF",
                 "opacity": 100
               },
               "borderColor": {
                 "color": "#E5E7EB",
                 "opacity": 100
               },
-              "borderRadius": 5.82073864624965,
+              "borderRadius": 0,
               "correctBorderColor": {
                 "color": "#10B981",
                 "opacity": 100
@@ -624,18 +601,29 @@
                 "opacity": 100
               },
               "labelFont": {
-                "fontDecoration": [],
-                "fontFamily": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/font/uploads/NotoSansSiddham-Regular_bf619c1e_latin.ttf",
-                "fontSize": 1.26,
+                "fontDecoration": [
+                  "bold",
+                  "underline"
+                ],
+                "fontFamily": "",
+                "fontSize": 1.5,
                 "fontWeight": 500,
                 "textAlign": "center"
               },
               "opacity": 100,
-              "optionRadius": 12.126538846353439,
-              "padding": 2.09,
+              "optionBackground": {
+                "color": "#F3F4F6",
+                "opacity": 100
+              },
+              "optionBgColor": {
+                "color": "#F3F4F6",
+                "opacity": 100
+              },
+              "optionRadius": 14.499999999999998,
+              "padding": 2.5,
               "position": {
-                "x": 18.03,
-                "y": 71.48
+                "x": 9.04,
+                "y": 49.16
               },
               "questionBackground": {
                 "color": "#111111",
@@ -655,27 +643,27 @@
                   "underline"
                 ],
                 "fontFamily": "",
-                "fontSize": 1.67,
+                "fontSize": 2,
                 "fontWeight": 600,
                 "textAlign": "center"
               },
               "rotation": 0,
               "size": {
-                "height": 24.27,
-                "width": 68.18
+                "height": 29,
+                "width": 83.33
               }
             }
           }
         ],
         "link": null,
         "order": 3,
-        "parent": "444ffad3-6fec-46ae-b462-c0175cf9c8f2",
+        "parent": "280fa11f-cca5-4879-a3e6-cc53893d6eed",
         "personalizationData": {},
         "styling": {
           "background": {
             "color": {
               "opacity": 100,
-              "solid": "#FFFFFF",
+              "solid": "#98D568",
               "type": "solid"
             },
             "media": null
@@ -688,61 +676,355 @@
         "button_text": null,
         "content": {
           "canva": {
-            "device": "ios",
-            "height": 2868,
-            "width": 1320,
+            "device": "android",
+            "height": 2400,
+            "width": 1080,
             "x": 9,
-            "y": 19.5
+            "y": 20
           },
-          "video": [
+          "ctas": [
             {
-              "id": "NQXXYEC9QDAUMt1e39gU4",
-              "link": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/WhatsApp%20Video%202026-06-04%20at%205.34.21%20PM_xbrgp.mp4"
+              "id": "Dlpf0kptUIyVhTfSYAzJx",
+              "redirectUrl": "https://example.com",
+              "text": "Shop Now",
+              "type": "classic",
+              "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/cta_Dlpf0kptUIyVhTfSYAzJx_gbbzz.svg"
+            },
+            {
+              "id": "eTDUyN2dKeUHyfjdbCdSW",
+              "redirectUrl": "https://example.com",
+              "text": "Shop Now",
+              "type": "classic",
+              "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/cta_eTDUyN2dKeUHyfjdbCdSW_auemg.svg"
+            },
+            {
+              "id": "h0xsraJrkzdyK-gA0UTse",
+              "redirectUrl": "https://example.com",
+              "text": "Swipe up",
+              "type": "swipe_up",
+              "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/cta_h0xsraJrkzdyK-gA0UTse_qtrqn.svg"
+            }
+          ],
+          "elements": [
+            {
+              "id": "N4YsK-r4XVDEBT_I7AJot",
+              "type": "text",
+              "url": ""
+            },
+            {
+              "id": "dZrz8wMBisHY1BwUNFD0U",
+              "type": "text",
+              "url": ""
+            },
+            {
+              "id": "zl3AJr714wdtJ24ueNPs9",
+              "type": "text",
+              "url": ""
+            }
+          ],
+          "text": [
+            {
+              "id": "N4YsK-r4XVDEBT_I7AJot",
+              "text": "Heading"
+            },
+            {
+              "id": "dZrz8wMBisHY1BwUNFD0U",
+              "text": "Subheading"
+            },
+            {
+              "id": "zl3AJr714wdtJ24ueNPs9",
+              "text": "Body Text"
             }
           ]
         },
-        "id": "c76cd59d-dd03-4981-a4f5-62680f9337ef",
+        "id": "c7ec4fd3-a157-4096-affc-a4193defa233",
+        "image": null,
+        "link": null,
+        "order": 1,
+        "parent": "280fa11f-cca5-4879-a3e6-cc53893d6eed",
+        "personalizationData": {},
+        "styling": {
+          "background": {
+            "color": {
+              "opacity": 100,
+              "solid": "#C67777",
+              "type": "solid"
+            },
+            "media": null
+          },
+          "ctas": [
+            {
+              "animation": {
+                "direction": "none",
+                "type": "none"
+              },
+              "background": {
+                "color": "#3B82F6",
+                "opacity": 100
+              },
+              "borderColor": {
+                "color": "#FFFFFF",
+                "opacity": 100
+              },
+              "borderRadius": 3.875,
+              "borderWidth": 0,
+              "duration": null,
+              "font": {
+                "fontDecoration": [],
+                "fontFamily": "Arial",
+                "fontSize": 2.08,
+                "fontWeight": 500
+              },
+              "fontSize": 2.08,
+              "height": 7.75,
+              "id": "Dlpf0kptUIyVhTfSYAzJx",
+              "position": {
+                "x": 8.94,
+                "y": 47.87
+              },
+              "redirectType": "url",
+              "size": {
+                "height": 7.75,
+                "width": 57.5
+              },
+              "textColor": {
+                "color": "#FFFFFF",
+                "opacity": 100
+              },
+              "width": 57.5
+            },
+            {
+              "animation": {
+                "direction": "none",
+                "type": "none"
+              },
+              "background": {
+                "color": "#3B82F6",
+                "opacity": 100
+              },
+              "borderColor": {
+                "color": "#FFFFFF",
+                "opacity": 100
+              },
+              "borderRadius": 0,
+              "borderWidth": 0,
+              "duration": null,
+              "font": {
+                "fontDecoration": [],
+                "fontFamily": "Arial",
+                "fontSize": 2.08,
+                "fontWeight": 500
+              },
+              "fontSize": 2.08,
+              "height": 7.75,
+              "id": "eTDUyN2dKeUHyfjdbCdSW",
+              "position": {
+                "x": 40.42,
+                "y": 58.64
+              },
+              "redirectType": "url",
+              "size": {
+                "height": 7.75,
+                "width": 57.5
+              },
+              "textColor": {
+                "color": "#FFFFFF",
+                "opacity": 100
+              },
+              "width": 57.5
+            },
+            {
+              "animation": {
+                "direction": "none",
+                "type": "none"
+              },
+              "arrowAnimation": true,
+              "arrowColor": {
+                "color": "#9CA3AF",
+                "opacity": 100
+              },
+              "arrowSize": 1,
+              "background": {
+                "color": "#F100FF",
+                "opacity": 100
+              },
+              "borderRadius": 0,
+              "borderWidth": 0,
+              "ctaAnimation": "bounce",
+              "duration": null,
+              "font": {
+                "fontDecoration": [
+                  "bold",
+                  "underline"
+                ],
+                "fontFamily": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/font/uploads/LoveDays-2v7Oe_03906a6e_latin.ttf",
+                "fontSize": 1.88,
+                "fontWeight": 500
+              },
+              "fontSize": 1.88,
+              "height": 9.71,
+              "id": "h0xsraJrkzdyK-gA0UTse",
+              "opacity": 100,
+              "pillH": 5.745331404523936,
+              "position": {
+                "x": 21.91,
+                "y": 86.78
+              },
+              "redirectType": "url",
+              "rotation": 0,
+              "size": {
+                "height": 9.71,
+                "width": 61.11
+              },
+              "textColor": {
+                "color": "#000000",
+                "opacity": 100
+              },
+              "transparent": false,
+              "width": 61.11,
+              "z": 5
+            }
+          ],
+          "editorSource": "studio",
+          "text": [
+            {
+              "alignment": {
+                "horizontalAlignment": "center",
+                "verticalAlignment": "top"
+              },
+              "animation": {
+                "direction": "none",
+                "type": "none"
+              },
+              "color": {
+                "color": "#FFFFFF",
+                "opacity": 100
+              },
+              "duration": null,
+              "font": {
+                "fontDecoration": [
+                  "bold"
+                ],
+                "fontFamily": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/font/uploads/PlaywriteNZGuides-Regular_856468a9_latin.ttf",
+                "fontSize": 7.5,
+                "fontWeight": 500
+              },
+              "id": "N4YsK-r4XVDEBT_I7AJot",
+              "letterSpacing": 0,
+              "lineHeight": 1.4,
+              "opacity": 100,
+              "position": {
+                "x": 29.8,
+                "y": 8.44
+              },
+              "rotation": 90,
+              "size": {
+                "height": 21.92,
+                "width": 66.67
+              },
+              "z": 0
+            },
+            {
+              "alignment": {
+                "horizontalAlignment": "left",
+                "verticalAlignment": "top"
+              },
+              "animation": {
+                "direction": "none",
+                "type": "none"
+              },
+              "color": {
+                "color": "#FFFFFF",
+                "opacity": 100
+              },
+              "duration": null,
+              "font": {
+                "fontDecoration": [],
+                "fontFamily": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/font/uploads/PlaywriteNZGuides-Regular_856468a9_latin.ttf",
+                "fontSize": 2,
+                "fontWeight": 500
+              },
+              "id": "dZrz8wMBisHY1BwUNFD0U",
+              "letterSpacing": 0,
+              "lineHeight": 1.4,
+              "opacity": 100,
+              "position": {
+                "x": 38.04,
+                "y": 22.47
+              },
+              "rotation": 0,
+              "size": {
+                "height": 5.58,
+                "width": 66.67
+              },
+              "z": 1
+            },
+            {
+              "alignment": {
+                "horizontalAlignment": "left",
+                "verticalAlignment": "top"
+              },
+              "animation": {
+                "direction": "none",
+                "type": "none"
+              },
+              "color": {
+                "color": "#FFFFFF",
+                "opacity": 100
+              },
+              "duration": null,
+              "font": {
+                "fontDecoration": [],
+                "fontFamily": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/font/uploads/PlaywriteNZGuides-Regular_856468a9_latin.ttf",
+                "fontSize": 1.33,
+                "fontWeight": 500
+              },
+              "id": "zl3AJr714wdtJ24ueNPs9",
+              "letterSpacing": 0,
+              "lineHeight": 1.4,
+              "opacity": 100,
+              "position": {
+                "x": 68.51,
+                "y": 30.14
+              },
+              "rotation": 0,
+              "size": {
+                "height": 3.75,
+                "width": 66.67
+              },
+              "z": 2
+            }
+          ]
+        },
+        "video": null
+      },
+      {
+        "button_text": null,
+        "content": {
+          "canva": {
+            "device": "android",
+            "height": 2400,
+            "width": 1080,
+            "x": 9,
+            "y": 20
+          }
+        },
+        "id": "17eb798c-09b8-469b-8454-59dad2fe1492",
         "image": null,
         "link": null,
         "order": 5,
-        "parent": "444ffad3-6fec-46ae-b462-c0175cf9c8f2",
+        "parent": "280fa11f-cca5-4879-a3e6-cc53893d6eed",
         "personalizationData": {},
         "styling": {
           "background": {
             "color": {
               "opacity": 100,
-              "solid": "#FFFFFF",
+              "solid": "#000000",
               "type": "solid"
             },
             "media": null
           },
-          "editorSource": "studio",
-          "video": [
-            {
-              "animation": {
-                "direction": "none",
-                "type": "none"
-              },
-              "cornerRadius": 0,
-              "duration": null,
-              "flip": {
-                "horizontal": false,
-                "vertical": false
-              },
-              "height": 97.78,
-              "id": "NQXXYEC9QDAUMt1e39gU4",
-              "loop": true,
-              "muted": false,
-              "opacity": 100,
-              "position": {
-                "x": 0.35,
-                "y": 0.98
-              },
-              "rotation": 0,
-              "width": 99.17,
-              "z": 0
-            }
-          ]
+          "editorSource": "studio"
         },
         "video": null
       },
@@ -750,72 +1032,11 @@
         "button_text": null,
         "content": {
           "canva": {
-            "device": "ios",
-            "height": 2868,
-            "width": 1320,
+            "device": "android",
+            "height": 2400,
+            "width": 1080,
             "x": 9,
-            "y": 19.5
-          },
-          "image": [
-            {
-              "duration": null,
-              "height": 57.15,
-              "id": "6aciWVxqg_p_H4mdeUpbE",
-              "link": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/dry-autumn-leaves-with-golden-frame_zedwp.jpg",
-              "position": {
-                "x": 15.94,
-                "y": 20.39
-              },
-              "width": 70.36,
-              "z": 0
-            }
-          ]
-        },
-        "id": "d7450e20-a23f-4407-89b0-f42ee9c34962",
-        "image": null,
-        "link": null,
-        "order": 4,
-        "parent": "444ffad3-6fec-46ae-b462-c0175cf9c8f2",
-        "personalizationData": {},
-        "styling": {
-          "background": {
-            "color": {
-              "opacity": 100,
-              "solid": "#FFFFFF",
-              "type": "solid"
-            },
-            "media": null
-          },
-          "editorSource": "studio",
-          "image": [
-            {
-              "animation": {
-                "direction": "none",
-                "type": "none"
-              },
-              "cornerRadius": 0,
-              "duration": null,
-              "flip": {
-                "horizontal": false,
-                "vertical": false
-              },
-              "id": "6aciWVxqg_p_H4mdeUpbE",
-              "opacity": 100,
-              "rotation": 0
-            }
-          ]
-        },
-        "video": null
-      },
-      {
-        "button_text": null,
-        "content": {
-          "canva": {
-            "device": "ios",
-            "height": 2868,
-            "width": 1320,
-            "x": 9,
-            "y": 19.5
+            "y": 20
           },
           "elements": [
             {
@@ -823,67 +1044,51 @@
                 "color": "#DEDEE5",
                 "opacity": 100
               },
-              "id": "pKh73Oq8bZ3BBIvDQy1na",
+              "id": "KIbO8YgUvzsXLbSEAuR73",
               "position": {
-                "x": 53.56,
-                "y": 54.67
+                "x": 5.43,
+                "y": 73.48
               },
-              "rotation": -180,
+              "rotation": 0,
               "size": {
-                "height": 50.93,
-                "width": 47.51
+                "height": 13.33,
+                "width": 29.63
               },
               "stroke": {
                 "color": "#DEDEE5",
                 "opacity": 100
               },
-              "strokeWidth": 0.1046,
+              "strokeWidth": 0.125,
               "styleType": "filled",
-              "svgPath": "M20 18 H80 Q88 18 88 26 V58 Q88 66 80 66 H44 L28 82 V66 H20 Q12 66 12 58 V26 Q12 18 20 18 Z",
+              "svgPath": "M12 18 H88 V66 H58 L42 84 V66 H12 Z",
               "type": "shape",
-              "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/shape-element_jgbdn.svg"
+              "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/shape-element_mknwg.svg"
             },
             {
-              "id": "EirR6vmF_yRkYia8DXECC",
-              "lineStyle": "dashed",
-              "points": [
-                0,
-                0,
-                541.73,
-                2868
-              ],
+              "id": "G1Y5J44nEsR4dzQzaTtDQ",
+              "label": "Crown",
               "size": {
-                "height": 100,
-                "width": 41.04
+                "height": 11.67,
+                "width": 25.93
+              },
+              "source": "",
+              "type": "sticker",
+              "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/shape-element_gcmgw.svg"
+            },
+            {
+              "id": "_zzVtoYtvC8wgR4RZiTmI",
+              "lineStyle": "arrow",
+              "size": {
+                "height": 60.04,
+                "width": 29.63
               },
               "stroke": {
                 "color": "#F8FAFC",
                 "opacity": 100
               },
-              "strokeWidth": 0,
+              "strokeWidth": 0.25,
               "type": "line",
-              "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/shape-element_doqzc.svg"
-            },
-            {
-              "id": "t75Z2E6JeBbKMYa8y-Pb-",
-              "lineStyle": "solid",
-              "points": [
-                0,
-                0,
-                692.08,
-                866.14
-              ],
-              "size": {
-                "height": 30.2,
-                "width": 52.43
-              },
-              "stroke": {
-                "color": "#F8FAFC",
-                "opacity": 100
-              },
-              "strokeWidth": 0,
-              "type": "line",
-              "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/shape-element_ahyxg.svg"
+              "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/shape-element_vgmrf.svg"
             },
             {
               "cornerRadius": 20,
@@ -896,7 +1101,7 @@
                 "opacity": 0
               },
               "frameStyle": "dashed",
-              "id": "o7CNA172yzaQOfyFWz806",
+              "id": "ptkCFHi9wWf_ivCL8Tm6T",
               "shadowBlur": 0,
               "shadowColor": {
                 "color": "#000000",
@@ -906,136 +1111,36 @@
               "shadowOffsetY": 0,
               "shadowOpacity": 1,
               "size": {
-                "height": 18.13,
-                "width": 31.82
+                "height": 21.67,
+                "width": 38.89
               },
               "stroke": {
-                "color": "#1D4ED8",
+                "color": "#F8FAFC",
                 "opacity": 100
               },
-              "strokeWidth": 0.2789,
+              "strokeWidth": 0.3333,
               "type": "frame",
-              "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/shape-element_vpzog.svg"
-            },
+              "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/shape-element_cjshh.svg"
+            }
+          ],
+          "video": [
             {
-              "cornerRadius": 26,
-              "fill": {
-                "color": "#000000",
-                "opacity": 0
-              },
-              "frameStyle": "shadow",
-              "id": "uaDm0SRaHXJwNa-yJlvh1",
-              "shadowBlur": 25,
-              "shadowColor": {
-                "color": "#0F172A",
-                "opacity": 100
-              },
-              "shadowOffsetX": 10,
-              "shadowOffsetY": 14,
-              "shadowOpacity": 0.35,
-              "size": {
-                "height": 13.31,
-                "width": 26.6
-              },
-              "stroke": {
-                "color": "#3B6EA2",
-                "opacity": 100
-              },
-              "strokeWidth": 0.2789,
-              "type": "frame",
-              "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/shape-element_ppywh.svg"
-            },
-            {
-              "cornerRadius": 26,
-              "fill": {
-                "color": "#000000",
-                "opacity": 0
-              },
-              "frameStyle": "shadow",
-              "id": "aCv7LgNh_ArFzKmGM2GXk",
-              "shadowBlur": 25,
-              "shadowColor": {
-                "color": "#0F172A",
-                "opacity": 100
-              },
-              "shadowOffsetX": 10,
-              "shadowOffsetY": 14,
-              "shadowOpacity": 0.35,
-              "size": {
-                "height": 18.13,
-                "width": 31.82
-              },
-              "stroke": {
-                "color": "#236CB5",
-                "opacity": 100
-              },
-              "strokeWidth": 0.2789,
-              "type": "frame",
-              "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/shape-element_nkzyd.svg"
-            },
-            {
-              "fill": {
-                "color": "#DEDEE5",
-                "opacity": 100
-              },
-              "id": "I0kmPZyb0DVfOw_3ExlOP",
-              "position": {
-                "x": 63.74,
-                "y": 65.3
-              },
-              "rotation": 0,
-              "size": {
-                "height": 11.16,
-                "width": 24.24
-              },
-              "stroke": {
-                "color": "#DEDEE5",
-                "opacity": 100
-              },
-              "strokeWidth": 0.1046,
-              "styleType": "filled",
-              "svgPath": "M25 10 H75 L95 50 L75 90 H25 L5 50 Z",
-              "type": "shape",
-              "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/shape-element_elvtf.svg"
-            },
-            {
-              "fill": {
-                "color": "#DEDEE5",
-                "opacity": 100
-              },
-              "id": "RZtlyKEIcVB93dn9jQPXy",
-              "position": {
-                "x": 27.6,
-                "y": 64.32
-              },
-              "rotation": 0,
-              "size": {
-                "height": 11.16,
-                "width": 24.24
-              },
-              "stroke": {
-                "color": "#DEDEE5",
-                "opacity": 100
-              },
-              "strokeWidth": 0.1046,
-              "styleType": "filled",
-              "svgPath": "M50 25 C56 12 72 12 78 25 C90 20 98 34 90 44 C102 50 102 66 90 72 C98 84 90 98 78 92 C72 104 56 104 50 92 C44 104 28 104 22 92 C10 98 2 84 10 72 C-2 66 -2 50 10 44 C2 34 10 20 22 25 C28 12 44 12 50 25 Z",
-              "type": "shape",
-              "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/shape-element_psagh.svg"
+              "id": "c25BDCfzy1x985BjnJEkG",
+              "link": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/WhatsApp%20Video%202026-06-04%20at%205.34.21%20PM_mzqlh.mp4"
             }
           ]
         },
-        "id": "9c271d25-509e-4a86-be85-ad2be623b44e",
+        "id": "ff968fc2-a192-4111-bb29-911d92f2e0c6",
         "image": null,
         "link": null,
-        "order": 6,
-        "parent": "444ffad3-6fec-46ae-b462-c0175cf9c8f2",
+        "order": 4,
+        "parent": "280fa11f-cca5-4879-a3e6-cc53893d6eed",
         "personalizationData": {},
         "styling": {
           "background": {
             "color": {
               "opacity": 100,
-              "solid": "#FFFFFF",
+              "solid": "#D97DE5",
               "type": "solid"
             },
             "media": null
@@ -1052,15 +1157,32 @@
                 "opacity": 100
               },
               "cornerRadius": 0,
-              "flip": "",
-              "id": "pKh73Oq8bZ3BBIvDQy1na",
+              "flip": "y",
+              "id": "KIbO8YgUvzsXLbSEAuR73",
               "opacity": 100,
               "strokeColor": {
                 "color": "#DEDEE5",
                 "opacity": 100
               },
-              "strokeWidth": 0.0036,
-              "z": 0
+              "strokeWidth": 0.0052,
+              "z": 1
+            },
+            {
+              "animation": {
+                "direction": "none",
+                "type": "none"
+              },
+              "cornerRadius": 0,
+              "flip": "",
+              "id": "G1Y5J44nEsR4dzQzaTtDQ",
+              "opacity": 100,
+              "position": {
+                "x": 60.77,
+                "y": 79.25
+              },
+              "rotation": 0,
+              "strokeWidth": 0,
+              "z": 2
             },
             {
               "animation": {
@@ -1073,44 +1195,19 @@
               },
               "cornerRadius": 0,
               "flip": "y",
-              "id": "EirR6vmF_yRkYia8DXECC",
+              "id": "_zzVtoYtvC8wgR4RZiTmI",
               "opacity": 100,
               "position": {
-                "x": 19.38,
-                "y": -55.62
+                "x": 24.56,
+                "y": 58.1
               },
               "rotation": 0,
               "strokeColor": {
                 "color": "#F8FAFC",
                 "opacity": 100
               },
-              "strokeWidth": 0,
-              "z": 1
-            },
-            {
-              "animation": {
-                "direction": "none",
-                "type": "none"
-              },
-              "color": {
-                "color": "#F8FAFC",
-                "opacity": 100
-              },
-              "cornerRadius": 0,
-              "flip": "",
-              "id": "t75Z2E6JeBbKMYa8y-Pb-",
-              "opacity": 100,
-              "position": {
-                "x": 7.84,
-                "y": 38.57
-              },
-              "rotation": 0,
-              "strokeColor": {
-                "color": "#F8FAFC",
-                "opacity": 100
-              },
-              "strokeWidth": 0,
-              "z": 2
+              "strokeWidth": 0.0104,
+              "z": 3
             },
             {
               "animation": {
@@ -1123,466 +1220,48 @@
               },
               "cornerRadius": 20,
               "flip": "",
-              "id": "o7CNA172yzaQOfyFWz806",
+              "id": "ptkCFHi9wWf_ivCL8Tm6T",
               "opacity": 100,
               "position": {
-                "x": 22.75,
-                "y": 61.16
+                "x": 55,
+                "y": 75.69
               },
               "rotation": 0,
               "strokeColor": {
-                "color": "#1D4ED8",
+                "color": "#F8FAFC",
                 "opacity": 100
               },
-              "strokeWidth": 0.0097,
-              "z": 3
-            },
-            {
-              "animation": {
-                "direction": "none",
-                "type": "none"
-              },
-              "color": {
-                "color": "#000000",
-                "opacity": 0
-              },
-              "cornerRadius": 26,
-              "flip": "",
-              "id": "uaDm0SRaHXJwNa-yJlvh1",
-              "opacity": 100,
-              "position": {
-                "x": 25.54,
-                "y": 63.9
-              },
-              "rotation": 0,
-              "strokeColor": {
-                "color": "#3B6EA2",
-                "opacity": 100
-              },
-              "strokeWidth": 0.0097,
+              "strokeWidth": 0.0139,
               "z": 4
-            },
-            {
-              "animation": {
-                "direction": "none",
-                "type": "none"
-              },
-              "color": {
-                "color": "#000000",
-                "opacity": 0
-              },
-              "cornerRadius": 26,
-              "flip": "",
-              "id": "aCv7LgNh_ArFzKmGM2GXk",
-              "opacity": 100,
-              "position": {
-                "x": 59.25,
-                "y": 61.65
-              },
-              "rotation": 0,
-              "strokeColor": {
-                "color": "#236CB5",
-                "opacity": 100
-              },
-              "strokeWidth": 0.0097,
-              "z": 5
-            },
-            {
-              "animation": {
-                "direction": "none",
-                "type": "none"
-              },
-              "color": {
-                "color": "#DEDEE5",
-                "opacity": 100
-              },
-              "cornerRadius": 0,
-              "flip": "",
-              "id": "I0kmPZyb0DVfOw_3ExlOP",
-              "opacity": 100,
-              "strokeColor": {
-                "color": "#DEDEE5",
-                "opacity": 100
-              },
-              "strokeWidth": 0.0036,
-              "z": 6
-            },
-            {
-              "animation": {
-                "direction": "none",
-                "type": "none"
-              },
-              "color": {
-                "color": "#DEDEE5",
-                "opacity": 100
-              },
-              "cornerRadius": 0,
-              "flip": "",
-              "id": "RZtlyKEIcVB93dn9jQPXy",
-              "opacity": 100,
-              "strokeColor": {
-                "color": "#DEDEE5",
-                "opacity": 100
-              },
-              "strokeWidth": 0.0036,
-              "z": 7
             }
           ],
           "fullWidthCta": false,
           "pc_redirect_type": "url",
-          "rdrType": "url"
-        },
-        "video": null
-      },
-      {
-        "button_text": null,
-        "content": {
-          "canva": {
-            "device": "ios",
-            "height": 2868,
-            "width": 1320,
-            "x": 9,
-            "y": 19.5
-          },
-          "ctas": [
-            {
-              "id": "TqxTzZdB9EVGjBGMONy9c",
-              "redirectUrl": "",
-              "text": "Shop Now",
-              "type": "classic",
-              "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/cta_TqxTzZdB9EVGjBGMONy9c_cqfba.svg"
-            },
-            {
-              "id": "AHt8SlrcrDm6XmLSC3whJ",
-              "redirectUrl": "https://example.com",
-              "text": "Shop Now",
-              "type": "classic",
-              "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/cta_AHt8SlrcrDm6XmLSC3whJ_xwvap.svg"
-            },
-            {
-              "id": "uuuuAAuJVZ7wWxdj6PRp4",
-              "redirectUrl": "https://example.com",
-              "text": "Swipe up",
-              "type": "swipe_up",
-              "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/cta_uuuuAAuJVZ7wWxdj6PRp4_xtvmc.svg"
-            },
-            {
-              "id": "9JP4rl-9brfD7qVULEmHW",
-              "imageUrl": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/ChatGPT%20Image%20Jun%209%2C%202026%2C%2012_01_44%20PM_qgatp.png",
-              "redirectUrl": "https://example.com",
-              "svg": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/ChatGPT%20Image%20Jun%209%2C%202026%2C%2012_01_44%20PM_qgatp.png",
-              "text": "",
-              "type": "image",
-              "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/ChatGPT%20Image%20Jun%209%2C%202026%2C%2012_01_44%20PM_qgatp.png"
-            }
-          ],
-          "text": [
-            {
-              "id": "mHDfRyWIqt3Fi94SfaeFy",
-              "text": "Hi BRO"
-            },
-            {
-              "id": "fMs2m2RSHTMcpLIr7WtA6",
-              "text": "Subheading"
-            },
-            {
-              "id": "HAeFLCQ4c5kbOS7XhxXA6",
-              "text": "Body Text"
-            }
-          ]
-        },
-        "id": "2dba23a9-1b14-4467-aa21-7a79904308eb",
-        "image": null,
-        "link": null,
-        "order": 1,
-        "parent": "444ffad3-6fec-46ae-b462-c0175cf9c8f2",
-        "personalizationData": {},
-        "styling": {
-          "background": {
-            "color": {
-              "opacity": 100,
-              "solid": "#6E599D",
-              "type": "solid"
-            },
-            "media": null
-          },
-          "ctas": [
+          "rdrType": "url",
+          "video": [
             {
               "animation": {
                 "direction": "none",
                 "type": "none"
               },
-              "background": {
-                "color": "#3B82F6",
-                "opacity": 100
-              },
-              "borderColor": {
-                "color": "#FFFFFF",
-                "opacity": 100
-              },
-              "borderRadius": 2.6150627615062745,
-              "borderWidth": 0,
+              "cornerRadius": 0,
               "duration": null,
-              "font": {
-                "fontDecoration": [],
-                "fontFamily": "Arial",
-                "fontSize": 1.74,
-                "fontWeight": 500
+              "flip": {
+                "horizontal": false,
+                "vertical": false
               },
-              "fontSize": 1.74,
-              "height": 5.23,
-              "id": "TqxTzZdB9EVGjBGMONy9c",
+              "height": 72,
+              "id": "c25BDCfzy1x985BjnJEkG",
+              "loop": true,
+              "muted": false,
               "opacity": 100,
               "position": {
-                "x": 17.56,
-                "y": 44.06
-              },
-              "size": {
-                "height": 5.23,
-                "width": 37.88
-              },
-              "textColor": {
-                "color": "#FFFFFF",
-                "opacity": 100
-              },
-              "transparent": false,
-              "width": 37.88
-            },
-            {
-              "animation": {
-                "direction": "none",
-                "type": "none"
-              },
-              "background": {
-                "color": "#3B82F6",
-                "opacity": 100
-              },
-              "borderColor": {
-                "color": "#FFFFFF",
-                "opacity": 100
-              },
-              "borderRadius": 0,
-              "borderWidth": 0,
-              "duration": null,
-              "font": {
-                "fontDecoration": [],
-                "fontFamily": "Arial",
-                "fontSize": 1.74,
-                "fontWeight": 500
-              },
-              "fontSize": 1.74,
-              "height": 5.23,
-              "id": "AHt8SlrcrDm6XmLSC3whJ",
-              "opacity": 100,
-              "position": {
-                "x": 77.41,
-                "y": 43.87
-              },
-              "size": {
-                "height": 5.23,
-                "width": 37.88
-              },
-              "textColor": {
-                "color": "#FFFFFF",
-                "opacity": 100
-              },
-              "transparent": false,
-              "width": 37.88
-            },
-            {
-              "animation": {
-                "direction": "none",
-                "type": "none"
-              },
-              "arrowAnimation": true,
-              "arrowColor": {
-                "color": "#9CA3AF",
-                "opacity": 100
-              },
-              "arrowSize": 0.84,
-              "background": {
-                "color": "#9CA3AF",
-                "opacity": 50
-              },
-              "borderRadius": 0,
-              "borderWidth": 0,
-              "ctaAnimation": "bounce",
-              "duration": null,
-              "font": {
-                "fontDecoration": [
-                  "bold",
-                  "italic",
-                  "underline"
-                ],
-                "fontFamily": "Arial",
-                "fontSize": 1.57,
-                "fontWeight": 500
-              },
-              "fontSize": 1.57,
-              "height": 10.15,
-              "id": "uuuuAAuJVZ7wWxdj6PRp4",
-              "opacity": 100,
-              "pillH": 6.140370369021995,
-              "position": {
-                "x": 23.33,
-                "y": 52.38
+                "x": 4.96,
+                "y": 1.91
               },
               "rotation": 0,
-              "size": {
-                "height": 10.15,
-                "width": 62.5
-              },
-              "textColor": {
-                "color": "#000000",
-                "opacity": 100
-              },
-              "transparent": false,
-              "width": 62.5,
-              "z": 5
-            },
-            {
-              "animation": {
-                "direction": "none",
-                "type": "none"
-              },
-              "borderColor": {
-                "color": "#FFFFFF",
-                "opacity": 100
-              },
-              "borderRadius": 8.623935728153095,
-              "borderWidth": 0,
-              "duration": null,
-              "font": {
-                "fontDecoration": [],
-                "fontFamily": "Arial",
-                "fontSize": 0.56,
-                "fontWeight": 500
-              },
-              "height": 17.26,
-              "id": "9JP4rl-9brfD7qVULEmHW",
-              "opacity": 100,
-              "position": {
-                "x": 22.36,
-                "y": 68.22
-              },
-              "rotation": 0,
-              "size": {
-                "height": 17.26,
-                "width": 57.73
-              },
-              "transparent": false,
-              "width": 57.73,
-              "z": 6
-            }
-          ],
-          "editorSource": "studio",
-          "text": [
-            {
-              "alignment": {
-                "horizontalAlignment": "left",
-                "verticalAlignment": "top"
-              },
-              "animation": {
-                "direction": "none",
-                "type": "fade"
-              },
-              "color": {
-                "color": "#C792EA",
-                "opacity": 100
-              },
-              "duration": null,
-              "font": {
-                "fontDecoration": [
-                  "bold"
-                ],
-                "fontFamily": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/font/uploads/HappySwirly-KVB7l_3c5bb771_latin.ttf",
-                "fontSize": 2.79,
-                "fontWeight": 500
-              },
-              "id": "mHDfRyWIqt3Fi94SfaeFy",
-              "letterSpacing": 0,
-              "lineHeight": 1.4,
-              "opacity": 100,
-              "position": {
-                "x": 40.52,
-                "y": 8.44
-              },
-              "rotation": 1080,
-              "size": {
-                "height": 7.81,
-                "width": 66.67
-              },
+              "width": 90,
               "z": 0
-            },
-            {
-              "alignment": {
-                "horizontalAlignment": "left",
-                "verticalAlignment": "top"
-              },
-              "animation": {
-                "direction": "none",
-                "type": "none"
-              },
-              "color": {
-                "color": "#C792EA",
-                "opacity": 100
-              },
-              "duration": null,
-              "font": {
-                "fontDecoration": [],
-                "fontFamily": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/font/uploads/PlaywriteNZGuides-Regular_856468a9_latin.ttf",
-                "fontSize": 1.67,
-                "fontWeight": 500
-              },
-              "id": "fMs2m2RSHTMcpLIr7WtA6",
-              "letterSpacing": 0,
-              "lineHeight": 1.4,
-              "opacity": 100,
-              "position": {
-                "x": 44.63,
-                "y": 13.51
-              },
-              "rotation": 50,
-              "size": {
-                "height": 4.67,
-                "width": 66.67
-              },
-              "z": 3
-            },
-            {
-              "alignment": {
-                "horizontalAlignment": "left",
-                "verticalAlignment": "top"
-              },
-              "animation": {
-                "direction": "none",
-                "type": "none"
-              },
-              "color": {
-                "color": "#C792EA",
-                "opacity": 100
-              },
-              "duration": null,
-              "font": {
-                "fontDecoration": [],
-                "fontFamily": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/font/uploads/Roboto-VariableFont_wdth%2Cwght_04cfe21b_latin.ttf",
-                "fontSize": 1.12,
-                "fontWeight": 500
-              },
-              "id": "HAeFLCQ4c5kbOS7XhxXA6",
-              "letterSpacing": 0,
-              "lineHeight": 1.4,
-              "opacity": 100,
-              "position": {
-                "x": 40.17,
-                "y": 23.45
-              },
-              "rotation": 0,
-              "size": {
-                "height": 3.14,
-                "width": 66.67
-              },
-              "z": 4
             }
           ]
         },
@@ -1599,8 +1278,8 @@
       "crossButton": {
         "color": {
           "cross": "#ffffff",
-          "fill": "#2e2e2e",
-          "stroke": "#000000"
+          "fill": "",
+          "stroke": ""
         },
         "enabled": true,
         "image": "",
@@ -1608,7 +1287,7 @@
           "right": 4,
           "top": 6
         },
-        "selectedStyle": "cross4",
+        "selectedStyle": "cross1",
         "size": 46
       },
       "name": {
@@ -1616,20 +1295,21 @@
         "fontFamily": "",
         "size": 12
       },
+      "ringAndImageSpace": 5,
       "ringWidth": 3,
       "share": {
         "color": {
           "cross": "#ffffff",
-          "fill": "#000000",
-          "stroke": "#000000"
+          "fill": "",
+          "stroke": ""
         },
         "enabled": true,
         "image": "",
         "margin": {
           "right": 48,
-          "top": 6
+          "top": 8
         },
-        "selectedStyle": "share4",
+        "selectedStyle": "share1",
         "size": 40
       },
       "size": 60,
@@ -1640,34 +1320,568 @@
         "mute": {
           "color": {
             "cross": "#ffffff",
-            "fill": "#ff0000",
-            "stroke": "#000000"
+            "fill": "",
+            "stroke": ""
           },
           "image": "",
           "margin": {
             "right": 26,
             "top": 6
           },
-          "selectedStyle": "mute4",
+          "selectedStyle": "mute1",
           "size": 46
         },
         "unmute": {
           "color": {
             "cross": "#ffffff",
-            "fill": "#878849",
-            "stroke": "#000000"
+            "fill": "",
+            "stroke": ""
           },
           "image": "",
           "margin": {
             "right": 28,
             "top": 6
           },
-          "selectedStyle": "unmute4",
+          "selectedStyle": "unmute1",
           "size": 46
         }
       },
-      "storyGroupText": "Group 1"
+      "storyGroupText": "GGs"
     },
-    "thumbnail": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/story_groups/images.jpg"
+    "thumbnail": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/story_groups/ChatGPT_Image_Jun_9_2026_12_01_44_PM.png"
+  },
+  {
+    "cohorts": null,
+    "id": "98aea0f5-b618-49b0-b970-3bc02a785c53",
+    "name": "Group 2",
+    "nameColor": "#FFFFFF",
+    "order": 1,
+    "ringColor": "#000000",
+    "slides": [
+      {
+        "button_text": null,
+        "content": {
+          "canva": {
+            "device": "android",
+            "height": 2400,
+            "width": 1080,
+            "x": 9,
+            "y": 20
+          }
+        },
+        "id": "3fdcb857-e647-4ffd-aafc-0e21134a322b",
+        "image": null,
+        "interactions": [
+          {
+            "config": {
+              "currentRating": null,
+              "duration": {
+                "end": 5,
+                "start": 0
+              },
+              "options": {
+                "option1": "😍",
+                "option2": "👍"
+              },
+              "showCount": false,
+              "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/interactive_reaction_uCdZ6EX7n3NsaKZQi94Mr_xobtr.svg"
+            },
+            "id": "21c520ed-f9b0-4de6-a253-494d07217127",
+            "interaction_type": "REACTION",
+            "isActive": true,
+            "order": 0,
+            "styling": {
+              "animation": {
+                "direction": "none",
+                "type": "none"
+              },
+              "background": {
+                "color": "#FFFFFF",
+                "opacity": 100
+              },
+              "borderRadius": 0,
+              "countColor": {
+                "color": "#374151",
+                "opacity": 100
+              },
+              "countSize": 2.5,
+              "duration": {
+                "end": 5,
+                "start": 0
+              },
+              "emojiSize": 5,
+              "opacity": 100,
+              "padding": 0,
+              "position": {
+                "x": 24.6,
+                "y": 65.86
+              },
+              "radius": 0,
+              "rotation": 0,
+              "size": {
+                "height": 10.39,
+                "width": 45.83
+              },
+              "transparentBackground": true
+            }
+          },
+          {
+            "config": {
+              "duration": {
+                "end": 5,
+                "start": 0
+              },
+              "layout": {
+                "columns": 2,
+                "type": "horizontal"
+              },
+              "options": {
+                "option1": "YES",
+                "option2": "NO"
+              },
+              "question": "Are you excited for the grand sale?",
+              "showResults": false,
+              "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/interactive_poll_HloYLqTYH8KtA2UsXQ6gN_cyeqr.svg"
+            },
+            "id": "802dc01b-310e-4127-8b53-494d83ee753d",
+            "interaction_type": "POLL",
+            "isActive": true,
+            "order": 0,
+            "styling": {
+              "activeResultBarColor": {
+                "color": "#F97316",
+                "opacity": 100
+              },
+              "animation": {
+                "direction": "none",
+                "type": "none"
+              },
+              "background": {
+                "color": "#FFFFFF",
+                "opacity": 100
+              },
+              "borderRadius": 2.21875,
+              "duration": {
+                "end": 5,
+                "start": 0
+              },
+              "inactiveResultBarColor": {
+                "color": "#404040",
+                "opacity": 100
+              },
+              "opacity": 100,
+              "optionRadius": 8.875,
+              "options": {
+                "background": {
+                  "color": "#1A1A1A",
+                  "opacity": 100
+                },
+                "font": {
+                  "fontDecoration": [],
+                  "fontFamily": "",
+                  "fontSize": 0.63,
+                  "fontWeight": 700,
+                  "textAlign": "center"
+                },
+                "radius": 8.875,
+                "textColor": {
+                  "color": "#FFFFFF",
+                  "opacity": 100
+                }
+              },
+              "padding": 1.67,
+              "position": {
+                "x": 10.76,
+                "y": 14.81
+              },
+              "question": {
+                "color": {
+                  "color": "#000000",
+                  "opacity": 100
+                },
+                "font": {
+                  "fontDecoration": [],
+                  "fontFamily": "",
+                  "fontSize": 0.75,
+                  "fontWeight": 800,
+                  "textAlign": "center"
+                }
+              },
+              "rotation": 0,
+              "size": {
+                "height": 17.75,
+                "width": 77.78
+              },
+              "transparent": false
+            }
+          },
+          {
+            "config": {
+              "duration": {
+                "end": 5,
+                "start": 0
+              },
+              "explanation": "",
+              "isCorrect": "option2",
+              "options": {
+                "option1": "London",
+                "option2": "Paris",
+                "option3": "Berlin"
+              },
+              "question": "What is the capital of France?",
+              "showExplanation": false,
+              "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/interactive_quiz_oVW5kWMDql0esjhZ_khsu_cotrp.svg"
+            },
+            "id": "60e4cccb-efb0-4065-8e53-494dd3ae9a6f",
+            "interaction_type": "QUIZ",
+            "isActive": true,
+            "order": 0,
+            "styling": {
+              "animation": {
+                "direction": "none",
+                "type": "none"
+              },
+              "background": {
+                "color": "#FFFFFF",
+                "opacity": 100
+              },
+              "borderRadius": 2.7750000000000004,
+              "containerPadding": 0.83,
+              "correctColor": {
+                "color": "#10B981",
+                "opacity": 100
+              },
+              "duration": {
+                "end": 5,
+                "start": 0
+              },
+              "incorrectColor": {
+                "color": "#EF4444",
+                "opacity": 100
+              },
+              "opacity": 100,
+              "optionBgColor": {
+                "color": "#F9FAFB",
+                "opacity": 100
+              },
+              "optionFont": {
+                "fontDecoration": [],
+                "fontFamily": "",
+                "fontSize": 0.58,
+                "fontWeight": 500,
+                "textAlign": "left"
+              },
+              "optionRadius": 13.875000000000002,
+              "optionTextColor": {
+                "color": "#1F2937",
+                "opacity": 100
+              },
+              "position": {
+                "x": 11.11,
+                "y": 36.13
+              },
+              "questionBgColor": {
+                "color": "#000000",
+                "opacity": 100
+              },
+              "questionColor": {
+                "color": "#FFFFFF",
+                "opacity": 100
+              },
+              "questionFont": {
+                "fontDecoration": [],
+                "fontFamily": "",
+                "fontSize": 0.67,
+                "fontWeight": 700,
+                "textAlign": "center"
+              },
+              "rotation": 0,
+              "size": {
+                "height": 27.75,
+                "width": 77.78
+              }
+            }
+          }
+        ],
+        "link": null,
+        "order": 1,
+        "parent": "98aea0f5-b618-49b0-b970-3bc02a785c53",
+        "personalizationData": {},
+        "styling": {
+          "background": {
+            "color": {
+              "opacity": 100,
+              "solid": "#324F5B",
+              "type": "solid"
+            },
+            "media": null
+          },
+          "editorSource": "studio"
+        },
+        "video": null
+      },
+      {
+        "button_text": null,
+        "content": {
+          "canva": {
+            "device": "android",
+            "height": 2400,
+            "width": 1080,
+            "x": 9,
+            "y": 20
+          },
+          "elements": [
+            {
+              "fill": {
+                "color": "#DEDEE5",
+                "opacity": 100
+              },
+              "id": "2sJEKlR2WDbfVTGfqwe5r",
+              "position": {
+                "x": 37.31,
+                "y": 74.75
+              },
+              "rotation": 0,
+              "size": {
+                "height": 13.33,
+                "width": 29.63
+              },
+              "stroke": {
+                "color": "#DEDEE5",
+                "opacity": 100
+              },
+              "strokeWidth": 0.125,
+              "styleType": "filled",
+              "svgPath": "M50 6 L60 22 L78 12 L74 30 L94 30 L82 44 L96 56 L76 58 L82 76 L64 72 L60 94 L46 78 L32 92 L30 72 L10 76 L20 58 L4 50 L18 42 L8 28 L28 30 L24 10 L42 22 Z",
+              "type": "shape",
+              "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/shape-element_jienc.svg"
+            },
+            {
+              "fill": {
+                "color": "#DEDEE5",
+                "opacity": 100
+              },
+              "id": "3xYzYVBES5x-9NL6LKTZ4",
+              "position": {
+                "x": 34.83,
+                "y": 15.1
+              },
+              "rotation": 0,
+              "size": {
+                "height": 13.33,
+                "width": 29.63
+              },
+              "stroke": {
+                "color": "#DEDEE5",
+                "opacity": 100
+              },
+              "strokeWidth": 0.125,
+              "styleType": "filled",
+              "svgPath": "M50 6 L60 22 L78 12 L74 30 L94 30 L82 44 L96 56 L76 58 L82 76 L64 72 L60 94 L46 78 L32 92 L30 72 L10 76 L20 58 L4 50 L18 42 L8 28 L28 30 L24 10 L42 22 Z",
+              "type": "shape",
+              "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/shape-element_jienc.svg"
+            }
+          ]
+        },
+        "id": "add61fca-441c-4fb6-86e5-8a60fe9462d4",
+        "image": null,
+        "interactions": [
+          {
+            "config": {
+              "copyButton": true,
+              "couponCode": "OFFER20",
+              "position": {
+                "x": 24.07,
+                "y": 36.35
+              },
+              "size": 1,
+              "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/interactive_promo_wtBEFZYBgMTpSNJJMlyLL_fbwja.svg"
+            },
+            "id": "d4c4d7db-d42f-453b-9253-494d5f349a01",
+            "interaction_type": "PROMO",
+            "isActive": true,
+            "order": 0,
+            "styling": {
+              "animation": {
+                "direction": "none",
+                "type": "none"
+              },
+              "background": {
+                "color": "#F3F3F3",
+                "opacity": 100
+              },
+              "borderRadius": 0.7291666666666666,
+              "couponCodeFont": {
+                "fontDecoration": [],
+                "fontFamily": "",
+                "fontSize": 1.17,
+                "fontWeight": 700,
+                "textAlign": "center"
+              },
+              "duration": {
+                "end": 5,
+                "start": 0
+              },
+              "opacity": 100,
+              "position": {
+                "x": 24.07,
+                "y": 46.35
+              },
+              "rotation": 0,
+              "size": {
+                "height": 7.29,
+                "width": 51.85
+              },
+              "text": {
+                "color": "#000000",
+                "opacity": 100
+              },
+              "z": 0
+            }
+          }
+        ],
+        "link": null,
+        "order": 2,
+        "parent": "98aea0f5-b618-49b0-b970-3bc02a785c53",
+        "personalizationData": {},
+        "styling": {
+          "background": {
+            "color": {
+              "solid": "#ffffff",
+              "type": "solid"
+            },
+            "media": null
+          },
+          "editorSource": "studio",
+          "elements": [
+            {
+              "animation": {
+                "direction": "none",
+                "type": "none"
+              },
+              "color": {
+                "color": "#DEDEE5",
+                "opacity": 100
+              },
+              "cornerRadius": 0,
+              "flip": "",
+              "id": "2sJEKlR2WDbfVTGfqwe5r",
+              "opacity": 100,
+              "strokeColor": {
+                "color": "#DEDEE5",
+                "opacity": 100
+              },
+              "strokeWidth": 0.0052,
+              "z": 1
+            },
+            {
+              "animation": {
+                "direction": "none",
+                "type": "none"
+              },
+              "color": {
+                "color": "#DEDEE5",
+                "opacity": 100
+              },
+              "cornerRadius": 0,
+              "flip": "",
+              "id": "3xYzYVBES5x-9NL6LKTZ4",
+              "opacity": 100,
+              "strokeColor": {
+                "color": "#DEDEE5",
+                "opacity": 100
+              },
+              "strokeWidth": 0.0052,
+              "z": 2
+            }
+          ],
+          "fullWidthCta": false,
+          "pc_redirect_type": "url",
+          "rdrType": "url"
+        },
+        "video": null
+      }
+    ],
+    "styling": {
+      "cornerRadius": {
+        "bottomLeft": 30,
+        "bottomRight": 30,
+        "topLeft": 30,
+        "topRight": 30
+      },
+      "crossButton": {
+        "color": {
+          "cross": "#ffffff",
+          "fill": "",
+          "stroke": ""
+        },
+        "enabled": true,
+        "image": "",
+        "margin": {
+          "right": 4,
+          "top": 6
+        },
+        "selectedStyle": "cross1",
+        "size": 46
+      },
+      "name": {
+        "font": "Medium",
+        "fontFamily": "",
+        "size": 12
+      },
+      "ringAndImageSpace": 2,
+      "ringWidth": 3,
+      "share": {
+        "color": {
+          "cross": "#ffffff",
+          "fill": "",
+          "stroke": ""
+        },
+        "enabled": true,
+        "image": "",
+        "margin": {
+          "right": 48,
+          "top": 8
+        },
+        "selectedStyle": "share1",
+        "size": 40
+      },
+      "size": 60,
+      "slideShowTime": 5,
+      "soundToggle": {
+        "defaultSound": "no",
+        "enabled": true,
+        "mute": {
+          "color": {
+            "cross": "#ffffff",
+            "fill": "",
+            "stroke": ""
+          },
+          "image": "",
+          "margin": {
+            "right": 26,
+            "top": 6
+          },
+          "selectedStyle": "mute1",
+          "size": 46
+        },
+        "unmute": {
+          "color": {
+            "cross": "#ffffff",
+            "fill": "",
+            "stroke": ""
+          },
+          "image": "",
+          "margin": {
+            "right": 28,
+            "top": 6
+          },
+          "selectedStyle": "unmute1",
+          "size": 46
+        }
+      },
+      "storyGroupText": "Group 2"
+    },
+    "thumbnail": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/story_groups/download_4.png"
   }
 ]
