@@ -74,10 +74,14 @@ env:
     timeout: 30000
 
 # One tap only — retry-tap would land on the opened viewer and navigate it.
+# BUDGET: slides auto-advance after ~5s, and the CTA tap below must land while
+# ITS slide is still showing. Everything between here and that tap spends that
+# budget, so the settle wait is kept short — the viewer opening is confirmed by
+# the CTA tap succeeding, not by burning 2s waiting for the UI to go quiet.
 - tapOn:
     text: "${GROUP_NAME}"
     retryTapIfNoChange: false
-    waitToSettleTimeoutMs: 2000
+    waitToSettleTimeoutMs: 500
 
 # Reach the slide carrying the redirecting CTA
 - runFlow:
@@ -91,9 +95,11 @@ env:
                 point: "${ADVANCE_POINT}"
                 retryTapIfNoChange: false
 
-- extendedWaitUntil:
-    visible: "${GROUP_NAME}"
-    timeout: 12000
+# NOTE: there used to be another `extendedWaitUntil visible GROUP_NAME` here.
+# It was removed for two reasons. It proved nothing — the group name shows on
+# the circles row AND in the viewer header, so it cannot tell whether the
+# viewer actually opened. And it cost a full hierarchy dump (~1-2s) out of the
+# ~5s slide budget, which is what pushed the tap past the auto-advance.
 
 # Fire the redirect IMMEDIATELY. Stories auto-advance on their own timer, so
 # every round-trip between the viewer opening and this tap is a chance for the

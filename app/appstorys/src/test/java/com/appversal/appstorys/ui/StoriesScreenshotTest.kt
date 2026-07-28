@@ -382,6 +382,10 @@ class StoriesScreenshotTest {
         val slides = group.slides?.sortedBy { it.order ?: 0 }.orEmpty()
         if (slides.isEmpty()) return@forEachIndexed
         val thumbBitmap = group.id?.let { loadImageFromDisk(STR_IMG_DIR, it) }
+        // Same asset routing the studio snapshot uses — the two halves draw the
+        // same slide content through the same composables, so they must resolve
+        // images identically.
+        val fakeEngine = buildSlideImageEngine(slides)
 
         slides.forEachIndexed { slideIndex, currentSlide ->
             val slideBitmap = currentSlide.id?.let { loadImageFromDisk(STR_IMG_DIR, "slide_$it") }
@@ -396,22 +400,76 @@ class StoriesScreenshotTest {
                 (if (currentSlide.video != null) "_video" else "")
 
             paparazzi.snapshot(name = snapName) {
+            // Paparazzi renders ONE frame, so every Coil request must complete
+            // inline: all dispatchers Unconfined, and LocalInspectionMode off
+            // (Coil 2.6 short-circuits to a placeholder while inspecting, so the
+            // fake engine would never even be asked).
+            val ctx = androidx.compose.ui.platform.LocalContext.current
+            val fakeLoader = coil.ImageLoader.Builder(ctx)
+                .components { add(fakeEngine) }
+                .interceptorDispatcher(kotlinx.coroutines.Dispatchers.Unconfined)
+                .fetcherDispatcher(kotlinx.coroutines.Dispatchers.Unconfined)
+                .decoderDispatcher(kotlinx.coroutines.Dispatchers.Unconfined)
+                .transformationDispatcher(kotlinx.coroutines.Dispatchers.Unconfined)
+                .build()
+            coil.Coil.setImageLoader(fakeLoader)
+            @Suppress("DEPRECATION")
+            androidx.compose.runtime.CompositionLocalProvider(
+                coil.compose.LocalImageLoader provides fakeLoader,
+                androidx.compose.ui.platform.LocalInspectionMode provides false
+            ) {
             // ModalBottomSheet: fullscreen, RectangleShape, containerColor Black
             Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
 
-                // Slide content — fillMaxSize, ContentScale.Fit, centered
+                // Slide content.
+                //
+                // This used to draw ONLY the legacy full-screen slide.image /
+                // slide.video, and printed "slide has no image/video content"
+                // for anything else. Every slide built in the studio editor —
+                // i.e. all of them in a modern campaign — has its content in
+                // content.elements/ctas/text/interactions instead, so all seven
+                // viewer goldens were a black frame with a placeholder and
+                // proved nothing beyond the chrome.
+                //
+                // It now renders through the SAME real SDK composables the
+                // studio snapshot uses, so a studio slide shows its actual
+                // content inside the real viewer chrome. Legacy image/video
+                // slides still work: they come through as background media.
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
+                    // Colour layer FIRST, background media on top of it — the
+                    // real viewer's order; reversing it paints an opaque solid
+                    // over legacy slide.image backgrounds and hides them.
+                    com.appversal.appstorys.ui.stories.StorySlideBackgroundColour(
+                        currentSlide.styling?.background
+                    )
                     if (slideBitmap != null) {
+                        val sizingFill =
+                            currentSlide.styling?.background?.media?.sizing == "fill"
                         Image(
                             bitmap = slideBitmap.asImageBitmap(),
                             contentDescription = null,
                             modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Fit
+                            contentScale = if (sizingFill) ContentScale.Crop else ContentScale.Fit
                         )
-                    } else if (mediaLabel != null) {
+                    }
+                    com.appversal.appstorys.ui.stories.StorySlideForeground(
+                        slide = videoSafeSlide(currentSlide),
+                        onCtaClick = {},
+                        onInputFocusChanged = {},
+                        onTrack = { _, _ -> },
+                        currentTime = 2.0
+                    )
+                    // Only surface the diagnostic when the slide genuinely has
+                    // nothing to draw — not merely no LEGACY media.
+                    if (slideBitmap == null && mediaLabel != null &&
+                        currentSlide.content?.elements.isNullOrEmpty() &&
+                        currentSlide.content?.ctas.isNullOrEmpty() &&
+                        currentSlide.content?.text.isNullOrEmpty() &&
+                        currentSlide.interactions.isNullOrEmpty()
+                    ) {
                         Text(
                             text = mediaLabel,
                             color = Color(0xFF888888),
@@ -598,6 +656,7 @@ class StoriesScreenshotTest {
                     }
                 }
             }
+            }   // CompositionLocalProvider (fake Coil loader)
             }
         }
         }
@@ -636,80 +695,10 @@ class StoriesScreenshotTest {
         //   background media -> slide_<slideId>.png
         //   content.image[]  -> content_<imageId>.png
         //   elements[]       -> element_<elementId>.png
-        val res = android.content.res.Resources.getSystem()
-        val engineBuilder = coil.test.FakeImageLoaderEngine.Builder()
-        slides.forEach { slide ->
-            fun route(url: String?, key: String?) {
-                if (url.isNullOrBlank() || key == null) return
-                val bmp = loadImageFromDisk(STR_IMG_DIR, key) ?: return
-                engineBuilder.intercept(url, android.graphics.drawable.BitmapDrawable(res, bmp))
-            }
-            route(slide.image, slide.id?.let { "slide_$it" })
-            slide.content?.image.orEmpty().forEach { img ->
-                route(img.link, img.id?.let { "content_$it" })
-            }
-            slide.content?.elements.orEmpty().forEach { el ->
-                route(el.image ?: el.url, el.id?.let { "element_$it" })
-            }
-            // Foreground videos render as their ffmpeg first-frame thumb
-            // (video_<id>.png) — see the video→image swap below.
-            slide.content?.video.orEmpty().forEach { v ->
-                route(v.link, v.id?.let { "video_$it" })
-            }
-            // Image-type CTAs keep their asset in imageUrl/svg, not link/image,
-            // so the element/content handlers above never see them. Without this
-            // the CTA renders as an empty rounded grey box (the engine default)
-            // while the device shows the artwork.
-            slide.content?.ctas.orEmpty().forEach { cta ->
-                route(cta.imageUrl ?: cta.svg, cta.id?.let { "cta_$it" })
-            }
-            // Media-quiz option images (interactions[].config.options[].imageUrl)
-            // — the renderer loads them via Coil; without routing they snapshot
-            // as empty boxes. Plain-quiz options are an object map (no images).
-            slide.interactions.orEmpty().forEach { inter ->
-                (inter.config?.get("options") as? JsonArray)?.forEach forEachOpt@{ o ->
-                    val obj = o as? JsonObject ?: return@forEachOpt
-                    val optId = (obj["id"] as? JsonPrimitive)?.contentOrNull
-                    val img = (obj["imageUrl"] as? JsonPrimitive)?.contentOrNull
-                    if (optId != null && inter.id != null) route(img, "option_${inter.id}_$optId")
-                }
-            }
-        }
-        engineBuilder.default(android.graphics.drawable.ColorDrawable(android.graphics.Color.parseColor("#BDBDBD")))
-        val fakeEngine = engineBuilder.build()
+        val fakeEngine = buildSlideImageEngine(slides)
 
         slides.forEachIndexed { slideIndex, slide ->
-            // ExoPlayer cannot run in Paparazzi — swap each foreground video
-            // for its ffmpeg first-frame thumb (video_<id>.png, downloaded by
-            // the pipeline), rendered through ForegroundImage at the video's
-            // exact geometry. Video geometry lives on the STYLING entry
-            // (StoryContentVideoStyling), image geometry on the CONTENT entry
-            // (StoryContentImage) — hence the field shuffle below.
-            val vids = slide.content?.video.orEmpty()
-            val vidStyles = slide.styling?.video.orEmpty()
-            val videoAsImages = vids.mapNotNull { v ->
-                if (v.id == null || v.link == null) return@mapNotNull null
-                val vs = vidStyles.firstOrNull { it.id == v.id }
-                StoryContentImage(
-                    id = v.id, link = v.link,
-                    position = vs?.position, width = vs?.width, height = vs?.height, z = vs?.z
-                )
-            }
-            val videoImageStyles = vidStyles.map { vs ->
-                StoryContentImageStyling(
-                    id = vs.id, opacity = vs.opacity, rotation = vs.rotation,
-                    cornerRadius = vs.cornerRadius, flip = vs.flip, animation = vs.animation
-                )
-            }
-            val safeSlide = slide.copy(
-                content = slide.content?.copy(
-                    video = null,
-                    image = slide.content?.image.orEmpty() + videoAsImages
-                ),
-                styling = slide.styling?.copy(
-                    image = slide.styling?.image.orEmpty() + videoImageStyles
-                )
-            )
+            val safeSlide = videoSafeSlide(slide)
             val bgBitmap = slide.id?.let { loadImageFromDisk(STR_IMG_DIR, "slide_$it") }
             val snapName = "03_g" + String.format("%02d", groupIndex + 1) +
                 "_studio_" + String.format("%02d", slideIndex + 1)
@@ -947,6 +936,107 @@ class StoriesScreenshotTest {
     }
 
     /** Same 3-candidate disk strategy as the other tests — bypasses Gradle classpath caching. */
+
+    /**
+     * Fake Coil engine that serves every asset a slide references from the
+     * pipeline-downloaded copies in str_images/. Paparazzi has no real image
+     * pipeline, so anything not routed here renders as the grey default.
+     *
+     * Shared by BOTH snapshots: the studio half and the viewer half draw the
+     * same slide content through the same SDK composables, so they must resolve
+     * assets identically or the two goldens would disagree about the same slide.
+     */
+
+    /**
+     * ExoPlayer cannot run in Paparazzi, so each foreground video is swapped for
+     * its ffmpeg first-frame thumb (video_<id>.png, downloaded by the pipeline)
+     * and rendered through ForegroundImage at the video's exact geometry.
+     * Video geometry lives on the STYLING entry (StoryContentVideoStyling) while
+     * image geometry lives on the CONTENT entry (StoryContentImage) — hence the
+     * field shuffle. Shared so the viewer and studio snapshots swap identically.
+     */
+    private fun videoSafeSlide(
+        slide: com.appversal.appstorys.api.StorySlide
+    ): com.appversal.appstorys.api.StorySlide {
+            // ExoPlayer cannot run in Paparazzi — swap each foreground video
+        // for its ffmpeg first-frame thumb (video_<id>.png, downloaded by
+        // the pipeline), rendered through ForegroundImage at the video's
+        // exact geometry. Video geometry lives on the STYLING entry
+        // (StoryContentVideoStyling), image geometry on the CONTENT entry
+        // (StoryContentImage) — hence the field shuffle below.
+        val vids = slide.content?.video.orEmpty()
+        val vidStyles = slide.styling?.video.orEmpty()
+        val videoAsImages = vids.mapNotNull { v ->
+            if (v.id == null || v.link == null) return@mapNotNull null
+            val vs = vidStyles.firstOrNull { it.id == v.id }
+            StoryContentImage(
+                id = v.id, link = v.link,
+                position = vs?.position, width = vs?.width, height = vs?.height, z = vs?.z
+            )
+        }
+        val videoImageStyles = vidStyles.map { vs ->
+            StoryContentImageStyling(
+                id = vs.id, opacity = vs.opacity, rotation = vs.rotation,
+                cornerRadius = vs.cornerRadius, flip = vs.flip, animation = vs.animation
+            )
+        }
+        return slide.copy(
+            content = slide.content?.copy(
+                video = null,
+                image = slide.content?.image.orEmpty() + videoAsImages
+            ),
+            styling = slide.styling?.copy(
+                image = slide.styling?.image.orEmpty() + videoImageStyles
+            )
+        )
+    }
+
+    private fun buildSlideImageEngine(
+        slides: List<com.appversal.appstorys.api.StorySlide>
+    ): coil.test.FakeImageLoaderEngine {
+        val res = android.content.res.Resources.getSystem()
+        val engineBuilder = coil.test.FakeImageLoaderEngine.Builder()
+        slides.forEach { slide ->
+            fun route(url: String?, key: String?) {
+                if (url.isNullOrBlank() || key == null) return
+                val bmp = loadImageFromDisk(STR_IMG_DIR, key) ?: return
+                engineBuilder.intercept(url, android.graphics.drawable.BitmapDrawable(res, bmp))
+            }
+            route(slide.image, slide.id?.let { "slide_$it" })
+            slide.content?.image.orEmpty().forEach { img ->
+                route(img.link, img.id?.let { "content_$it" })
+            }
+            slide.content?.elements.orEmpty().forEach { el ->
+                route(el.image ?: el.url, el.id?.let { "element_$it" })
+            }
+            // Foreground videos render as their ffmpeg first-frame thumb
+            // (video_<id>.png) — see the video→image swap below.
+            slide.content?.video.orEmpty().forEach { v ->
+                route(v.link, v.id?.let { "video_$it" })
+            }
+            // Image-type CTAs keep their asset in imageUrl/svg, not link/image,
+            // so the element/content handlers above never see them. Without this
+            // the CTA renders as an empty rounded grey box (the engine default)
+            // while the device shows the artwork.
+            slide.content?.ctas.orEmpty().forEach { cta ->
+                route(cta.imageUrl ?: cta.svg, cta.id?.let { "cta_$it" })
+            }
+            // Media-quiz option images (interactions[].config.options[].imageUrl)
+            // — the renderer loads them via Coil; without routing they snapshot
+            // as empty boxes. Plain-quiz options are an object map (no images).
+            slide.interactions.orEmpty().forEach { inter ->
+                (inter.config?.get("options") as? JsonArray)?.forEach forEachOpt@{ o ->
+                    val obj = o as? JsonObject ?: return@forEachOpt
+                    val optId = (obj["id"] as? JsonPrimitive)?.contentOrNull
+                    val img = (obj["imageUrl"] as? JsonPrimitive)?.contentOrNull
+                    if (optId != null && inter.id != null) route(img, "option_${inter.id}_$optId")
+                }
+            }
+        }
+        engineBuilder.default(android.graphics.drawable.ColorDrawable(android.graphics.Color.parseColor("#BDBDBD")))
+        return engineBuilder.build()
+    }
+
     private fun loadImageFromDisk(imgDir: String, key: String): android.graphics.Bitmap? {
         return runCatching {
             val moduleDir = File(System.getProperty("user.dir") ?: "")
