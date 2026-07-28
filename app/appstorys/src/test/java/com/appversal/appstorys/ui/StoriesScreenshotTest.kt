@@ -37,6 +37,7 @@ import app.cash.paparazzi.Paparazzi
 import com.appversal.appstorys.api.StoryContentImage
 import com.appversal.appstorys.api.StoryContentImageStyling
 import com.appversal.appstorys.api.StoryGroup
+import com.appversal.appstorys.utils.FontCache
 import com.appversal.appstorys.utils.SdkJson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -91,15 +92,43 @@ import java.io.File
  */
 private const val STR_JSON_RESOURCE = "campaign-data/str_details.json"
 private const val STR_IMG_DIR = "str_images"
-private const val APP_BG_RESOURCE = "backgrounds/home_screen_kotlin.png"
 
-// Story circles render INLINE in the host app — in the demo
-// (MainActivity.kt) campaignManager.Stories() sits directly below the
-// home_one header card. On the captured home_screen_kotlin.png background
-// that lands ~24.5% down the screen. The background used for STR must be
-// captured WITHOUT stories showing, or the row will appear duplicated.
-// Tune this fraction if the header height changes.
-private const val STORIES_ROW_TOP_FRACTION = 0.245f
+// The SDK filters eligible campaigns by the screen the host app last reported
+// via getScreenCampaigns(), so a campaign only ever renders on ITS screen and
+// the snapshot must composite it over THAT screen's background. Layer 3 writes
+// the slug next to the details JSON (see lib/cdn.js); this used to be hardcoded
+// to home_screen_kotlin, which silently drew a Lab-screen campaign over the
+// Home screen. Falls back to the old constant so a campaign with no screen —
+// or a checkout without the sibling file — still renders.
+private const val STR_SCREEN_RESOURCE = "campaign-data/str_screen.txt"
+private const val APP_BG_FALLBACK = "backgrounds/home_screen_kotlin.png"
+
+// Story circles render INLINE in the host app, so WHERE the row sits depends
+// on the host screen's layout — it is not a property of the campaign. The
+// background used for STR must be captured WITHOUT stories showing, or the row
+// appears duplicated.
+//
+// Each fraction below is measured from a real `uiautomator dump`, not guessed:
+//   home_screen_kotlin — Stories() sits directly below the home_one header
+//     card, landing ~24.5% down.
+//   lab_home_screen_kotlin — LabScreen.kt puts Stories() after the hero image
+//     plus a Spacer(100.dp). Measured: hero ends y705 of 2400 (=0.294) and the
+//     WIDGET SLOT labels begin at ~0.428, so the SDK's row occupies the gap
+//     between them; 0.31 centres it there.
+//
+// CAVEAT: the background is captured with NO campaigns on screen, so it cannot
+// reflow. On a real device the story row PUSHES the content below it down (the
+// "GGs" label dumps at y1179 = 0.49 with stories present), whereas the static
+// PNG still shows that content at its no-campaign position. The fraction is
+// therefore chosen to seat the row in the gap the SDK fills, not at the
+// post-reflow device coordinate — placing it at the literal 0.40 drew the
+// circles straight through the widget-slot labels.
+// Using the home value on the Lab screen drew them on the hero card instead.
+private val STORIES_ROW_TOP_BY_SCREEN = mapOf(
+    "home_screen_kotlin" to 0.245f,
+    "lab_home_screen_kotlin" to 0.31f
+)
+private const val STORIES_ROW_TOP_DEFAULT = 0.245f
 
 class StoriesScreenshotTest {
 
@@ -127,6 +156,52 @@ class StoriesScreenshotTest {
         Dispatchers.setMain(Dispatchers.Unconfined)
     }
 
+    /**
+     * Pre-load every custom font the campaign references, BEFORE any snapshot.
+     *
+     * Both font call sites (StorySlideContent for text elements,
+     * rememberInteractionFontFamily for interactions) do the same thing: start
+     * with a fallback family, then `launch { FontCache.loadFont(...) }` and swap
+     * it in when the download finishes. Paparazzi renders exactly ONE frame, so
+     * whether a font makes it into the snapshot is a race against that frame.
+     *
+     * This removes the NETWORK from the snapshot path, so a font can never be
+     * missing merely because a download was slow — verified: all 3 of this
+     * campaign's fonts report OK from the warm-up.
+     *
+     * It is NOT a complete fix. Interaction fonts (rememberInteractionFontFamily)
+     * DO render in their real face, but ForegroundText's fonts still fall back to
+     * SansSerif in the same warmed run — so the remaining gap is that path's
+     * async state swap not landing inside Paparazzi's single frame, not download
+     * speed. See str-layer3-audit memory.
+     *
+     * FontCache.loadFont checks `fontFamilyCache[fontUrl]` first and that cache
+     * is keyed by URL alone, so warming each URL once here makes every later
+     * lookup resolve instantly and deterministically — the same trick the fake
+     * Coil engine plays for images.
+     *
+     * URLs are harvested by regex over the raw campaign JSON rather than by
+     * walking known paths: fonts appear under styling.text[].font, interaction
+     * styling (questionFont/optionFont/...), CTA styling and group name styling,
+     * and a new one would otherwise be silently missed.
+     */
+    @Before
+    fun warmFontCache() {
+        val json = javaClass.classLoader!!
+            .getResourceAsStream(STR_JSON_RESOURCE)
+            ?.use { it.readBytes().toString(Charsets.UTF_8) } ?: return
+
+        val fontUrls = Regex("""https?://[^"\s]+?\.(?:ttf|otf)""", RegexOption.IGNORE_CASE)
+            .findAll(json).map { it.value }.toSet()
+
+        if (fontUrls.isEmpty()) return
+        kotlinx.coroutines.runBlocking {
+            fontUrls.forEach { url ->
+                runCatching { FontCache.loadFont(context = paparazzi.context, fontUrl = url) }
+            }
+        }
+    }
+
     @OptIn(ExperimentalCoroutinesApi::class)
     @After
     fun coilMainReset() {
@@ -150,10 +225,27 @@ class StoriesScreenshotTest {
         // STR background MUST be captured with NO stories on screen, otherwise
         // the real inline row baked into the screenshot doubles up with the
         // overlaid one. When absent, fall back to plain white.
-        val bgBitmap = runCatching {
+        // Resolve the background from the campaign's screen, falling back to the
+        // Home screen when the slug or its PNG is missing.
+        val screenSlug = runCatching {
             javaClass.classLoader!!
-                .getResourceAsStream(APP_BG_RESOURCE)
-                ?.use { BitmapFactory.decodeStream(it) }
+                .getResourceAsStream(STR_SCREEN_RESOURCE)
+                ?.use { it.readBytes().toString(Charsets.UTF_8).trim() }
+                ?.takeIf { it.isNotEmpty() }
+        }.getOrNull()
+
+        // Where the inline story row sits is a property of the HOST SCREEN.
+        val storiesRowTop = STORIES_ROW_TOP_BY_SCREEN[screenSlug] ?: STORIES_ROW_TOP_DEFAULT
+
+        val bgBitmap = runCatching {
+            val cl = javaClass.classLoader!!
+            val candidates = listOfNotNull(
+                screenSlug?.let { "backgrounds/$it.png" },
+                APP_BG_FALLBACK
+            )
+            candidates.firstNotNullOfOrNull { path ->
+                cl.getResourceAsStream(path)?.use { BitmapFactory.decodeStream(it) }
+            }
         }.getOrNull()
 
         // The circles row is INLINE — the host app decides where it sits. In
@@ -174,7 +266,7 @@ class StoriesScreenshotTest {
 
                 // Push the row down to where the host places it inline.
                 Column(modifier = Modifier.fillMaxSize()) {
-                    Spacer(modifier = Modifier.fillMaxHeight(STORIES_ROW_TOP_FRACTION))
+                    Spacer(modifier = Modifier.fillMaxHeight(storiesRowTop))
 
                 // StoryCircles: LazyRow(padding 8, spacedBy 8) — replicated as
                 // Row (static content, no scrolling in a snapshot)
@@ -563,6 +655,13 @@ class StoriesScreenshotTest {
             // (video_<id>.png) — see the video→image swap below.
             slide.content?.video.orEmpty().forEach { v ->
                 route(v.link, v.id?.let { "video_$it" })
+            }
+            // Image-type CTAs keep their asset in imageUrl/svg, not link/image,
+            // so the element/content handlers above never see them. Without this
+            // the CTA renders as an empty rounded grey box (the engine default)
+            // while the device shows the artwork.
+            slide.content?.ctas.orEmpty().forEach { cta ->
+                route(cta.imageUrl ?: cta.svg, cta.id?.let { "cta_$it" })
             }
             // Media-quiz option images (interactions[].config.options[].imageUrl)
             // — the renderer loads them via Coil; without routing they snapshot
