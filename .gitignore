@@ -56,3 +56,7 @@ Maestro/device-goldens/*_diff.png
 # Consequence: on a fresh clone `gradlew verifyPaparazziDebug` has no campaign
 # media until the pipeline has run once (Layer 3 downloads it).
 app/appstorys/src/test/resources/*_images/
+
+# FontCache download dir created when Paparazzi warms custom fonts.
+# Regenerated on demand; never a source artifact.
+app/appstorys/custom_fonts/
