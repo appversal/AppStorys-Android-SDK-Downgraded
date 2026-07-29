@@ -151,7 +151,7 @@ internal fun StoryCircles(
             items = sortedStoryGroups,
             key = { storyGroup -> storyGroup.id ?: storyGroup.hashCode() }
         ) { storyGroup ->
-            if (storyGroup.thumbnail != null) {
+            if (!storyGroup.thumbnail.isNullOrEmpty()) {
                 StoryItem(
                     isStoryGroupViewed = viewedStories.contains(storyGroup.id),
                     imageUrl = storyGroup.thumbnail,
@@ -389,7 +389,12 @@ internal fun StoryScreenContent(
     val lifecycleOwner = LocalLifecycleOwner.current
 
     var isHolding by remember { mutableStateOf(false) }
-    var isMuted by rememberSaveable { mutableStateOf(false) }
+    // The studio's sound toggle carries the initial state: defaultSound == "no"
+    // means "start muted". Previously this was ignored and every story opened
+    // unmuted regardless of how it was authored.
+    var isMuted by rememberSaveable {
+        mutableStateOf(storyGroup.styling?.soundToggle?.defaultSound == "no")
+    }
     var isDismissing by remember { mutableStateOf(false) }
 
     // Transition state to prevent flicker when switching slides (especially video -> image)
@@ -422,6 +427,28 @@ internal fun StoryScreenContent(
     val isImage = currentSlide.video == null
     // Use slideShowTime from styling if available, otherwise default to 5 seconds
     val storyDuration = if (isImage) (storyGroup.styling?.slideShowTime ?: 5) * 1000 else 0
+
+    // True when the slide carries ANY playable video — the full-screen background
+    // video and/or a studio-canvas foreground video. Drives the visibility of the
+    // header sound toggle, which controls all of them together. Previously the
+    // toggle keyed off the background video alone, so a slide whose only audio
+    // came from a studio-canvas video had no way to be muted.
+    val slideHasVideo = remember(currentSlide) {
+        !isImage || currentSlide.content?.video.orEmpty().any { !it.link.isNullOrEmpty() }
+    }
+
+    // The link the share sheet should hand out: the legacy single-CTA link when
+    // present, otherwise the first studio-array CTA that has a redirect. The
+    // share button is offered whenever the slide has something to share — i.e.
+    // any CTA at all (legacy, normal, image or swipe-up) with a link behind it,
+    // rather than only the legacy link + buttonText pair.
+    val shareLink: String? = remember(currentSlide) {
+        currentSlide.link?.takeIf { it.isNotEmpty() }
+            ?: currentSlide.content?.ctas.orEmpty()
+                .firstNotNullOfOrNull { cta ->
+                    (cta.redirectUrl ?: cta.url)?.takeIf { it.isNotEmpty() }
+                }
+    }
 
     // INPUT-interaction keyboard focus — when true, pauses the slide timer so
     // the user has time to type. Only set by the INPUT widget; all other
@@ -716,7 +743,13 @@ internal fun StoryScreenContent(
                                     when {
                                         // ⬅️ Left tap → previous slide
                                         isLeftTap && currentSlideIndex > 0 -> {
+                                            // Remove BOTH: the slide being left AND the
+                                            // destination slide — the destination was marked
+                                            // completed when we moved forward past it, which
+                                            // kept its progress bar pinned at full instead of
+                                            // refilling from zero on the way back.
                                             completedSlides.remove(currentSlideIndex)
+                                            completedSlides.remove(currentSlideIndex - 1)
                                             // Stop player and show transition overlay immediately to prevent flicker
                                             player.stop()
                                             isTransitioning = true
@@ -937,6 +970,7 @@ internal fun StoryScreenContent(
                             sendEvent(Pair(currentSlide, "CLK"))
                             sendClickEvent(Pair(currentSlide, "clicked"))
                         },
+                        muted = isMuted,
                         onInputFocusChanged = { focused -> isInputFocused = focused },
                         onTrack = { event, metadata ->
                             val withSlide =
@@ -1141,7 +1175,10 @@ internal fun StoryScreenContent(
                                 CommonText(
                                     text = it,
                                     styling = TextStyling(
-                                        color = "#FFFFFF",
+                                        // Honour the group's configured name colour;
+                                        // white stays the fallback.
+                                        color = storyGroup.nameColor?.takeIf { c -> c.isNotBlank() }
+                                            ?: "#FFFFFF",
                                         fontSize = 15,
                                         fontDecoration = listOf("medium"),
                                         fontFamily = "",
@@ -1157,7 +1194,7 @@ internal fun StoryScreenContent(
                         horizontalArrangement = Arrangement.spacedBy(0.dp, Alignment.End),
                         verticalAlignment = Alignment.Top,
                         content = {
-                            if (!isImage) {
+                            if (slideHasVideo) {
                                 // NEW IMPLEMENTATION: Using common SoundToggleButton component
                                 val soundToggle = storyGroup.styling?.soundToggle
                                 val isSoundToggleEnabled = soundToggle?.enabled ?: true
@@ -1207,7 +1244,7 @@ internal fun StoryScreenContent(
                                 }
                             }
 
-                            if (currentSlide.link?.isNotEmpty() == true && currentSlide.buttonText?.isNotEmpty() == true) {
+                            if (shareLink != null) {
                                 // NEW IMPLEMENTATION: Using common ShareButton component
                                 // Get share button styling from storyGroup
                                 val shareConfig = storyGroup.styling?.share
@@ -1236,7 +1273,7 @@ internal fun StoryScreenContent(
                                                         action = Intent.ACTION_SEND
                                                         putExtra(
                                                             Intent.EXTRA_TEXT,
-                                                            "Check out this story: ${currentSlide.link}"
+                                                            "Check out this story: $shareLink"
                                                         )
                                                         type = "text/plain"
                                                     },

@@ -4,7 +4,6 @@ import android.annotation.SuppressLint
 import android.content.Context
 import androidx.core.content.edit
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
@@ -22,7 +21,9 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -71,7 +72,6 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
@@ -97,6 +97,9 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.input.pointer.positionChanged
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
@@ -112,10 +115,13 @@ import androidx.compose.ui.unit.dp
 import coil.compose.rememberAsyncImagePainter
 import com.appversal.appstorys.api.StoryInteraction
 import com.appversal.appstorys.utils.FontCache
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.floatOrNull
@@ -258,8 +264,11 @@ private fun StoryCanvaScope.borderRadiusPctToLocalDp(pct: Float): Dp {
 
 // Falls back to the previous ratio-based calculation when the backend doesn't
 // provide a borderRadius value.
-private fun JsonObject?.borderRadiusDp(scope: StoryCanvaScope, fallback: Dp): Dp =
-    this.float("borderRadius")?.let { scope.borderRadiusPctToLocalDp(it) } ?: fallback
+private fun JsonObject?.borderRadiusDp(
+    scope: StoryCanvaScope,
+    fallback: Dp,
+    key: String = "borderRadius"
+): Dp = this.float(key)?.let { scope.borderRadiusPctToLocalDp(it) } ?: fallback
 
 // ----------------------- Persisted interaction responses -------------------
 //
@@ -365,6 +374,93 @@ private fun parseReactionEmojis(config: JsonObject?): List<Pair<String, String>>
         }.getOrNull()
         ?: listOf("e0" to "😍", "e1" to "🔥", "e2" to "😂", "e3" to "😮", "e4" to "😢")
 
+// ----------------------- Live analytics helpers ---------------------------
+//
+// Interactions now carry an `analytics` object alongside config/styling, e.g.
+//   { "percentages": { "option1": 60, "option2": 40 }, "total_votes": 5 }
+// POLL uses it for bar widths and the "60%" labels; REACTION uses it for the
+// per-bubble counts. When it's missing or empty the renderers fall back to a
+// proportional placeholder split so a brand-new sticker still looks sensible.
+
+private fun jsonNumberAsInt(element: JsonElement?): Int? = runCatching {
+    val prim = element as? JsonPrimitive ?: return@runCatching null
+    prim.floatOrNull?.roundToInt() ?: prim.contentOrNull?.toFloatOrNull()?.roundToInt()
+}.getOrNull()
+
+/**
+ * Maps the sticker's live `analytics.percentages` (keyed by option id) onto
+ * [optionPairs], in the same order, for POLL and QUIZ alike.
+ */
+private fun mapAnalyticsPercentages(
+    analytics: JsonObject?,
+    optionPairs: List<Pair<String, String>>
+): List<Int> {
+    val raw = analytics.obj("percentages")
+    if (raw != null && raw.isNotEmpty()) {
+        return optionPairs.map { (key, _) -> jsonNumberAsInt(raw[key]) ?: 0 }
+    }
+    val n = optionPairs.size
+    return when (n) {
+        0 -> emptyList()
+        2 -> listOf(60, 40)
+        3 -> listOf(50, 30, 20)
+        else -> List(n) { 100 / n.coerceAtLeast(1) }
+    }
+}
+
+/**
+ * Maps live `analytics` onto reaction emoji pairs as absolute vote counts.
+ *
+ * Prefers an explicit counts map (`counts` / `votes` / `option_counts`);
+ * otherwise derives them from `percentages` × `total_votes`, which is what the
+ * backend currently sends. Falls back to per-index `option1..optionN` keys when
+ * the emoji pairs came from the newer `config.emojis` array (keys `emoji_0`, …).
+ */
+private fun mapReactionCounts(
+    analytics: JsonObject?,
+    emojiPairs: List<Pair<String, String>>
+): List<Int> {
+    if (emojiPairs.isEmpty()) return emptyList()
+
+    fun pick(raw: JsonObject, i: Int): JsonElement? =
+        raw[emojiPairs[i].first] ?: raw["option${i + 1}"] ?: raw["$i"]
+
+    val counts = analytics.obj("counts")
+        ?: analytics.obj("votes")
+        ?: analytics.obj("option_counts")
+    if (counts != null && counts.isNotEmpty()) {
+        return emojiPairs.indices.map { i -> jsonNumberAsInt(pick(counts, i)) ?: 0 }
+    }
+
+    val total = jsonNumberAsInt(
+        analytics?.get("total_votes") ?: analytics?.get("totalVotes") ?: analytics?.get("total")
+    ) ?: 0
+    val pct = analytics.obj("percentages")
+    if (pct != null && pct.isNotEmpty() && total > 0) {
+        return emojiPairs.indices.map { i ->
+            val p = jsonNumberAsInt(pick(pct, i)) ?: 0
+            (p * total / 100f).roundToInt()
+        }
+    }
+
+    return List(emojiPairs.size) { 0 }
+}
+
+/** 0 → "0", 1400 → "1.4k", 25000 → "25k", 1200000 → "1.2M" */
+private fun formatReactionCount(n: Int): String = when {
+    n < 1000 -> "$n"
+    n < 1_000_000 -> {
+        val k = n / 1000f
+        if (k < 10f) String.format(Locale.US, "%.1fk", k).replace(".0k", "k")
+        else "${k.roundToInt()}k"
+    }
+    else -> {
+        val m = n / 1_000_000f
+        if (m < 10f) String.format(Locale.US, "%.1fM", m).replace(".0M", "M")
+        else "${m.roundToInt()}M"
+    }
+}
+
 // ----------------------- Public entry point -------------------------------
 
 /**
@@ -413,11 +509,15 @@ internal fun StoryInteractionRenderer(
         )
     ) {
         when (type) {
-            "POLL" -> PollInteraction(interaction.id, config, styling, scope, onTrack)
+            "POLL" -> PollInteraction(
+                interaction.id, config, styling, interaction.analytics, scope, onTrack
+            )
             "QUIZ" -> QuizInteraction(interaction.id, config, styling, scope, onTrack)
             "MEDIA_QUIZ" -> MediaQuizInteraction(interaction.id, config, styling, scope, onTrack)
             "RATING" -> RatingInteraction(interaction.id, config, styling, scope, onTrack)
-            "REACTION" -> ReactionInteraction(interaction.id, config, styling, scope, onTrack)
+            "REACTION" -> ReactionInteraction(
+                interaction.id, config, styling, interaction.analytics, scope, onTrack
+            )
             "COUNTDOWN" -> CountdownInteraction(interaction.id, config, styling, scope)
             "PROMO" -> PromoInteraction(interaction.id, config, styling, scope, onTrack)
             "INPUT" -> InputInteraction(
@@ -448,12 +548,15 @@ private fun PollInteraction(
     id: String?,
     config: JsonObject?,
     styling: JsonObject?,
+    analytics: JsonObject?,
     scope: StoryCanvaScope,
     onTrack: (event: String, metadata: Map<String, Any>) -> Unit
 ) {
     val question = config.str("question") ?: ""
     val optionPairs = parseOptionPairs(config)
-    val showResults = config.bool("showResults") ?: false
+    // Backend permission flag ONLY — "may the real numbers be revealed?". It no
+    // longer reveals anything by itself; a vote is always required too.
+    val resultsEnabled = config.bool("showResults") ?: false
 
     // "transparent" is the backend key; also fall back to legacy "transparentBackground"
     val transparent = styling.bool("transparent") ?: styling.bool("transparentBackground") ?: false
@@ -492,19 +595,34 @@ private fun PollInteraction(
         optionsFontStyle.fontFamily, optionsFontStyle.fontWeight, optionsFontStyle.fontStyle
     )
 
-    // Demo percentages for showResults (matches React defaults)
-    val percentages = when (optionPairs.size) {
-        2 -> listOf(60, 40)
-        3 -> listOf(50, 30, 20)
-        else -> optionPairs.indices.map { 100 / optionPairs.size.coerceAtLeast(1) }
-    }
+    // Live results, straight from the sticker's analytics payload.
+    val percentages = mapAnalyticsPercentages(analytics, optionPairs)
 
     val context = LocalContext.current
     var selected by remember(id) { mutableStateOf(loadInteractionResponse(context, id)) }
     val density = LocalDensity.current
 
-    // Show result bars when configured from the start OR after the user has voted
-    val displayResults = showResults || selected != null
+    val hasVoted = selected != null
+
+    // The fill layer is painted the moment the user votes — that IS the tap
+    // feedback, and it happens whether or not the backend allows results.
+    val displayResults = hasVoted
+
+    // "YES 60%" is appended only when the user voted AND the backend allows it.
+    val showResults = hasVoted && resultsEnabled
+
+    // When results are hidden, geometry must not move: each bar paints its own
+    // full track (the width it already occupied) and the pill stays an even
+    // 50/50 split. The ONLY thing that changes on tap is the colour —
+    // activeResultBarColor for the tapped option, inactiveResultBarColor for the
+    // rest. No tween either: see the `animate` flag threaded through below.
+    val effectivePercents = optionPairs.indices.map { i ->
+        if (resultsEnabled) percentages.getOrElse(i) { 100 / n } else 100
+    }
+    // The 2-option pill shares ONE track, so "unchanged geometry" means 50/50.
+    val pillLeftPctValue = if (resultsEnabled) percentages.getOrElse(0) { 50 } else 50
+    val pillRightPctValue = if (resultsEnabled) percentages.getOrElse(1) { 50 } else 50
+    val animateFill = resultsEnabled
 
     // Left/right split used only for the >2-option horizontal layout: options in the
     // first half fill from the left edge, options in the second half fill from the
@@ -531,10 +649,19 @@ private fun PollInteraction(
         val containerPadding = unit
         val optionPaddingV = unit * 0.32f
         val optionPaddingH = unit * 0.32f
-        // A large fixed radius always produces a full pill/rounded look — Compose clamps
-        // any RoundedCornerShape radius to half the element's own size automatically.
-        val optionRadius = 500.dp
+        // Honour the backend's own `optionRadius` when it sends one; otherwise fall
+        // back to half the option's short side, which always reads as a full pill
+        // (Compose clamps any RoundedCornerShape radius to half the element anyway).
+        val optionRadius = styling.borderRadiusDp(
+            scope,
+            fallback = minOf(w, h) * 0.5f,
+            key = "optionRadius"
+        )
         val rowGap = unit * 0.4f
+        // Was a fixed `top = 8.dp`; now scales with the poll's own size so the
+        // question doesn't crowd the options on small stickers or float on large ones.
+        val questionTopPadding = unit
+        val questionGap = unit * 0.1f
         val questionLineHeightMultiplier = 1.25f
 
         // Question text — bounded by both axes so it never grows past what the box can
@@ -557,13 +684,21 @@ private fun PollInteraction(
         }
         val optionSize = minOf(optionByHierarchy, optionByAvailable)
 
+        // Horizontal layouts (pill included) DON'T stretch their options to fill the
+        // leftover height — they get an explicit, text-proportional height and sit
+        // centred in whatever space is left, so the bars stay pill-shaped instead of
+        // ballooning into tall slabs on a short question / tall sticker. Only the
+        // vertical/stacked layout divides the remaining height between its rows.
+        val optionsRowHeight =
+            (optionSize * 2.4f + unit * 0.6f).coerceIn(unit * 1.8f, h * 0.45f)
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .clip(RoundedCornerShape(containerRadius))
                 .background(if (transparent) Color.Transparent else bg)
                 .padding(containerPadding),
-            verticalArrangement = Arrangement.spacedBy(rowGap)
+            verticalArrangement = Arrangement.spacedBy(questionGap)
         ) {
             if (question.isNotEmpty()) {
                 // Rendered with an explicit lineHeight so wrapped (multi-line) questions
@@ -582,7 +717,7 @@ private fun PollInteraction(
                         textAlign = questionFontStyle.textAlign ?: TextAlign.Center
                     ),
                     modifier = Modifier
-                        .padding(top = 8.dp, bottom = 8.dp)
+                        .padding(top = questionTopPadding)
                         .fillMaxWidth()
                 )
             }
@@ -601,8 +736,8 @@ private fun PollInteraction(
                     val leftLabel = leftPair?.second ?: ""
                     val rightKey = rightPair?.first
                     val rightLabel = rightPair?.second ?: ""
-                    val leftPct = percentages.getOrElse(0) { 50 }
-                    val rightPct = percentages.getOrElse(1) { 50 }
+                    val leftPct = pillLeftPctValue
+                    val rightPct = pillRightPctValue
                     val isLeftSelected = selected != null && selected == leftKey
                     val isRightSelected = selected != null && selected == rightKey
 
@@ -612,30 +747,41 @@ private fun PollInteraction(
                     // direction rather than growing from their own independent edges.
                     val sweepFromRight = isRightSelected
 
-                    val fillGap = 3.dp
+                    // Matches the width of the centre divider drawn in the un-voted
+                    // state, so the seam between the two halves doesn't shift by a
+                    // pixel on tap.
+                    val fillGap = 6.dp
 
                     BoxWithConstraints(
                         modifier = Modifier
                             .fillMaxWidth()
+                            // weight() claims the leftover height, wrapContentHeight
+                            // relaxes that back to a self-measured size and centres it,
+                            // height() then pins the pill to its text-proportional size.
                             .weight(1f)
+                            .wrapContentHeight(Alignment.CenterVertically)
+                            .height(optionsRowHeight)
                             .clip(RoundedCornerShape(optionRadius))
-                            .border(2.dp, Color(0xFFE5E7EB), RoundedCornerShape(optionRadius))
                     ) {
                         val pillWidth = maxWidth
                         val fillableWidth = (pillWidth - fillGap).coerceAtLeast(0.dp)
                         val leftFillTarget = if (displayResults) fillableWidth * (leftPct / 100f) else 0.dp
                         val rightFillTarget = if (displayResults) fillableWidth * (rightPct / 100f) else 0.dp
 
-                        val animatedLeftFill by animateDpAsState(
+                        val tweenedLeftFill by animateDpAsState(
                             targetValue = leftFillTarget,
                             animationSpec = tween(durationMillis = 650, easing = FastOutSlowInEasing),
                             label = "pollPillLeftFill"
                         )
-                        val animatedRightFill by animateDpAsState(
+                        val tweenedRightFill by animateDpAsState(
                             targetValue = rightFillTarget,
                             animationSpec = tween(durationMillis = 650, easing = FastOutSlowInEasing),
                             label = "pollPillRightFill"
                         )
+                        // With results hidden the split stays an even 50/50 and must not
+                        // animate — the only perceived change on tap is the colour swap.
+                        val animatedLeftFill = if (animateFill) tweenedLeftFill else leftFillTarget
+                        val animatedRightFill = if (animateFill) tweenedRightFill else rightFillTarget
 
                         // ── Layer 1: base background + click targets for each half ──
                         Row(modifier = Modifier.fillMaxSize()) {
@@ -806,20 +952,26 @@ private fun PollInteraction(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .weight(1f),
+                            .weight(1f)
+                            .wrapContentHeight(Alignment.CenterVertically)
+                            .height(optionsRowHeight),
                         horizontalArrangement = Arrangement.spacedBy(rowGap)
                     ) {
                         optionPairs.forEachIndexed { index, (key, label) ->
-                            val pct = percentages.getOrElse(index) {
+                            val pct = effectivePercents.getOrElse(index) {
                                 100 / optionPairs.size.coerceAtLeast(1)
                             }
                             val isSelected = selected == key
                             val fillFraction = if (displayResults) pct / 100f else 0f
-                            val animatedFillFraction by animateFloatAsState(
+                            // No tween at all when results are hidden: the bar is already
+                            // at its final width, so tapping only swaps the colour.
+                            val tweenedFillFraction by animateFloatAsState(
                                 targetValue = fillFraction,
                                 animationSpec = tween(durationMillis = 650, easing = FastOutSlowInEasing),
                                 label = "pollRowFill-$key"
                             )
+                            val animatedFillFraction =
+                                if (animateFill) tweenedFillFraction else fillFraction
                             val fillAlignment =
                                 if (isRightSideOption(index)) Alignment.CenterEnd else Alignment.CenterStart
 
@@ -887,16 +1039,20 @@ private fun PollInteraction(
                         verticalArrangement = Arrangement.spacedBy(rowGap)
                     ) {
                         optionPairs.forEachIndexed { index, (key, label) ->
-                            val pct = percentages.getOrElse(index) {
+                            val pct = effectivePercents.getOrElse(index) {
                                 100 / optionPairs.size.coerceAtLeast(1)
                             }
                             val isSelected = selected == key
                             val fillFraction = if (displayResults) pct / 100f else 0f
-                            val animatedFillFraction by animateFloatAsState(
+                            // No tween at all when results are hidden: the bar is already
+                            // at its final width, so tapping only swaps the colour.
+                            val tweenedFillFraction by animateFloatAsState(
                                 targetValue = fillFraction,
                                 animationSpec = tween(durationMillis = 650, easing = FastOutSlowInEasing),
                                 label = "pollColFill-$key"
                             )
+                            val animatedFillFraction =
+                                if (animateFill) tweenedFillFraction else fillFraction
 
                             Box(
                                 modifier = Modifier
@@ -1065,10 +1221,12 @@ private fun QuizInteraction(
             gapRatio = optGapRatio
         )
         val optGap = optRowH * optGapRatio
-        val optionRadius = minOf(w * optionRadiusRatio, optRowH * 0.5f)
+        val optionRadius = minOf(
+            styling.borderRadiusDp(scope, w * optionRadiusRatio),
+            optRowH * 0.5f
+        )
         val optHPad = minOf(w * 0.06f, optRowH * 0.3f)
         val labelFont = minOf(w * 0.05f, optRowH * 0.42f)
-        val pctFont = minOf(w * 0.10f, optRowH * 0.5f)
 
         val explanationVisible = showExplanation && selected != null && explanation.isNotEmpty()
         // Bottom corners smoothly flatten as the explanation panel appears, so the two
@@ -1140,23 +1298,19 @@ private fun QuizInteraction(
                     val borderWidth =
                         if (selected != null && (isCorrect || (isSelected && !isCorrect))) 5.dp else 2.dp
 
-                    val pct: Int? = if (selected != null) (if (isSelected) 100 else 0) else null
-
+                    // Every option fills to 100% once answered; only the SELECTED one
+                    // gets an opaque colour, so the others' fill is invisible anyway.
                     val fillColor = when {
                         isSelected && isCorrect -> correctColor
                         isSelected && !isCorrect -> incorrectColor
                         else -> Color.Transparent
                     }
-                    val fillFraction = (pct ?: 0) / 100f
+                    val hasOpaqueFill = fillColor != Color.Transparent
+                    val fillFraction = if (selected != null) 1f else 0f
                     val animatedFillFraction by animateFloatAsState(
                         targetValue = fillFraction,
                         animationSpec = tween(durationMillis = 650, easing = FastOutSlowInEasing),
                         label = "optionFill-$key"
-                    )
-                    val animatedTextColor by animateColorAsState(
-                        targetValue = if (isSelected) Color.White else optionTextColor,
-                        animationSpec = tween(durationMillis = 650, easing = FastOutSlowInEasing),
-                        label = "optionTextColor-$key"
                     )
 
                     Box(
@@ -1182,41 +1336,80 @@ private fun QuizInteraction(
                                 )
                             }
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxHeight()
-                                .fillMaxWidth(animatedFillFraction.coerceIn(0f, 1f))
-                                .clip(RoundedCornerShape(optionRadius))
-                                .background(fillColor)
-                        )
-
-                        Row(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(horizontal = optHPad),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            BasicTextWrap(
-                                text = label,
-                                color = animatedTextColor,
-                                fontSizeSp = with(density) { labelFont.toSp() },
-                                fontFamily = optionFontFamily,
-                                fontWeight = optionFontStyle.fontWeight,
-                                fontStyle = optionFontStyle.fontStyle,
-                                textDecoration = optionFontStyle.textDecoration,
-                                align = optionFontStyle.textAlign ?: TextAlign.Start,
-                                modifier = Modifier.weight(1f)
+                        // BoxWithConstraints so the clipped white overlay below can be laid
+                        // out at the cell's FULL width and then clipped — otherwise it would
+                        // reflow to the narrower clip width and the two text layers would
+                        // disagree about where each character sits.
+                        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                            val cellWidth = maxWidth
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxHeight()
+                                    .fillMaxWidth(animatedFillFraction.coerceIn(0f, 1f))
+                                    .clip(RoundedCornerShape(optionRadius))
+                                    .background(fillColor)
                             )
 
-                            if (pct != null) {
-                                Spacer(modifier = Modifier.width(optHPad * 0.5f))
+                            // The label used to be one flat colour for the whole row (white
+                            // once selected, dark otherwise). But the fill only extends
+                            // `fillFraction` of the width, so on any partial fill the tail of
+                            // the row sits on the plain light background and white-on-white
+                            // vanished. Instead the row is painted TWICE, stacked: once in the
+                            // base colour, once in white clipped to exactly the fill's width —
+                            // so whatever is actually behind each character gets the right
+                            // contrast, pixel for pixel, in sync (same tween/duration/curve).
+                            // Base layer — visible across the whole cell.
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(horizontal = optHPad),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
                                 BasicTextWrap(
-                                    text = "$pct%",
-                                    color = animatedTextColor,
-                                    fontSizeSp = with(density) { pctFont.toSp() },
-                                    fontWeight = FontWeight.Bold
+                                    text = label,
+                                    color = optionTextColor,
+                                    fontSizeSp = with(density) { labelFont.toSp() },
+                                    fontFamily = optionFontFamily,
+                                    fontWeight = optionFontStyle.fontWeight,
+                                    fontStyle = optionFontStyle.fontStyle,
+                                    textDecoration = optionFontStyle.textDecoration,
+                                    align = optionFontStyle.textAlign ?: TextAlign.Start,
+                                    modifier = Modifier.weight(1f)
                                 )
+                            }
+
+                            // Overlay — identical row in white, laid out at the FULL cell
+                            // width (so glyph positions match exactly) but clipped to the
+                            // fill's width, so it's revealed only over the coloured fill.
+                            if (hasOpaqueFill) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxHeight()
+                                        .fillMaxWidth(animatedFillFraction.coerceIn(0f, 1f))
+                                        .clipToBounds()
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxHeight()
+                                            .width(cellWidth)
+                                            .padding(horizontal = optHPad),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        BasicTextWrap(
+                                            text = label,
+                                            color = Color.White,
+                                            fontSizeSp = with(density) { labelFont.toSp() },
+                                            fontFamily = optionFontFamily,
+                                            fontWeight = optionFontStyle.fontWeight,
+                                            fontStyle = optionFontStyle.fontStyle,
+                                            textDecoration = optionFontStyle.textDecoration,
+                                            align = optionFontStyle.textAlign ?: TextAlign.Start,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -1237,21 +1430,67 @@ private fun QuizInteraction(
             enter = fadeIn(tween(220)) + expandVertically(tween(280, easing = FastOutSlowInEasing)),
             exit = fadeOut(tween(160)) + shrinkVertically(tween(180))
         ) {
+            val answeredCorrectly = selected == correctId
+            val accent = if (answeredCorrectly) correctColor else incorrectColor
+            val badge = labelFont * 1.35f
+
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(bottomStart = containerRadius, bottomEnd = containerRadius))
                     .background(if (transparent) Color.Transparent else bg)
-                    .padding(horizontal = qHPad, vertical = qVPad)
+                    .padding(start = areaHPad, top = optGap, end = areaHPad, bottom = areaHPad)
             ) {
-                BasicTextWrap(
-                    text = explanation,
-                    color = optionTextColor,
-                    fontSizeSp = with(density) { labelFont.toSp() },
-                    lineHeight = with(density) { (labelFont * 1.25f).toSp() },
-                    align = TextAlign.Start,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                // Result banner: accent-tinted pill, circular ✓/i badge, a
+                // "Correct"/"Incorrect" headline in the status colour, and the
+                // explanation underneath — rather than bare unstyled text.
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(optionRadius))
+                        .background(accent.copy(alpha = 0.10f))
+                        .border(1.5.dp, accent.copy(alpha = 0.28f), RoundedCornerShape(optionRadius))
+                        .padding(horizontal = optHPad, vertical = labelFont * 0.65f),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(badge)
+                            .clip(androidx.compose.foundation.shape.CircleShape)
+                            .background(accent),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        BasicTextWrap(
+                            text = if (answeredCorrectly) "✓" else "i",
+                            color = Color.White,
+                            fontSizeSp = with(density) { (badge * 0.62f).toSp() },
+                            fontWeight = FontWeight.Bold,
+                            align = TextAlign.Center
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(optHPad * 0.6f))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        BasicTextWrap(
+                            text = if (answeredCorrectly) "Correct" else "Incorrect",
+                            color = accent,
+                            fontSizeSp = with(density) { labelFont.toSp() },
+                            lineHeight = with(density) { (labelFont * 1.2f).toSp() },
+                            fontWeight = FontWeight.Bold,
+                            align = TextAlign.Start
+                        )
+                        Spacer(modifier = Modifier.height(labelFont * 0.18f))
+                        BasicTextWrap(
+                            text = explanation,
+                            color = optionTextColor,
+                            fontSizeSp = with(density) { (labelFont * 0.95f).toSp() },
+                            lineHeight = with(density) { (labelFont * 0.95f * 1.25f).toSp() },
+                            align = TextAlign.Start,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
             }
         }
     }
@@ -1373,7 +1612,7 @@ private fun MediaQuizInteraction(
         val tileSizeByHeight = unitFitToSpace(
             available = availableGridH,
             count = rowCount,
-            itemRatio = 1f + labelGapRatio + labelFontRatio,
+            itemRatio = 1f + labelGapRatio + labelFontRatio * 1.3f,
             gapRatio = spacingRatio
         )
         val tileSize = minOf(tileSizeByWidth, tileSizeByHeight)
@@ -1381,7 +1620,11 @@ private fun MediaQuizInteraction(
         val tileSpacing = tileSize * spacingRatio
         val labelSpacing = tileSize * labelGapRatio
         val labelSize = tileSize * labelFontRatio
-        val imageRadius = tileSize * 0.16f
+        val imageRadius = styling.borderRadiusDp(
+            scope,
+            fallback = tileSize * 0.16f,
+            key = "optionRadius"
+        )
         val selectedBorderWidth = tileSize * 0.025f
 
         Column(
@@ -1457,12 +1700,12 @@ private fun MediaQuizInteraction(
                                 Box(
                                     modifier = Modifier
                                         .size(tileSize)
-                                        .clip(RoundedCornerShape(imageRadius))
                                         .border(
                                             borderWidth,
                                             borderColor,
                                             RoundedCornerShape(imageRadius)
                                         )
+                                        .clip(RoundedCornerShape(imageRadius))
                                         .background(Color(0xFFF3F4F6))
                                         .clickable(
                                             enabled = selected == null,
@@ -1484,7 +1727,15 @@ private fun MediaQuizInteraction(
                                         androidx.compose.foundation.Image(
                                             painter = rememberAsyncImagePainter(opt.image),
                                             contentDescription = null,
-                                            modifier = Modifier.fillMaxSize(),
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .padding(borderWidth)
+                                                .clip(
+                                                    RoundedCornerShape(
+                                                        (imageRadius - borderWidth)
+                                                            .coerceAtLeast(0.dp)
+                                                    )
+                                                ),
                                             contentScale = ContentScale.Crop
                                         )
                                     }
@@ -1546,16 +1797,24 @@ private fun RatingInteraction(
     // React uses data.type; legacy Kotlin used config.variant
     val variant = config.str("type") ?: config.str("variant") ?: "slider"
 
-    val bg =
-        styling.color("containerBgColor") ?: styling.color("background") ?: Color.White
+    // Read nested `styling.colors.*` FIRST — that's where the studio actually sends
+    // background/title/slider colours. The flat top-level keys are kept only as a
+    // legacy fallback (previously they were checked first, so a studio-authored
+    // palette was ignored whenever a legacy key happened to be present).
+    val colorsObj = styling.obj("colors")
+    val bg = styling.color("containerBgColor")
+        ?: colorsObj.color("background")
+        ?: styling.color("background")
+        ?: Color.White
 
-    // Flat styling keys (matching React's style.* directly) — colors only
-    val titleColor = styling.color("titleColor") ?: Color(0xFF111827)
-    val sliderFill =
-        styling.color("sliderFill") ?: styling.obj("colors").color("sliderFill")
+    val titleColor = colorsObj.color("titleColor")
+        ?: styling.color("titleColor")
+        ?: Color(0xFF111827)
+    val sliderFill = colorsObj.color("sliderFill")
+        ?: styling.color("sliderFill")
         ?: Color(0xFFE11D48)
-    val sliderTrack =
-        styling.color("sliderTrack") ?: styling.obj("colors").color("sliderTrack")
+    val sliderTrack = colorsObj.color("sliderTrack")
+        ?: styling.color("sliderTrack")
         ?: Color(0xFFF3F4F6)
     val titleFontStyle = styling.obj("typography").obj("titleFont").toFontStyle(FontWeight.SemiBold)
     val titleFontFamily = rememberInteractionFontFamily(
@@ -1563,6 +1822,7 @@ private fun RatingInteraction(
     )
 
     val context = LocalContext.current
+    val textMeasurer = rememberTextMeasurer()
     var rating by remember(id) {
         mutableIntStateOf(
             loadInteractionResponse(context, id)?.toIntOrNull() ?: initialRating.coerceIn(0, maxRating)
@@ -1605,10 +1865,72 @@ private fun RatingInteraction(
 
         val borderRadius = styling.borderRadiusDp(scope, minOf(w, h) * 0.09f)
         val padding = minOf(w, h) * 0.15f
-        val rowGap = minOf(w, h) * 0.15f
 
-        val titleSize = minOf(h * 0.15f, w * 0.085f)
-        val emojiBaseline = minOf(h * 0.32f, w * 0.16f)
+        // Budget vertical space top-down so title + gap + content can never add up
+        // to more than the box's own height.
+        val innerH = (h - padding * 2).coerceAtLeast(0.dp)
+        val innerW = (w - padding * 2).coerceAtLeast(0.dp)
+        val rowGap = if (title.isNotEmpty()) innerH * 0.1f else 0.dp
+
+        // The style used to MEASURE must be the exact same object used to RENDER.
+        // Material3's `Text` silently merges LocalTextStyle (bodyLarge carries
+        // letterSpacing 0.5.sp + its own lineHeightStyle), so the measured wrap
+        // point and the drawn wrap point disagreed — "DO YOU LIKE MY SPACE"
+        // measured as one line, drew as two, and the pinned height cut line 2 off.
+        // Flutter's _BasicText avoids this by building a complete standalone
+        // TextStyle; we do the same and render with foundation BasicText, which
+        // inherits nothing.
+        val titleLineHeightMultiplier = 1.25f
+        val titleMaxWidthPx = with(density) { innerW.roundToPx() }
+        // Long titles flow onto another line instead of being clipped. A short,
+        // wide sticker gets 2 lines; a taller one can afford 3.
+        val titleMaxLines = if (innerH > innerW * 0.55f) 3 else 2
+
+        fun titleStyle(fontSize: Dp) = TextStyle(
+            color = titleColor,
+            fontSize = with(density) { fontSize.toSp() },
+            // Explicit lineHeight: without it a wrapped title's second line draws
+            // on top of the first under this file's density override.
+            lineHeight = with(density) { (fontSize * titleLineHeightMultiplier).toSp() },
+            fontFamily = titleFontFamily,
+            fontWeight = titleFontStyle.fontWeight,
+            fontStyle = titleFontStyle.fontStyle,
+            textDecoration = titleFontStyle.textDecoration,
+            textAlign = titleFontStyle.textAlign ?: TextAlign.Center
+        )
+
+        fun measureTitle(fontSize: Dp): TextLayoutResult? {
+            if (title.isEmpty() || fontSize <= 0.dp || titleMaxWidthPx <= 0) return null
+            return textMeasurer.measure(
+                text = AnnotatedString(title),
+                style = titleStyle(fontSize),
+                softWrap = true,
+                constraints = Constraints(maxWidth = titleMaxWidthPx)
+            )
+        }
+
+        var titleSize = if (title.isNotEmpty()) minOf(innerH * 0.28f, w * 0.085f) else 0.dp
+        var titleLayout = measureTitle(titleSize)
+        var titleHeight = titleLayout?.let { with(density) { it.size.height.toDp() } } ?: 0.dp
+        if (title.isNotEmpty()) {
+            // A title that naturally wraps is allowed a bigger vertical share, so
+            // wrapping is preferred over aggressively shrinking the font.
+            val titleBudget = innerH * if ((titleLayout?.lineCount ?: 1) >= 2) 0.55f else 0.45f
+            var guard = 0
+            while (
+                titleSize > 6.dp && guard < 20 &&
+                (titleHeight > titleBudget || (titleLayout?.lineCount ?: 0) > titleMaxLines)
+            ) {
+                titleSize *= 0.92f
+                titleLayout = measureTitle(titleSize)
+                titleHeight = titleLayout?.let { with(density) { it.size.height.toDp() } } ?: 0.dp
+                guard++
+            }
+        }
+
+        val contentH = (innerH - titleHeight - rowGap).coerceAtLeast(0.dp)
+
+        val emojiBaseline = minOf(contentH / 1.3f, w * 0.16f)
         val emojiByRowWidth =
             unitFitToSpace(available = w - padding * 2, count = n, itemRatio = 1.3f)
         val emojiSize = if (variant == "slider") {
@@ -1620,8 +1942,9 @@ private fun RatingInteraction(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .clip(RoundedCornerShape(borderRadius))
-                .background(bg)
+                // Rounded background WITHOUT a clip: the emoji thumb is nudged up
+                // past the track and a clip would shave its top off.
+                .background(bg, RoundedCornerShape(borderRadius))
                 .padding(padding),
             verticalArrangement = Arrangement.spacedBy(
                 rowGap,
@@ -1630,31 +1953,37 @@ private fun RatingInteraction(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             if (title.isNotEmpty()) {
-                BasicTextWrap(
+                BasicText(
                     text = title,
-                    color = titleColor,
-                    fontSizeSp = with(density) { titleSize.toSp() },
-                    fontFamily = titleFontFamily,
-                    fontWeight = titleFontStyle.fontWeight,
-                    fontStyle = titleFontStyle.fontStyle,
-                    textDecoration = titleFontStyle.textDecoration,
-                    align = titleFontStyle.textAlign ?: TextAlign.Center,
+                    // Same TextStyle instance the measurement used — nothing merged
+                    // in from LocalTextStyle, so measured lines == drawn lines.
+                    style = titleStyle(titleSize),
+                    maxLines = titleMaxLines,
+                    softWrap = true,
+                    overflow = TextOverflow.Ellipsis,
+                    // No fixed .height(): the Text keeps its own wrapped height, so a
+                    // line the budget under-predicted can never be sheared off. The
+                    // shrink loop above already reserved room for it.
                     modifier = Modifier.fillMaxWidth()
                 )
             }
 
             if (variant == "slider") {
-                // Custom slider: thin gradient track + emoji thumb positioned at fill %
-                // Matches React: track height 10px, gradient #d946ef → sliderFill, emoji as thumb
+                // Custom slider: rounded track + emoji thumb positioned at fill %.
+                // Track height and thumb size are both proportional to the emoji now,
+                // instead of a fixed 28.dp track that looked huge on small stickers.
+                // The fill is the flat `sliderFill` colour — the old hardcoded
+                // #D946EF → sliderFill gradient overrode the configured palette.
                 val fillFraction = (rating.toFloat() / maxRating.coerceAtLeast(1)).coerceIn(0f, 1f)
                 BoxWithConstraints(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(emojiSize + 10.dp)
+                        .weight(1f)
                 ) {
                     val totalWidth = maxWidth
-                    val trackHeight = 28.dp
-                    val thumbSize = emojiSize * 1.1f
+                    val contentHeight = maxHeight
+                    val trackHeight = maxOf(emojiSize * 0.35f, 12.dp)
+                    val thumbSize = emojiSize * 1.25f
                     val thumbOffset = maxOf(
                         0.dp, minOf(
                             totalWidth - thumbSize,
@@ -1662,78 +1991,106 @@ private fun RatingInteraction(
                         )
                     )
 
-                    // Track + fill
+                    // One gesture surface spanning the whole content row — a tap
+                    // anywhere sets the rating, exactly like dragging to that point,
+                    // and the response locks on release. Tracking fires once, on
+                    // commit, rather than on every intermediate drag frame.
+                    fun commitRating() {
+                        if (answered) return
+                        answered = true
+                        saveInteractionResponse(context, id, rating.toString())
+                        onTrack(
+                            "clicked", mapOf(
+                                "interaction_type" to "rating",
+                                "interaction_id" to (id ?: ""),
+                                "selected_option" to "option$rating"
+                            )
+                        )
+                        lastThumbCoordinates?.let {
+                            spawnFlyingEmoji(it, with(density) { emojiSize.toSp() })
+                        }
+                    }
+
                     Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .height(trackHeight)
-                            .align(Alignment.Center)
-                            .clip(RoundedCornerShape(trackHeight / 2))
-                            .background(sliderTrack)
+                            .fillMaxSize()
                             .let { m ->
-                                if (answered) {
-                                    m
-                                } else {
-                                    m.pointerInput(maxRating, id) {
-                                        detectHorizontalDragGestures(
-                                            onDragEnd = {
-                                                answered = true
-                                                saveInteractionResponse(context, id, rating.toString())
-                                                lastThumbCoordinates?.let {
-                                                    spawnFlyingEmoji(it, with(density) { emojiSize.toSp() })
-                                                }
+                                if (answered) m else m.pointerInput(maxRating, id) {
+                                    fun ratingAt(x: Float): Int =
+                                        ((x / size.width).coerceIn(0f, 1f) * maxRating)
+                                            .roundToInt().coerceIn(0, maxRating)
+
+                                    // ONE gesture loop. Two detectors on one node meant
+                                    // the tap detector committed (and locked) the rating
+                                    // as soon as the drag detector consumed a move event.
+                                    awaitPointerEventScope {
+                                        // Press → jump to that value (Flutter's onTapDown).
+                                        val down = awaitFirstDown(requireUnconsumed = false)
+                                        // Consume so the story pager can't steal the swipe.
+                                        down.consume()
+                                        rating = ratingAt(down.position.x)
+
+                                        // Hold → scrub (onHorizontalDragUpdate).
+                                        while (true) {
+                                            val change = awaitPointerEvent()
+                                                .changes.firstOrNull { it.id == down.id } ?: break
+                                            if (!change.pressed) {
+                                                change.consume()
+                                                break
                                             }
-                                        ) { change, _ ->
-                                            change.consume()
-                                            val fraction = (change.position.x / size.width).coerceIn(0f, 1f)
-                                            val newRating =
-                                                (fraction * maxRating).roundToInt().coerceIn(0, maxRating)
-                                            if (newRating != rating) {
-                                                rating = newRating
-                                                onTrack(
-                                                    "clicked", mapOf(
-                                                        "interaction_type" to "rating",
-                                                        "interaction_id" to (id ?: ""),
-                                                        "value" to newRating
-                                                    )
-                                                )
+                                            if (change.positionChanged()) {
+                                                rating = ratingAt(change.position.x)
+                                                change.consume()
                                             }
                                         }
+
+                                        // Release → commit exactly once (onTapUp / onDragEnd).
+                                        commitRating()
                                     }
                                 }
                             }
                     ) {
+                        // Track + fill
                         Box(
                             modifier = Modifier
-                                .fillMaxWidth(fillFraction)
-                                .fillMaxHeight()
-                                .background(
-                                    Brush.horizontalGradient(
-                                        colors = listOf(Color(0xFFD946EF), sliderFill)
-                                    )
-                                )
-                        )
-                    }
-
-                    // Emoji thumb
-                    Box(
-                        modifier = Modifier
-                            .size(thumbSize)
-                            .offset(
-                                x = thumbOffset,
-                                y = -(thumbSize * 0.1f)
+                                .fillMaxWidth()
+                                .height(trackHeight)
+                                .align(Alignment.Center)
+                                .clip(RoundedCornerShape(trackHeight / 2))
+                                .background(sliderTrack)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth(fillFraction)
+                                    .fillMaxHeight()
+                                    .background(sliderFill)
                             )
-                            .align(Alignment.CenterStart)
-                            .onGloballyPositioned { lastThumbCoordinates = it },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        BasicTextWrap(
-                            modifier = Modifier.fillMaxSize(),
-                            text = emoji,
-                            color = Color.Unspecified,
-                            fontSizeSp = with(density) { emojiSize.toSp() },
-                            align = TextAlign.Center
-                        )
+                        }
+
+                        // Emoji thumb — purely visual (the gesture surface is the
+                        // parent), nudged up proportionally rather than by a fixed
+                        // offset so it stays put at any sticker size.
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopStart)
+                                .offset(
+                                    x = thumbOffset,
+                                    y = (contentHeight - thumbSize) / 2 - emojiSize * 0.15f
+                                )
+                                .size(thumbSize)
+                                .onGloballyPositioned { lastThumbCoordinates = it },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            // No fillMaxSize here — the emoji must shrink-wrap so the
+                            // parent's Center alignment actually centres it vertically
+                            // instead of it being drawn at the top of a full-size box.
+                            BasicTextWrap(
+                                text = emoji,
+                                color = Color.Unspecified,
+                                fontSizeSp = with(density) { emojiSize.toSp() },
+                                align = TextAlign.Center
+                            )
+                        }
                     }
                 }
             } else {
@@ -1870,11 +2227,14 @@ private fun ReactionInteraction(
     id: String?,
     config: JsonObject?,
     styling: JsonObject?,
+    analytics: JsonObject?,
     scope: StoryCanvaScope,
     onTrack: (event: String, metadata: Map<String, Any>) -> Unit
 ) {
     val emojiPairs = parseReactionEmojis(config)
     val showCount = config.bool("showCount") ?: true
+    // Live per-emoji vote counts, replacing the old hardcoded "2k" / "0" labels.
+    val counts = mapReactionCounts(analytics, emojiPairs)
 
     // transparent: check both keys
     val transparent = styling.bool("transparent") ?: styling.bool("transparentBackground") ?: false
@@ -1885,13 +2245,18 @@ private fun ReactionInteraction(
     // ── Colors ──
     val bg = styling.color("background") ?: styling.color("containerBgColor")
     ?: Color.Transparent
-    // Bubble: white fill, grey circular border
-    val bubbleBg = styling.color("bubbleBgColor") ?: Color.White
+    // Bubble: falls back to the configured `background` colour (e.g. the maroon in
+    // the studio design) before white, instead of jumping straight to hardcoded
+    // white whenever no separate bubbleBgColor is sent.
+    val bubbleBg = styling.color("bubbleBgColor") ?: styling.color("background") ?: Color.White
     val bubbleBorder = styling.color("bubbleBorderColor") ?: Color(0xFFE5E7EB)
     val countColor = styling.color("countColor") ?: Color(0xFF374151)
 
     val context = LocalContext.current
     var picked by remember(id) { mutableStateOf(loadInteractionResponse(context, id)) }
+    // True only when the vote was cast in this session — the backend analytics
+    // won't include it yet, so it's added optimistically to the displayed count.
+    var pickedThisSession by remember(id) { mutableStateOf(false) }
     val density = LocalDensity.current
     val n = emojiPairs.size.coerceAtLeast(1)
 
@@ -1935,8 +2300,11 @@ private fun ReactionInteraction(
         // happens, rather than shrinking the resting size to pre-reserve room for it.
         val heightRatio = 2f
 
+        // Shrink the fitting envelope by ~4% so the row never lands on an exact
+        // 0-margin fit — that boundary case was what tipped it into overflow.
+        val safeW = w * 0.96f
         val emojiByWidth =
-            unitFitToSpace(available = w, count = n, itemRatio = 2f, gapRatio = gapRatio)
+            unitFitToSpace(available = safeW, count = n, itemRatio = 2f, gapRatio = gapRatio)
         val emojiByHeight = h / heightRatio
         val emojiBaseline = minOf(h, w)
         val emojiSize = minOf(emojiByWidth, emojiByHeight, emojiBaseline)
@@ -1968,8 +2336,18 @@ private fun ReactionInteraction(
                 horizontalArrangement = Arrangement.spacedBy(gap, Alignment.CenterHorizontally),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                emojiPairs.forEach { (key, emoji) ->
+                emojiPairs.forEachIndexed { index, (key, emoji) ->
                     val isPicked = picked == key
+                    // Unselected options fade back once a reaction is cast, so the
+                    // chosen one reads as the answer instead of all five staying equal.
+                    val isDimmed = picked != null && !isPicked
+                    val count = (counts.getOrElse(index) { 0 }) +
+                            if (isPicked && pickedThisSession) 1 else 0
+                    val animatedBubbleAlpha by animateFloatAsState(
+                        targetValue = if (isDimmed) 0.40f else 1f,
+                        animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing),
+                        label = "bubbleAlpha-$key"
+                    )
                     // Every bubble expands together the moment ANY pick is made, so the
                     // row stays visually aligned. When showCount is false, skip the
                     // expansion/count entirely — just the emoji tap animation plays.
@@ -1983,9 +2361,14 @@ private fun ReactionInteraction(
                     Column(
                         modifier = Modifier
                             .requiredSize(bubbleSize, animatedBubbleHeight)
+                            .graphicsLayer { alpha = animatedBubbleAlpha }
                             .clip(bubbleShape)
-                            .background(bubbleBg)
-                            .border(2.dp, bubbleBorder, bubbleShape)
+                            .background(if (isDimmed) bubbleBg.copy(alpha = 0.22f) else bubbleBg)
+                            .border(
+                                2.dp,
+                                if (isDimmed) bubbleBorder.copy(alpha = 0.22f) else bubbleBorder,
+                                bubbleShape
+                            )
                             .onGloballyPositioned { bubbleCoordinates[key] = it }
                             .clickable(
                                 enabled = picked == null,
@@ -1993,6 +2376,7 @@ private fun ReactionInteraction(
                                 indication = null
                             ) {
                                 picked = key
+                                pickedThisSession = true
                                 saveInteractionResponse(context, id, key)
                                 onTrack(
                                     "clicked", mapOf(
@@ -2028,10 +2412,10 @@ private fun ReactionInteraction(
                             exit = fadeOut(tween(150)) + shrinkVertically(tween(200))
                         ) {
                             BasicTextWrap(
-                                text = if (isPicked) "2k" else "0",
+                                text = formatReactionCount(count),
                                 color = countColor,
                                 fontSizeSp = with(density) { countSize.toSp() },
-                                fontWeight = FontWeight.Bold,
+                                fontWeight = if (isPicked) FontWeight.Bold else FontWeight.SemiBold,
                                 align = TextAlign.Center
                             )
                         }
@@ -2109,7 +2493,6 @@ private fun CountdownInteraction(
             0xFF1F2937
         )
     val labelColor = styling.color("labelColor") ?: Color(0xFF9CA3AF)
-    val sepColor = styling.color("separatorColor") ?: Color(0xFF1F2937)
     val titleFontStyle = styling.obj("titleFont").toFontStyle(FontWeight(800))
     val titleFontFamily = rememberInteractionFontFamily(
         titleFontStyle.fontFamily, titleFontStyle.fontWeight, titleFontStyle.fontStyle
@@ -2270,14 +2653,22 @@ private fun CountdownInteraction(
                         // Colon separator between units — matches digit box height
                         if (index < units.size - 1) {
                             Box(
-                                modifier = Modifier.height(digitBoxH),
+                                modifier = Modifier
+                                    .height(digitBoxH)
+                                    .padding(
+                                        start = digitSpacing / 4,
+                                        end = digitSpacing / 4,
+                                        bottom = digitSize * 0.3f
+                                    ),
                                 contentAlignment = Alignment.Center
                             ) {
                                 BasicTextWrap(
                                     modifier = Modifier.offset(y = (-24).dp),
+                                    // Colon tracks the title colour rather than a separate
+                                    // separatorColor the studio never actually sends.
+                                    color = titleColor,
                                     text = ":",
-                                    color = sepColor,
-                                    fontSizeSp = with(density) { digitSize.toSp() },
+                                    fontSizeSp = with(density) { (digitSize * 1.2f).toSp() },
                                     fontWeight = FontWeight.Bold
                                 )
                             }
@@ -2565,7 +2956,7 @@ private fun PromoInteraction(
                         mapOf(
                             "interaction_type" to "promo",
                             "interaction_id" to (id ?: ""),
-                            "value" to code
+                            "selected_option" to "1"
                         )
                     )
                 }
@@ -2829,7 +3220,11 @@ private fun InputInteraction(
 
         val borderRadius = styling.borderRadiusDp(scope, minOf(w, h) * 0.12f)
         val padding = minOf(w, h) * 0.1f
-        val optionRadius = minOf(w, h) * 0.09f
+        val optionRadius = styling.borderRadiusDp(
+            scope,
+            fallback = minOf(w, h) * 0.09f,
+            key = "optionRadius"
+        )
         val titleSize = minOf(h * 0.19f, w * 0.08f)
         val inputFontSize = titleSize * 0.9f
         val rowGap = padding * 1.6f
@@ -2846,11 +3241,15 @@ private fun InputInteraction(
             estimatedButtonHeight
         }
 
-        // Card + button move together as one block. Shifting that block up by half the
-        // button's height keeps its visual center exactly where the card's center was
-        // before the button existed — instead of the block growing downward and the
-        // center drifting down.
-        val targetShift = if (buttonVisible) -(buttonHeight / 2) else 0.dp
+        // Card + button move together as one block, shifted up by the FULL button
+        // height. Paint may overflow the interaction's assigned box, but hit testing
+        // may not: the ancestors' hitTest starts with a bounds check, so any tap
+        // landing below the box's bottom edge is rejected. With the old half-height
+        // shift the button painted half inside the box (tappable) and half below it
+        // (dead). A full-height shift keeps the button entirely inside — flush with
+        // the bottom edge — so the whole button is tappable, edge to edge. The card
+        // overflows above the box instead, which is paint-only.
+        val targetShift = if (buttonVisible) -buttonHeight else 0.dp
         val animatedShift by animateDpAsState(
             targetValue = targetShift,
             animationSpec = tween(durationMillis = 320, easing = FastOutSlowInEasing),
@@ -2921,7 +3320,7 @@ private fun InputInteraction(
                             value = value,
                             onValueChange = { if (it.length <= maxLength) value = it },
                             enabled = !submitted,
-                            singleLine = false,
+                            singleLine = true,
                             textStyle = TextStyle(
                                 color = inputTextColor,
                                 fontSize = with(density) { inputFontSize.toSp() },
@@ -2997,8 +3396,14 @@ private fun InputInteraction(
                         bottomStart = borderRadius,
                         bottomEnd = borderRadius
                     ),
-                    modifier = Modifier.fillMaxWidth(),
-                    contentPadding = PaddingValues(vertical = sendVPadding)
+                    // Explicit height (rather than letting vertical padding plus the
+                    // text's intrinsic height decide) so the rendered size and the
+                    // reserved/hit-tested size are the same number by construction —
+                    // any drift between them left part of the visible button dead.
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(estimatedButtonHeight),
+                    contentPadding = PaddingValues(0.dp)
                 ) {
                     BasicTextWrap(
                         text = if (submitted) "Sent" else "Send",

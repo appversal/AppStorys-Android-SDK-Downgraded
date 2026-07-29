@@ -381,7 +381,14 @@ data class StoryContentImageStyling(
     val cornerRadius: Float? = null,
     val flip: StoryFlip? = null,
     val animation: StoryAnimation? = null,
-    val duration: JsonElement? = null
+    val duration: JsonElement? = null,
+    // Studio "how should this media fill its box" key. The editor has shipped it
+    // under three different names over time, so all three are accepted:
+    //   "fit" / "contain" → letterbox inside the box
+    //   anything else (incl. absent) → crop-fill, the historical default
+    val objectFit: String? = null,
+    val sizing: String? = null,
+    val fit: String? = null
 )
 
 // -------- Foreground VIDEO --------
@@ -408,7 +415,13 @@ data class StoryContentVideoStyling(
     val muted: Boolean? = null,
     val flip: StoryFlip? = null,
     val animation: StoryAnimation? = null,
-    val duration: JsonElement? = null
+    val duration: JsonElement? = null,
+    // Studio fit key — same three aliases as StoryContentImageStyling.
+    //   "fill" / "cover" → crop-fill
+    //   "fit" / "contain" (or absent) → letterbox, the historical default
+    val objectFit: String? = null,
+    val sizing: String? = null,
+    val fit: String? = null
 )
 
 // -------- Foreground TEXT --------
@@ -555,7 +568,12 @@ data class StoryInteraction(
     val isActive: Boolean? = null,
     val order: Int? = null,
     val config: JsonObject? = null,
-    val styling: JsonObject? = null
+    val styling: JsonObject? = null,
+    // Live aggregate results for this sticker, e.g.
+    //   { "percentages": { "option1": 60, "option2": 40 }, "total_votes": 5 }
+    // Consumed by POLL (bar widths / "60%" labels) and REACTION (bubble counts).
+    // Absent/empty → the renderers fall back to a proportional placeholder split.
+    val analytics: JsonObject? = null
 )
 
 @Keep

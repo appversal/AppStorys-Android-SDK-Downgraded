@@ -146,10 +146,28 @@ internal fun computeCanvaScope(
     }
 }
 
+/**
+ * Expands the CSS 3-digit hex shorthand ("#abc" -> "#aabbcc"). Any other input is
+ * returned untouched, so this is safe to run over rgb()/rgba()/named values too.
+ */
+private fun expandShortHex(v: String): String {
+    if (!v.startsWith("#") || v.length != 4) return v
+    val body = v.substring(1)
+    if (!body.all { it.isDigit() || it.lowercaseChar() in 'a'..'f' }) return v
+    return buildString {
+        append('#')
+        body.forEach { append(it).append(it) }
+    }
+}
+
 /** Tolerant hex / rgba color parser — returns null on failure rather than throwing. */
 internal fun parseStoryColor(value: String?): Color? {
     if (value.isNullOrBlank()) return null
-    val v = value.trim()
+    // android.graphics.Color.parseColor only understands #RRGGBB / #AARRGGBB, so
+    // expand the CSS 3-digit shorthand (#RGB -> #RRGGBB) first — the studio does
+    // emit it, and it used to silently parse as null (i.e. the styled colour was
+    // dropped and the caller's default was used instead).
+    val v = expandShortHex(value.trim())
     return try {
         when {
             v.startsWith("#") -> Color(android.graphics.Color.parseColor(v))

@@ -129,7 +129,11 @@ internal fun StorySlideForeground(
     // real playback time from the parent (progress * slideDuration) so that
     // duration-gated elements appear/disappear at the right moment. Defaults to
     // 0.0, which keeps animations working for elements that have no duration set.
-    currentTime: Double = 0.0
+    currentTime: Double = 0.0,
+    // Slide-level mute state, driven by the header sound toggle. When true every
+    // foreground (studio-canvas) video on this slide is silenced, alongside the
+    // background video the caller owns — so one toggle governs all of them.
+    muted: Boolean = false
 ) {
     val content = slide.content ?: return
     val styling = slide.styling
@@ -159,7 +163,13 @@ internal fun StorySlideForeground(
         // -------- VIDEOS (foreground) --------
         content.video.orEmpty().forEach { vid ->
             val styleFor = styling?.video?.firstOrNull { it.id == vid.id }
-            ForegroundVideo(vid = vid, style = styleFor, scope = scope, currentTime = currentTime)
+            ForegroundVideo(
+                vid = vid,
+                style = styleFor,
+                scope = scope,
+                currentTime = currentTime,
+                slideMuted = muted
+            )
         }
 
         // -------- ELEMENTS (shapes / stickers / frames) --------
@@ -363,19 +373,26 @@ private fun ForegroundImage(
         .alpha(opacity)
         .studioElementAnimation(style?.animation, style?.duration, currentTime)
 
+    // Honour the studio fit key when present; the default stays crop-fill so
+    // existing campaigns render exactly as before.
+    val imageScale = when ((style?.objectFit ?: style?.sizing ?: style?.fit)?.lowercase()) {
+        "fit", "contain" -> ContentScale.Fit
+        else -> ContentScale.Crop
+    }
+
     if (isLottieUrl(url)) {
         val composition by rememberLottieComposition(spec = LottieCompositionSpec.Url(url))
         LottieAnimation(
             composition = composition,
             iterations = LottieConstants.IterateForever,
-            contentScale = ContentScale.Crop,
+            contentScale = imageScale,
             modifier = imgModifier
         )
     } else {
         Image(
             painter = rememberAsyncImagePainter(url),
             contentDescription = null,
-            contentScale = ContentScale.Crop,
+            contentScale = imageScale,
             modifier = imgModifier
         )
     }
@@ -391,7 +408,11 @@ private fun ForegroundVideo(
     vid: StoryContentVideo,
     style: StoryContentVideoStyling?,
     scope: StoryCanvaScope,
-    currentTime: Double = 0.0
+    currentTime: Double = 0.0,
+    // Header sound toggle. Combined with the element's own `style.muted` flag: a
+    // video the studio marked muted stays muted, and the toggle can silence
+    // everything on top of that.
+    slideMuted: Boolean = false
 ) {
     val url = vid.link ?: return
     val context = LocalContext.current
@@ -406,7 +427,8 @@ private fun ForegroundVideo(
     val rotation = style?.rotation ?: 0f
     val radius = style?.cornerRadius ?: 0f
     val loop = style?.loop ?: true
-    val muted = style?.muted ?: false
+    // Either source of mute silences this video.
+    val muted = slideMuted || (style?.muted ?: false)
     val flipH = style?.flip?.horizontal == true
     val flipV = style?.flip?.vertical == true
 
@@ -429,6 +451,19 @@ private fun ForegroundVideo(
         }
     }
 
+    // `player` is remembered against `url`, so its initial volume is only correct
+    // for the mute state at creation time. Re-apply whenever the toggle changes.
+    LaunchedEffect(player, muted) {
+        player.volume = if (muted) 0f else 1f
+    }
+
+    // Studio fit key — "fill"/"cover" crop-fills (RESIZE_MODE_ZOOM = 4), anything
+    // else letterboxes (RESIZE_MODE_FIT = 0), which is the historical default.
+    val videoResizeMode = when ((style?.objectFit ?: style?.sizing ?: style?.fit)?.lowercase()) {
+        "fill", "cover" -> 4
+        else -> 0
+    }
+
     AndroidView(
         factory = { ctx ->
             PlayerView(ctx).apply {
@@ -440,6 +475,7 @@ private fun ForegroundVideo(
                 useController = false
             }
         },
+        update = { view -> view.resizeMode = videoResizeMode },
         modifier = Modifier
             .offset(x = scope.xPctDp(x), y = scope.yPctDp(y))
             .size(width = scope.widthPctDp(w), height = scope.heightPctDp(h))
