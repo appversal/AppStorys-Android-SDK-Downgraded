@@ -27,6 +27,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -104,6 +105,8 @@ fun MyApp() {
 
     RequestNotificationPermission()
 
+    // Tab order: 0 = Lab, 1 = Parties (HomeScreen), 2 = More (PayScreen).
+    // Lab is index 0 so it is both leftmost in the nav bar and the launch screen.
     var selectedTab by remember { mutableStateOf(0) } // Track selected tab index
 
     var confettiTrigger by remember { mutableStateOf(0) }
@@ -114,12 +117,12 @@ fun MyApp() {
         if (screenName.isNotEmpty()) {
             when (screenName) {
                 "PayScreen" -> {
-                    selectedTab = 1 // Set to PayScreen tab
+                    selectedTab = 2 // Set to PayScreen tab
                     currentScreen = "HomeScreen" // Keep normal navigation
                 }
 
                 "HomeScreen" -> {
-                    selectedTab = 0
+                    selectedTab = 1
                     currentScreen = "HomeScreen"
                 }
 
@@ -175,13 +178,15 @@ fun MyApp() {
 //                PayScreen(innerPadding)
 //            } else {
             when (selectedTab) {
-                0 -> HomeScreen(
+                0 -> LabScreen(innerPadding)
+
+                1 -> HomeScreen(
                     innerPadding,
                     isPresented = isPresented,
                     onIsPresentedChange = { isPresented = it }
                 )
 
-                1 -> PayScreen(innerPadding)
+                2 -> PayScreen(innerPadding)
             }
 //            }
         }
@@ -820,8 +825,11 @@ fun BottomNavigationBar(selectedTab: Int, onTabSelected: (Int) -> Unit) {
             .height(70.dp)
 
     ) {
-        val items = listOf("Parties", "More")
-        val icons = listOf(Icons.Filled.Person, Icons.Filled.List)
+        val items = listOf("Lab", "Parties", "More")
+        val icons = listOf(Icons.Filled.Star, Icons.Filled.Person, Icons.Filled.List)
+        // Lab's anchor is deliberately not tooltip_home/tooltip_more — a TTP
+        // campaign aimed at the real tabs must not resolve onto the Lab tab.
+        val tags = listOf("lab_nav_lab", "tooltip_home", "tooltip_more")
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -836,7 +844,7 @@ fun BottomNavigationBar(selectedTab: Int, onTabSelected: (Int) -> Unit) {
                         Icon(
                             modifier = Modifier
                                 .size(24.dp)
-                                .appstorys(if (index == 0) "tooltip_home" else "tooltip_more"), // Apply modifier from ToolTipWrapper
+                                .appstorys(tags[index]), // Apply modifier from ToolTipWrapper
                             imageVector = icons[index],
                             contentDescription = title,
                             tint = if (selectedTab == index) Color(0xFF186fd9) else Color.Gray
