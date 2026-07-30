@@ -1,32 +1,61 @@
 # ============================================================
-# BTS — CTA: tap bottom sheet CTA button, verify action
+# BTS CTA — tapping the CTA fires "clicked"
+#
+# WHY THIS WAS REWRITTEN (was a false green): it tapped a blind point
+# "50%,85%", then `pressKey: back`, and asserted NOTHING afterwards. It could
+# not fail. It also began by tapping "Open Bottom Sheet" — a Home-screen
+# button that opens the demo app's own sheet, not this campaign's.
+#
+# WHAT THE SDK ACTUALLY DOES with this campaign's ctaLink "APPSTORYS-CLOSE":
+#   onClick -> clickEvent("APPSTORYS-CLOSE")
+#            -> viaAppStorys("viaAppStorysAPPSTORYS-CLOSE")
+#            -> isValidUrl() false -> navigateToScreen("APPSTORYS-CLOSE")
+#               (a HOST callback; the demo app emits it as a screen name and
+#                nothing matches, so nothing happens)
+#            -> trackEvents(campaignId, "clicked")     <- this DOES fire
+# and BTS's onClick never calls onDismissRequest.
+#
+# So "APPSTORYS-CLOSE" is a dashboard action the SDK does not implement: the
+# string appears NOWHERE in the SDK source. The sheet stays open.
+#
+# This flow asserts the REAL behaviour — sheet still up after the tap — so it
+# passes today and will FAIL the moment the SDK learns to honour the sentinel.
+# That failure is the signal to update this flow, not a regression.
+# The "clicked" event itself is verified by Layer 5, which reads the run-long
+# logcat; a flow cannot see analytics.
 # ============================================================
 appId: com.example.carousal
+env:
+  BTS_TITLE: "Update Available"
+  BTS_CTA_TEXT: "Button"
+  BTS_CTA_CLOSES: "true"
 ---
 - launchApp:
+    stopApp: true
     clearState: false
 
 - waitForAnimationToEnd
 
-- tapOn:
-    text: "Open Bottom Sheet"
-
-- waitForAnimationToEnd
-
 - extendedWaitUntil:
-    visible: "Close"
+    visible: "${BTS_TITLE}"
     timeout: 12000
 
-- takeScreenshot: "bts_before_cta"
+- extendedWaitUntil:
+    visible: "${BTS_CTA_TEXT}"
+    timeout: 8000
 
-# Tap the CTA button (bottom of sheet — 85% down screen)
+- takeScreenshot: "bts_01_before_cta"
+
+# Tap the CTA by its dashboard label, never by coordinate.
 - tapOn:
-    point: "50%,85%"
+    text: "${BTS_CTA_TEXT}"
 
 - waitForAnimationToEnd
 
-- pressKey: back
+- takeScreenshot: "bts_02_after_cta"
 
-- waitForAnimationToEnd
+# The sheet is STILL open — see the header comment. Documenting the SDK gap
+# as a real assertion rather than a comment nobody reads.
+- assertVisible: "${BTS_TITLE}"
 
 - takeScreenshot: "bts_cta_PASS"

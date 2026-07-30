@@ -1,7 +1,9 @@
 package com.appversal.appstorys.ui
 
 import android.graphics.BitmapFactory
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,13 +15,17 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Text
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -50,7 +56,13 @@ import java.io.File
  *   IMAGE_EXTRACTORS.BTS downloads element images to bts_images/<elementId>.png
  */
 private const val BTS_JSON_RESOURCE = "campaign-data/bts_details.json"
-private const val APP_BG_RESOURCE   = "backgrounds/home_screen_kotlin.png"
+
+// The SDK filters eligible campaigns by the screen the host app last reported,
+// so the snapshot must composite over THAT screen's background. Layer 3 writes
+// the slug beside the details JSON (lib/cdn.js). This was hardcoded to
+// home_screen_kotlin, which drew a Lab-screen campaign over the Home screen.
+private const val BTS_SCREEN_RESOURCE = "campaign-data/bts_screen.txt"
+private const val APP_BG_FALLBACK   = "backgrounds/home_screen_kotlin.png"
 private const val BTS_IMG_DIR       = "bts_images"
 
 class BottomSheetScreenshotTest {
@@ -79,10 +91,19 @@ class BottomSheetScreenshotTest {
             runCatching { SdkJson.decodeFromString<BottomSheetDetails>(it) }.getOrNull()
         }
 
-        val bgBitmap = runCatching {
+        val screenSlug = runCatching {
             javaClass.classLoader!!
-                .getResourceAsStream(APP_BG_RESOURCE)
-                ?.use { BitmapFactory.decodeStream(it) }
+                .getResourceAsStream(BTS_SCREEN_RESOURCE)
+                ?.use { it.readBytes().toString(Charsets.UTF_8).trim() }
+                ?.takeIf { it.isNotEmpty() }
+        }.getOrNull()
+
+        val bgBitmap = runCatching {
+            val cl = javaClass.classLoader!!
+            listOfNotNull(screenSlug?.let { "backgrounds/$it.png" }, APP_BG_FALLBACK)
+                .firstNotNullOfOrNull { path ->
+                    cl.getResourceAsStream(path)?.use { BitmapFactory.decodeStream(it) }
+                }
         }.getOrNull()
 
         // ── Styling ──────────────────────────────────────────────────────────
@@ -91,6 +112,12 @@ class BottomSheetScreenshotTest {
             Color(0xFFFFFFFF)
         )
         val backdropColor = safeParseColor(details?.backdropColor, Color.Black)
+        // Device: (backdropOpacity.asInt(50) / 100f). This was hardcoded 0.5f,
+        // which happens to match THIS campaign (50) and silently diverges from
+        // any other. The model types it JsonElement? because the backend may
+        // send it as a number OR a string, so parse both.
+        val backdropAlpha = (details?.backdropOpacity?.asIntOrNull() ?: 50)
+            .coerceIn(0, 100) / 100f
         val cornerTl = (details?.cornerRadius?.topLeft  ?: 16).dp
         val cornerTr = (details?.cornerRadius?.topRight ?: 16).dp
 
@@ -118,41 +145,36 @@ class BottomSheetScreenshotTest {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(backdropColor.copy(alpha = 0.5f))
+                        .background(backdropColor.copy(alpha = backdropAlpha))
                 )
 
-                // ── Layer 2: Bottom sheet card ───────────────────────────────
-                Card(
+                // ── Layer 2: the sheet ───────────────────────────────────────
+                // This was a Card(containerColor = sheetBg, elevation = 8dp)
+                // with a drag handle. All three are wrong:
+                //   * ModalBottomSheet is created with dragHandle = null, so the
+                //     product draws NO handle (same invention found in CSAT).
+                //   * containerColor = Color.Transparent and
+                //     shape = RoundedCornerShape(0.dp) — the sheet paints
+                //     nothing. Corners are clipped on the inner Column, and each
+                //     ELEMENT paints its own background (bodyBackgroundColor,
+                //     ctaBoxColor, imageBackgroundColor). A sheet-wide white
+                //     card plus an 8dp shadow existed on no real screen.
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .align(Alignment.BottomCenter),
-                    shape = RoundedCornerShape(
-                        topStart = cornerTl,
-                        topEnd   = cornerTr,
-                        bottomStart = 0.dp,
-                        bottomEnd   = 0.dp
-                    ),
-                    colors = CardDefaults.cardColors(containerColor = sheetBg),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                        .align(Alignment.BottomCenter)
                 ) {
                     Column(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 24.dp),
+                            .clip(
+                                RoundedCornerShape(
+                                    topStart = cornerTl,
+                                    topEnd   = cornerTr
+                                )
+                            )
+                            .fillMaxWidth(),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        // Drag handle
-                        Box(
-                            modifier = Modifier
-                                .padding(top = 12.dp, bottom = 8.dp)
-                                .width(40.dp)
-                                .height(4.dp)
-                                .background(
-                                    Color(0xFFCCCCCC),
-                                    RoundedCornerShape(2.dp)
-                                )
-                        )
-
                         elements.forEach { element ->
                             // NO .lowercase() — the SDK matches element.type
                             // case-SENSITIVELY (BottomSheetComponent.kt:
@@ -247,37 +269,84 @@ class BottomSheetScreenshotTest {
                                 }
 
                                 "cta" -> {
+                                    // NESTED-FIRST, flat fallback — exactly what
+                                    // CtaElement in BottomSheetComponent.kt does:
+                                    //   element.cta?.container?.X ?: element.X
+                                    // This test used to read the FLAT fields only.
+                                    // The backend has since moved to the nested
+                                    // `cta` object (Layer 0 reports the migration as
+                                    // "22 NEW fields: elements[].cta.container.*"),
+                                    // so every flat field came back null and the
+                                    // test silently fell through to its OWN defaults:
+                                    // a full-width orange button with white text,
+                                    // while the device renders a 120dp near-white
+                                    // button with a blue border and near-black text.
+                                    // The golden was wrong in colour, width, border
+                                    // and corner radius simultaneously.
+                                    val c = element.cta
                                     val ctaBg = safeParseColor(
-                                        element.ctaBoxColor ?: element.ctaBackgroundColor,
+                                        c?.container?.backgroundColor?.takeIf { it.isNotBlank() }
+                                            ?: c?.container?.ctaBoxColor
+                                            ?: element.ctaBoxColor
+                                            ?: element.ctaBackgroundColor,
                                         Color(0xFFF97316)
                                     )
                                     val ctaTextColor = safeParseColor(
-                                        element.ctaTextColour, Color(0xFFFFFFFF)
+                                        c?.text?.color ?: element.ctaTextColour,
+                                        Color(0xFFFFFFFF)
                                     )
                                     val ctaCorner = (
-                                            element.ctaBorderRadius?.topLeft ?: 8
-                                            ).dp
-                                    val fullWidth = element.ctaFullWidth ?: true
+                                        c?.cornerRadius?.topLeft
+                                            ?: element.ctaBorderRadius?.topLeft
+                                            ?: 8
+                                        ).dp
+                                    // Device default is 100dp when unset (asInt(100)),
+                                    // NOT full width — the old `?: true` inverted it.
+                                    val fullWidth = c?.container?.ctaFullWidth
+                                        ?: element.ctaFullWidth ?: false
+                                    val ctaW = (c?.container?.ctaWidth?.asIntOrNull()
+                                        ?: element.ctaWidth?.asIntOrNull() ?: 100).dp
+                                    val ctaH = (c?.container?.height
+                                        ?: element.ctaHeight?.asIntOrNull() ?: 50).dp
+                                    val borderW = (c?.container?.borderWidth?.asIntOrNull() ?: 0)
+                                    val borderCol = safeParseColor(
+                                        c?.container?.borderColor, Color.Transparent
+                                    )
+                                    val ctaFontSize = (c?.text?.fontSize
+                                        ?: element.ctaFontSize?.toIntOrNull() ?: 16).sp
+                                    val ctaWeight =
+                                        if (c?.text?.fontDecoration?.contains("bold") == true)
+                                            FontWeight.Bold else FontWeight.SemiBold
 
                                     Box(
                                         modifier = Modifier
                                             .padding(
-                                                horizontal = (element.marginLeft  ?: 16).dp,
-                                                vertical   = (element.marginTop   ?: 8).dp
+                                                start  = (c?.margin?.left   ?: element.marginLeft   ?: 16).dp,
+                                                end    = (c?.margin?.right  ?: element.marginRight  ?: 16).dp,
+                                                top    = (c?.margin?.top    ?: element.marginTop    ?: 8).dp,
+                                                bottom = (c?.margin?.bottom ?: element.marginBottom ?: 8).dp
                                             )
                                             .then(
                                                 if (fullWidth) Modifier.fillMaxWidth()
-                                                else Modifier
+                                                else Modifier.width(ctaW)
                                             )
-                                            .height(50.dp)   // device Button default height 50
-                                            .background(ctaBg, RoundedCornerShape(ctaCorner)),
+                                            .height(ctaH)
+                                            .background(ctaBg, RoundedCornerShape(ctaCorner))
+                                            .then(
+                                                if (borderW > 0)
+                                                    Modifier.border(
+                                                        borderW.dp, borderCol,
+                                                        RoundedCornerShape(ctaCorner)
+                                                    )
+                                                else Modifier
+                                            ),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text(
                                             text = element.ctaText ?: "Continue",
                                             color = ctaTextColor,
-                                            fontSize = (element.ctaFontSize?.toIntOrNull() ?: 16).sp,
-                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = ctaFontSize,
+                                            fontWeight = ctaWeight,
                                             textAlign = TextAlign.Center
                                         )
                                     }
@@ -319,6 +388,61 @@ class BottomSheetScreenshotTest {
                             }
                         }
                     }
+
+                    // ── Cross button ────────────────────────────────────────
+                    // The test drew NONE — zero references — while the device
+                    // shows one on every run (dump: content-desc="Close") and
+                    // this campaign sets crossButton.enabled=true, size=30 with
+                    // a red cross. Same omission class as the CSAT close button.
+                    //
+                    // BottomSheetComponent renders the shared CrossButton at
+                    // TopEnd of the sheet Box, enabled unless explicitly false,
+                    // reading crossButton ?: styling.crossButton. CrossButton
+                    // itself is a circle: fill, a size*0.05 stroke border when
+                    // strokeColor isn't transparent, glyph inset size*0.11.
+                    // Paparazzi cannot load the SDK's R.drawable.cross, so the
+                    // glyph is drawn as two lines at the same inset.
+                    val xBtn = details?.crossButton ?: details?.styling?.crossButton
+                    if (xBtn?.enabled != false) {
+                        val xColors = xBtn?.color ?: xBtn?.colors
+                        val xSize = (xBtn?.size ?: 16).dp
+                        val xFill = safeParseColor(xColors?.fill, Color.Transparent)
+                        val xStroke = safeParseColor(xColors?.stroke, Color.Transparent)
+                        val xGlyph = safeParseColor(xColors?.cross, Color.White)
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(
+                                    top = (xBtn?.margin?.top ?: 0).dp,
+                                    end = (xBtn?.margin?.right ?: 0).dp
+                                )
+                                .size(xSize)
+                                .clip(CircleShape)
+                                .background(xFill)
+                                .then(
+                                    if (xStroke != Color.Transparent)
+                                        Modifier.border(xSize * 0.05f, xStroke, CircleShape)
+                                    else Modifier
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Canvas(modifier = Modifier.size(xSize).padding(xSize * 0.11f)) {
+                                val sw = size.minDimension * 0.12f
+                                drawLine(
+                                    color = xGlyph,
+                                    start = Offset(0f, 0f),
+                                    end = Offset(size.width, size.height),
+                                    strokeWidth = sw, cap = StrokeCap.Round
+                                )
+                                drawLine(
+                                    color = xGlyph,
+                                    start = Offset(size.width, 0f),
+                                    end = Offset(0f, size.height),
+                                    strokeWidth = sw, cap = StrokeCap.Round
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -328,6 +452,15 @@ class BottomSheetScreenshotTest {
      * Reads a bts_images/<key>.png from disk using the same 3-candidate
      * strategy as FloaterScreenshotTest — avoids Gradle classpath caching.
      */
+
+    /**
+     * backdropOpacity / ctaWidth / ctaHeight arrive as JsonElement because the
+     * backend may send a number OR a string. Mirrors the SDK's asInt() helper:
+     * (this as? JsonPrimitive)?.intOrNull — which parses both forms.
+     */
+    private fun kotlinx.serialization.json.JsonElement?.asIntOrNull(): Int? =
+        (this as? kotlinx.serialization.json.JsonPrimitive)?.content?.trim()?.toIntOrNull()
+
     private fun loadImageFromDisk(imgDir: String, key: String): android.graphics.Bitmap? {
         return runCatching {
             val moduleDir = File(System.getProperty("user.dir") ?: "")

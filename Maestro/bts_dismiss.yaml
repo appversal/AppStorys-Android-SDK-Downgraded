@@ -1,29 +1,48 @@
 # ============================================================
-# BTS — Dismiss: tap close → sheet disappears
+# BTS Dismiss — the cross button closes the sheet
+#
+# See bts_smoke.yaml for why there is no "Open Bottom Sheet" tap and no
+# nav-tab tap: the SDK sheet renders on launch and its backdrop covers the
+# bottom nav.
+#
+# POSITIVE oracle. Asserting only `notVisible "Close"` would pass whenever the
+# Close control is absent for ANY reason — including the sheet never having
+# rendered at all. So this asserts the campaign content is gone AND that the
+# host screen behind it is back.
 # ============================================================
 appId: com.example.carousal
+env:
+  # BTS_ANCHOR is the campaign-specific thing to wait on whatever shape the
+  # sheet is: the body title when there is one, else "Image" (the SDK sets
+  # contentDescription="Image" on the image element) for an imageOnly sheet.
+  # Asserting a hardcoded title would fail on any sheet without a body.
+  BTS_ANCHOR: "Image"
 ---
 - launchApp:
+    stopApp: true
     clearState: false
 
 - waitForAnimationToEnd
 
-- tapOn:
-    text: "Open Bottom Sheet"
-
-- waitForAnimationToEnd
-
 - extendedWaitUntil:
-    visible: "Close"
+    visible: "${BTS_ANCHOR}"
     timeout: 12000
 
-- tapOn:
-    text: "Close"
+- takeScreenshot: "bts_01_shown"
+
+- tapOn: "Close"
 
 - waitForAnimationToEnd
 
+# Campaign content gone...
 - extendedWaitUntil:
-    notVisible: "Close"
+    notVisible: "${BTS_ANCHOR}"
     timeout: 6000
+
+# ...and the host screen is genuinely back (the bottom nav is reachable again,
+# which also proves the backdrop is gone rather than the app having died).
+- extendedWaitUntil:
+    visible: "Lab"
+    timeout: 8000
 
 - takeScreenshot: "bts_dismiss_PASS"

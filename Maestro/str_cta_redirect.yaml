@@ -67,6 +67,10 @@ env:
 # even when the campaign lives on the app's default screen.
 - tapOn:
     text: "${SCREEN_NAV_TAB}"
+    # optional: a campaign with a full-screen backdrop covers the bottom
+    # nav, making the tab untappable even though the campaign is already
+    # on its correct screen. The assertion below stays the real oracle.
+    optional: true
 - waitForAnimationToEnd
 
 - extendedWaitUntil:

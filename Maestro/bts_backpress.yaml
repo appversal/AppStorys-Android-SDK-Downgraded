@@ -4,22 +4,34 @@
 # dismisses on hardware back by default.
 # ============================================================
 appId: com.example.carousal
+env:
+  # BTS_ANCHOR is the campaign-specific thing to wait on whatever shape the
+  # sheet is: the body title when there is one, else "Image" (the SDK sets
+  # contentDescription="Image" on the image element) for an imageOnly sheet.
+  # Asserting a hardcoded title would fail on any sheet without a body.
+  BTS_ANCHOR: "Image"
 ---
 - launchApp:
+    stopApp: true
     clearState: false
 
 - waitForAnimationToEnd
 
-# BTS is usually triggered by an event or button — adjust as needed
-- tapOn:
-    text: "Open Bottom Sheet"
-    optional: true
-
-- waitForAnimationToEnd
-
+# The "Open Bottom Sheet" tap that used to sit here was REMOVED. That button is
+# on the HOME screen (LabScreen.kt has none) and it opens the demo app's OWN
+# ModalBottomSheet, registering the separate screen "Bottom Sheet Kotlin" — not
+# the path this campaign renders through. It was already `optional: true`, so it
+# silently no-opped and this flow was in fact passing on the SDK sheet that
+# renders by itself. stopApp: true added because _showBottomSheet stays false
+# for the life of the process once dismissed.
 - extendedWaitUntil:
     visible: "Close"
     timeout: 12000
+
+# Anchor on campaign content too, so this cannot pass on another campaign's sheet.
+- extendedWaitUntil:
+    visible: "${BTS_ANCHOR}"
+    timeout: 8000
 
 - takeScreenshot: "bts_backpress_01_shown"
 
@@ -27,9 +39,11 @@ appId: com.example.carousal
 
 - waitForAnimationToEnd
 
-# Sheet gone, app still on the same screen
+# Sheet gone, app still on the same screen. Assert the CAMPAIGN content is
+# gone, not just the generic Close control — "Close" is SDK chrome shared with
+# every other overlay type.
 - extendedWaitUntil:
-    notVisible: "Close"
+    notVisible: "${BTS_ANCHOR}"
     timeout: 6000
 
 - extendedWaitUntil:

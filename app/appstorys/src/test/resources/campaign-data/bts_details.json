@@ -1,0 +1,43 @@
+{
+  "backdropColor": "#808080",
+  "backdropOpacity": 40,
+  "backgroundColor": "#FFFFFF",
+  "bottomsheetType": "imageOnly",
+  "cornerRadius": {
+    "bottomLeft": 0,
+    "bottomRight": 0,
+    "topLeft": 0,
+    "topRight": 0
+  },
+  "crossButton": {
+    "color": {
+      "cross": "#fb0909",
+      "fill": "#f5f0f0",
+      "stroke": "#fb0404"
+    },
+    "enabled": true,
+    "image": "",
+    "margin": {
+      "bottom": 4,
+      "left": 4,
+      "right": 4,
+      "top": 4
+    },
+    "selectedStyle": "cross4",
+    "size": 30
+  },
+  "elements": [
+    {
+      "id": "image-1785320639255",
+      "imageLink": "https://google.com",
+      "paddingBottom": 0,
+      "paddingLeft": 0,
+      "paddingRight": 0,
+      "paddingTop": 0,
+      "type": "image",
+      "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/ChatGPT%20Image%20Jan%205%2C%202026%2C%2012_23_09%20AM_cysti.jpeg"
+    }
+  ],
+  "id": "407019ae-30ed-43fd-b03b-f7b19c5adb9d",
+  "name": "BottomSheet_Image Only"
+}

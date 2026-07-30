@@ -1,22 +1,48 @@
 # ============================================================
-# BTS — Smoke: bottom sheet slides up after trigger
+# BTS Smoke — the SDK bottom sheet renders on its own
+#
+# NO BUTTON TAP. The old version tapped "Open Bottom Sheet", which is wrong
+# twice over:
+#   1. That button lives on the HOME screen (LabScreen.kt has zero), and this
+#      campaign is on "Lab Home Screen Kotlin".
+#   2. It opens the DEMO APP's own ModalBottomSheet, which registers the
+#      separate screen "Bottom Sheet Kotlin" — a different code path from the
+#      SDK's AppStorys.BottomSheet() composable this campaign renders through.
+#
+# The SDK sheet needs no trigger at all: `_showBottomSheet` defaults to true
+# and the CDN sends trigger_event "". VERIFIED on device — force-stop, cold
+# launch, zero taps, and the dump already contains "Update Available",
+# "Button" and the Close control.
+#
+# stopApp: true is required: _showBottomSheet is set false on dismiss and
+# stays false for the life of the process, so a warm relaunch shows nothing.
+#
+# NOTE there is deliberately no nav-tab tap here. The sheet's backdrop covers
+# the bottom nav (dump shows no "Lab"/"Parties"/"More" while it is open), so
+# navigating is impossible AND unnecessary — the sheet is already up.
 # ============================================================
 appId: com.example.carousal
+env:
+  # BTS_ANCHOR is the campaign-specific thing to wait on whatever shape the
+  # sheet is: the body title when there is one, else "Image" (the SDK sets
+  # contentDescription="Image" on the image element) for an imageOnly sheet.
+  # Asserting a hardcoded title would fail on any sheet without a body.
+  BTS_ANCHOR: "Image"
 ---
 - launchApp:
+    stopApp: true
     clearState: false
 
 - waitForAnimationToEnd
 
-# BTS is usually triggered by an event or button — adjust as needed
-- tapOn:
-    text: "Open Bottom Sheet"
-
-- waitForAnimationToEnd
-
-# Bottom sheet has a CrossButton — "Close"
+# SDK chrome proves the sheet built...
 - extendedWaitUntil:
     visible: "Close"
     timeout: 12000
+
+# ...and campaign content proves it is THIS campaign's sheet.
+- extendedWaitUntil:
+    visible: "${BTS_ANCHOR}"
+    timeout: 8000
 
 - takeScreenshot: "bts_smoke_PASS"
