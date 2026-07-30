@@ -601,22 +601,20 @@ class StoriesScreenshotTest {
                                         .background(fillColor),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    val pad = crossSize * 0.11f
-                                    Canvas(modifier = Modifier.fillMaxSize().padding(pad)) {
-                                        val stroke = 2.dp.toPx()
-                                        drawLine(
-                                            color = crossColor,
-                                            start = Offset(0f, 0f),
-                                            end = Offset(size.width, size.height),
-                                            strokeWidth = stroke
-                                        )
-                                        drawLine(
-                                            color = crossColor,
-                                            start = Offset(size.width, 0f),
-                                            end = Offset(0f, size.height),
-                                            strokeWidth = stroke
-                                        )
-                                    }
+                                    // The REAL cross is res/drawable/cross.png (192x192) whose X occupies
+                                    // only the middle ~40% — roughly 30% padding is baked into the asset.
+                                    // Hand-drawing two corner-to-corner lines produced a much LARGER,
+                                    // thicker X than the product shows. The long-standing comment that
+                                    // "Paparazzi cannot load R.drawable.cross" was never true: the test
+                                    // is in the same module, and painterResource resolves it fine.
+                                    androidx.compose.material3.Icon(
+                                        painter = androidx.compose.ui.res.painterResource(
+                                            com.appversal.appstorys.R.drawable.cross
+                                        ),
+                                        contentDescription = "Close",
+                                        tint = crossColor,
+                                        modifier = Modifier.padding(crossSize * 0.11f)
+                                    )
                                 }
                             }
                         }

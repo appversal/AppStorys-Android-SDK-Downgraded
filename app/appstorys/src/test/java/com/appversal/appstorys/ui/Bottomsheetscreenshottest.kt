@@ -426,21 +426,15 @@ class BottomSheetScreenshotTest {
                                 ),
                             contentAlignment = Alignment.Center
                         ) {
-                            Canvas(modifier = Modifier.size(xSize).padding(xSize * 0.11f)) {
-                                val sw = size.minDimension * 0.12f
-                                drawLine(
-                                    color = xGlyph,
-                                    start = Offset(0f, 0f),
-                                    end = Offset(size.width, size.height),
-                                    strokeWidth = sw, cap = StrokeCap.Round
-                                )
-                                drawLine(
-                                    color = xGlyph,
-                                    start = Offset(size.width, 0f),
-                                    end = Offset(0f, size.height),
-                                    strokeWidth = sw, cap = StrokeCap.Round
-                                )
-                            }
+                            // EXPERIMENT: use the REAL drawable the SDK uses.
+                            androidx.compose.material3.Icon(
+                                painter = androidx.compose.ui.res.painterResource(
+                                    com.appversal.appstorys.R.drawable.cross
+                                ),
+                                contentDescription = "Close",
+                                tint = xGlyph,
+                                modifier = Modifier.padding(xSize * 0.11f)
+                            )
                         }
                     }
                 }

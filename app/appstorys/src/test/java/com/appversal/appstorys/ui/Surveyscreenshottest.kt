@@ -651,23 +651,21 @@ class SurveyScreenshotTest {
                                 .background(crossFill),
                             contentAlignment = Alignment.Center
                         ) {
-                            Canvas(modifier = Modifier.size(crossSize * 0.55f)) {
-                                val stroke = size.minDimension * 0.14f
-                                drawLine(
-                                    color = crossColor,
-                                    start = Offset(0f, 0f),
-                                    end = Offset(size.width, size.height),
-                                    strokeWidth = stroke,
-                                    cap = StrokeCap.Round
-                                )
-                                drawLine(
-                                    color = crossColor,
-                                    start = Offset(size.width, 0f),
-                                    end = Offset(0f, size.height),
-                                    strokeWidth = stroke,
-                                    cap = StrokeCap.Round
-                                )
-                            }
+                            // The REAL cross is res/drawable/cross.png (192x192) whose X occupies only
+                            // the middle ~40% — roughly 30% padding is baked into the asset. Drawing
+                            // two corner-to-corner lines produced a much LARGER, thicker X than the
+                            // product shows. The long-standing "Paparazzi cannot load
+                            // R.drawable.cross" comment was never verified and is FALSE: the test is
+                            // in the same module and painterResource resolves it. Verified by
+                            // swapping it in and re-recording.
+                            androidx.compose.material3.Icon(
+                                painter = androidx.compose.ui.res.painterResource(
+                                    com.appversal.appstorys.R.drawable.cross
+                                ),
+                                contentDescription = "Close",
+                                tint = crossColor,
+                                modifier = Modifier.padding(crossSize * 0.11f)
+                            )
                         }
                     }
                 }

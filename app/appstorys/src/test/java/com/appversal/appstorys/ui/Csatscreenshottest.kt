@@ -583,25 +583,21 @@ class CsatScreenshotTest {
                         ),
                     contentAlignment = Alignment.Center
                 ) {
-                    androidx.compose.foundation.Canvas(
-                        modifier = Modifier.size(cSize).padding(cSize * 0.11f)
-                    ) {
-                        val sw = size.minDimension * 0.12f
-                        drawLine(
-                            color = cGlyph,
-                            start = androidx.compose.ui.geometry.Offset(0f, 0f),
-                            end = androidx.compose.ui.geometry.Offset(size.width, size.height),
-                            strokeWidth = sw,
-                            cap = androidx.compose.ui.graphics.StrokeCap.Round
-                        )
-                        drawLine(
-                            color = cGlyph,
-                            start = androidx.compose.ui.geometry.Offset(size.width, 0f),
-                            end = androidx.compose.ui.geometry.Offset(0f, size.height),
-                            strokeWidth = sw,
-                            cap = androidx.compose.ui.graphics.StrokeCap.Round
-                        )
-                    }
+                    // The REAL cross is res/drawable/cross.png (192x192) whose X occupies only
+                    // the middle ~40% — roughly 30% padding is baked into the asset. Drawing
+                    // two corner-to-corner lines produced a much LARGER, thicker X than the
+                    // product shows. The long-standing "Paparazzi cannot load
+                    // R.drawable.cross" comment was never verified and is FALSE: the test is
+                    // in the same module and painterResource resolves it. Verified by
+                    // swapping it in and re-recording.
+                    androidx.compose.material3.Icon(
+                        painter = androidx.compose.ui.res.painterResource(
+                            com.appversal.appstorys.R.drawable.cross
+                        ),
+                        contentDescription = "Close",
+                        tint = cGlyph,
+                        modifier = Modifier.padding(cSize * 0.11f)
+                    )
                 }
             }
         }
