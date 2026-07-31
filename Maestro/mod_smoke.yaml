@@ -1,15 +1,49 @@
 # ============================================================
-# MOD — Smoke: modal appears on launch or trigger event
+# MOD — Smoke: the modal renders on launch
+#
+# WHAT THE SDK DOES (AppStorys.kt Modals() + ui/modals/PopupModal.kt):
+#   Modals() picks firstOrNull { campaignType == "MOD" }, gates on
+#   TriggerEventMatcher (this campaign has trigger_event "" -> On Launch)
+#   and on the _showModal StateFlow, then hands off to PopupModal, which
+#   routes on the PAYLOAD SHAPE, not on details.modal_type:
+#       content.set non-empty -> FullPageCarouselModal
+#       content == null       -> MediaOnlyModal
+#       otherwise             -> ModalWithCTA
+#   All three gate rendering behind rememberMediaLoadState — the Dialog is
+#   not composed at all until the first slide's media has downloaded, which
+#   is why the wait below is generous.
+#
+# WHY THIS ASSERTS MORE THAN "Close": the cross button is SDK chrome shared
+# with BAN/BTS/CSAT/SUR/PIP/STW/SCRT. On its own it proves "some overlay is
+# up", not "this modal rendered". MOD_ANCHOR is this campaign's own string,
+# injected live by buildFlowEnv — never hardcoded, because editing the
+# campaign on the dashboard must not silently pass.
+#
+# SCREEN: this campaign lives on "Lab Home Screen Kotlin" and the demo app
+# opens on the Lab tab, so no nav tap is needed. A modal on another screen
+# could not be reached by tapping either — its own Dialog covers the bottom
+# nav — so a wrong-screen campaign correctly fails at the wait below.
 # ============================================================
 appId: com.example.carousal
+env:
+  MOD_ANCHOR: "Welcome to ASO Agency"
 ---
 - launchApp:
     clearState: false
 
 - waitForAnimationToEnd
 
+# Bounded: cold start = token -> eligible campaigns -> campaigns.json ->
+# media download, all before the Dialog is composed.
 - extendedWaitUntil:
     visible: "Close"
-    timeout: 12000
+    timeout: 15000
+
+# THIS campaign's own renderer, not merely "an overlay". MOD_ANCHOR is
+# whichever oracle the live payload actually exposes — a carousel slide title,
+# a CTA caption, or the media contentDescription that MediaOnlyModal
+# ("Media Only Modal") and ModalWithCTA ("Modal Media") set. Layer 4 skips this
+# flow outright if the only thing available is the shared "Close" chrome.
+- assertVisible: "${MOD_ANCHOR}"
 
 - takeScreenshot: "mod_smoke_PASS"

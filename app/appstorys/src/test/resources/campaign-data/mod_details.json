@@ -1,0 +1,56 @@
+{
+  "id": "3a85eacf-d437-45f5-aaca-d692028e13cd",
+  "modal_type": "media-only-modal",
+  "modals": [
+    {
+      "chooseMediaType": {
+        "type": "video",
+        "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/WhatsApp%20Video%202026-07-22%20at%2015.14.24_uurro.mp4"
+      },
+      "redirection": {
+        "key": "",
+        "pageName": "",
+        "type": "url",
+        "url": "https://www.instagram.com/?hl=en",
+        "value": ""
+      },
+      "screen": 64,
+      "size": 300,
+      "styling": {
+        "appearance": {
+          "backdrop": {
+            "color": "#f0f0f0",
+            "opacity": 40
+          },
+          "cornerRadius": {
+            "bottomLeft": 12,
+            "bottomRight": 12,
+            "topLeft": 12,
+            "topRight": 12
+          },
+          "dimension": {
+            "width": 300
+          },
+          "enableBackdrop": true
+        },
+        "crossButton": {
+          "color": {
+            "cross": "#fb0909",
+            "fill": "#f5f0f0",
+            "stroke": "#fb0404"
+          },
+          "enabled": true,
+          "image": "",
+          "margin": {
+            "bottom": 4,
+            "left": 4,
+            "right": 4,
+            "top": 4
+          },
+          "selectedStyle": "cross4",
+          "size": 30
+        }
+      }
+    }
+  ]
+}

@@ -1,13 +1,13 @@
 {
   "tooltips": [
     {
-      "_id": "4afbabf4-6310-42bf-a778-130615a6be33",
+      "_id": "2b5469cf-a978-4456-854c-30c988d3241e",
       "arrowPosition": null,
       "clickAction": "nextStep",
       "ctaText": null,
       "enableBackdrop": true,
       "eventName": "",
-      "link": "https://google.com",
+      "link": "https:youtube.com",
       "order": 0,
       "position": "left",
       "styling": {
@@ -16,7 +16,7 @@
             "height": 12,
             "width": 6
           },
-          "backdropOpacity": 70,
+          "backdropOpacity": 0,
           "colors": {
             "arrow": "#fe6b35",
             "backdrop": "#000000"
@@ -38,18 +38,18 @@
         }
       },
       "subtitleText": null,
-      "target": "toolbar_click_container",
+      "target": "statusBarBackground",
       "titleText": null,
-      "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/WhatsApp%20Image%202026-05-13%20at%203.48.55%20PM_hccrn.jpeg"
+      "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/banner1q_gjnwj.jpg"
     },
     {
-      "_id": "cfe4c618-6f7f-4cfe-a111-7b91646bee55",
+      "_id": "c5955385-3050-48d5-9a29-4411e05cae78",
       "arrowPosition": null,
       "clickAction": "nextStep",
       "ctaText": null,
-      "enableBackdrop": true,
+      "enableBackdrop": false,
       "eventName": "",
-      "link": "https://google.com",
+      "link": "Home",
       "order": 1,
       "position": "left",
       "styling": {
@@ -80,9 +80,93 @@
         }
       },
       "subtitleText": null,
-      "target": "tooltip_home_prem_test",
+      "target": "lab_hero",
       "titleText": null,
-      "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/ChatGPT%20Image%20May%2013%2C%202026%2C%2003_49_38%20PM_emaho.png"
+      "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/banner2_jneei.jpg"
+    },
+    {
+      "_id": "159c3479-68df-421c-b1d4-da1524e7203f",
+      "arrowPosition": null,
+      "clickAction": "nextStep",
+      "ctaText": null,
+      "enableBackdrop": false,
+      "eventName": "",
+      "link": "1245:414141441",
+      "order": 2,
+      "position": "left",
+      "styling": {
+        "appearance": {
+          "arrowStyle": {
+            "height": 12,
+            "width": 6
+          },
+          "backdropOpacity": 70,
+          "colors": {
+            "arrow": "#fe6b35",
+            "backdrop": "#000000"
+          },
+          "cornerRadius": {
+            "bottomLeft": 12,
+            "bottomRight": 12,
+            "topLeft": 12,
+            "topRight": 12
+          },
+          "highlight": {
+            "padding": 4,
+            "radius": 12
+          },
+          "imageDimensions": {
+            "height": 200,
+            "width": 200
+          }
+        }
+      },
+      "subtitleText": null,
+      "target": "lab_switch_user",
+      "titleText": null,
+      "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/ChatGPT%20Image%20Jan%205%2C%202026%2C%2012_23_09%20AM_xxvls.jpeg"
+    },
+    {
+      "_id": "a08f987f-2b5d-4442-8609-75ef140db10c",
+      "arrowPosition": null,
+      "clickAction": "nextStep",
+      "ctaText": null,
+      "enableBackdrop": true,
+      "eventName": "",
+      "link": "APPSTORYS-CLOSE",
+      "order": 3,
+      "position": "left",
+      "styling": {
+        "appearance": {
+          "arrowStyle": {
+            "height": 12,
+            "width": 6
+          },
+          "backdropOpacity": 70,
+          "colors": {
+            "arrow": "#fe6b35",
+            "backdrop": "#000000"
+          },
+          "cornerRadius": {
+            "bottomLeft": 12,
+            "bottomRight": 12,
+            "topLeft": 12,
+            "topRight": 12
+          },
+          "highlight": {
+            "padding": 4,
+            "radius": 12
+          },
+          "imageDimensions": {
+            "height": 200,
+            "width": 200
+          }
+        }
+      },
+      "subtitleText": null,
+      "target": "lab_track_event",
+      "titleText": null,
+      "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/WhatsApp%20Image%202025-12-08%20at%2017.21.57_83886e3c_hcdsw.jpg"
     }
   ]
 }

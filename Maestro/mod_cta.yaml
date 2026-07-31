@@ -1,7 +1,37 @@
 # ============================================================
-# MOD — CTA: tap primary CTA button in modal
+# MOD — CTA: the primary CTA fires its redirect and does NOT close the modal
+#
+# WHY THIS WAS REWRITTEN (it was a false green). The old flow did:
+#       tapOn: point: "50%,70%"   ->  pressKey: back  ->  screenshot "_PASS"
+#   with no assertion after the tap. Measured on device (1080x2400), the
+#   full-page carousel lays out as:
+#       media   y  750..1358
+#       title   y 2084..2127
+#       CTA     y 2264..2307      (= 50%,95%)
+#   so "50%,70%" = y 1680 — the empty gap between the media and the title.
+#   The tap hit NOTHING, `back` then dismissed the modal, and the flow
+#   reported PASS. It could not fail.
+#
+# WHAT THE SDK ACTUALLY DOES (AppStorys.kt Modals()):
+#       onPrimaryCta   -> trackEvents(id,"clicked") + clickEvent(link)
+#       onSecondaryCta -> trackEvents + clickEvent + _showModal = false
+#   Only the SECONDARY CTA closes the modal. The primary one deliberately
+#   does not, so after the browser is dismissed the modal is still up on the
+#   same slide. This flow asserts that real behaviour — if the SDK ever
+#   starts auto-closing on the primary CTA this fails, and that failure is
+#   the signal to update this flow, not a regression.
+#
+#   clickEvent -> isValidUrl(link) -> openUrl(link). Verified live: tapping
+#   "Click Here" (https://asowin.com/) put Chrome in front
+#   (mCurrentFocus=com.android.chrome/...ChromeTabbedActivity).
+#
+# The "clicked" event itself is verified by Layer 5 from the run-long
+# logcat — a Maestro flow cannot see analytics.
 # ============================================================
 appId: com.example.carousal
+env:
+  MOD_ANCHOR: "Welcome to ASO Agency"
+  MOD_TAP_TARGET: "Click Here"
 ---
 - launchApp:
     clearState: false
@@ -10,18 +40,43 @@ appId: com.example.carousal
 
 - extendedWaitUntil:
     visible: "Close"
+    timeout: 15000
+
+- assertVisible: "${MOD_ANCHOR}"
+
+- takeScreenshot: "mod_01_before_cta"
+
+# Tap the redirect target by name, never by coordinate. For a carousel or
+# CTA modal that is the button caption; a MEDIA-ONLY modal has no button at
+# all — the media itself carries the click, wired to
+# modal.redirection.url (MediaOnlyModal.kt), and is reachable by its
+# contentDescription "Media Only Modal".
+- tapOn:
+    text: "${MOD_TAP_TARGET}"
+
+- waitForAnimationToEnd
+
+# PROVE the redirect fired: the modal's Dialog is full-screen, so the ONLY
+# thing that can hide its cross button is another app coming to the front.
+# A tap that missed, or a link the SDK refused to open, fails here.
+- extendedWaitUntil:
+    notVisible: "Close"
     timeout: 12000
 
-- takeScreenshot: "mod_before_cta"
+- takeScreenshot: "mod_02_redirect_opened"
 
-# Tap primary CTA (centre-bottom of modal)
-- tapOn:
-    point: "50%,70%"
-
-- waitForAnimationToEnd
-
-- pressKey: back
+# Resume the demo app rather than pressing back — back is ambiguous once a
+# browser owns the screen (history vs task switch).
+- launchApp:
+    stopApp: false
 
 - waitForAnimationToEnd
+
+# The modal is STILL up on the same slide: the primary CTA does not dismiss.
+- extendedWaitUntil:
+    visible: "Close"
+    timeout: 12000
+
+- assertVisible: "${MOD_ANCHOR}"
 
 - takeScreenshot: "mod_cta_PASS"

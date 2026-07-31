@@ -1,0 +1,81 @@
+# ============================================================
+# MOD — Media-only: tapping the MEDIA fires its redirect
+#
+# WHY THIS FLOW EXISTS SEPARATELY FROM mod_cta.yaml: a media-only modal has
+# no button. MediaOnlyModal.kt wires the click to the media container itself:
+#     .clickable { val redirectUrl = modal.redirection?.url ?: modal.link
+#                  if (!redirectUrl.isNullOrBlank()) onPrimaryCta?.invoke(...) }
+# so there is no CTA caption for mod_cta to tap.
+#
+# WHY A POINT AND NOT A SELECTOR — this is measured, not guessed. The media
+# SHOULD be selectable: MediaOnlyModal passes contentDescription =
+# "Media Only Modal". But ModalMediaRendererWithCallback only forwards that
+# label on the gif and image branches; the VIDEO branch calls
+# VideoPlayerInlineWithCallback, which has no contentDescription parameter at
+# all, and the LOTTIE branch calls LottieAnimation without one. Verified on
+# device against the live campaign (a .mp4): the whole modal dumps exactly ONE
+# node — the shared "Close" cross button. There is nothing else to select.
+#
+# The point is safe rather than arbitrary: MediaOnlyModal centres a
+# `size`-wide box carrying the media's own aspect ratio, so the screen centre
+# is always inside the media, and the backdrop — whose click CLOSES the modal
+# — is only ever outside it. A tap that landed on the backdrop would dismiss
+# the modal and fail the assertion below instead of passing quietly.
+# Verified on device: tapping 50%,50% opened Instagram
+# (mCurrentFocus=com.instagram.android/...InstagramMainActivity).
+#
+# Layer 4 runs this flow only when the campaign really is media-only AND its
+# redirection carries a non-empty link — clickEvent() no-ops on an empty one.
+# ============================================================
+appId: com.example.carousal
+env:
+  MOD_ANCHOR: "Close"
+  MOD_TAP_POINT: "50%,50%"
+---
+- launchApp:
+    clearState: false
+
+- waitForAnimationToEnd
+
+# Bounded: cold start = token -> eligible campaigns -> campaigns.json, then
+# MediaOnlyModal refuses to compose its Dialog until rememberMediaLoadState
+# reports Success — for video that means MediaMetadataRetriever has fetched
+# the header over the network first, which is the slowest path of any modal.
+- extendedWaitUntil:
+    visible: "${MOD_ANCHOR}"
+    timeout: 20000
+
+- takeScreenshot: "mod_media_01_before_tap"
+
+- tapOn:
+    point: "${MOD_TAP_POINT}"
+
+- waitForAnimationToEnd
+
+# PROVE the redirect fired. The modal's Dialog is full-screen, so the only
+# thing that can hide its cross button is another app coming to the front.
+# If the tap had missed the media and hit the backdrop, the modal would have
+# CLOSED — which also hides "Close" — so the return leg below is what
+# separates "redirected" from "accidentally dismissed".
+- extendedWaitUntil:
+    notVisible: "Close"
+    timeout: 12000
+
+- takeScreenshot: "mod_media_02_redirect_opened"
+
+# Resume the demo app rather than pressing back — back is ambiguous once
+# another app owns the screen (its history vs the task switch).
+- launchApp:
+    stopApp: false
+
+- waitForAnimationToEnd
+
+# The modal is STILL up: MediaOnlyModal's media click calls onPrimaryCta only,
+# and AppStorys.Modals() clears _showModal on onSecondaryCta / onCloseClick —
+# never on the primary path. This is what proves the tap hit the MEDIA and not
+# the backdrop, since a backdrop tap would have dismissed it for good.
+- extendedWaitUntil:
+    visible: "Close"
+    timeout: 12000
+
+- takeScreenshot: "mod_media_tap_PASS"

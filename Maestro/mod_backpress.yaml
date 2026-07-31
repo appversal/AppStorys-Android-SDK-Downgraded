@@ -1,10 +1,23 @@
 # ============================================================
-# MOD — Back press dismisses modal, app stays in foreground
-# PopupModal / FullPageCarouselModal / MediaOnlyModal all use
-# Dialog(dismissOnBackPress = true), so hardware back must
-# close ONLY the modal — never the screen behind it.
+# MOD — Back press dismisses the modal, app stays in the foreground
+#
+# PopupModal / FullPageCarouselModal / MediaOnlyModal all build their
+# Dialog with DialogProperties(dismissOnBackPress = true), so hardware back
+# must close ONLY the modal — never the screen behind it, and never the app.
+#
+# NOTE this is the Dialog's own dismissal, which routes to onCloseClick ->
+# _showModal = false. It is NOT the back_press *trigger* path
+# (BACK_PRESS_SENTINEL); that one belongs to backpress_campaign.yaml and
+# needs a campaign configured with trigger_event "back_press".
+#
+# "More" is demo-app chrome (bottom nav, present on every tab), not campaign
+# content, so it is a legitimate hardcoded anchor — it proves the host
+# Activity is still alive and focused. MOD_ANCHOR is campaign content and is
+# therefore injected live.
 # ============================================================
 appId: com.example.carousal
+env:
+  MOD_ANCHOR: "Welcome to ASO Agency"
 ---
 - launchApp:
     clearState: false
@@ -13,7 +26,9 @@ appId: com.example.carousal
 
 - extendedWaitUntil:
     visible: "Close"
-    timeout: 12000
+    timeout: 15000
+
+- assertVisible: "${MOD_ANCHOR}"
 
 - takeScreenshot: "mod_backpress_01_shown"
 
@@ -21,12 +36,16 @@ appId: com.example.carousal
 
 - waitForAnimationToEnd
 
-# Modal gone…
+# Modal gone — both the shared chrome and this campaign's own content…
 - extendedWaitUntil:
     notVisible: "Close"
     timeout: 6000
 
-# …but the app must still be in the foreground on the same screen
+- assertNotVisible: "${MOD_ANCHOR}"
+
+# …but the app must still be in the foreground on the same screen. If back
+# had fallen through to the Activity instead of the Dialog, the launcher
+# would be showing and this fails.
 - extendedWaitUntil:
     visible: "More"
     timeout: 12000

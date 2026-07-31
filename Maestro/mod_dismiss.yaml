@@ -1,7 +1,22 @@
 # ============================================================
-# MOD — Dismiss: tap X → modal closes
+# MOD — Dismiss: the cross button closes the modal and nothing else
+#
+# WHAT THE SDK DOES: CrossButton (ui/common_components/CrossButton.kt) is the
+# only control in the modal carrying contentDescription "Close". Its onClose
+# is wired to Modals()'s onCloseClick -> _showModal.update { false }.
+# Note the SDK fires NO analytics event on dismiss — there is no "dismissed"
+# trackEvents call anywhere in Modals(), so Layer 5 has nothing to confirm
+# here and this flow is the only oracle for the close path.
+#
+# WHY THE LAST TWO STEPS EXIST: asserting only `notVisible "Close"` passes
+# just as happily if the whole app died, since a crashed app also has no
+# cross button. The bottom nav coming back proves the modal went away and
+# the host screen underneath survived.
 # ============================================================
 appId: com.example.carousal
+env:
+  MOD_ANCHOR: "Welcome to ASO Agency"
+  SCREEN_NAV_TAB: "Lab"
 ---
 - launchApp:
     clearState: false
@@ -10,7 +25,9 @@ appId: com.example.carousal
 
 - extendedWaitUntil:
     visible: "Close"
-    timeout: 12000
+    timeout: 15000
+
+- assertVisible: "${MOD_ANCHOR}"
 
 - tapOn:
     text: "Close"
@@ -20,5 +37,13 @@ appId: com.example.carousal
 - extendedWaitUntil:
     notVisible: "Close"
     timeout: 6000
+
+# The campaign's own content is gone too — not just the shared chrome.
+- assertNotVisible: "${MOD_ANCHOR}"
+
+# …and the host screen is back, so the modal closed rather than the app.
+- extendedWaitUntil:
+    visible: "${SCREEN_NAV_TAB}"
+    timeout: 10000
 
 - takeScreenshot: "mod_dismiss_PASS"

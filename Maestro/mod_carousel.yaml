@@ -1,0 +1,81 @@
+# ============================================================
+# MOD — Carousel: swiping walks the slides, and each slide brings its own
+#                 title and its own CTA label
+#
+# WHY THIS FLOW IS NEW: the carousel is the headline feature of a
+# "modal-fullpage-carousel" campaign and NOTHING tested it. mod_smoke only
+# proved slide 1 existed, so a pager that never advanced, or per-slide
+# styling that never resolved, would have shipped green.
+#
+# WHAT THE SDK DOES (ui/modals/FullPageCarouselModal.kt):
+#   slides = modal.content.set; AutoSlidingCarousel(autoScrollEnabled=false)
+#   wraps a HorizontalPager filling the weight(1f) media area. Title, CTA
+#   text, CTA styling, backdrop colour and cross-button colours are ALL
+#   re-resolved from `slides[pagerState.currentPage]` on every page change,
+#   falling back to modal-level styling. So a title that changes but a CTA
+#   label that does not would mean the per-slide CTA fallback chain
+#   (primaryCtaText -> primaryCta -> modal.content.primaryCtaText) is broken.
+#
+# WHY duration: 800 — MEASURED, not decorative. On this device
+# (RMX3395, 1080x2400) `adb shell input swipe ... 300` did NOT advance the
+# pager: the dump after the swipe still showed slide 1's title and CTA. The
+# same swipe at 800ms advanced it reliably. A default-speed swipe here is a
+# flake, not a test.
+#
+# The swipe y (44% = ~1056px) sits inside the pager's media area
+# (measured y 750..1358) and well clear of the title (2084) and CTA (2264),
+# so the gesture reaches the pager and cannot be stolen by a button.
+# Coordinates are literals on purpose: Maestro parses swipe coordinates at
+# YAML-load time, BEFORE env interpolation, so "${VAR}" cannot be used here.
+#
+# Layer 4 skips this flow when the campaign has fewer than 2 slides — a
+# single-slide modal has no swipe to prove.
+# ============================================================
+appId: com.example.carousal
+env:
+  MOD_TITLE_1: "Welcome to ASO Agency"
+  MOD_TITLE_2: "Happy Birthday Mahi"
+  MOD_CTA_1: "Click Here"
+  MOD_CTA_2: "Tap Here"
+---
+- launchApp:
+    clearState: false
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible: "Close"
+    timeout: 15000
+
+# ── Slide 1 ──────────────────────────────────────────────────────────────
+- assertVisible: "${MOD_TITLE_1}"
+- assertVisible: "${MOD_CTA_1}"
+
+- takeScreenshot: "mod_carousel_01_slide1"
+
+# ── Swipe to slide 2 ─────────────────────────────────────────────────────
+- swipe:
+    start: "85%,44%"
+    end: "15%,44%"
+    duration: 800
+
+- waitForAnimationToEnd
+
+# The pager actually moved AND the new slide's own content resolved.
+- extendedWaitUntil:
+    visible: "${MOD_TITLE_2}"
+    timeout: 8000
+
+- assertVisible: "${MOD_CTA_2}"
+
+# Slide 1's title must be gone — otherwise the pager rendered both pages and
+# "advanced" is an illusion.
+- assertNotVisible: "${MOD_TITLE_1}"
+
+- takeScreenshot: "mod_carousel_02_slide2"
+
+# The cross button survives the page change (it is drawn outside the pager,
+# re-configured from the current slide's crossButton styling each time).
+- assertVisible: "Close"
+
+- takeScreenshot: "mod_carousel_PASS"
