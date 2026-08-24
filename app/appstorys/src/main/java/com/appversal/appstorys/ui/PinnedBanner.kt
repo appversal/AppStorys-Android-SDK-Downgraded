@@ -12,14 +12,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
@@ -45,14 +43,17 @@ internal fun PinnedBanner(
     imageUrl: String?,
     lottieUrl: String?,
     contentScale: ContentScale,
-//    width: Dp? = null,
-//    height: Dp?,
     bottomMargin: Dp = 0.dp,
     leftMargin: Dp = 0.dp,
     rightMargin: Dp = 0.dp,
     exitIcon: Boolean = false,
     exitUnit: () -> Unit,
-    shape: RoundedCornerShape = RoundedCornerShape(topEnd = 16.dp, topStart = 16.dp, bottomEnd = 16.dp, bottomStart = 16.dp),
+    shape: RoundedCornerShape = RoundedCornerShape(
+        topEnd = 16.dp,
+        topStart = 16.dp,
+        bottomEnd = 16.dp,
+        bottomStart = 16.dp
+    ),
     placeHolder: Drawable? = null,
     placeholderContent: (@Composable () -> Unit)? = null,
     onClick: () -> Unit,
@@ -62,59 +63,55 @@ internal fun PinnedBanner(
 ) {
     val context = LocalContext.current
 
+    // Padding is applied FIRST so that forcedHeight / aspectRatio describe the
+    // visible banner, not the banner + margins.
     val bannerModifier = Modifier
+        .padding(bottom = bottomMargin, start = leftMargin, end = rightMargin)
         .fillMaxWidth()
         .then(
             when {
-                forcedHeight != null -> {
-                    Modifier.height(forcedHeight)
-                }
-                aspectRatio != null -> {
-                    Modifier.aspectRatio(1f / aspectRatio)
-                }
+                forcedHeight != null -> Modifier.height(forcedHeight)
+                aspectRatio != null -> Modifier.aspectRatio(1f / aspectRatio)
                 else -> Modifier
             }
         )
 
-    Box(
-        modifier = bannerModifier
-            .then(modifier)
-            .padding(bottom = bottomMargin, start = leftMargin, end = rightMargin)
-    ) {
-        Card(
-            shape = shape,
-            colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-            modifier = Modifier.fillMaxSize(),
-        ) {
+    // When the container has a fixed size, Crop guarantees the content covers
+    // every corner so the clip is visible on all four sides.
+    val effectiveContentScale = when {
+        forcedHeight != null || aspectRatio != null -> ContentScale.Crop
+        else -> contentScale
+    }
 
-            Box(modifier = Modifier
+    Box(modifier = bannerModifier.then(modifier)) {
+
+        Box(
+            modifier = Modifier
                 .fillMaxSize()
+                .clip(shape)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
                     onClick = onClick
-            )) {
-                val effectiveContentScale =
-                    if (forcedHeight != null) ContentScale.FillBounds
-                    else ContentScale.FillWidth
+                )
+        ) {
+            when {
+                !lottieUrl.isNullOrEmpty() -> {
+                    val composition by rememberLottieComposition(
+                        spec = LottieCompositionSpec.Url(lottieUrl)
+                    )
+                    LottieAnimation(
+                        composition = composition,
+                        iterations = LottieConstants.IterateForever,
+                        contentScale = effectiveContentScale,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
 
-                when {
-                    !lottieUrl.isNullOrEmpty() -> {
-                        val composition by rememberLottieComposition(
-                            spec = LottieCompositionSpec.Url(lottieUrl)
-                        )
-                        LottieAnimation(
-                            composition = composition,
-                            iterations = LottieConstants.IterateForever,
-                            modifier = bannerModifier
-//                            .height(height ?: Dp.Unspecified)
-//                            .width(width ?: Dp.Unspecified)
-                        )
-                    }
-
-                    !imageUrl.isNullOrEmpty() -> {
-                        if (isGifUrl(imageUrl)) {
-                            val imageLoader = ImageLoader.Builder(context)
+                !imageUrl.isNullOrEmpty() -> {
+                    if (isGifUrl(imageUrl)) {
+                        val imageLoader = remember(context) {
+                            ImageLoader.Builder(context)
                                 .components {
                                     if (SDK_INT >= 28) {
                                         add(ImageDecoderDecoder.Factory())
@@ -123,81 +120,63 @@ internal fun PinnedBanner(
                                     }
                                 }
                                 .build()
-
-                            val painter = rememberAsyncImagePainter(
-                                ImageRequest.Builder(context)
-                                    .data(imageUrl)
-                                    .memoryCacheKey(imageUrl)
-                                    .diskCacheKey(imageUrl)
-                                    .diskCachePolicy(CachePolicy.ENABLED)
-                                    .memoryCachePolicy(CachePolicy.ENABLED)
-                                    .crossfade(true)
-                                    .apply { size(coil.size.Size.ORIGINAL) }
-                                    .build(),
-                                imageLoader = imageLoader
-                            )
-
-                            Image(
-                                painter = painter,
-                                contentDescription = null,
-                                contentScale = effectiveContentScale,
-                                modifier = bannerModifier
-//                                .height(height ?: Dp.Unspecified)
-//                                .width(width ?: Dp.Unspecified)
-                            )
                         }
 
-                        else {
-                            SubcomposeAsyncImage(
-                                model = imageUrl,
-                                contentDescription = null,
-                                contentScale = effectiveContentScale,
-                                modifier = bannerModifier,
-//                                .height(height ?: Dp.Unspecified)
-//                                .width(width ?: Dp.Unspecified),
-                                loading = {
-                                    if (placeholderContent != null) {
-                                        Box(
-                                            modifier = Modifier.fillMaxSize()
-//                                            .height(height ?: Dp.Unspecified)
-//                                            .width(width ?: Dp.Unspecified)
-                                        ) {
-                                            placeholderContent()
-                                        }
-                                    } else if (placeHolder != null) {
-                                        Image(
-                                            painter = rememberAsyncImagePainter(placeHolder),
-                                            contentDescription = null,
-                                            contentScale = effectiveContentScale,
-                                            modifier = Modifier.fillMaxSize()
-//                                            .height(height ?: Dp.Unspecified)
-//                                            .width(width ?: Dp.Unspecified)
-                                        )
+                        val painter = rememberAsyncImagePainter(
+                            ImageRequest.Builder(context)
+                                .data(imageUrl)
+                                .memoryCacheKey(imageUrl)
+                                .diskCacheKey(imageUrl)
+                                .diskCachePolicy(CachePolicy.ENABLED)
+                                .memoryCachePolicy(CachePolicy.ENABLED)
+                                .crossfade(true)
+                                .apply { size(coil.size.Size.ORIGINAL) }
+                                .build(),
+                            imageLoader = imageLoader
+                        )
+
+                        Image(
+                            painter = painter,
+                            contentDescription = null,
+                            contentScale = effectiveContentScale,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        SubcomposeAsyncImage(
+                            model = imageUrl,
+                            contentDescription = null,
+                            contentScale = effectiveContentScale,
+                            modifier = Modifier.fillMaxSize(),
+                            loading = {
+                                if (placeholderContent != null) {
+                                    Box(modifier = Modifier.fillMaxSize()) {
+                                        placeholderContent()
                                     }
+                                } else if (placeHolder != null) {
+                                    Image(
+                                        painter = rememberAsyncImagePainter(placeHolder),
+                                        contentDescription = null,
+                                        contentScale = effectiveContentScale,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
                                 }
-                            )
-                        }
-                    }
-
-                    else -> {
-                        if (placeholderContent != null) {
-                            Box(
-                                modifier = Modifier.fillMaxSize()
-//                                .height(height ?: Dp.Unspecified)
-//                                .width(width ?: Dp.Unspecified)
-                            ) {
-                                placeholderContent()
                             }
-                        } else if (placeHolder != null) {
-                            Image(
-                                painter = rememberAsyncImagePainter(placeHolder),
-                                contentDescription = null,
-                                contentScale = effectiveContentScale,
-                                modifier = Modifier.fillMaxSize()
-//                                .height(height ?: Dp.Unspecified)
-//                                .width(width ?: Dp.Unspecified)
-                            )
+                        )
+                    }
+                }
+
+                else -> {
+                    if (placeholderContent != null) {
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            placeholderContent()
                         }
+                    } else if (placeHolder != null) {
+                        Image(
+                            painter = rememberAsyncImagePainter(placeHolder),
+                            contentDescription = null,
+                            contentScale = effectiveContentScale,
+                            modifier = Modifier.fillMaxSize()
+                        )
                     }
                 }
             }

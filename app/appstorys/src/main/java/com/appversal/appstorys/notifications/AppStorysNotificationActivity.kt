@@ -70,6 +70,7 @@ class AppStorysNotificationActivity : Activity() {
         val notificationId = intent?.getStringExtra(EXTRA_NOTIFICATION_ID)
         val deepLink = intent?.getStringExtra(EXTRA_DEEP_LINK)
         val variantId = intent?.getStringExtra(EXTRA_VARIANT_ID)
+        val runId = intent?.getStringExtra(EXTRA_RUN_ID)
 
         // 1. Launch the target FIRST. startActivity is synchronous-enqueue and
         //    the browser/host activity comes to the foreground immediately;
@@ -92,7 +93,7 @@ class AppStorysNotificationActivity : Activity() {
         Thread {
             try {
                 OutreachEventTracker.fireEventBlocking(
-                    applicationContext, notificationId, "clicked", variantId
+                    applicationContext, notificationId, "clicked", variantId, runId
                 )
             } catch (e: Exception) {
                 Log.e(TAG, "fireEventBlocking failed", e)
@@ -182,13 +183,15 @@ class AppStorysNotificationActivity : Activity() {
         const val EXTRA_DEEP_LINK = "appstorys_deep_link"
 
         const val EXTRA_VARIANT_ID = "appstorys_variant_id"
+        const val EXTRA_RUN_ID = "appstorys_run_id"
 
         /** Build the Intent that the notification PendingIntent will fire. */
         fun newIntent(
             context: Context,
             notificationId: String,
             deepLink: String?,
-            variantId: String? = null
+            variantId: String? = null,
+            runId: String? = null
         ): Intent {
             return Intent(context, AppStorysNotificationActivity::class.java).apply {
                 addFlags(
@@ -198,6 +201,7 @@ class AppStorysNotificationActivity : Activity() {
                 putExtra(EXTRA_NOTIFICATION_ID, notificationId)
                 putExtra(EXTRA_DEEP_LINK, deepLink)
                 putExtra(EXTRA_VARIANT_ID, variantId)
+                putExtra(EXTRA_RUN_ID, runId)
             }
         }
     }

@@ -257,7 +257,7 @@ fun HomeScreen(
 
     LaunchedEffect(Unit) {
 //        val screenName = "Home Screen Kotlin"
-        val screenName = "Home Screen Kotlin"
+        val screenName = "Home Screen Kotlin XML"
         val positions = listOf("widget_one")
         campaignManager.getScreenCampaigns(
             screenName,
@@ -349,7 +349,8 @@ fun HomeScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(top = 12.dp),
+                        .padding(top = 12.dp)
+                        .appstorys("tooltip_one"),
                     contentAlignment = Alignment.BottomCenter
                 ) {
                     Button(
@@ -401,7 +402,9 @@ fun HomeScreen(
                             )
                             Button(
                                 onClick = { showBottomSheet = false },
-                                modifier = Modifier.fillMaxWidth().appstorys("closebutton"),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .appstorys("closebutton"),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = Color(0xFF0752ad)
                                 )
@@ -459,10 +462,10 @@ fun HomeScreen(
                         onClick = {
                             campaignManager.trackEvents(
                                 event = "Login",
-                                metadata = mapOf(
-                                    "name" to eventInput1,
-                                    "age" to eventInput2
-                                )
+//                                metadata = mapOf(
+//                                    "name" to eventInput1,
+//                                    "age" to eventInput2
+//                                )
                             )
                         },
                         modifier = Modifier.appstorys("toolbar_click_container")
@@ -476,7 +479,7 @@ fun HomeScreen(
                     onClick = {
                         campaignManager.subscribeNotifications()
                     },
-                    modifier = Modifier.appstorys("toolbar")
+                    modifier = Modifier.appstorys("tooltip_two")
                 ) {
                     Text("Added to cart Event")
                 }
@@ -549,7 +552,7 @@ fun HomeScreen(
                                 Toast.LENGTH_SHORT
                             ).show()
                         },
-                        modifier = Modifier
+                        modifier = Modifier.appstorys("tooltip_three")
                     ) {
                         Text("Set Property 1")
                     }
@@ -798,7 +801,6 @@ fun PayScreenPage(
                 onClick = {
                 },
                 modifier = Modifier
-
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp)
             ) {

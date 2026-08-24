@@ -486,8 +486,11 @@ object OverlayContainer {
 //            }
         )
     }
+
+    fun removeConstraint(id: String) {
+        constraints.remove(id)
+    }
     fun clearAll() {
-        constraints.clear()
         tooltips.clear()
     }
 }

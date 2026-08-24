@@ -256,6 +256,7 @@ data class StorySlideStyling(
     val ctas: List<StoryContentCtaStyling>? = null,    // Per-cta styling (matched by id with content.ctas[].id)
     val image: List<StoryContentImageStyling>? = null, // Per-image styling (matched by id with content.image[].id)
     val video: List<StoryContentVideoStyling>? = null, // Per-video styling (matched by id with content.video[].id)
+    val lottie: List<StoryContentLottieStyling>? = null, // Per-lottie styling (matched by id with content.lottie[].id)
     val elements: List<StoryContentElementStyling>? = null // Per-element styling (matched by id with content.elements[].id)
 )
 
@@ -270,6 +271,7 @@ data class StorySlideContent(
     val canva: StoryCanva? = null,
     val image: List<StoryContentImage>? = null,
     val video: List<StoryContentVideo>? = null,
+    val lottie: List<StoryContentLottie>? = null,
     val text: List<StoryContentText>? = null,
     val ctas: List<StoryContentCta>? = null,
     val elements: List<StoryContentElement>? = null
@@ -381,7 +383,14 @@ data class StoryContentImageStyling(
     val cornerRadius: Float? = null,
     val flip: StoryFlip? = null,
     val animation: StoryAnimation? = null,
-    val duration: JsonElement? = null
+    val duration: JsonElement? = null,
+    // Studio "how should this media fill its box" key. The editor has shipped it
+    // under three different names over time, so all three are accepted:
+    //   "fit" / "contain" → letterbox inside the box
+    //   anything else (incl. absent) → crop-fill, the historical default
+    val objectFit: String? = null,
+    val sizing: String? = null,
+    val fit: String? = null
 )
 
 // -------- Foreground VIDEO --------
@@ -408,7 +417,45 @@ data class StoryContentVideoStyling(
     val muted: Boolean? = null,
     val flip: StoryFlip? = null,
     val animation: StoryAnimation? = null,
-    val duration: JsonElement? = null
+    val duration: JsonElement? = null,
+    // Studio fit key — same three aliases as StoryContentImageStyling.
+    //   "fill" / "cover" → crop-fill
+    //   "fit" / "contain" (or absent) → letterbox, the historical default
+    val objectFit: String? = null,
+    val sizing: String? = null,
+    val fit: String? = null
+)
+
+// -------- Foreground LOTTIE --------
+// Studio emits lottie exactly like video: a `content.lottie[]` array of
+// { id, link } paired with a `styling.lottie[]` array matched by id.
+
+@Keep
+@Serializable
+data class StoryContentLottie(
+    val id: String? = null,
+    val link: String? = null
+)
+
+@Keep
+@Serializable
+data class StoryContentLottieStyling(
+    val id: String? = null,
+    val position: StoryPosition? = null,
+    val width: Float? = null,
+    val height: Float? = null,
+    val z: Int? = null,
+    val opacity: Float? = null,
+    val rotation: Float? = null,
+    val cornerRadius: Float? = null,
+    val loop: Boolean? = null,
+    val flip: StoryFlip? = null,
+    val animation: StoryAnimation? = null,
+    val duration: JsonElement? = null,
+    // Studio fit key — same three aliases as StoryContentImageStyling.
+    val objectFit: String? = null,
+    val sizing: String? = null,
+    val fit: String? = null
 )
 
 // -------- Foreground TEXT --------
@@ -482,7 +529,8 @@ data class StoryContentCtaStyling(
     val borderWidth: Float? = null,
     val borderRadius: Float? = null,
     val pillBorderRadius: Float? = null,
-    val fontSize: Float? = null,
+    val fontSize: Float? = null,        // legacy flat field — kept for backward compatibility
+    val font: StoryContentTextFont? = null, // new nested font object (fontFamily, fontSize, fontWeight, fontDecoration)
     val opacity: Float? = null,
     val rotation: Float? = null,
     val transparent: Boolean? = null,
@@ -511,7 +559,7 @@ data class StoryContentElement(
     val strokeWidth: Float? = null,
     val frameStyle: String? = null,      // "classic" | "rounded" | ...
     val shadowBlur: Float? = null,
-    val shadowColor: String? = null,
+    val shadowColor: JsonElement? = null,  // hex string (legacy) or {color, opacity} object
     val shadowOffsetX: Float? = null,
     val shadowOffsetY: Float? = null,
     val shadowOpacity: Float? = null,
@@ -554,7 +602,12 @@ data class StoryInteraction(
     val isActive: Boolean? = null,
     val order: Int? = null,
     val config: JsonObject? = null,
-    val styling: JsonObject? = null
+    val styling: JsonObject? = null,
+    // Live aggregate results for this sticker, e.g.
+    //   { "percentages": { "option1": 60, "option2": 40 }, "total_votes": 5 }
+    // Consumed by POLL (bar widths / "60%" labels) and REACTION (bubble counts).
+    // Absent/empty → the renderers fall back to a proportional placeholder split.
+    val analytics: JsonObject? = null
 )
 
 @Keep
@@ -733,9 +786,9 @@ data class FloaterStyling(
     val topRightRadius: String?,
     val bottomLeftRadius: String?,
     val bottomRightRadius: String?,
-    val floaterBottomPadding: String?,
-    val floaterRightPadding: String?,
-    val floaterLeftPadding: String?,
+    val marginBottom: String?,
+    val marginLeft: String?,
+    val marginRight: String?
 )
 
 @Keep
@@ -968,6 +1021,8 @@ data class CsatTextElement(
 data class CsatRating(
     val displayText: String? = null,
     val high: CsatRatingStyle? = null,
+    val spacing: Int?,
+    val cornerRadius: CornerRadius?,
     val low: CsatRatingStyle? = null,
     val unselected: CsatRatingStyle? = null,
     // Nested star structure from JSON
@@ -1627,7 +1682,8 @@ data class SurveyAppearance(
     // Legacy field — kept for backward compat until backend fully renames to backdropOpacity
     val backgroundOpacity: Int? = null,
     val cornerRadius: CornerRadius? = null,
-    val displayDelay: Int? = null
+    val displayDelay: Int? = null,
+    val padding: Margin? = null
 )
 
 @Keep
@@ -1696,7 +1752,15 @@ data class SurveyStyling(
     val cta: SurveyCtaConfig? = null,
     val title: SurveyThankyouTextElement? = null,
     val subtitle: SurveyThankyouTextElement? = null,
-    val options: SurveyOptionsConfig? = null
+    val options: SurveyOptionsConfig? = null,
+    val content: SurveyContentConfig? = null
+)
+
+@Keep
+@Serializable
+data class SurveyContentConfig(
+    val isIntroductionPage: Boolean? = null,
+    val isThankyouPage: Boolean? = null
 )
 
 @Keep
@@ -1976,6 +2040,7 @@ data class ModalBackdrop(
 @Serializable
 data class ModalDimension(
     val height: String? = null,
+    val width: Int? = null,
     val borderWidth: String? = null
 )
 

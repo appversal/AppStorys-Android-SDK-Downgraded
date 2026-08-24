@@ -19,6 +19,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -74,6 +76,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
@@ -148,7 +151,7 @@ internal fun StoryCircles(
             items = sortedStoryGroups,
             key = { storyGroup -> storyGroup.id ?: storyGroup.hashCode() }
         ) { storyGroup ->
-            if (storyGroup.thumbnail != null) {
+            if (!storyGroup.thumbnail.isNullOrEmpty()) {
                 StoryItem(
                     isStoryGroupViewed = viewedStories.contains(storyGroup.id),
                     imageUrl = storyGroup.thumbnail,
@@ -386,7 +389,12 @@ internal fun StoryScreenContent(
     val lifecycleOwner = LocalLifecycleOwner.current
 
     var isHolding by remember { mutableStateOf(false) }
-    var isMuted by rememberSaveable { mutableStateOf(false) }
+    // The studio's sound toggle carries the initial state: defaultSound == "no"
+    // means "start muted". Previously this was ignored and every story opened
+    // unmuted regardless of how it was authored.
+    var isMuted by rememberSaveable {
+        mutableStateOf(storyGroup.styling?.soundToggle?.defaultSound == "no")
+    }
     var isDismissing by remember { mutableStateOf(false) }
 
     // Transition state to prevent flicker when switching slides (especially video -> image)
@@ -406,15 +414,46 @@ internal fun StoryScreenContent(
     var isVideoReady by remember { mutableStateOf(false) }
     var videoDuration by remember { mutableStateOf(0L) }
     var isBuffering by remember { mutableStateOf(false) }
+    // Natural aspect ratio (width / height) of the currently loaded background video,
+    // used so its "position" styling can be honoured the same way it is for images —
+    // see the RESIZE_MODE_FIT branch below.
+    var videoAspectRatio by remember { mutableStateOf<Float?>(null) }
 
     val scope = rememberCoroutineScope()
 
     // Use a set for O(1) lookup instead of list - reset on story group change
     val completedSlides = remember(storyGroup.id) { mutableSetOf<Int>() }
 
-    val isImage = currentSlide.image != null
+    val isImage = currentSlide.video == null
     // Use slideShowTime from styling if available, otherwise default to 5 seconds
     val storyDuration = if (isImage) (storyGroup.styling?.slideShowTime ?: 5) * 1000 else 0
+
+    // True when the slide carries ANY playable video — the full-screen background
+    // video and/or a studio-canvas foreground video. Drives the visibility of the
+    // header sound toggle, which controls all of them together. Previously the
+    // toggle keyed off the background video alone, so a slide whose only audio
+    // came from a studio-canvas video had no way to be muted.
+    val slideHasVideo = remember(currentSlide) {
+        !isImage || currentSlide.content?.video.orEmpty().any { !it.link.isNullOrEmpty() }
+    }
+
+    // The link the share sheet should hand out: the legacy single-CTA link when
+    // present, otherwise the first studio-array CTA that has a redirect. The
+    // share button is offered whenever the slide has something to share — i.e.
+    // any CTA at all (legacy, normal, image or swipe-up) with a link behind it,
+    // rather than only the legacy link + buttonText pair.
+    val shareLink: String? = remember(currentSlide) {
+        currentSlide.link?.takeIf { it.isNotEmpty() }
+            ?: currentSlide.content?.ctas.orEmpty()
+                .firstNotNullOfOrNull { cta ->
+                    (cta.redirectUrl ?: cta.url)?.takeIf { it.isNotEmpty() }
+                }
+    }
+
+    // INPUT-interaction keyboard focus — when true, pauses the slide timer so
+    // the user has time to type. Only set by the INPUT widget; all other
+    // interactions leave it false and the slide auto-advances normally.
+    var isInputFocused by remember(storyGroup.id, currentSlideIndex) { mutableStateOf(false) }
 
     // Optimized ExoPlayer with LoadControl for smooth playback
     val loadControl = remember {
@@ -500,6 +539,14 @@ internal fun StoryScreenContent(
                     }
                 }
             }
+
+            override fun onVideoSizeChanged(videoSize: VideoSize) {
+                videoAspectRatio = if (videoSize.width > 0 && videoSize.height > 0) {
+                    (videoSize.width.toFloat() * videoSize.pixelWidthHeightRatio) / videoSize.height.toFloat()
+                } else {
+                    null
+                }
+            }
         }
         player.addListener(listener)
 
@@ -548,6 +595,7 @@ internal fun StoryScreenContent(
         isVideoReady = false
         isBuffering = false
         videoDuration = 0L
+        videoAspectRatio = null
         sendEvent(Pair(currentSlide, "IMP"))
 
         player.stop()
@@ -565,8 +613,15 @@ internal fun StoryScreenContent(
     }
 
     // Optimized progress tracking with better video duration handling
-    LaunchedEffect(storyGroup.id, currentSlideIndex, isHolding, isDismissing, isVideoReady) {
-        if (isHolding || isDismissing) {
+    LaunchedEffect(
+        storyGroup.id,
+        currentSlideIndex,
+        isHolding,
+        isDismissing,
+        isVideoReady,
+        isInputFocused
+    ) {
+        if (isHolding || isDismissing || isInputFocused) {
             return@LaunchedEffect
         }
 
@@ -620,9 +675,9 @@ internal fun StoryScreenContent(
         isDismissing = sheetState.targetValue == SheetValue.Hidden
     }
 
-    LaunchedEffect(isHolding, isDismissing) {
+    LaunchedEffect(isHolding, isDismissing, isInputFocused) {
         when {
-            isDismissing || isHolding -> player.pause()
+            isDismissing || isHolding || isInputFocused -> player.pause()
             else -> player.play()
         }
     }
@@ -631,6 +686,7 @@ internal fun StoryScreenContent(
         modifier = Modifier
             .fillMaxSize()
             .statusBarsPadding()
+            .navigationBarsPadding() // keep canvas and background within the safe area
             .pointerInput(storyGroup.id, slides.size, currentSlideIndex) {
                 var startPosition: Offset? = null
                 var startTime = 0L
@@ -687,7 +743,13 @@ internal fun StoryScreenContent(
                                     when {
                                         // ⬅️ Left tap → previous slide
                                         isLeftTap && currentSlideIndex > 0 -> {
+                                            // Remove BOTH: the slide being left AND the
+                                            // destination slide — the destination was marked
+                                            // completed when we moved forward past it, which
+                                            // kept its progress bar pinned at full instead of
+                                            // refilling from zero on the way back.
                                             completedSlides.remove(currentSlideIndex)
+                                            completedSlides.remove(currentSlideIndex - 1)
                                             // Stop player and show transition overlay immediately to prevent flicker
                                             player.stop()
                                             isTransitioning = true
@@ -727,14 +789,36 @@ internal fun StoryScreenContent(
                 }
             },
         content = {
-            // Story Content with optimized image loading
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                // Image content with support for Lottie, GIF, and regular images
+            // ── Layer 1: Background colour / gradient ────────────────────────────────
+            // Always fills the full safe-area screen regardless of canvas aspect ratio.
+            StorySlideBackgroundColour(currentSlide.styling?.background)
+
+            // ── Layers 2 & 3: inside BoxWithConstraints so canvas dimensions are ──────
+            // computed once and shared between background media and foreground content.
+            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                val designW =
+                    currentSlide.content?.canva?.width?.takeIf { it > 0f } ?: STORY_DESIGN_WIDTH
+                val designH =
+                    currentSlide.content?.canva?.height?.takeIf { it > 0f } ?: STORY_DESIGN_HEIGHT
+                val aspect = designH / designW
+                val fitByW = maxWidth * aspect <= maxHeight
+                val canvasW = if (fitByW) maxWidth else maxHeight / aspect
+                val canvasH = if (fitByW) maxWidth * aspect else maxHeight
+
+                // Background media metadata from the slide styling.
+                val mediaMeta = currentSlide.styling?.background?.media
+                // sizing="fill" → media crop-fills the safe-area screen.
+                // sizing="fit"  → media fits inside the canvas box (default).
+                val sizingFill = mediaMeta?.sizing == "fill"
+                val mediaAlign = backgroundMediaAlignment(mediaMeta?.position)
+
+                // ── Layer 2: Background image ────────────────────────────────────────
                 if (currentSlide.image != null) {
                     val imageUrl = currentSlide.image
+                    // fit and fill are both resolved against the full screen now (not the
+                    // canva-letterboxed box): fill crop-covers the screen, fit letterboxes
+                    // within the screen — ContentScale below does the actual fit/crop math.
+                    val imgMod = Modifier.fillMaxSize()
 
                     when {
                         // Lottie animation (.json or .lottie files)
@@ -742,15 +826,12 @@ internal fun StoryScreenContent(
                             val composition by rememberLottieComposition(
                                 spec = LottieCompositionSpec.Url(imageUrl)
                             )
-                            Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center
-                            ) {
+                            Box(modifier = imgMod, contentAlignment = mediaAlign) {
                                 LottieAnimation(
                                     composition = composition,
                                     iterations = LottieConstants.IterateForever,
                                     modifier = Modifier.fillMaxSize(),
-                                    contentScale = ContentScale.Fit
+                                    contentScale = if (sizingFill) ContentScale.Crop else ContentScale.Fit
                                 )
                             }
                         }
@@ -785,8 +866,9 @@ internal fun StoryScreenContent(
                             Image(
                                 painter = painter,
                                 contentDescription = null,
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Fit
+                                modifier = imgMod,
+                                contentScale = if (sizingFill) ContentScale.Crop else ContentScale.Fit,
+                                alignment = mediaAlign
                             )
                         }
 
@@ -805,25 +887,50 @@ internal fun StoryScreenContent(
                             Image(
                                 painter = rememberAsyncImagePainter(imageRequest),
                                 contentDescription = null,
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Fit
+                                modifier = imgMod,
+                                contentScale = if (sizingFill) ContentScale.Crop else ContentScale.Fit,
+                                alignment = mediaAlign
                             )
                         }
                     }
                 }
 
-                // Video content
+                // ── Layer 2: Background video ────────────────────────────────────────
                 if (currentSlide.video != null) {
-                    AndroidView(
-                        factory = { ctx ->
-                            PlayerView(ctx).apply {
-                                this.player = player
-                                layoutParams = FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT)
-                                useController = false
-                            }
-                        },
-                        modifier = Modifier.fillMaxSize()
-                    )
+                    // fit and fill are both resolved against the full screen now (not the
+                    // canva-letterboxed box); RESIZE_MODE_FIT/ZOOM below does the fit/crop math.
+                    val playerViewFactory: (Context) -> PlayerView = { ctx ->
+                        PlayerView(ctx).apply {
+                            this.player = player
+                            layoutParams = FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT)
+                            useController = false
+                        }
+                    }
+
+                    if (sizingFill || videoAspectRatio == null) {
+                        // Crop-fill (or aspect ratio not known yet) — fill the screen and let
+                        // ExoPlayer's resize mode do the crop/fit math, same as before.
+                        AndroidView(
+                            factory = playerViewFactory,
+                            update = { view ->
+                                // RESIZE_MODE_ZOOM (4) = crop-fill; RESIZE_MODE_FIT (0) = letterbox
+                                view.resizeMode = if (sizingFill) 4 else 0
+                            },
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        // "fit" sizing with a known aspect ratio — size the player view to the
+                        // video's own aspect ratio (like ContentScale.Fit does for images) and
+                        // align it within the full screen using the same `position` styling the
+                        // image path above already honours.
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = mediaAlign) {
+                            AndroidView(
+                                factory = playerViewFactory,
+                                update = { view -> view.resizeMode = 0 },
+                                modifier = Modifier.aspectRatio(videoAspectRatio!!)
+                            )
+                        }
+                    }
 
                     // Show loading indicator only while initially buffering
                     if (isBuffering) {
@@ -839,76 +946,104 @@ internal fun StoryScreenContent(
                     }
                 }
 
-                // CTA Button
-                if (currentSlide.link?.isNotEmpty() == true && currentSlide.buttonText?.isNotEmpty() == true) {
-                    val styling = currentSlide.styling
-                    val ctaConfig = styling?.cta
-                    val container = ctaConfig?.container
-                    val cornerRadius = ctaConfig?.cornerRadius
-                    val ctaMargin = ctaConfig?.margin ?: styling?.ctaMargins
-                    val ctaText = ctaConfig?.text
-
-                    val alignmentStr = container?.alignment ?: styling?.ctaAlignment
-                    val alignment = when (alignmentStr?.lowercase()) {
-                        "left" -> Alignment.BottomStart
-                        "right" -> Alignment.BottomEnd
-                        else -> Alignment.BottomCenter
-                    }
-
-                    val ctaButtonConfig = createCTAButtonConfig(
-                        textColor = ctaText?.color ?: styling?.ctaText?.fontColor ?: "#FFFFFF",
-                        textSize = ctaText?.fontSize ?: styling?.ctaText?.fontSize ?: 12,
-                        fontFamily = ctaText?.fontFamily,
-                        fontDecoration = ctaText?.fontDecoration,
-                        marginTop = ctaMargin?.top ?: 12,
-                        marginEnd = ctaMargin?.right ?: 12,
-                        marginBottom = ctaMargin?.bottom ?: 12,
-                        marginStart = ctaMargin?.left ?: 12,
-                        height = container?.height ?: styling?.ctaHeight ?: 32,
-                        width = container?.ctaWidth,
-                        borderColorString = container?.borderColor
-                            ?: styling?.ctaBackground?.borderColor,
-                        borderWidth = container?.borderWidth ?: styling?.borderWidth ?: 2,
-                        fullWidth = container?.ctaFullWidth ?: false,
-                        backgroundColorString = container?.backgroundColor
-                            ?: styling?.ctaBackground?.backgroundColor ?: "#FFFFFF",
-                        alignment = alignmentStr ?: "center",
-                        borderRadiusTopLeft = cornerRadius?.topLeft ?: 12,
-                        borderRadiusTopRight = cornerRadius?.topRight ?: 12,
-                        borderRadiusBottomLeft = cornerRadius?.bottomLeft ?: 12,
-                        borderRadiusBottomRight = cornerRadius?.bottomRight ?: 12
-                    )
-
-                    Box(
-                        modifier = Modifier
-                            .align(alignment)
-                            .navigationBarsPadding()
-                    ) {
-                        CTAButton(
-                            text = currentSlide.buttonText ?: "",
-                            config = ctaButtonConfig,
-                            onClick = {
+                // ── Layer 3: Foreground canvas content ───────────────────────────────
+                // All studio elements (text, images, shapes, CTAs, interactions) are
+                // always positioned as percentages of the canvas, centred on screen.
+                Box(
+                    modifier = Modifier
+                        .size(canvasW, canvasH)
+                        .align(Alignment.Center)
+                ) {
+                    // ---- Studio editor: foreground content (images, videos, text, ctas,
+                    // elements, interactions). Layered ABOVE the background image/video
+                    // and BELOW the legacy single-CTA button & header overlay.
+                    StorySlideForeground(
+                        slide = currentSlide,
+                        onCtaClick = { redirect ->
+                            if (!redirect.isNullOrEmpty()) {
                                 try {
-                                    uriHandler.openUri(currentSlide.link)
+                                    uriHandler.openUri(redirect)
                                 } catch (e: Exception) {
-                                    Log.e("StoryScreen", "Failed to open link: ${e.message}")
+                                    Log.e("StoryScreen", "Failed to open CTA link: ${e.message}")
                                 }
-                                sendEvent(Pair(currentSlide, "CLK"))
-                                sendClickEvent(Pair(currentSlide, "clicked"))
                             }
-                        )
-                    }
-                }
-
-                // Transition overlay to mask content swap and prevent flicker
-                if (isTransitioning) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color.Black)
+                            sendEvent(Pair(currentSlide, "CLK"))
+                            sendClickEvent(Pair(currentSlide, "clicked"))
+                        },
+                        muted = isMuted,
+                        onInputFocusChanged = { focused -> isInputFocused = focused },
+                        onTrack = { event, metadata ->
+                            val withSlide =
+                                metadata + mapOf("story_slide" to (currentSlide.id ?: ""))
+                            trackEvents(campaignId, event, withSlide)
+                        }
                     )
-                }
-            }
+
+                    // CTA Button (legacy single-CTA path — kept for backward compat)
+                    if (currentSlide.link?.isNotEmpty() == true && currentSlide.buttonText?.isNotEmpty() == true) {
+                        val styling = currentSlide.styling
+                        val ctaConfig = styling?.cta
+                        val container = ctaConfig?.container
+                        val cornerRadius = ctaConfig?.cornerRadius
+                        val ctaMargin = ctaConfig?.margin ?: styling?.ctaMargins
+                        val ctaText = ctaConfig?.text
+
+                        val alignmentStr = container?.alignment ?: styling?.ctaAlignment
+                        val alignment = when (alignmentStr?.lowercase()) {
+                            "left" -> Alignment.BottomStart
+                            "right" -> Alignment.BottomEnd
+                            else -> Alignment.BottomCenter
+                        }
+
+                        val ctaButtonConfig = createCTAButtonConfig(
+                            textColor = ctaText?.color ?: styling?.ctaText?.fontColor ?: "#FFFFFF",
+                            textSize = ctaText?.fontSize ?: styling?.ctaText?.fontSize ?: 12,
+                            fontFamily = ctaText?.fontFamily,
+                            fontDecoration = ctaText?.fontDecoration,
+                            marginTop = ctaMargin?.top ?: 12,
+                            marginEnd = ctaMargin?.right ?: 12,
+                            marginBottom = ctaMargin?.bottom ?: 12,
+                            marginStart = ctaMargin?.left ?: 12,
+                            height = container?.height ?: styling?.ctaHeight ?: 32,
+                            width = container?.ctaWidth,
+                            borderColorString = container?.borderColor
+                                ?: styling?.ctaBackground?.borderColor,
+                            borderWidth = container?.borderWidth ?: styling?.borderWidth ?: 2,
+                            fullWidth = container?.ctaFullWidth ?: false,
+                            backgroundColorString = container?.backgroundColor
+                                ?: styling?.ctaBackground?.backgroundColor ?: "#FFFFFF",
+                            alignment = alignmentStr ?: "center",
+                            borderRadiusTopLeft = cornerRadius?.topLeft ?: 12,
+                            borderRadiusTopRight = cornerRadius?.topRight ?: 12,
+                            borderRadiusBottomLeft = cornerRadius?.bottomLeft ?: 12,
+                            borderRadiusBottomRight = cornerRadius?.bottomRight ?: 12
+                        )
+
+                        Box(modifier = Modifier.align(alignment)) {
+                            CTAButton(
+                                text = currentSlide.buttonText ?: "",
+                                config = ctaButtonConfig,
+                                onClick = {
+                                    try {
+                                        uriHandler.openUri(currentSlide.link)
+                                    } catch (e: Exception) {
+                                        Log.e("StoryScreen", "Failed to open link: ${e.message}")
+                                    }
+                                    sendEvent(Pair(currentSlide, "CLK"))
+                                    sendClickEvent(Pair(currentSlide, "clicked"))
+                                }
+                            )
+                        }
+                    }
+
+                    // Transition overlay — use the slide's background colour/gradient
+                    // instead of black so the canvas area matches the full-screen
+                    // background layer (Layer 1) for the duration of the content swap.
+                    if (isTransitioning) {
+                        StorySlideBackgroundColour(currentSlide.styling?.background)
+                    }
+                } // end foreground canvas Box
+            } // end BoxWithConstraints
 
             // Header overlay - Fixed at top with Column for proper layout
             Column(
@@ -939,7 +1074,9 @@ internal fun StoryScreenContent(
                                     .height(3.dp)
                                     .clip(RoundedCornerShape(2.dp)),
                                 color = Color.White,
-                                trackColor = Color.White.copy(alpha = 0.3f),
+                                // 0.3-alpha white vanishes on white backgrounds; neutral grey is
+                                // visible on both light and dark/coloured story backgrounds.
+                                trackColor = Color(0xFFCCCCCC).copy(alpha = 0.7f),
                             )
                         }
                     }
@@ -1038,7 +1175,10 @@ internal fun StoryScreenContent(
                                 CommonText(
                                     text = it,
                                     styling = TextStyling(
-                                        color = "#FFFFFF",
+                                        // Honour the group's configured name colour;
+                                        // white stays the fallback.
+                                        color = storyGroup.nameColor?.takeIf { c -> c.isNotBlank() }
+                                            ?: "#FFFFFF",
                                         fontSize = 15,
                                         fontDecoration = listOf("medium"),
                                         fontFamily = "",
@@ -1054,7 +1194,7 @@ internal fun StoryScreenContent(
                         horizontalArrangement = Arrangement.spacedBy(0.dp, Alignment.End),
                         verticalAlignment = Alignment.Top,
                         content = {
-                            if (!isImage) {
+                            if (slideHasVideo) {
                                 // NEW IMPLEMENTATION: Using common SoundToggleButton component
                                 val soundToggle = storyGroup.styling?.soundToggle
                                 val isSoundToggleEnabled = soundToggle?.enabled ?: true
@@ -1104,7 +1244,7 @@ internal fun StoryScreenContent(
                                 }
                             }
 
-                            if (currentSlide.link?.isNotEmpty() == true && currentSlide.buttonText?.isNotEmpty() == true) {
+                            if (shareLink != null) {
                                 // NEW IMPLEMENTATION: Using common ShareButton component
                                 // Get share button styling from storyGroup
                                 val shareConfig = storyGroup.styling?.share
@@ -1133,14 +1273,18 @@ internal fun StoryScreenContent(
                                                         action = Intent.ACTION_SEND
                                                         putExtra(
                                                             Intent.EXTRA_TEXT,
-                                                            "Check out this story: ${currentSlide.link}"
+                                                            "Check out this story: $shareLink"
                                                         )
                                                         type = "text/plain"
                                                     },
                                                     "Share via"
                                                 )
                                             )
-                                            trackEvents(campaignId, "shared", mapOf("story_slide" to (currentSlide.id ?: "")))
+                                            trackEvents(
+                                                campaignId,
+                                                "shared",
+                                                mapOf("story_slide" to (currentSlide.id ?: ""))
+                                            )
                                         }
                                     )
                                 }
@@ -1234,7 +1378,7 @@ internal fun StoryScreenWrapper(
                 if (!storyGroup.slides.isNullOrEmpty()) {
                     StoryScreenContent(
                         storyGroup = storyGroup,
-                        slides = storyGroup.slides,
+                        slides = storyGroup.slides.sortedBy { it.order ?: 0 },
                         sheetState = sheetState,
                         onDismiss = {
                             scope.launch {
@@ -1316,7 +1460,9 @@ internal fun StoriesApp(
     var initialClickedGroup by remember { mutableStateOf<StoryGroup?>(null) }
 
     Box(
-        modifier = Modifier.fillMaxSize().background(Color.Transparent),
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Transparent),
         content = {
             StoryCircles(
                 viewedStories = viewedStories,
@@ -1428,6 +1574,25 @@ internal fun StoryAppMain(
         sendClickEvent = sendClickEvent,
         campaignId = campaignId
     )
+}
+
+/**
+ * Maps a background media position string from the studio JSON to a Compose
+ * [Alignment] used for both ContentScale.Crop cropping bias and Box centring.
+ */
+private fun backgroundMediaAlignment(position: String?): Alignment = when (position) {
+    "top-left" -> Alignment.TopStart
+    "top" -> Alignment.TopCenter
+    "top-right" -> Alignment.TopEnd
+    "left" -> Alignment.CenterStart
+    "center" -> Alignment.Center
+    "right" -> Alignment.CenterEnd
+    "bottom-left" -> Alignment.BottomStart
+    "bottom",
+    "bottom-center" -> Alignment.BottomCenter
+
+    "bottom-right" -> Alignment.BottomEnd
+    else -> Alignment.Center
 }
 
 internal fun saveViewedStories(idList: List<String>, sharedPreferences: SharedPreferences) {
