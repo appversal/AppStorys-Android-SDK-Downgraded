@@ -1,25 +1,24 @@
 {
-  "campaign": "c6b5373a-ad85-473e-8243-5354ec01aa84",
-  "description_text": "BE REAL",
+  "campaign": "16126bb9-e1c9-41a2-ac43-5354592404af",
+  "description_text": "This will help us improve more",
   "feedback_option": {
-    "option1": "NO",
-    "option2": "YES",
-    "option3": "I'll Pass"
+    "option1": "Not Good",
+    "option2": "Very Bad"
   },
-  "height": 80,
+  "height": 150,
   "highStarText": "",
-  "id": "6f0b24e3-ed0c-4e6b-9c97-02893bd02fc8",
-  "link": "https://google.com",
+  "id": "5b58b64e-6aa4-457e-ad02-9814a2c9b62d",
+  "link": "",
   "lowStarText": "",
   "styling": {
     "appearance": {
-      "backgroundColor": "#ffddd1",
-      "borderRadius": 20,
+      "backgroundColor": "#fff2d5",
+      "borderRadius": 60,
       "displayDelay": 0,
       "margin": {
         "bottom": 0,
-        "left": 0,
-        "right": 0,
+        "left": 10,
+        "right": 10,
         "top": 0
       },
       "padding": {
@@ -33,35 +32,35 @@
       "color": {
         "cross": "#FFFFFF",
         "fill": "#000000",
-        "stroke": "#FFFFFF"
+        "stroke": ""
       },
       "enabled": true,
       "image": "",
       "margin": {
         "bottom": 4,
         "left": 4,
-        "right": 4,
-        "top": 4
+        "right": 3,
+        "top": 5
       },
-      "selectedStyle": "cross4",
-      "size": 18
+      "selectedStyle": "cross3",
+      "size": 35
     },
     "feedbackPage": {
       "additionalComments": {
         "borderWidth": 1,
         "colors": {
-          "background": "#ededed",
-          "border": "#d9d9d9",
+          "background": "#ebebeb",
+          "border": "#ebebeb",
           "text": "#050505"
         },
         "enabled": true,
-        "placeholder": "Additional COmments",
+        "placeholder": "Additional Comments",
         "textStyle": {
           "color": "#050505",
           "fontDecoration": [],
-          "fontFamily": "Arial",
-          "fontSize": 14,
-          "textAlign": "left"
+          "fontFamily": "Helvetica",
+          "fontSize": 16,
+          "textAlign": "center"
         }
       },
       "options": {
@@ -72,10 +71,10 @@
           "topRight": 7
         },
         "margin": {
-          "bottom": 0,
+          "bottom": 4,
           "left": 0,
           "right": 0,
-          "top": 10
+          "top": 4
         },
         "nonSelectedOptions": {
           "borderWidth": 2,
@@ -87,25 +86,25 @@
           "textStyle": {
             "color": "#050505",
             "fontDecoration": [],
-            "fontFamily": "Arial",
-            "fontSize": 14,
+            "fontFamily": "Helvetica",
+            "fontSize": 16,
             "textAlign": "center"
           }
         },
-        "optionsHeight": 45,
-        "optionsSpacing": 5,
+        "optionsHeight": 50,
+        "optionsSpacing": 12,
         "selectedOptions": {
           "borderWidth": 2,
           "colors": {
-            "background": "#ffd1b3",
-            "border": "#ff5900",
+            "background": "#ffdad8",
+            "border": "#e32400",
             "text": "#000000"
           },
           "textStyle": {
             "color": "#000000",
             "fontDecoration": [],
-            "fontFamily": "Arial",
-            "fontSize": 14,
+            "fontFamily": "Helvetica",
+            "fontSize": 16,
             "textAlign": "center"
           }
         }
@@ -114,12 +113,12 @@
         "cta": {
           "container": {
             "alignment": "center",
-            "backgroundColor": "#ff8624",
-            "borderColor": "#fa6837",
+            "backgroundColor": "#000000",
+            "borderColor": "#000000",
             "borderWidth": 0,
             "ctaFullWidth": false,
-            "ctaWidth": 192,
-            "height": 45
+            "ctaWidth": 200,
+            "height": 50
           },
           "cornerRadius": {
             "bottomLeft": 7,
@@ -128,16 +127,18 @@
             "topRight": 7
           },
           "margin": {
-            "bottom": 4,
+            "bottom": 10,
             "left": 4,
             "right": 4,
-            "top": 14
+            "top": 30
           },
           "text": {
             "color": "#ffffff",
-            "fontDecoration": [],
-            "fontFamily": "Inter",
-            "fontSize": 18
+            "fontDecoration": [
+              "bold"
+            ],
+            "fontFamily": "Helvetica",
+            "fontSize": 20
           }
         },
         "enabled": true,
@@ -155,10 +156,14 @@
         },
         "textStyle": {
           "color": "#32302f",
-          "fontDecoration": [],
-          "fontFamily": "Inter",
+          "fontDecoration": [
+            "bold",
+            "italic",
+            "underline"
+          ],
+          "fontFamily": "Helvetica",
           "fontSize": 16,
-          "textAlign": "left"
+          "textAlign": "center"
         }
       },
       "title": {
@@ -170,10 +175,14 @@
         },
         "textStyle": {
           "color": "#161413",
-          "fontDecoration": [],
-          "fontFamily": "Inter",
-          "fontSize": 21,
-          "textAlign": "left"
+          "fontDecoration": [
+            "bold",
+            "italic",
+            "underline"
+          ],
+          "fontFamily": "Helvetica",
+          "fontSize": 24,
+          "textAlign": "center"
         }
       }
     },
@@ -186,64 +195,49 @@
         "topRight": 7
       },
       "displayText": "same",
-      "emoji": null,
+      "emoji": {
+        "selected": {
+          "stylingContainer": {
+            "border": "#FE6B35",
+            "borderWidth": 2,
+            "fill": "#fff3ed"
+          }
+        },
+        "unselected": {
+          "stylingContainer": {
+            "border": "#cccccc",
+            "borderWidth": 1,
+            "fill": "#f0f0f0"
+          }
+        },
+        "values": [
+          "😢",
+          "😕",
+          "😐",
+          "🙂",
+          "😄"
+        ]
+      },
       "highRatingSubtitle": "",
       "highRatingTitle": "",
       "lowRatingSubtitle": "",
       "lowRatingTitle": "",
       "number": null,
-      "ratingType": "star",
+      "ratingType": "emoji",
       "spacing": 8,
-      "star": {
-        "high": {
-          "stylingContainer": {
-            "background": "#ededed",
-            "border": "#161413",
-            "borderWidth": 1
-          },
-          "stylingStar": {
-            "background": "#ededed",
-            "border": "#161413",
-            "borderWidth": 1
-          }
-        },
-        "low": {
-          "stylingContainer": {
-            "background": "#ededed",
-            "border": "#FE6B35",
-            "borderWidth": 1
-          },
-          "stylingStar": {
-            "background": "#161413",
-            "border": "#FE6B35",
-            "borderWidth": 1
-          }
-        },
-        "unselected": {
-          "stylingContainer": {
-            "background": "#ededed",
-            "border": "#32302f",
-            "borderWidth": 1
-          },
-          "stylingStar": {
-            "background": "#161413",
-            "border": "#32302f",
-            "borderWidth": 1
-          }
-        }
-      }
+      "star": null
     },
     "thankyouPage": {
       "doneButton": {
         "cta": {
           "container": {
             "alignment": "center",
-            "backgroundColor": "#ff7e29",
-            "borderColor": "#fa6837",
+            "backgroundColor": "#000000",
+            "borderColor": "#000000",
             "borderWidth": 0,
             "ctaFullWidth": false,
-            "ctaWidth": 176,
-            "height": 45
+            "ctaWidth": 200,
+            "height": 50
           },
           "cornerRadius": {
             "bottomLeft": 7,
@@ -252,31 +246,31 @@
             "topRight": 7
           },
           "margin": {
-            "bottom": 4,
+            "bottom": 0,
             "left": 4,
             "right": 4,
-            "top": 4
+            "top": 0
           },
           "text": {
             "color": "#ffffff",
             "fontDecoration": [
               "bold"
             ],
-            "fontFamily": "Inter",
-            "fontSize": 17
+            "fontFamily": "Helvetica",
+            "fontSize": 16
           }
         },
-        "text": "KUDOS"
+        "text": "Done"
       },
       "imageStyle": {
-        "height": 80,
+        "height": 150,
         "margin": {
-          "bottom": 12,
+          "bottom": 0,
           "left": 12,
           "right": 12,
-          "top": 12
+          "top": 0
         },
-        "width": 80
+        "width": 150
       },
       "subtitle": {
         "margin": {
@@ -286,10 +280,12 @@
           "top": 0
         },
         "textStyle": {
-          "color": "#FE6B35",
-          "fontDecoration": [],
-          "fontFamily": "Arial",
-          "fontSize": 16,
+          "color": "#fc581d",
+          "fontDecoration": [
+            "bold"
+          ],
+          "fontFamily": "Helvetica",
+          "fontSize": 21,
           "textAlign": "center"
         }
       },
@@ -301,18 +297,20 @@
           "top": 0
         },
         "textStyle": {
-          "color": "#FE6B35",
-          "fontDecoration": [],
-          "fontFamily": "Arial",
+          "color": "#000000",
+          "fontDecoration": [
+            "bold"
+          ],
+          "fontFamily": "Helvetica",
           "fontSize": 20,
           "textAlign": "center"
         }
       }
     }
   },
-  "thankyouDescription": "Subtitle",
-  "thankyouImage": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/thankyouImage/ChatGPT_Image_Jun_9_2026_12_01_44_PM.png",
-  "thankyouText": "TITLE",
-  "title": "Did you like our service ?",
-  "width": 80
+  "thankyouDescription": "",
+  "thankyouImage": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/thankyouImage/thank-you.png",
+  "thankyouText": "Thank you for your feedback",
+  "title": "Give us your feedback",
+  "width": 150
 }
