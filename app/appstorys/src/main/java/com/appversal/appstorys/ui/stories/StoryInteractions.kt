@@ -37,6 +37,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
@@ -661,28 +662,21 @@ private fun PollInteraction(
         // Was a fixed `top = 8.dp`; now scales with the poll's own size so the
         // question doesn't crowd the options on small stickers or float on large ones.
         val questionTopPadding = unit
-        val questionGap = unit * 0.1f
+        val questionGap = unit * 0.5f
         val questionLineHeightMultiplier = 1.25f
 
         // Question text — bounded by both axes so it never grows past what the box can
         // hold either way.
         val questionSize = minOf(h * 0.15f, w * 0.13f)
 
-        // Option text — scaled from the question for visual hierarchy, then capped by
-        // however much room each option actually gets: shared row width for horizontal/
-        // pill layouts, shared column height for the vertical layout.
-        val optionByHierarchy = questionSize * 0.82f
-        val optionByAvailable = if (isHorizontal) {
-            unitFitToSpace(available = w - containerPadding * 2, count = n, itemRatio = 5.2f)
-        } else {
-            unitFitToSpace(
-                available = h - containerPadding * 2 - questionSize * 1.4f,
-                count = n,
-                itemRatio = 2.1f,
-                gapRatio = 0.5f
-            )
-        }
-        val optionSize = minOf(optionByHierarchy, optionByAvailable)
+        val innerW = (w - containerPadding * 2).coerceAtLeast(0.dp)
+        val innerH = (h - containerPadding * 2).coerceAtLeast(0.dp)
+
+        // Horizontal / pill option text — unchanged: capped by the shared row width.
+        val horizontalOptionSize = minOf(
+            questionSize * 0.82f,
+            unitFitToSpace(available = innerW, count = n, itemRatio = 5.2f)
+        )
 
         // Horizontal layouts (pill included) DON'T stretch their options to fill the
         // leftover height — they get an explicit, text-proportional height and sit
@@ -690,7 +684,80 @@ private fun PollInteraction(
         // ballooning into tall slabs on a short question / tall sticker. Only the
         // vertical/stacked layout divides the remaining height between its rows.
         val optionsRowHeight =
-            (optionSize * 2.4f + unit * 0.6f).coerceIn(unit * 1.8f, h * 0.45f)
+            (horizontalOptionSize * 2.4f + unit * 0.6f).coerceIn(unit * 1.8f, h * 0.45f)
+
+        // ── Question / options fit ───────────────────────────────────────────────
+        // The question used to be laid out unbounded, with the options simply taking
+        // whatever height was left over. In the vertical layout the options stack
+        // instead of sharing one row, so a question that wraps onto two or three lines
+        // consumes the whole box: the rows collapse to a few dp and their labels spill
+        // out over the question. Reserve the height the options need FIRST, then
+        // measure the question and shrink its font until it fits in what remains —
+        // giving the vertical layout the same "always fits" behaviour the horizontal
+        // one already gets from its fixed row height.
+        val textMeasurer = rememberTextMeasurer()
+        val minRowHeight = unit * 1.4f
+        val reservedOptionsHeight = if (isHorizontal) {
+            optionsRowHeight
+        } else {
+            minRowHeight * n + rowGap * (n - 1).coerceAtLeast(0)
+        }
+        // Top padding above the question plus the Column's own question→options gap.
+        val questionChromeHeight =
+            if (question.isEmpty()) 0.dp else questionTopPadding + questionGap
+        val maxQuestionHeight =
+            (innerH - reservedOptionsHeight - questionChromeHeight).coerceAtLeast(unit)
+        val innerWPx = with(density) { innerW.roundToPx() }.coerceAtLeast(1)
+
+        fun measureQuestionHeight(size: Dp): Dp {
+            if (question.isEmpty()) return 0.dp
+            val result = textMeasurer.measure(
+                text = AnnotatedString(question),
+                style = TextStyle(
+                    fontSize = with(density) { size.toSp() },
+                    lineHeight = with(density) { (size * questionLineHeightMultiplier).toSp() },
+                    fontFamily = questionFontFamily,
+                    fontWeight = questionFontStyle.fontWeight,
+                    fontStyle = questionFontStyle.fontStyle,
+                    textDecoration = questionFontStyle.textDecoration,
+                    textAlign = questionFontStyle.textAlign ?: TextAlign.Center
+                ),
+                constraints = Constraints(maxWidth = innerWPx)
+            )
+            return with(density) { result.size.height.toDp() }
+        }
+
+        // A question that already fits keeps its size exactly as before — the loop only
+        // runs when the text would otherwise overrun the space left for the options.
+        val minQuestionSize = questionSize * 0.45f
+        var fittedQuestionSize = questionSize
+        var fittedQuestionHeight = measureQuestionHeight(fittedQuestionSize)
+        var shrinkGuard = 0
+        while (fittedQuestionHeight > maxQuestionHeight &&
+            fittedQuestionSize > minQuestionSize &&
+            shrinkGuard < 12
+        ) {
+            fittedQuestionSize *= 0.88f
+            fittedQuestionHeight = measureQuestionHeight(fittedQuestionSize)
+            shrinkGuard++
+        }
+        fittedQuestionHeight = fittedQuestionHeight.coerceAtMost(maxQuestionHeight)
+
+        // Height each stacked row actually receives once the question is placed.
+        val verticalRowHeight = (
+                (innerH
+                        - (if (question.isEmpty()) 0.dp else fittedQuestionHeight + questionChromeHeight)
+                        - rowGap * (n - 1).coerceAtLeast(0)) / n
+                ).coerceAtLeast(minRowHeight)
+
+        // Option text — scaled from the question for visual hierarchy, then capped by
+        // however much room each option actually gets: shared row width for horizontal /
+        // pill layouts, the row's real height for the vertical layout.
+        val optionSize = if (isHorizontal) {
+            horizontalOptionSize
+        } else {
+            minOf(fittedQuestionSize * 0.82f, verticalRowHeight * 0.42f)
+        }
 
         Column(
             modifier = Modifier
@@ -708,8 +775,8 @@ private fun PollInteraction(
                     text = question,
                     color = { questionTextColor },
                     style = TextStyle(
-                        fontSize = with(density) { questionSize.toSp() },
-                        lineHeight = with(density) { (questionSize * questionLineHeightMultiplier).toSp() },
+                        fontSize = with(density) { fittedQuestionSize.toSp() },
+                        lineHeight = with(density) { (fittedQuestionSize * questionLineHeightMultiplier).toSp() },
                         fontFamily = questionFontFamily,
                         fontWeight = questionFontStyle.fontWeight,
                         fontStyle = questionFontStyle.fontStyle,
@@ -718,6 +785,9 @@ private fun PollInteraction(
                     ),
                     modifier = Modifier
                         .padding(top = questionTopPadding)
+                        // Hard ceiling: whatever the text ends up measuring, it can
+                        // never claim the space reserved for the option rows.
+                        .heightIn(max = maxQuestionHeight)
                         .fillMaxWidth()
                 )
             }

@@ -9,12 +9,13 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -43,8 +44,13 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -71,6 +77,8 @@ import com.appversal.appstorys.api.StoryContentElement
 import com.appversal.appstorys.api.StoryContentElementStyling
 import com.appversal.appstorys.api.StoryContentImage
 import com.appversal.appstorys.api.StoryContentImageStyling
+import com.appversal.appstorys.api.StoryContentLottie
+import com.appversal.appstorys.api.StoryContentLottieStyling
 import com.appversal.appstorys.api.StoryContentText
 import com.appversal.appstorys.api.StoryContentVideo
 import com.appversal.appstorys.api.StoryContentVideoStyling
@@ -89,7 +97,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import com.appversal.appstorys.api.StoryAnimation
 import kotlinx.serialization.json.JsonElement
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
 /**
@@ -139,7 +146,11 @@ internal fun StorySlideForeground(
     val styling = slide.styling
     val density = LocalDensity.current
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize().clipToBounds()) {
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxSize()
+            .clipToBounds()
+    ) {
         val maxWidthPx = with(density) { maxWidth.toPx() }
         val maxHeightPx = with(density) { maxHeight.toPx() }
 
@@ -172,6 +183,17 @@ internal fun StorySlideForeground(
             )
         }
 
+        // -------- LOTTIE (foreground) --------
+        content.lottie.orEmpty().forEach { lot ->
+            val styleFor = styling?.lottie?.firstOrNull { it.id == lot.id }
+            ForegroundLottie(
+                lottie = lot,
+                style = styleFor,
+                scope = scope,
+                currentTime = currentTime
+            )
+        }
+
         // -------- ELEMENTS (shapes / stickers / frames) --------
         content.elements.orEmpty().forEach { el ->
             val styleFor = styling?.elements?.firstOrNull { it.id == el.id }
@@ -187,10 +209,18 @@ internal fun StorySlideForeground(
         // -------- CTAS (studio array form) --------
         content.ctas.orEmpty().forEach { cta ->
             val styleFor = styling?.ctas?.firstOrNull { it.id == cta.id }
-            ForegroundCta(cta = cta, style = styleFor, scope = scope, currentTime = currentTime, onClick = {
-                onCtaClick(cta.redirectUrl)
-                onTrack("cta_clicked", mapOf("cta_id" to (cta.id ?: ""), "url" to (cta.redirectUrl ?: "")))
-            })
+            ForegroundCta(
+                cta = cta,
+                style = styleFor,
+                scope = scope,
+                currentTime = currentTime,
+                onClick = {
+                    onCtaClick(cta.redirectUrl)
+                    onTrack(
+                        "cta_clicked",
+                        mapOf("cta_id" to (cta.id ?: ""), "url" to (cta.redirectUrl ?: ""))
+                    )
+                })
         }
 
         // -------- INTERACTIONS --------
@@ -262,12 +292,12 @@ internal fun StorySlideBackgroundColour(background: StorySlideBackground?) {
             "gradient" -> {
                 val grad = bg.gradient
                 val from = parseStoryColor(grad?.from) ?: Color.Transparent
-                val to   = parseStoryColor(grad?.to)   ?: Color.Transparent
+                val to = parseStoryColor(grad?.to) ?: Color.Transparent
                 // Stops arrive with offset in 0–100; normalise to 0.0–1.0 for Compose.
                 val stops: List<Pair<Float, Color>> = grad?.stops
                     ?.mapNotNull { stop ->
-                        val c   = parseStoryColor(stop.color) ?: return@mapNotNull null
-                        val off = stop.offset              ?: return@mapNotNull null
+                        val c = parseStoryColor(stop.color) ?: return@mapNotNull null
+                        val off = stop.offset ?: return@mapNotNull null
                         val alpha = ((stop.opacity ?: 100f) / 100f).coerceIn(0f, 1f)
                         (off / 100f) to c.copy(alpha = alpha)
                     }
@@ -275,13 +305,14 @@ internal fun StorySlideBackgroundColour(background: StorySlideBackground?) {
                 val arr = stops.toTypedArray()
                 when (grad?.direction) {
                     // ── Linear axial ──────────────────────────────────────────────
-                    "top"    -> Brush.verticalGradient(colorStops = arr)
+                    "top" -> Brush.verticalGradient(colorStops = arr)
                     "bottom" -> Brush.verticalGradient(
                         colorStops = arr,
                         startY = Float.POSITIVE_INFINITY, endY = 0f
                     )
-                    "left"   -> Brush.horizontalGradient(colorStops = arr)
-                    "right"  -> Brush.horizontalGradient(
+
+                    "left" -> Brush.horizontalGradient(colorStops = arr)
+                    "right" -> Brush.horizontalGradient(
                         colorStops = arr,
                         startX = Float.POSITIVE_INFINITY, endX = 0f
                     )
@@ -295,7 +326,8 @@ internal fun StorySlideBackgroundColour(background: StorySlideBackground?) {
                     "radial" -> {
                         val centerX = widthPx / 2f
                         val centerY = heightPx / 2f
-                        val farthestCornerRadius = kotlin.math.sqrt(centerX * centerX + centerY * centerY)
+                        val farthestCornerRadius =
+                            kotlin.math.sqrt(centerX * centerX + centerY * centerY)
                         Brush.radialGradient(
                             colorStops = arr,
                             center = Offset(centerX, centerY),
@@ -306,34 +338,44 @@ internal fun StorySlideBackgroundColour(background: StorySlideBackground?) {
                     "tl" -> Brush.linearGradient(
                         colorStops = arr,
                         start = Offset.Zero,
-                        end   = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY)
+                        end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY)
                     )
+
                     "tr" -> Brush.linearGradient(
                         colorStops = arr,
                         start = Offset(Float.POSITIVE_INFINITY, 0f),
-                        end   = Offset(0f, Float.POSITIVE_INFINITY)
+                        end = Offset(0f, Float.POSITIVE_INFINITY)
                     )
+
                     "bl" -> Brush.linearGradient(
                         colorStops = arr,
                         start = Offset(0f, Float.POSITIVE_INFINITY),
-                        end   = Offset(Float.POSITIVE_INFINITY, 0f)
+                        end = Offset(Float.POSITIVE_INFINITY, 0f)
                     )
+
                     "br" -> Brush.linearGradient(
                         colorStops = arr,
                         start = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY),
-                        end   = Offset.Zero
+                        end = Offset.Zero
                     )
+
                     else -> Brush.verticalGradient(colorStops = arr)
                 }
             }
+
             "solid" -> {
-                val solid   = parseStoryColor(bg.solid) ?: Color.Transparent
+                val solid = parseStoryColor(bg.solid) ?: Color.Transparent
                 val opacity = ((bg.opacity ?: 100f) / 100f).coerceIn(0f, 1f)
                 SolidColor(solid.copy(alpha = opacity))
             }
+
             else -> return@BoxWithConstraints
         }
-        Box(modifier = Modifier.fillMaxSize().background(brush))
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(brush)
+        )
     }
 }
 
@@ -396,6 +438,62 @@ private fun ForegroundImage(
             modifier = imgModifier
         )
     }
+}
+
+// =====================================================================
+// Foreground LOTTIE
+//
+// Studio treats lottie as a first-class media type alongside image and
+// video: `content.lottie[]` holds { id, link } and `styling.lottie[]`
+// holds the same geometry keys as video styling, matched by id. Rendered
+// with the same position / size / rotation / flip / corner-radius /
+// opacity / animation pipeline as the other foreground media so a lottie
+// behaves identically to an image or video on the canvas.
+// =====================================================================
+
+@Composable
+private fun ForegroundLottie(
+    lottie: StoryContentLottie,
+    style: StoryContentLottieStyling?,
+    scope: StoryCanvaScope,
+    currentTime: Double = 0.0
+) {
+    val url = lottie.link ?: return
+    // position.x / position.y are % of screen width / height
+    val x = style?.position?.x ?: 0f
+    val y = style?.position?.y ?: 0f
+    // width / height are % of screen width / height
+    val w = style?.width ?: 100f
+    val h = style?.height ?: w
+    // Opacity in JSON is 0-100; Compose alpha expects 0.0-1.0
+    val opacity = ((style?.opacity ?: 100f) / 100f).coerceIn(0f, 1f)
+    val rotation = style?.rotation ?: 0f
+    val radius = style?.cornerRadius ?: 0f
+    val flipH = style?.flip?.horizontal == true
+    val flipV = style?.flip?.vertical == true
+
+    val composition by rememberLottieComposition(spec = LottieCompositionSpec.Url(url))
+
+    // Studio fit key — "fill"/"cover" crop-fills, anything else (incl. absent)
+    // letterboxes, which is the natural default for a lottie composition.
+    val lottieScale = when ((style?.objectFit ?: style?.sizing ?: style?.fit)?.lowercase()) {
+        "fill", "cover" -> ContentScale.Crop
+        else -> ContentScale.Fit
+    }
+
+    LottieAnimation(
+        composition = composition,
+        iterations = if (style?.loop == false) 1 else LottieConstants.IterateForever,
+        contentScale = lottieScale,
+        modifier = Modifier
+            .offset(x = scope.xPctDp(x), y = scope.yPctDp(y))
+            .size(width = scope.widthPctDp(w), height = scope.heightPctDp(h))
+            .rotate(rotation)
+            .scale(scaleX = if (flipH) -1f else 1f, scaleY = if (flipV) -1f else 1f)
+            .clip(RoundedCornerShape(scope.heightPctDp(radius)))
+            .alpha(opacity)
+            .studioElementAnimation(style?.animation, style?.duration, currentTime)
+    )
 }
 
 // =====================================================================
@@ -562,6 +660,7 @@ private fun ForegroundText(
                     }
                 }
             }
+
             else -> fontFamily = when (family.lowercase()) {
                 "serif" -> FontFamily.Serif
                 "monospace", "mono" -> FontFamily.Monospace
@@ -617,20 +716,21 @@ private fun ForegroundCta(
     val y = style?.position?.y ?: 0f
     val w = style?.size?.width ?: style?.width ?: 50f
     val h = style?.size?.height ?: style?.height ?: 8f
-    val bg          = parseStoryColorElement(style?.background)  ?: Color.Transparent
-    val textColor   = parseStoryColorElement(style?.textColor)   ?: Color.Black
-    val borderColor = parseStoryColorElement(style?.borderColor) ?: Color.Transparent
+    val bg = parseStoryColorElement(style?.background) ?: Color.Transparent
+    val textColor = parseStoryColorElement(style?.textColor) ?: Color.Black
+    val borderColor = parseStoryColorElement(style?.borderColor)
     val borderWidth = style?.borderWidth ?: 0f
     // borderRadius is % of screen height (same unit system as all other styling values)
-    val radius      = scope.heightPctDp(style?.borderRadius ?: style?.pillBorderRadius ?: 2f)
+    val radius = scope.heightPctDp(style?.borderRadius ?: style?.pillBorderRadius ?: 2f)
     val transparent = style?.transparent ?: false
-    val opacity     = ((style?.opacity ?: 100f) / 100f).coerceIn(0f, 1f)
-    val rotation    = style?.rotation ?: 0f
+    val opacity = ((style?.opacity ?: 100f) / 100f).coerceIn(0f, 1f)
+    val rotation = style?.rotation ?: 0f
     // fontSize is % of screen height — prefer the new nested font.fontSize, fall back to
     // the legacy flat fontSize field, then the old default.
-    val fontSize    = scope.fontPctDp(style?.font?.fontSize ?: style?.fontSize ?: 2f).coerceAtLeast(12.dp)
+    val fontSize =
+        scope.fontPctDp(style?.font?.fontSize ?: style?.fontSize ?: 2f).coerceAtLeast(12.dp)
     val fontWeightInt = style?.font?.fontWeight ?: 600
-    val density     = LocalDensity.current
+    val density = LocalDensity.current
 
     // fontDecoration, e.g. ["bold", "italic", "underline"] from the CTA's nested font
     // object — same semantics as ForegroundText's decoration handling.
@@ -638,7 +738,8 @@ private fun ForegroundCta(
     val ctaFontWeight = if (ctaDecoration.contains("bold")) FontWeight.Bold
     else FontWeight(fontWeightInt.coerceIn(100, 900))
     val ctaFontStyle = if (ctaDecoration.contains("italic")) FontStyle.Italic else FontStyle.Normal
-    val ctaTextDecoration = if (ctaDecoration.contains("underline")) TextDecoration.Underline else null
+    val ctaTextDecoration =
+        if (ctaDecoration.contains("underline")) TextDecoration.Underline else null
 
     // fontFamily: same URL / named-family / default resolution used for text elements —
     // a URL loads and caches a custom font file via FontCache, a recognised named family
@@ -665,6 +766,7 @@ private fun ForegroundCta(
                     }
                 }
             }
+
             else -> ctaFontFamily = when (family.lowercase()) {
                 "serif" -> FontFamily.Serif
                 "monospace", "mono" -> FontFamily.Monospace
@@ -684,14 +786,18 @@ private fun ForegroundCta(
         .clip(RoundedCornerShape(radius))
         .background(if (transparent) Color.Transparent else bg)
         .let {
-            if (borderWidth > 0f && borderColor != Color.Transparent) {
-                it.border(scope.sizeDp(borderWidth), borderColor, RoundedCornerShape(radius))
+            if (borderWidth > 0f && borderColor != null) {
+                it.border(
+                    scope.widthPctDp(borderWidth).coerceAtLeast(1.dp),
+                    borderColor,
+                    RoundedCornerShape(radius)
+                )
             } else it
         }
         .clickable(
             interactionSource = remember { MutableInteractionSource() },
-            indication        = null,
-            onClick           = onClick
+            indication = null,
+            onClick = onClick
         )
 
     when (cta.type) {
@@ -700,14 +806,15 @@ private fun ForegroundCta(
             if (!img.isNullOrEmpty()) {
                 Box(modifier = baseModifier, contentAlignment = Alignment.Center) {
                     Image(
-                        painter            = rememberAsyncImagePainter(img),
+                        painter = rememberAsyncImagePainter(img),
                         contentDescription = cta.text,
-                        contentScale       = ContentScale.Fit,
-                        modifier           = Modifier.fillMaxSize()
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.fillMaxSize()
                     )
                 }
             }
         }
+
         "swipe_up" -> {
             // Outer container is fully transparent — no background at this level, ever.
             // The gray "bg" fill applies ONLY to the pill below; the arrow sits on the
@@ -746,46 +853,86 @@ private fun ForegroundCta(
                 .size(width = scope.widthPctDp(w), height = scope.heightPctDp(h))
                 .rotate(rotation)
                 .alpha(opacity)
-                .studioElementAnimation(swipeUpAnimation, duration = null, currentTime = currentTime)
+                .studioElementAnimation(
+                    swipeUpAnimation,
+                    duration = null,
+                    currentTime = currentTime
+                )
                 .pointerInput(Unit) {
-                    coroutineScope {
-                        // Tap → same as a regular CTA click.
-                        launch {
-                            detectTapGestures(onTap = { currentOnClick.value() })
-                        }
-                        // Swipe up → also triggers the CTA click, matching the
-                        // "swipe up" affordance shown to the user.
-                        launch {
-                            var totalDragY = 0f
-                            var hasTriggered = false
-                            detectVerticalDragGestures(
-                                onDragStart = {
-                                    totalDragY = 0f
-                                    hasTriggered = false
-                                },
-                                onVerticalDrag = { change, dragAmount ->
-                                    totalDragY += dragAmount
-                                    change.consume()
-                                    // Fire the moment the threshold is crossed, rather than
-                                    // waiting for lift-off. A real swipe often decelerates
-                                    // (and sometimes drifts back down a little) right before
-                                    // the finger leaves the screen — checking only at
-                                    // onDragEnd can miss a perfectly good swipe-up because
-                                    // totalDragY dips back under threshold in that last frame.
-                                    if (!hasTriggered && totalDragY < -swipeUpThresholdPx) {
-                                        hasTriggered = true
+                    // ONE gesture loop handles both tap and swipe-up.
+                    //
+                    // Previously a detectTapGestures and a detectVerticalDragGestures ran
+                    // as two concurrent coroutines over the same pointer stream: the tap
+                    // detector consumes the initial down, and the drag detector's own
+                    // touch-slop pass then treats that consumption as a cancellation — so
+                    // the first swipe was swallowed and only a subsequent gesture got
+                    // through. Hence "swipe twice to trigger".
+                    //
+                    // Running a single loop removes that race, and claiming the gesture
+                    // (consuming the moves) as soon as it is recognised as vertical also
+                    // stops the enclosing story viewer / bottom sheet from stealing the
+                    // drag before the swipe-up threshold is reached.
+                    val claimSlopPx = with(density) { 3.dp.toPx() }
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        // Claim the press immediately (as detectTapGestures used to do)
+                        // so the story viewer behind us doesn't also treat this gesture
+                        // as a tap-to-advance on the same CTA.
+                        down.consume()
+                        var totalDragY = 0f
+                        var totalDragX = 0f
+                        var claimed = false      // gesture recognised as a vertical drag
+                        var moved = false        // moved far enough that it is not a tap
+                        var hasTriggered = false
+
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
+
+                            if (change.changedToUpIgnoreConsumed()) {
+                                // Lift-off. A gesture that never moved is a plain tap and
+                                // triggers the CTA exactly like any other button.
+                                if (!hasTriggered) {
+                                    if (!moved) {
                                         currentOnClick.value()
-                                    }
-                                },
-                                onDragEnd = {
-                                    // Fallback: covers a very fast/low-sample-rate swipe where
-                                    // no intermediate onVerticalDrag frame happened to land past
-                                    // the threshold, but the net movement still cleared it.
-                                    if (!hasTriggered && totalDragY < -swipeUpThresholdPx) {
+                                    } else if (claimed && totalDragY < -swipeUpThresholdPx) {
+                                        // Fallback for a very fast / low-sample-rate swipe
+                                        // where no intermediate frame landed past the
+                                        // threshold but the net movement still cleared it.
                                         currentOnClick.value()
                                     }
                                 }
-                            )
+                                change.consume()
+                                break
+                            }
+
+                            if (!change.pressed) break
+
+                            val delta = change.positionChange()
+                            totalDragY += delta.y
+                            totalDragX += delta.x
+
+                            if (!moved &&
+                                (kotlin.math.abs(totalDragY) > claimSlopPx ||
+                                        kotlin.math.abs(totalDragX) > claimSlopPx)
+                            ) {
+                                moved = true
+                                // Only take ownership when the movement is predominantly
+                                // vertical; a horizontal drag is left to whatever else
+                                // wants it.
+                                claimed = kotlin.math.abs(totalDragY) >= kotlin.math.abs(totalDragX)
+                            }
+
+                            if (claimed) {
+                                change.consume()
+                                // Fire the moment the threshold is crossed rather than at
+                                // lift-off: a real swipe often decelerates (and drifts back
+                                // down slightly) in its final frame.
+                                if (!hasTriggered && totalDragY < -swipeUpThresholdPx) {
+                                    hasTriggered = true
+                                    currentOnClick.value()
+                                }
+                            }
                         }
                     }
                 }
@@ -794,9 +941,9 @@ private fun ForegroundCta(
             val arrowColor = parseStoryColorElement(style?.arrowColor) ?: textColor
 
             androidx.compose.foundation.layout.Column(
-                modifier             = swipeUpModifier,
-                horizontalAlignment  = Alignment.CenterHorizontally,
-                verticalArrangement  = androidx.compose.foundation.layout.Arrangement.Bottom
+                modifier = swipeUpModifier,
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = androidx.compose.foundation.layout.Arrangement.Bottom
             ) {
                 // ── Chevron arrow ──
                 androidx.compose.foundation.layout.Box(
@@ -816,7 +963,7 @@ private fun ForegroundCta(
                             .size(chevronWidth, chevronHeight)
                             .scale(scaleX = 1f, scaleY = chevronScale)   // ← vertical-only stretch
                     ) {
-                        val path = androidx.compose.ui.graphics.Path().apply {
+                        val path = Path().apply {
                             moveTo(0f, size.height)
                             lineTo(size.width / 2f, 0f)
                             lineTo(size.width, size.height)
@@ -843,28 +990,29 @@ private fun ForegroundCta(
                     contentAlignment = Alignment.Center
                 ) {
                     androidx.compose.material3.Text(
-                        text            = cta.text ?: "Swipe up",
-                        color           = textColor,
-                        fontSize        = with(density) { fontSize.toSp() },
-                        fontFamily      = ctaFontFamily ?: FontFamily.SansSerif,
-                        fontWeight      = ctaFontWeight,
-                        fontStyle       = ctaFontStyle,
-                        textDecoration  = ctaTextDecoration
+                        text = cta.text ?: "Swipe up",
+                        color = textColor,
+                        fontSize = with(density) { fontSize.toSp() },
+                        fontFamily = ctaFontFamily ?: FontFamily.SansSerif,
+                        fontWeight = ctaFontWeight,
+                        fontStyle = ctaFontStyle,
+                        textDecoration = ctaTextDecoration
                     )
                 }
             }
         }
+
         else -> {
             Box(modifier = baseModifier, contentAlignment = Alignment.Center) {
                 androidx.compose.material3.Text(
-                    text            = cta.text ?: "",
-                    color           = textColor,
-                    fontSize        = with(density) { fontSize.toSp() },
-                    fontFamily      = ctaFontFamily ?: FontFamily.SansSerif,
-                    fontWeight      = ctaFontWeight,
-                    fontStyle       = ctaFontStyle,
-                    textDecoration  = ctaTextDecoration,
-                    textAlign       = TextAlign.Center
+                    text = cta.text ?: "",
+                    color = textColor,
+                    fontSize = with(density) { fontSize.toSp() },
+                    fontFamily = ctaFontFamily ?: FontFamily.SansSerif,
+                    fontWeight = ctaFontWeight,
+                    fontStyle = ctaFontStyle,
+                    textDecoration = ctaTextDecoration,
+                    textAlign = TextAlign.Center
                 )
             }
         }
@@ -922,8 +1070,10 @@ private fun ForegroundElement(
                 modifier = baseModifier
             )
         }
+
         "frame" -> {
-            val stroke = parseStoryColorElement(style?.strokeColor ?: el.stroke) ?: Color.Transparent
+            val stroke =
+                parseStoryColorElement(style?.strokeColor ?: el.stroke) ?: Color.Transparent
             // strokeWidth in JSON is in SVG/canva units; scale against sizeDp for consistency
             val strokeW = style?.strokeWidth ?: el.strokeWidth ?: 0f
             val cr = scope.sizeDp(style?.cornerRadius ?: el.cornerRadius ?: 0f)
@@ -931,23 +1081,69 @@ private fun ForegroundElement(
                 modifier = baseModifier
                     .clip(RoundedCornerShape(cr))
                     .let {
-                        if (strokeW > 0f) it.border(scope.sizeDp(strokeW * 10f).coerceAtLeast(0.5.dp), stroke, RoundedCornerShape(cr)) else it
+                        if (strokeW > 0f) it.border(
+                            scope.sizeDp(strokeW * 10f).coerceAtLeast(0.5.dp),
+                            stroke,
+                            RoundedCornerShape(cr)
+                        ) else it
                     }
             )
         }
+
         "shape" -> {
-            // Shapes are rendered exactly as authored via their SVG url — no fill/stroke
-            // colour fields are mapped, so the shape's own colouring is preserved as-is.
-            val img = el.url
-            if (!img.isNullOrEmpty()) {
-                Image(
-                    painter = rememberAsyncImagePainter(img),
-                    contentDescription = null,
-                    contentScale = ContentScale.Fit,
-                    modifier = baseModifier
-                )
+            // Shapes ship both a vector `svgPath` (authored in a 0-100 viewBox) and a
+            // rendered `.svg` url. Coil has no SVG decoder wired up in this SDK, so the
+            // url silently failed to decode and shapes never appeared. Draw the path
+            // ourselves instead — it needs no extra dependency and, unlike the baked
+            // .svg file, it honours the fill / stroke colours the studio sends.
+            val parsedPath = remember(el.svgPath) { el.svgPath?.let { parseSvgPathData(it) } }
+            val fillColor = parseStoryColorElement(style?.color ?: el.fill)
+            val strokeColor = parseStoryColorElement(style?.strokeColor ?: el.stroke)
+            // strokeWidth arrives as a % of canvas width, like every other size field.
+            val strokeWidthDp = scope.widthPctDp(el.strokeWidth ?: style?.strokeWidth ?: 0f)
+            val strokeWidthPx = with(LocalDensity.current) { strokeWidthDp.toPx() }
+            val outlined = el.styleType.equals("outline", ignoreCase = true)
+
+            if (parsedPath != null) {
+                Canvas(modifier = baseModifier) {
+                    // The authored viewBox is 0 0 100 100; stretch it onto the element
+                    // box so the shape fills its frame exactly as it does in the editor.
+                    val sx = size.width / SVG_PATH_VIEWBOX
+                    val sy = size.height / SVG_PATH_VIEWBOX
+                    if (sx <= 0f || sy <= 0f) return@Canvas
+                    withTransform({
+                        scale(sx, sy, pivot = Offset.Zero)
+                    }) {
+                        if (!outlined && fillColor != null) {
+                            drawPath(path = parsedPath, color = fillColor)
+                        }
+                        if (strokeColor != null && strokeWidthPx > 0f) {
+                            // Undo the (possibly non-uniform) canvas scale so the stroke
+                            // keeps the requested on-screen thickness.
+                            val avgScale = ((sx + sy) / 2f).coerceAtLeast(0.0001f)
+                            drawPath(
+                                path = parsedPath,
+                                color = strokeColor,
+                                style = Stroke(width = strokeWidthPx / avgScale)
+                            )
+                        }
+                    }
+                }
+            } else {
+                // No usable path (or an unparsable one) — fall back to the SVG url as
+                // before, so nothing regresses for shapes that only ship a url.
+                val img = el.url
+                if (!img.isNullOrEmpty()) {
+                    Image(
+                        painter = rememberAsyncImagePainter(img),
+                        contentDescription = null,
+                        contentScale = ContentScale.Fit,
+                        modifier = baseModifier
+                    )
+                }
             }
         }
+
         else -> {
             // Unknown element type — try to render via url if present.
             val img = el.url ?: el.image
@@ -960,6 +1156,342 @@ private fun ForegroundElement(
                 )
             }
         }
+    }
+}
+
+// =====================================================================
+// Minimal SVG path-data parser (shapes)
+//
+// Studio shapes carry an `svgPath` authored in a 0 0 100 100 viewBox.
+// Parsing it into a Compose Path lets us draw shapes natively — no SVG
+// image decoder required — and keeps the studio's fill / stroke colours.
+// Supports the full command set the editor emits: M L H V C S Q T A Z
+// (absolute and relative), including elliptical arcs.
+// =====================================================================
+
+internal const val SVG_PATH_VIEWBOX = 100f
+
+private fun parseSvgPathData(data: String): Path? {
+    if (data.isBlank()) return null
+    val path = Path()
+    var i = 0
+    val n = data.length
+
+    fun skipSeparators() {
+        while (i < n && (data[i] == ',' || data[i].isWhitespace())) i++
+    }
+
+    fun readNumber(): Float? {
+        skipSeparators()
+        val start = i
+        if (i < n && (data[i] == '+' || data[i] == '-')) i++
+        var sawDigit = false
+        while (i < n && data[i].isDigit()) {
+            i++; sawDigit = true
+        }
+        if (i < n && data[i] == '.') {
+            i++
+            while (i < n && data[i].isDigit()) {
+                i++; sawDigit = true
+            }
+        }
+        if (sawDigit && i < n && (data[i] == 'e' || data[i] == 'E')) {
+            val save = i
+            i++
+            if (i < n && (data[i] == '+' || data[i] == '-')) i++
+            var sawExpDigit = false
+            while (i < n && data[i].isDigit()) {
+                i++; sawExpDigit = true
+            }
+            if (!sawExpDigit) i = save
+        }
+        if (!sawDigit) {
+            i = start; return null
+        }
+        return data.substring(start, i).toFloatOrNull()
+    }
+
+    var command = ' '
+    var curX = 0f;
+    var curY = 0f
+    var startX = 0f;
+    var startY = 0f
+    var lastCubicCtrlX = 0f;
+    var lastCubicCtrlY = 0f
+    var lastQuadCtrlX = 0f;
+    var lastQuadCtrlY = 0f
+    var prevWasCubic = false
+    var prevWasQuad = false
+    var emitted = false
+
+    while (true) {
+        skipSeparators()
+        if (i >= n) break
+        val c = data[i]
+        if (c.isLetter()) {
+            command = c; i++
+        } else if (command == ' ') {
+            i++; continue
+        }   // stray token before any command
+
+        when (command) {
+            'M', 'm' -> {
+                val x = readNumber() ?: break
+                val y = readNumber() ?: break
+                if (command == 'm') {
+                    curX += x; curY += y
+                } else {
+                    curX = x; curY = y
+                }
+                path.moveTo(curX, curY)
+                startX = curX; startY = curY
+                emitted = true
+                // Repeated coordinate pairs after a moveto are implicit linetos.
+                command = if (command == 'm') 'l' else 'L'
+                prevWasCubic = false; prevWasQuad = false
+            }
+
+            'L', 'l' -> {
+                val x = readNumber() ?: break
+                val y = readNumber() ?: break
+                if (command == 'l') {
+                    curX += x; curY += y
+                } else {
+                    curX = x; curY = y
+                }
+                path.lineTo(curX, curY)
+                emitted = true
+                prevWasCubic = false; prevWasQuad = false
+            }
+
+            'H', 'h' -> {
+                val x = readNumber() ?: break
+                curX = if (command == 'h') curX + x else x
+                path.lineTo(curX, curY)
+                emitted = true
+                prevWasCubic = false; prevWasQuad = false
+            }
+
+            'V', 'v' -> {
+                val y = readNumber() ?: break
+                curY = if (command == 'v') curY + y else y
+                path.lineTo(curX, curY)
+                emitted = true
+                prevWasCubic = false; prevWasQuad = false
+            }
+
+            'C', 'c' -> {
+                val x1 = readNumber() ?: break;
+                val y1 = readNumber() ?: break
+                val x2 = readNumber() ?: break;
+                val y2 = readNumber() ?: break
+                val x = readNumber() ?: break;
+                val y = readNumber() ?: break
+                val rel = command == 'c'
+                val c1x = if (rel) curX + x1 else x1
+                val c1y = if (rel) curY + y1 else y1
+                val c2x = if (rel) curX + x2 else x2
+                val c2y = if (rel) curY + y2 else y2
+                val ex = if (rel) curX + x else x
+                val ey = if (rel) curY + y else y
+                path.cubicTo(c1x, c1y, c2x, c2y, ex, ey)
+                lastCubicCtrlX = c2x; lastCubicCtrlY = c2y
+                curX = ex; curY = ey
+                emitted = true
+                prevWasCubic = true; prevWasQuad = false
+            }
+
+            'S', 's' -> {
+                val x2 = readNumber() ?: break;
+                val y2 = readNumber() ?: break
+                val x = readNumber() ?: break;
+                val y = readNumber() ?: break
+                val rel = command == 's'
+                val c1x = if (prevWasCubic) 2 * curX - lastCubicCtrlX else curX
+                val c1y = if (prevWasCubic) 2 * curY - lastCubicCtrlY else curY
+                val c2x = if (rel) curX + x2 else x2
+                val c2y = if (rel) curY + y2 else y2
+                val ex = if (rel) curX + x else x
+                val ey = if (rel) curY + y else y
+                path.cubicTo(c1x, c1y, c2x, c2y, ex, ey)
+                lastCubicCtrlX = c2x; lastCubicCtrlY = c2y
+                curX = ex; curY = ey
+                emitted = true
+                prevWasCubic = true; prevWasQuad = false
+            }
+
+            'Q', 'q' -> {
+                val x1 = readNumber() ?: break;
+                val y1 = readNumber() ?: break
+                val x = readNumber() ?: break;
+                val y = readNumber() ?: break
+                val rel = command == 'q'
+                val cx = if (rel) curX + x1 else x1
+                val cy = if (rel) curY + y1 else y1
+                val ex = if (rel) curX + x else x
+                val ey = if (rel) curY + y else y
+                path.quadraticBezierTo(cx, cy, ex, ey)
+                lastQuadCtrlX = cx; lastQuadCtrlY = cy
+                curX = ex; curY = ey
+                emitted = true
+                prevWasQuad = true; prevWasCubic = false
+            }
+
+            'T', 't' -> {
+                val x = readNumber() ?: break;
+                val y = readNumber() ?: break
+                val rel = command == 't'
+                val cx = if (prevWasQuad) 2 * curX - lastQuadCtrlX else curX
+                val cy = if (prevWasQuad) 2 * curY - lastQuadCtrlY else curY
+                val ex = if (rel) curX + x else x
+                val ey = if (rel) curY + y else y
+                path.quadraticBezierTo(cx, cy, ex, ey)
+                lastQuadCtrlX = cx; lastQuadCtrlY = cy
+                curX = ex; curY = ey
+                emitted = true
+                prevWasQuad = true; prevWasCubic = false
+            }
+
+            'A', 'a' -> {
+                val rx = readNumber() ?: break
+                val ry = readNumber() ?: break
+                val rotationDeg = readNumber() ?: break
+                val largeArc = readNumber() ?: break
+                val sweep = readNumber() ?: break
+                val x = readNumber() ?: break
+                val y = readNumber() ?: break
+                val ex = if (command == 'a') curX + x else x
+                val ey = if (command == 'a') curY + y else y
+                appendSvgArc(
+                    path = path,
+                    x0 = curX, y0 = curY,
+                    rxIn = rx, ryIn = ry,
+                    xAxisRotationDeg = rotationDeg,
+                    largeArcFlag = largeArc != 0f,
+                    sweepFlag = sweep != 0f,
+                    x1 = ex, y1 = ey
+                )
+                curX = ex; curY = ey
+                emitted = true
+                prevWasCubic = false; prevWasQuad = false
+            }
+
+            'Z', 'z' -> {
+                path.close()
+                curX = startX; curY = startY
+                prevWasCubic = false; prevWasQuad = false
+            }
+
+            else -> {
+                // Unknown command — skip the character and carry on rather than
+                // dropping the whole shape.
+                i++
+            }
+        }
+    }
+
+    return if (emitted) path else null
+}
+
+/**
+ * Appends an SVG elliptical arc (endpoint parameterisation) to [path] by
+ * converting it to a series of cubic Bézier segments.
+ */
+private fun appendSvgArc(
+    path: Path,
+    x0: Float, y0: Float,
+    rxIn: Float, ryIn: Float,
+    xAxisRotationDeg: Float,
+    largeArcFlag: Boolean,
+    sweepFlag: Boolean,
+    x1: Float, y1: Float
+) {
+    if (x0 == x1 && y0 == y1) return
+    var rx = kotlin.math.abs(rxIn)
+    var ry = kotlin.math.abs(ryIn)
+    if (rx == 0f || ry == 0f) {
+        path.lineTo(x1, y1); return
+    }
+
+    val phi = Math.toRadians(xAxisRotationDeg.toDouble())
+    val cosPhi = kotlin.math.cos(phi)
+    val sinPhi = kotlin.math.sin(phi)
+
+    val dx2 = (x0 - x1) / 2.0
+    val dy2 = (y0 - y1) / 2.0
+    val x1p = cosPhi * dx2 + sinPhi * dy2
+    val y1p = -sinPhi * dx2 + cosPhi * dy2
+
+    // Scale up the radii if they are too small to span the endpoints.
+    val lambda = (x1p * x1p) / (rx * rx.toDouble()) + (y1p * y1p) / (ry * ry.toDouble())
+    if (lambda > 1.0) {
+        val s = kotlin.math.sqrt(lambda)
+        rx = (rx * s).toFloat()
+        ry = (ry * s).toFloat()
+    }
+
+    val rxSq = rx.toDouble() * rx
+    val rySq = ry.toDouble() * ry
+    val num = (rxSq * rySq - rxSq * y1p * y1p - rySq * x1p * x1p)
+        .coerceAtLeast(0.0)
+    val den = rxSq * y1p * y1p + rySq * x1p * x1p
+    var coef = if (den == 0.0) 0.0 else kotlin.math.sqrt(num / den)
+    if (largeArcFlag == sweepFlag) coef = -coef
+
+    val cxp = coef * rx * y1p / ry
+    val cyp = -coef * ry * x1p / rx
+    val cx = cosPhi * cxp - sinPhi * cyp + (x0 + x1) / 2.0
+    val cy = sinPhi * cxp + cosPhi * cyp + (y0 + y1) / 2.0
+
+    fun angle(ux: Double, uy: Double, vx: Double, vy: Double): Double {
+        val dot = ux * vx + uy * vy
+        val len = kotlin.math.sqrt(ux * ux + uy * uy) * kotlin.math.sqrt(vx * vx + vy * vy)
+        if (len == 0.0) return 0.0
+        var a = kotlin.math.acos((dot / len).coerceIn(-1.0, 1.0))
+        if (ux * vy - uy * vx < 0) a = -a
+        return a
+    }
+
+    val startVecX = (x1p - cxp) / rx
+    val startVecY = (y1p - cyp) / ry
+    val endVecX = (-x1p - cxp) / rx
+    val endVecY = (-y1p - cyp) / ry
+
+    val theta1 = angle(1.0, 0.0, startVecX, startVecY)
+    var deltaTheta = angle(startVecX, startVecY, endVecX, endVecY)
+    if (!sweepFlag && deltaTheta > 0) deltaTheta -= 2 * Math.PI
+    else if (sweepFlag && deltaTheta < 0) deltaTheta += 2 * Math.PI
+
+    // One cubic per <= 90° of sweep keeps the approximation error negligible.
+    val segments = kotlin.math.ceil(kotlin.math.abs(deltaTheta) / (Math.PI / 2)).toInt()
+        .coerceAtLeast(1)
+    val delta = deltaTheta / segments
+    val t = 4.0 / 3.0 * kotlin.math.tan(delta / 4.0)
+
+    var theta = theta1
+    for (s in 0 until segments) {
+        val cosTheta1 = kotlin.math.cos(theta)
+        val sinTheta1 = kotlin.math.sin(theta)
+        val thetaNext = theta + delta
+        val cosTheta2 = kotlin.math.cos(thetaNext)
+        val sinTheta2 = kotlin.math.sin(thetaNext)
+
+        val e1x = cx + rx * cosPhi * cosTheta1 - ry * sinPhi * sinTheta1
+        val e1y = cy + rx * sinPhi * cosTheta1 + ry * cosPhi * sinTheta1
+        val e2x = cx + rx * cosPhi * cosTheta2 - ry * sinPhi * sinTheta2
+        val e2y = cy + rx * sinPhi * cosTheta2 + ry * cosPhi * sinTheta2
+
+        val d1x = -rx * cosPhi * sinTheta1 - ry * sinPhi * cosTheta1
+        val d1y = -rx * sinPhi * sinTheta1 + ry * cosPhi * cosTheta1
+        val d2x = -rx * cosPhi * sinTheta2 - ry * sinPhi * cosTheta2
+        val d2y = -rx * sinPhi * sinTheta2 + ry * cosPhi * cosTheta2
+
+        path.cubicTo(
+            (e1x + t * d1x).toFloat(), (e1y + t * d1y).toFloat(),
+            (e2x - t * d2x).toFloat(), (e2y - t * d2y).toFloat(),
+            e2x.toFloat(), e2y.toFloat()
+        )
+        theta = thetaNext
     }
 }
 

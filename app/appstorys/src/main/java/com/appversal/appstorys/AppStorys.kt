@@ -461,6 +461,9 @@ object AppStorys {
                     currentScreen = screenName
                     backPressCampaignConsumed = false
                     _showBottomSheet.update { true }
+                    _showCsat.update { false }
+                    _showModal.update { true }
+                    tooltipViewed.update { emptyList() }
                     delay(100)
                 }
 
@@ -1015,9 +1018,12 @@ object AppStorys {
                         CsatDialog(
                             onDismiss = {
                                 isVisibleState = false
+                                val screenAtDismiss = currentScreen
                                 coroutineScope.launch {
                                     delay(500L)
-                                    _showCsat.update { true }
+                                    if (currentScreen == screenAtDismiss) {
+                                        _showCsat.update { true }
+                                    }
                                 }
                             },
                             onSubmitFeedback = { feedback ->
@@ -1090,10 +1096,10 @@ object AppStorys {
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(
-                        bottom = styling?.floaterBottomPadding?.toFloatOrNull()?.dp
+                        bottom = (styling?.marginBottom?.toFloatOrNull()?.dp?.plus(bottomPadding))
                             ?: bottomPadding,
-                        start = styling?.floaterLeftPadding?.toFloatOrNull()?.dp ?: 0.dp,
-                        end = styling?.floaterRightPadding?.toFloatOrNull()?.dp ?: 0.dp,
+                        start = styling?.marginLeft?.toFloatOrNull()?.dp ?: 0.dp,
+                        end = styling?.marginRight?.toFloatOrNull()?.dp ?: 0.dp,
                     ),
                 content = {
                     OverlayFloater(
@@ -1752,7 +1758,7 @@ object AppStorys {
                     modifier = modifier,
                     staticWidth = LocalConfiguration.current.screenWidthDp.dp,
                     placeHolder = placeholder,
-                    contentScale = ContentScale.FillWidth,
+                    contentScale = ContentScale.Crop,
                     position = position,
                 )
 

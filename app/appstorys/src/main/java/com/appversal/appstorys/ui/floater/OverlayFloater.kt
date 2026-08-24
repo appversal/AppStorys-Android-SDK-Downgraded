@@ -58,7 +58,6 @@ internal fun OverlayFloater(
 
     Surface (
         modifier = modifier
-            .padding(16.dp)
             .height(height)
             .width(width)
             .clip(borderRadiusValues)

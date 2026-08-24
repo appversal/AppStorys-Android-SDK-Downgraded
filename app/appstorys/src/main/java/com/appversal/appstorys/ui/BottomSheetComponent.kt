@@ -61,6 +61,7 @@ import com.appversal.appstorys.utils.asInt
 import com.appversal.appstorys.utils.isGifUrl
 import com.appversal.appstorys.utils.isLottieUrl
 import android.os.Build.VERSION.SDK_INT
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.navigationBars
@@ -477,6 +478,16 @@ private fun CTAElement(element: BottomSheetElement, onClick: () -> Unit = {}) {
         Color.Black
     }
 
+    val borderStroke = try {
+        val colorString = element.cta?.container?.borderColor?.takeIf { it.isNotBlank() }
+        val width = element.cta?.container?.borderWidth?.asInt(0) ?: 0
+        if (colorString != null && width > 0) {
+            BorderStroke(width.dp, Color(colorString.toColorInt()))
+        } else null
+    } catch (_: Exception) {
+        null
+    }
+
     // Support both nested cta.text.color and flat ctaTextColour
     val textColor = try {
         val colorString = element.cta?.text?.color ?: element.ctaTextColour ?: "#FFFFFF"
@@ -537,6 +548,7 @@ private fun CTAElement(element: BottomSheetElement, onClick: () -> Unit = {}) {
                         ?: element.ctaBorderRadius?.bottomLeft ?: 0).dp
                 ),
                 colors = ButtonDefaults.buttonColors(containerColor = buttonColor),
+                border = borderStroke,
                 modifier = Modifier
                     .height(buttonHeight)
                     .then(

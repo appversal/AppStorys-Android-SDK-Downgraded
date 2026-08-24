@@ -6,27 +6,35 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.semantics.semantics
 import com.appversal.appstorys.ui.OverlayContainer
 import android.util.Log
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.composed
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.boundsInWindow
 
 @Stable
-fun Modifier.appstorys(tag: String): Modifier = this
-    .semantics {
-        appstorysViewTagProperty = tag
+fun Modifier.appstorys(tag: String): Modifier = composed {   // ← was `= this`
+    DisposableEffect(tag) {                                   // ← add these 3 lines
+        onDispose { OverlayContainer.removeConstraint(tag) }
     }
-    .onGloballyPositioned {
-        val bounds = it.boundsInRoot()
-        val window = it.boundsInWindow()
-        Log.e(
-            "TooltipDebug",
-            "[Compose] [$tag] w=${it.size.width} h=${it.size.height} " +
-                    "boundsInRoot=$bounds boundsInWindow=$window"
-        )
-        if (it.size.width <= 0 || it.size.height <= 0) {
+
+    this
+        .semantics {
+            appstorysViewTagProperty = tag
+        }
+        .onGloballyPositioned {
+            val bounds = it.boundsInRoot()
+            val window = it.boundsInWindow()
             Log.e(
                 "TooltipDebug",
-                "[Compose] [$tag] WARNING: zero dimensions — constraint skipped by Compose layout"
+                "[Compose] [$tag] w=${it.size.width} h=${it.size.height} " +
+                        "boundsInRoot=$bounds boundsInWindow=$window"
             )
+            if (it.size.width <= 0 || it.size.height <= 0) {
+                Log.e(
+                    "TooltipDebug",
+                    "[Compose] [$tag] WARNING: zero dimensions — constraint skipped by Compose layout"
+                )
+            }
+            OverlayContainer.addConstraint(tag, it)
         }
-        OverlayContainer.addConstraint(tag, it)
-    }
+}

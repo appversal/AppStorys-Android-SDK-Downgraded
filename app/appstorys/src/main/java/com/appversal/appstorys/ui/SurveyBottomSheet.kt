@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -21,6 +22,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -60,6 +64,10 @@ private fun String?.toColorOr(default: Color): Color {
     }
 }
 
+/** Sheet grows with its content and starts scrolling once it would pass this
+ *  fraction of the screen height. Mirrors _maxSheetFraction in survey.dart. */
+private const val MAX_SHEET_FRACTION = 0.85f
+
 @Composable
 fun SurveyBottomSheet(
     onDismissRequest: () -> Unit,
@@ -76,10 +84,17 @@ fun SurveyBottomSheet(
     val backgroundColor = (appearance?.backgroundColor ?: styling?.backgroundColor)
         .toColorOr(Color.White)
 
-    // ── appearance.cornerRadius (topLeft / topRight only for bottom sheet) ─
-    val cornerRadiusTopStart = (appearance?.cornerRadius?.topLeft ?: 24).dp
-    val cornerRadiusTopEnd = (appearance?.cornerRadius?.topRight ?: 24).dp
+    // ── appearance.cornerRadius — default 0 on every corner (Flutter parity) ─
+    val cornerRadiusTopStart = (appearance?.cornerRadius?.topLeft ?: 0).dp
+    val cornerRadiusTopEnd = (appearance?.cornerRadius?.topRight ?: 0).dp
+    val cornerRadiusBottomStart = (appearance?.cornerRadius?.bottomLeft ?: 0).dp
+    val cornerRadiusBottomEnd = (appearance?.cornerRadius?.bottomRight ?: 0).dp
 
+    // ── appearance.padding — falls back to 16 on every side when absent ──
+    val sheetPadTop = (appearance?.padding?.top ?: 16).dp
+    val sheetPadBottom = (appearance?.padding?.bottom ?: 16).dp
+    val sheetPadStart = (appearance?.padding?.left ?: 16).dp
+    val sheetPadEnd = (appearance?.padding?.right ?: 16).dp
 
     // ── appearance.displayDelay (seconds) ─────────────────────────────────
     val displayDelaySec = appearance?.displayDelay ?: 0
@@ -91,7 +106,10 @@ fun SurveyBottomSheet(
         }
     }
 
-    val hasThankYouPage = surveyDetails.thankYouButtonConfig?.enabled == true
+    // styling.content.isThankyouPage decides whether the page is shown at all
+    // (default true). thankYouButtonConfig.enabled only decides whether its CTA
+    // is shown — that check lives in SurveyThankYouContent.
+    val hasThankYouPage = styling?.content?.isThankyouPage != false
     var showThankYou by remember { mutableStateOf(false) }
 
     val slides = surveyDetails.slides
@@ -225,6 +243,9 @@ fun SurveyBottomSheet(
             raw.coerceIn(0, 100) / 100f
         }
 
+        // Sheet never grows past MAX_SHEET_FRACTION of the screen — past that it scrolls.
+        val maxSheetHeight = (LocalConfiguration.current.screenHeightDp * MAX_SHEET_FRACTION).dp
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -238,12 +259,16 @@ fun SurveyBottomSheet(
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
                     .wrapContentHeight()
-                    .systemBarsPadding()
+                    .heightIn(max = maxSheetHeight)
+                    // SafeArea(top: false) → bottom inset only, plus keyboard inset
+                    .navigationBarsPadding()
                     .imePadding()
                     .clip(
                         RoundedCornerShape(
                             topStart = cornerRadiusTopStart,
-                            topEnd = cornerRadiusTopEnd
+                            topEnd = cornerRadiusTopEnd,
+                            bottomStart = cornerRadiusBottomStart,
+                            bottomEnd = cornerRadiusBottomEnd
                         )
                     )
                     .background(backgroundColor)
@@ -257,7 +282,14 @@ fun SurveyBottomSheet(
                         modifier = Modifier
                             .fillMaxWidth()
                             .verticalScroll(rememberScrollState())
-                            .padding(15.dp)
+                            // appearance.padding wraps the sheet content; each element
+                            // still adds its own margin on top of it.
+                            .padding(
+                                top = sheetPadTop,
+                                bottom = sheetPadBottom,
+                                start = sheetPadStart,
+                                end = sheetPadEnd
+                            )
                     ) {
 
                         if (showThankYou) {
@@ -342,14 +374,13 @@ fun SurveyBottomSheet(
                                 )
                             }
 
-                            // ── Navigation row: NEXT / SUBMIT ──────────────────────────────
+                            // ── Navigation CTA: Next / Submit ──────────────────────────────
+                            // No Row wrapper: CTAButton positions itself from
+                            // container.alignment / ctaFullWidth, exactly like Flutter's
+                            // Padding(margin) → Align(alignment) → Container.
                             val isLastSlide = currentPage == slides.size - 1
 
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.Center,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
+                            run {
                                 val currentSlide = slides[currentPage]
                                 val currentSelectedInRow =
                                     selectedOptionsPerSlide[currentPage].value
@@ -365,22 +396,24 @@ fun SurveyBottomSheet(
                                 val redirectTargetIndex =
                                     logicRedirect?.let { resolveRedirectIndex(it) }
 
+                                // Flutter: slide.submitButtonText, else "Submit" on the last
+                                // slide and "Next" everywhere else.
                                 val buttonText = when {
                                     isThankYouRedirect ->
                                         currentSlide.submitButtonText?.takeIf { it.isNotEmpty() }
-                                            ?: "SUBMIT"
+                                            ?: "Submit"
 
                                     redirectTargetIndex != null ->
                                         currentSlide.submitButtonText?.takeIf { it.isNotEmpty() }
-                                            ?: "NEXT"
+                                            ?: "Next"
 
                                     isLastSlide ->
                                         currentSlide.submitButtonText?.takeIf { it.isNotEmpty() }
-                                            ?: "SUBMIT"
+                                            ?: "Submit"
 
                                     else ->
                                         currentSlide.submitButtonText?.takeIf { it.isNotEmpty() }
-                                            ?: "NEXT"
+                                            ?: "Next"
                                 }
 
                                 val navButtonConfig = run {
@@ -388,37 +421,40 @@ fun SurveyBottomSheet(
                                     val ctaContainer = ctaStyling?.container
                                     val ctaCornerRadius = ctaStyling?.cornerRadius
                                     val ctaMargin = ctaStyling?.margin
+                                    // Defaults below mirror common/cta_button.dart exactly:
+                                    // 180x32, #F97316 bg, #FFFFFF 2px border, radius 8,
+                                    // margin 12, white text @12, centre aligned.
                                     createCTAButtonConfig(
                                         // text
                                         textColor =
                                             ctaStyling?.text?.color
                                                 ?: surveyDetails.styling?.ctaTextIconColor
                                                 ?: "#FFFFFF",
-                                        textSize = ctaStyling?.text?.fontSize ?: 16,
+                                        textSize = ctaStyling?.text?.fontSize ?: 12,
                                         fontFamily = ctaStyling?.text?.fontFamily,
                                         fontDecoration = ctaStyling?.text?.fontDecoration,
                                         // margins
-                                        marginTop = ctaMargin?.top,
-                                        marginBottom = ctaMargin?.bottom,
-                                        marginStart = ctaMargin?.left,
-                                        marginEnd = ctaMargin?.right,
+                                        marginTop = ctaMargin?.top ?: 12,
+                                        marginBottom = ctaMargin?.bottom ?: 12,
+                                        marginStart = ctaMargin?.left ?: 12,
+                                        marginEnd = ctaMargin?.right ?: 12,
                                         // container
-                                        height = ctaContainer?.height ?: 56,
-                                        width = ctaContainer?.ctaWidth,
+                                        height = ctaContainer?.height ?: 32,
+                                        width = ctaContainer?.ctaWidth ?: 180,
                                         alignment = ctaContainer?.alignment ?: "center",
                                         backgroundColorString =
                                             ctaContainer?.backgroundColor
                                                 ?: surveyDetails.styling?.ctaBackgroundColor
-                                                ?: "#000000",
-                                        borderColorString = ctaContainer?.borderColor,
-                                        borderWidth = ctaContainer?.borderWidth ?: 0,
-                                        fullWidth = ctaContainer?.ctaFullWidth ?: true,
+                                                ?: "#F97316",
+                                        borderColorString = ctaContainer?.borderColor ?: "#FFFFFF",
+                                        borderWidth = ctaContainer?.borderWidth ?: 2,
+                                        fullWidth = ctaContainer?.ctaFullWidth ?: false,
                                         // corner radius
-                                        borderRadiusTopLeft = ctaCornerRadius?.topLeft ?: 12,
-                                        borderRadiusTopRight = ctaCornerRadius?.topRight ?: 12,
-                                        borderRadiusBottomLeft = ctaCornerRadius?.bottomLeft ?: 12,
+                                        borderRadiusTopLeft = ctaCornerRadius?.topLeft ?: 8,
+                                        borderRadiusTopRight = ctaCornerRadius?.topRight ?: 8,
+                                        borderRadiusBottomLeft = ctaCornerRadius?.bottomLeft ?: 8,
                                         borderRadiusBottomRight = ctaCornerRadius?.bottomRight
-                                            ?: 12,
+                                            ?: 8,
                                     )
                                 }
 
@@ -512,22 +548,18 @@ fun SurveyBottomSheet(
                                 )
                             }
 
-                            // ── Dot indicators ─────────────────────────────────────────────
-                            if (slides.size > 1) {
-                                DotsIndicator(
-                                    modifier = Modifier.align(Alignment.CenterHorizontally),
-                                    totalDots = slides.size,
-                                    selectedIndex = currentPage,
-                                    selectedColor = surveyDetails.styling?.cta?.container?.backgroundColor.toColor(
-                                        surveyDetails.styling?.ctaBackgroundColor.toColor(Color.Black)
-                                    ),
-                                    unSelectedColor = surveyDetails.styling?.optionColor.toColorOr(
-                                        Color.LightGray
-                                    ),
-                                    dotSize = 8.dp,
-                                    selectedLength = 20.dp
-                                )
-                            }
+                            // ── Dot indicators — always rendered, like Flutter ─────────────
+                            DotsIndicator(
+                                modifier = Modifier.align(Alignment.CenterHorizontally),
+                                totalDots = slides.size,
+                                selectedIndex = currentPage,
+                                selectedColor = surveyDetails.styling?.cta?.container?.backgroundColor
+                                    .toColorOr(Color(0xFF1F35DB)),
+                                unSelectedColor = surveyDetails.styling?.options?.nonSelectedOptions
+                                    ?.colors?.border.toColorOr(Color(0xFFE5E7EB)),
+                                dotSize = 8.dp,
+                                selectedLength = 20.dp
+                            )
 
                         } // end if/else showThankYou
                     }
@@ -584,35 +616,37 @@ private fun SurveyThankYouContent(
     // ── thankYouButtonConfig (top-level: action / enabled / redirectUrl) ──
     val buttonConfig = surveyDetails.thankYouButtonConfig
     // "CTA Text" field → thankYouButtonText
-    val buttonText = surveyDetails.thankYouButtonText?.takeIf { it.isNotBlank() } ?: "Okay"
+    val buttonText = surveyDetails.thankYouButtonText?.takeIf { it.isNotBlank() } ?: "Done"
     // "Redirect to" field → thankYouButtonConfig.redirectUrl
     val redirectUrl = buttonConfig?.redirectUrl
 
-    // Build CTAButtonConfig using the common factory
+    // Build CTAButtonConfig using the common factory.
+    // Defaults mirror common/cta_button.dart (180x32, #F97316, white 2px border,
+    // radius 8, margin 12, white text @12, centre aligned).
     val ctaButtonConfig = createCTAButtonConfig(
         // text styling
         textColor = ctaStyling?.text?.color ?: "#FFFFFF",
-        textSize = ctaStyling?.text?.fontSize ?: 14,
+        textSize = ctaStyling?.text?.fontSize ?: 12,
         fontFamily = ctaStyling?.text?.fontFamily,
         fontDecoration = ctaStyling?.text?.fontDecoration,
         // margins
-        marginTop = ctaMargin?.top,
-        marginBottom = ctaMargin?.bottom,
-        marginStart = ctaMargin?.left,
-        marginEnd = ctaMargin?.right,
+        marginTop = ctaMargin?.top ?: 12,
+        marginBottom = ctaMargin?.bottom ?: 12,
+        marginStart = ctaMargin?.left ?: 12,
+        marginEnd = ctaMargin?.right ?: 12,
         // container
-        height = ctaContainer?.height ?: 50,
-        width = ctaContainer?.ctaWidth,
+        height = ctaContainer?.height ?: 32,
+        width = ctaContainer?.ctaWidth ?: 180,
         alignment = ctaContainer?.alignment ?: "center",
-        backgroundColorString = ctaContainer?.backgroundColor ?: "#1F35DB",
-        borderColorString = ctaContainer?.borderColor,
-        borderWidth = ctaContainer?.borderWidth ?: 0,
+        backgroundColorString = ctaContainer?.backgroundColor ?: "#F97316",
+        borderColorString = ctaContainer?.borderColor ?: "#FFFFFF",
+        borderWidth = ctaContainer?.borderWidth ?: 2,
         fullWidth = ctaContainer?.ctaFullWidth ?: false,
         // corner radius
-        borderRadiusTopLeft = ctaCornerRadius?.topLeft ?: 12,
-        borderRadiusTopRight = ctaCornerRadius?.topRight ?: 12,
-        borderRadiusBottomLeft = ctaCornerRadius?.bottomLeft ?: 12,
-        borderRadiusBottomRight = ctaCornerRadius?.bottomRight ?: 12,
+        borderRadiusTopLeft = ctaCornerRadius?.topLeft ?: 8,
+        borderRadiusTopRight = ctaCornerRadius?.topRight ?: 8,
+        borderRadiusBottomLeft = ctaCornerRadius?.bottomLeft ?: 8,
+        borderRadiusBottomRight = ctaCornerRadius?.bottomRight ?: 8,
     )
 
     Column(
@@ -628,14 +662,16 @@ private fun SurveyThankYouContent(
             val imgWidth = imgStyle?.width ?: 80
             val imgHeight = imgStyle?.height ?: 80
             val imgMargin = imgStyle?.margin
+            // padding BEFORE size → the margin sits outside the 80x80 box,
+            // matching Flutter's Padding(imgMargin) → SizedBox(w, h).
             val imgModifier = Modifier
-                .size(width = imgWidth.dp, height = imgHeight.dp)
                 .padding(
-                    top = (imgMargin?.top ?: 12).dp,
-                    bottom = (imgMargin?.bottom ?: 12).dp,
-                    start = (imgMargin?.left ?: 12).dp,
-                    end = (imgMargin?.right ?: 12).dp
+                    top = (imgMargin?.top ?: 0).dp,
+                    bottom = (imgMargin?.bottom ?: 16).dp,
+                    start = (imgMargin?.left ?: 0).dp,
+                    end = (imgMargin?.right ?: 0).dp
                 )
+                .size(width = imgWidth.dp, height = imgHeight.dp)
             // Detect media type purely from URL extension (strip query params first)
             val urlClean = imageUrl.substringBefore("?").lowercase()
             when {
@@ -655,6 +691,7 @@ private fun SurveyThankYouContent(
                             .decoderFactory(coil.decode.GifDecoder.Factory())
                             .build(),
                         contentDescription = "Thank you image",
+                        contentScale = ContentScale.Fit,
                         modifier = imgModifier
                     )
                 }
@@ -662,6 +699,7 @@ private fun SurveyThankYouContent(
                     AsyncImage(
                         model = imageUrl,
                         contentDescription = "Thank you image",
+                        contentScale = ContentScale.Fit,
                         modifier = imgModifier
                     )
                 }
@@ -669,17 +707,17 @@ private fun SurveyThankYouContent(
         }
 
         // ── "Title Text" → thankYouTitle ────────────────────
-        val title = surveyDetails.thankYouTitle
-        if (!title.isNullOrEmpty()) {
+        val title = surveyDetails.thankYouTitle?.takeIf { it.isNotEmpty() } ?: "Thank You"
+        if (title.isNotEmpty()) {
             val titleTextStyle = thankyouPage?.title?.textStyle
             CommonText(
                 modifier = Modifier.fillMaxWidth(),
                 text = title,
                 styling = TextStyling(
-                    color = titleTextStyle?.color,
+                    color = titleTextStyle?.color ?: "#111827",
                     fontFamily = titleTextStyle?.fontFamily,
-                    fontSize = titleTextStyle?.fontSize ?: 20,
-                    textAlign = titleTextStyle?.textAlign ?: "center",
+                    fontSize = titleTextStyle?.fontSize ?: 14,
+                    textAlign = titleTextStyle?.textAlign ?: "left",
                     fontDecoration = titleTextStyle?.fontDecoration,
                     margin = titleTextStyle?.margin?.let {
                         CommonMargins(
@@ -701,10 +739,10 @@ private fun SurveyThankYouContent(
                 modifier = Modifier.fillMaxWidth(),
                 text = bodyText,
                 styling = TextStyling(
-                    color = subtitleTextStyle?.color,
+                    color = subtitleTextStyle?.color ?: "#111827",
                     fontFamily = subtitleTextStyle?.fontFamily,
                     fontSize = subtitleTextStyle?.fontSize ?: 14,
-                    textAlign = subtitleTextStyle?.textAlign ?: "center",
+                    textAlign = subtitleTextStyle?.textAlign ?: "left",
                     fontDecoration = subtitleTextStyle?.fontDecoration,
                     margin = subtitleTextStyle?.margin?.let {
                         CommonMargins(
@@ -719,9 +757,8 @@ private fun SurveyThankYouContent(
         }
 
         // ── "CTA Text" + "Redirect to" → thankYouButtonText / thankYouButtonConfig
-        // CTA button shown only when the thank-you page toggle is enabled
-        // (thankYouButtonConfig.enabled == true, controlled by the toggle in the screenshot)
-        if (buttonConfig?.enabled == true) {
+        // CTA button shown unless explicitly disabled (Flutter: enabled != false)
+        if (buttonConfig?.enabled != false) {
             // "CTA Text" → thankYouButtonText | "Redirect to" → thankYouButtonConfig.redirectUrl
             CTAButton(
                 text = buttonText,
@@ -730,7 +767,7 @@ private fun SurveyThankYouContent(
                     onThankYouCtaClicked()
                     // Data was already submitted when the user tapped Next/Submit on each slide.
                     // CTA here only handles optional redirect + dismissal.
-                    if (!redirectUrl.isNullOrEmpty() && buttonConfig.action == "redirect") {
+                    if (!redirectUrl.isNullOrEmpty() && buttonConfig?.action == "redirect") {
                         try {
                             context.startActivity(Intent(Intent.ACTION_VIEW, redirectUrl.toUri()))
                         } catch (_: Exception) {
@@ -778,6 +815,8 @@ private fun SurveyContent(
         base
     }
 
+    val optionsConfig = styling?.options
+    val optionsSpacing = optionsConfig?.optionsSpacing?.toIntOrNull() ?: 12
 
     Column(
         modifier = Modifier
@@ -786,17 +825,18 @@ private fun SurveyContent(
 
         // Question text
         Column {
-            // Display title if exists
-            slide.title?.let { title ->
+            // Title — falls back to the question when only one of the two is sent
+            val titleText = slide.title?.takeIf { it.isNotBlank() } ?: slide.question
+            if (!titleText.isNullOrBlank()) {
                 val titleStyle = styling?.title?.textStyle
                 CommonText(
                     modifier = Modifier.fillMaxWidth(),
-                    text = title,
+                    text = titleText,
                     styling = TextStyling(
-                        color = titleStyle?.color ?: styling?.surveyQuestionColor,
+                        color = titleStyle?.color ?: styling?.surveyQuestionColor ?: "#111827",
                         fontFamily = titleStyle?.fontFamily,
-                        fontSize = titleStyle?.fontSize ?: 18,
-                        textAlign = titleStyle?.textAlign ?: "center",
+                        fontSize = titleStyle?.fontSize ?: 14,
+                        textAlign = titleStyle?.textAlign ?: "left",
                         fontDecoration = titleStyle?.fontDecoration,
                         margin = titleStyle?.margin?.let {
                             CommonMargins(
@@ -811,16 +851,16 @@ private fun SurveyContent(
             }
 
             // Display subtitle if exists
-            slide.subtitle?.let { subtitle ->
+            slide.subtitle?.takeIf { it.isNotBlank() }?.let { subtitle ->
                 val subtitleStyle = styling?.subtitle?.textStyle
                 CommonText(
                     modifier = Modifier.fillMaxWidth(),
                     text = subtitle,
                     styling = TextStyling(
-                        color = subtitleStyle?.color ?: styling?.surveyQuestionColor,
+                        color = subtitleStyle?.color ?: styling?.surveyQuestionColor ?: "#111827",
                         fontFamily = subtitleStyle?.fontFamily,
                         fontSize = subtitleStyle?.fontSize ?: 14,
-                        textAlign = subtitleStyle?.textAlign ?: "center",
+                        textAlign = subtitleStyle?.textAlign ?: "left",
                         fontDecoration = subtitleStyle?.fontDecoration,
                         margin = subtitleStyle?.margin?.let {
                             CommonMargins(
@@ -836,39 +876,33 @@ private fun SurveyContent(
         }
 
         // Options list
-        val optionsConfig = styling?.options
-        val optionsSpacing = optionsConfig?.optionsSpacing?.toIntOrNull() ?: 12
         val bulletSpacing = optionsConfig?.bulletSpacing?.toIntOrNull() ?: 12
         val optionListStyle = optionsConfig?.optionListStyle ?: "number"
-        val visibleOptions = surveyOptions.filter { it.id.isNotEmpty() && it.name.isNotEmpty() }
+        val visibleOptions = surveyOptions.filter { it.name.isNotEmpty() }
         Column {
             visibleOptions.forEachIndexed { index, option ->
-                val showTextPrefix = when (optionListStyle.lowercase()) {
-                    "number", "roman", "alpha", "alphabetic", "alphabet" -> true
-                    else -> false
-                }
-
                 val showCircleBullet =
                     optionListStyle.equals("bulleted", ignoreCase = true)
 
+                // Flutter's _getOptionPrefix: number → "1.", alpha → "A.",
+                // roman → lowercase "i.", anything else → number.
                 val displayId = when (optionListStyle.lowercase()) {
-                    "number" -> "${index + 1}."
-                    "roman" -> "${toRoman(index + 1).uppercase()}."
                     "alpha", "alphabetic", "alphabet" -> "${('A' + index)}."
-                    else -> ""
+                    "roman" -> "${toRoman(index + 1)}."
+                    else -> "${index + 1}."
                 }
+
                 SurveyOptionItem(
                     option = option.copy(id = displayId),
                     isSelected = selectedOptions.contains(option.name),
                     styling = styling,
                     bulletSpacing = bulletSpacing,
-                    showBullet = showTextPrefix,
+                    showBullet = !showCircleBullet,
                     showCircleBullet = showCircleBullet,
                     onOptionClick = { onOptionSelected(option.name) }
                 )
-                if (index < visibleOptions.lastIndex) {
-                    Spacer(modifier = Modifier.height(optionsSpacing.dp))
-                }
+                // Flutter puts optionsSpacing UNDER every option, including the last one.
+                Spacer(modifier = Modifier.height(optionsSpacing.dp))
             }
         }
 
@@ -877,16 +911,10 @@ private fun SurveyContent(
             val addlStyle = styling?.options?.additionalComments
             val addlColors = addlStyle?.colors
             val addlTextStyle = addlStyle?.textStyle
-            val addlBgColor = addlColors?.background.toColorOr(
-                styling?.othersBackgroundColor.toColorOr(Color.LightGray)
-            )
-            val addlBorderColor = addlColors?.border.toColorOr(
-                styling?.othersBackgroundColor.toColorOr(Color.LightGray)
-            )
-            val addlTextColor = addlColors?.text.toColorOr(
-                styling?.othersTextColor.toColorOr(Color.Black)
-            )
-            val addlFontSize = (addlTextStyle?.fontSize ?: 14).sp
+            val addlBgColor = addlColors?.background.toColorOr(Color.White)
+            val addlBorderColor = addlColors?.border.toColorOr(Color(0xFFE5E7EB))
+            val addlTextColor = addlColors?.text.toColorOr(Color(0xFF6B7280))
+            val addlFontSize = (addlTextStyle?.fontSize ?: 12).sp
             val addlFontWeight =
                 if (addlTextStyle?.fontDecoration?.contains("bold") == true) FontWeight.Bold else FontWeight.Normal
             val addlFontStyle =
@@ -894,9 +922,10 @@ private fun SurveyContent(
             val addlTextDecoration =
                 if (addlTextStyle?.fontDecoration?.contains("underline") == true) androidx.compose.ui.text.style.TextDecoration.Underline else androidx.compose.ui.text.style.TextDecoration.None
             val addlTextAlign = when (addlTextStyle?.textAlign?.lowercase()) {
-                "left" -> TextAlign.Start
+                "center" -> TextAlign.Center
                 "right" -> TextAlign.End
-                else -> TextAlign.Center
+                "justify" -> TextAlign.Justify
+                else -> TextAlign.Start
             }
             val addlBorderWidth = (addlTextStyle?.borderwidth
                 ?.let {
@@ -905,58 +934,71 @@ private fun SurveyContent(
                 }
                 ?: 1).dp
 
+            // additionalComments has no cornerRadius field, so it follows the
+            // options.cornerRadius the rest of the list uses.
+            val cr = optionsConfig?.cornerRadius
+            val commentShape = RoundedCornerShape(
+                topStart = (cr?.topLeft ?: 12).dp,
+                topEnd = (cr?.topRight ?: 12).dp,
+                bottomStart = (cr?.bottomLeft ?: 12).dp,
+                bottomEnd = (cr?.bottomRight ?: 12).dp
+            )
+
+            val placeholderText = slide.additionalComment?.placeholder?.trim()
+                ?.takeIf { it.isNotEmpty() }
+                ?: "Please enter details (max 200 characters)"
+
+            val commentTextStyle = androidx.compose.ui.text.TextStyle(
+                fontSize = addlFontSize,
+                fontWeight = addlFontWeight,
+                fontStyle = addlFontStyle,
+                textDecoration = addlTextDecoration,
+                textAlign = addlTextAlign,
+                color = addlTextColor
+            )
+
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 12.dp)
-                    .height(92.dp)
-                    .background(
-                        color = addlBgColor,
-                        shape = RoundedCornerShape(18.dp)
-                    )
-                    .border(
-                        width = addlBorderWidth,
-                        color = addlBorderColor,
-                        shape = RoundedCornerShape(18.dp)
-                    )
+                    .background(color = addlBgColor, shape = commentShape)
+                    .border(width = addlBorderWidth, color = addlBorderColor, shape = commentShape)
             ) {
-                TextField(
+                BasicTextField(
                     value = othersText,
                     onValueChange = {
                         if (it.length <= 200) {
                             onOthersTextChanged(it)
                         }
                     },
-                    modifier = Modifier.fillMaxSize(),
-                    placeholder = {
-                        Text(
-                            text = slide.additionalComment?.placeholder
-                                ?: "Please enter here",
-                            color = addlTextColor.copy(alpha = 0.6f),
-                            fontSize = addlFontSize
-                        )
-                    },
-                    textStyle = androidx.compose.ui.text.TextStyle(
-                        fontSize = addlFontSize,
-                        fontWeight = addlFontWeight,
-                        fontStyle = addlFontStyle,
-                        textDecoration = addlTextDecoration,
-                        textAlign = addlTextAlign,
-                        color = addlTextColor
-                    ),
-                    maxLines = Int.MAX_VALUE,
-                    singleLine = false,
-                    colors = TextFieldDefaults.colors(
-                        focusedTextColor = addlTextColor,
-                        unfocusedTextColor = addlTextColor,
-                        unfocusedContainerColor = Color.Transparent,
-                        focusedContainerColor = Color.Transparent,
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent,
-                        cursorColor = addlTextColor
-                    )
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        // Flutter's InputDecoration contentPadding: EdgeInsets.all(12)
+                        .padding(12.dp),
+                    textStyle = commentTextStyle,
+                    cursorBrush = SolidColor(addlTextColor),
+                    // Flutter: minLines: 3, maxLines: 3
+                    minLines = 3,
+                    maxLines = 3,
+                    decorationBox = { innerTextField ->
+                        Box {
+                            if (othersText.isEmpty()) {
+                                Text(
+                                    text = placeholderText,
+                                    color = addlTextColor.copy(alpha = 0.6f),
+                                    fontSize = addlFontSize,
+                                    textAlign = addlTextAlign,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                            innerTextField()
+                        }
+                    }
                 )
             }
+
+            // Bottom half of the Others block spacing (Flutter wraps the whole
+            // Others + comment group in Padding(bottom: optionsSpacing)).
+            Spacer(modifier = Modifier.height(optionsSpacing.dp))
         }
     }
 }
@@ -980,7 +1022,7 @@ private fun SurveyOptionItem(
     val activeColors = activeStyle?.colors
     val activeTextStyle = activeStyle?.textStyle
 
-    // Corner radius from optionsConfig (future-proof — backend not sending yet)
+    // Corner radius from optionsConfig
     val cr = optionsConfig?.cornerRadius
     val optionShape = RoundedCornerShape(
         topStart = (cr?.topLeft ?: 12).dp,
@@ -989,15 +1031,17 @@ private fun SurveyOptionItem(
         bottomEnd = (cr?.bottomRight ?: 12).dp
     )
 
-    // Colors
+    // Colors — defaults mirror OptionsConfig in survey.dart
     val bgColor = activeColors?.background.toColorOr(
-        if (isSelected) styling?.selectedOptionColor.toColorOr(Color(0xFFF3F4F6))
-        else styling?.optionColor.toColorOr(Color.LightGray)
+        if (isSelected) styling?.selectedOptionColor.toColorOr(Color(0xFF1E56C8))
+        else styling?.optionColor.toColorOr(Color.White)
     )
-    val borderColor = activeColors?.border.toColorOr(Color(0xFFE5E7EB))
+    val borderColor = activeColors?.border.toColorOr(
+        if (isSelected) Color(0xFF111827) else Color(0xFFE5E7EB)
+    )
     val textColor = activeColors?.text.toColorOr(
         if (isSelected) styling?.selectedOptionTextColor.toColorOr(Color.White)
-        else styling?.optionTextColor.toColorOr(Color.Black)
+        else styling?.optionTextColor.toColorOr(Color(0xFF111827))
     )
 
     // Border width from textStyle.borderwidth
@@ -1010,7 +1054,8 @@ private fun SurveyOptionItem(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .then(if (optionHeight != null) Modifier.height(optionHeight.dp) else Modifier.wrapContentHeight())
+            // minHeight instead of a fixed height: long option text grows the row
+            .heightIn(min = (optionHeight ?: 0).dp)
             .clip(optionShape)
             .background(bgColor)
             .border(borderWidth, borderColor, optionShape)
@@ -1023,14 +1068,16 @@ private fun SurveyOptionItem(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                // No vertical padding — options.optionsHeight sets the row height
+                // and the content is centred inside it.
+                .padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Prefix Rendering
             if (showBullet) {
-                // Number / Alpha / Roman
+                // Number / Alpha / Roman — colour follows the option TEXT colour
                 val bulletStyle = TextStyling(
-                    color = activeColors?.border,
+                    color = activeColors?.text,
                     fontFamily = activeTextStyle?.fontFamily,
                     fontSize = activeTextStyle?.fontSize ?: 12,
                     textAlign = "start",
@@ -1045,8 +1092,9 @@ private fun SurveyOptionItem(
                     modifier = Modifier
                         .size(18.dp)
                         .clip(CircleShape)
+                        .background(if (isSelected) borderColor else Color.Transparent)
                         .border(
-                            width = 1.dp,
+                            width = borderWidth,
                             color = borderColor,
                             shape = CircleShape
                         ),
@@ -1055,9 +1103,9 @@ private fun SurveyOptionItem(
                     if (isSelected) {
                         Box(
                             modifier = Modifier
-                                .size(10.dp)
+                                .size(8.dp)
                                 .clip(CircleShape)
-                                .background(borderColor)
+                                .background(bgColor)
                         )
                     }
                 }
@@ -1071,8 +1119,8 @@ private fun SurveyOptionItem(
                 styling = TextStyling(
                     color = activeColors?.text,
                     fontFamily = activeTextStyle?.fontFamily,
-                    fontSize = activeTextStyle?.fontSize ?: 14,
-                    textAlign = activeTextStyle?.textAlign ?: "center",
+                    fontSize = activeTextStyle?.fontSize ?: 12,
+                    textAlign = activeTextStyle?.textAlign ?: "left",
                     fontDecoration = activeTextStyle?.fontDecoration
                 )
             )
@@ -1098,4 +1146,3 @@ private fun toRoman(num: Int): String {
     }
     return sb.toString().lowercase()
 }
-

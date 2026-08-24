@@ -118,12 +118,12 @@ internal object OutreachEventTracker {
     }
 
     /** Async fire-and-forget. Used by AppStorysMessagingService. */
-    fun fireEvent(context: Context, notificationId: String, event: String, variantId: String? = null) {
-        executor.execute { fireEventBlocking(context, notificationId, event, variantId) }
+    fun fireEvent(context: Context, notificationId: String, event: String, variantId: String? = null, runId: String? = null) {
+        executor.execute { fireEventBlocking(context, notificationId, event, variantId, runId) }
     }
 
     /** Synchronous variant — for BroadcastReceiver.goAsync() worker thread. */
-    fun fireEventBlocking(context: Context, notificationId: String, event: String, variantId: String? = null) {
+    fun fireEventBlocking(context: Context, notificationId: String, event: String, variantId: String? = null, runId: String? = null) {
         try {
             if (notificationId.isBlank()) {
                 Log.w(TAG, "fireEvent: blank notificationId")
@@ -137,7 +137,7 @@ internal object OutreachEventTracker {
             val p = prefs(context)
             val userId = p.getString(KEY_USER_ID, null)
             if (userId.isNullOrBlank()) {
-                queueEvent(p, notificationId, event, variantId)
+                queueEvent(p, notificationId, event, variantId, runId)
                 Log.w(TAG, "No user_id yet — queued $event for $notificationId")
                 return
             }
@@ -150,19 +150,19 @@ internal object OutreachEventTracker {
                 token = refreshLongLivedToken(p) ?: run {
                     val fcm = p.getString(KEY_DEVICE_TOKEN, null)
                     if (fcm.isNullOrBlank()) {
-                        queueEvent(p, notificationId, event, variantId)
+                        queueEvent(p, notificationId, event, variantId, runId)
                         Log.w(TAG, "No fcm token on disk — queued $event")
                         return
                     }
                     fetchAndStoreAccessToken(p, userId, fcm)
                 }
                 if (token == null) {
-                    queueEvent(p, notificationId, event, variantId)
+                    queueEvent(p, notificationId, event, variantId, runId)
                     return
                 }
             }
 
-            when (sendEvent(userId, token, notificationId, event, variantId)) {
+            when (sendEvent(userId, token, notificationId, event, variantId, runId)) {
                 SendResult.OK -> { /* done */
                 }
 
@@ -170,20 +170,20 @@ internal object OutreachEventTracker {
                     Log.w(TAG, "Outreach long-lived token rejected (401/403), refreshing")
                     val fresh = recoverLongLivedToken(p, userId)
                     if (fresh == null) {
-                        queueEvent(p, notificationId, event, variantId)
+                        queueEvent(p, notificationId, event, variantId, runId)
                         return
                     }
-                    if (sendEvent(userId, fresh, notificationId, event, variantId) != SendResult.OK) {
-                        queueEvent(p, notificationId, event, variantId)
+                    if (sendEvent(userId, fresh, notificationId, event, variantId, runId) != SendResult.OK) {
+                        queueEvent(p, notificationId, event, variantId, runId)
                     }
                 }
 
-                SendResult.OTHER_ERROR -> queueEvent(p, notificationId, event, variantId)
+                SendResult.OTHER_ERROR -> queueEvent(p, notificationId, event, variantId, runId)
             }
         } catch (e: Exception) {
             Log.e(TAG, "fireEventBlocking failed", e)
             try {
-                queueEvent(prefs(context), notificationId, event, variantId)
+                queueEvent(prefs(context), notificationId, event, variantId, runId)
             } catch (_: Exception) {
             }
         }
@@ -208,17 +208,20 @@ internal object OutreachEventTracker {
         outreachToken: String,
         notificationId: String,
         event: String,
-        variantId: String? = null
+        variantId: String? = null,
+        runId: String? = null
     ): SendResult {
         return try {
             val body = JSONObject().apply {
                 put("user_id", userId)
                 put("campaign_id", notificationId)
                 put("event", event)
-                if (!variantId.isNullOrBlank()) {
-                    put("metadata", JSONObject().apply {
-                        put("variant_id", variantId)
-                    })
+                val metadata = JSONObject().apply {
+                    if (!variantId.isNullOrBlank()) put("variant_id", variantId)
+                    if (!runId.isNullOrBlank()) put("run_id", runId)
+                }
+                if (metadata.length() > 0) {
+                    put("metadata", metadata)
                 }
             }
             val request = Request.Builder()
@@ -381,7 +384,7 @@ internal object OutreachEventTracker {
         }
     }
 
-    private fun queueEvent(p: SharedPreferences, notificationId: String, event: String,  variantId: String? = null) {
+    private fun queueEvent(p: SharedPreferences, notificationId: String, event: String,  variantId: String? = null, runId: String? = null) {
         try {
             val existing = p.getString(KEY_QUEUE, null)
             val queue = if (existing != null) JSONArray(existing) else JSONArray()
@@ -394,6 +397,7 @@ internal object OutreachEventTracker {
                 put("event", event)
                 put("ts", System.currentTimeMillis())
                 if (!variantId.isNullOrBlank()) put("variant_id", variantId)
+                if (!runId.isNullOrBlank()) put("run_id", runId)
             })
             p.edit { putString(KEY_QUEUE, queue.toString()) }
         } catch (e: Exception) {
@@ -415,9 +419,10 @@ internal object OutreachEventTracker {
             val nId = item.optString("notification_id")
             val ev = item.optString("event")
             val variantId = item.optString("variant_id").takeIf { it.isNotBlank() }
+            val runId = item.optString("run_id").takeIf { it.isNotBlank() }
             if (nId.isBlank() || ev.isBlank()) continue
 
-            when (sendEvent(userId, token, nId, ev, variantId)) {
+            when (sendEvent(userId, token, nId, ev, variantId, runId)) {
                 SendResult.OK -> sent++
                 SendResult.UNAUTHORIZED -> {
                     // Refresh once mid-drain via refresh-fcm-refresh-token,
@@ -425,7 +430,7 @@ internal object OutreachEventTracker {
                     val fresh = recoverLongLivedToken(p, userId)
                     if (fresh != null) {
                         token = fresh
-                        if (sendEvent(userId, token, nId, ev, variantId) == SendResult.OK) sent++
+                        if (sendEvent(userId, token, nId, ev, variantId, runId) == SendResult.OK) sent++
                         else remaining.put(item)
                     } else {
                         remaining.put(item)
