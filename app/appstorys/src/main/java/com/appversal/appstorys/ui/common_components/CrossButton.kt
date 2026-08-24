@@ -48,6 +48,7 @@ internal fun CrossButton(
 ) {
     val context = LocalContext.current
     val buttonSize = config.size
+    val hasImage = !config.imageUrl.isNullOrBlank()
 
     val borderWidth = remember(buttonSize) {
         (buttonSize * 0.05f)//.coerceIn(0.5.dp, 2.dp)
@@ -68,7 +69,13 @@ internal fun CrossButton(
                     buttonSize
                 }
             )
-            .clip(CircleShape)
+            .then(
+                if (!hasImage) {
+                    Modifier.clip(CircleShape)
+                } else {
+                    Modifier
+                }
+            )
             .background(config.fillColor)
             .then(
                 if (config.strokeColor != Color.Transparent) {
@@ -91,11 +98,10 @@ internal fun CrossButton(
             AsyncImage(
                 model = imageRequest,
                 contentDescription = "Close",
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(CircleShape)
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.fillMaxSize()
             )
+
         } else {
             Icon(
                 painter = painterResource(R.drawable.cross),
