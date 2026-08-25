@@ -493,6 +493,7 @@ data class StoryTextStyling(
     val position: StoryPosition? = null,
     val size: StorySize? = null,
     val rotation: Float? = null,
+    val flip: StoryFlip? = null,
     val opacity: Float? = null,
     val letterSpacing: Float? = null,
     val lineHeight: Float? = null,

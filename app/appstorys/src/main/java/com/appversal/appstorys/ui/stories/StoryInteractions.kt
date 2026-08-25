@@ -1292,7 +1292,10 @@ private fun QuizInteraction(
         )
         val optGap = optRowH * optGapRatio
         val optionRadius = minOf(
-            styling.borderRadiusDp(scope, w * optionRadiusRatio),
+            // Was reading the default "borderRadius" key, i.e. the CONTAINER's radius —
+            // so the quiz's own `optionRadius` was never applied and its options
+            // inherited the card's corner instead (square whenever borderRadius is 0).
+            styling.borderRadiusDp(scope, w * optionRadiusRatio, key = "optionRadius"),
             optRowH * 0.5f
         )
         val optHPad = minOf(w * 0.06f, optRowH * 0.3f)
