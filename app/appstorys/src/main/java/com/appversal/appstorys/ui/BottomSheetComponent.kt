@@ -149,15 +149,29 @@ internal fun BottomSheetComponent(
 //                        .calculateBottomPadding()
 
                     if (imageElement != null && hasOverlayButton) {
-                        ImageElement(imageElement, onClick = onClick, onState = onImageState)
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(
+                                    RoundedCornerShape(
+                                        topStart = topLeftRadius,
+                                        topEnd = topRightRadius
+                                    )
+                                )
+                        ) {
+                            ImageElement(imageElement, onClick = onClick, onState = onImageState)
+                        }
                     }
 
                     Column(
                         modifier = Modifier
-                            .clip(
-                                RoundedCornerShape(
-                                    topStart = topLeftRadius,
-                                    topEnd = topRightRadius
+                            .then(
+                                if (hasOverlayButton) Modifier
+                                else Modifier.clip(
+                                    RoundedCornerShape(
+                                        topStart = topLeftRadius,
+                                        topEnd = topRightRadius
+                                    )
                                 )
                             )
                             .then(

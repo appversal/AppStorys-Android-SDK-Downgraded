@@ -488,7 +488,9 @@ object AppStorys {
 
                 ensureActive()
 
-                campaignsList?.let { campaigns.emit(it) }
+                campaignsList?.let { list ->
+                    campaigns.emit(list.sortedBy { it.priority })
+                }
                 campaignVariants.emit(variants ?: emptyList())
                 Log.e("AppStorys", "Campaign: ${campaigns.value}")
             } catch (exception: Exception) {
@@ -558,7 +560,7 @@ object AppStorys {
                     }
                     val client = OkHttpClient()
                     val request = Request.Builder()
-                        .url("https://tracking.appstorys.co/capture-event")
+                        .url("https://tracking.appstorys.com/capture-event")
                         .post(
                             requestBody.toString()
                                 .toRequestBody("application/json".toMediaTypeOrNull())

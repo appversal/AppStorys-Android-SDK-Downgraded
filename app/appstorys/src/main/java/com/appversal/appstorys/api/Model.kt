@@ -117,7 +117,8 @@ data class Campaign(
     val details: CampaignDetails?,
     val position: String?,
     val screen: String?,
-    @SerialName("trigger_event") val triggerEvent: TriggerEvent?
+    @SerialName("trigger_event") val triggerEvent: TriggerEvent?,
+    val priority: Int = Int.MAX_VALUE
 )
 
 @Keep
