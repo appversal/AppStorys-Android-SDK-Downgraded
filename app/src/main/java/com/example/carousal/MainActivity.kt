@@ -257,6 +257,7 @@ fun HomeScreen(
 
     LaunchedEffect(Unit) {
 //        val screenName = "Home Screen Kotlin"
+//        val screenName = "Home Screen Flutter"
         val screenName = "Home Screen Kotlin XML"
         val positions = listOf("widget_one")
         campaignManager.getScreenCampaigns(

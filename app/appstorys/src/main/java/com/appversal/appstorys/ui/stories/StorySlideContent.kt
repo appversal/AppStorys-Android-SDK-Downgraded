@@ -20,10 +20,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -238,13 +236,29 @@ internal fun StorySlideForeground(
             // Previously parsed but never applied to the wrapper, so polls/quizzes/etc.
             // authored with a rotation always rendered upright.
             val rotationVal = jsonFloat(s?.get("rotation")) ?: 0f
+            // Every interaction ships styling.animation { type, direction } exactly like
+            // the other studio elements, but nothing read it — poll/quiz/rating/… had no
+            // entrance animation at all. Applied on this shared wrapper so all eight
+            // types are covered in one place.
+            // `duration` is deliberately not forwarded: the studio sends a window here
+            // but currentTime never advances (see StorySlideForeground's param), so
+            // passing it would gate visibility on a clock that is always 0.
+            val interactionAnimation = jsonObjectOrNull(s?.get("animation"))?.let {
+                StoryAnimation(
+                    type = jsonString(it["type"]),
+                    direction = jsonString(it["direction"])
+                )
+            }
 
             Box(
                 modifier = Modifier
-                    .offset(x = scope.xPctDp(posX), y = scope.yPctDp(posY))
-                    .width(scope.widthPctDp(szW))
-                    .height(scope.heightPctDp(szH))
+                    .canvaPlace(scope, posX, posY, szW, szH)
                     .rotate(rotationVal)
+                    .studioElementAnimation(
+                        interactionAnimation,
+                        duration = null,
+                        currentTime = currentTime
+                    )
             ) {
                 StoryInteractionRenderer(
                     interaction = interaction,
@@ -407,13 +421,17 @@ private fun ForegroundImage(
     val scaleY = if (flipV) -1f else 1f
 
     val imgModifier = Modifier
-        .offset(x = scope.xPctDp(x), y = scope.yPctDp(y))
-        .size(width = scope.widthPctDp(w), height = scope.heightPctDp(h))
+        .canvaPlace(scope, x, y, w, h)
         .rotate(rotation)
         .scale(scaleX = scaleX, scaleY = scaleY)
+        // The animation has to sit OUTSIDE .clip(). A clip declared before it stays
+        // put while the animation's offset/scale moves the content underneath, so a
+        // fade/slide made the picture slide around inside a stationary rounded frame
+        // instead of the whole element moving. Only the three media composables clip
+        // before animating; text/cta/element/interaction already clip afterwards.
+        .studioElementAnimation(style?.animation, style?.duration, currentTime)
         .clip(RoundedCornerShape(scope.heightPctDp(radius)))   // was sizeDp
         .alpha(opacity)
-        .studioElementAnimation(style?.animation, style?.duration, currentTime)
 
     // Honour the studio fit key when present; the default stays crop-fill so
     // existing campaigns render exactly as before.
@@ -486,13 +504,17 @@ private fun ForegroundLottie(
         iterations = if (style?.loop == false) 1 else LottieConstants.IterateForever,
         contentScale = lottieScale,
         modifier = Modifier
-            .offset(x = scope.xPctDp(x), y = scope.yPctDp(y))
-            .size(width = scope.widthPctDp(w), height = scope.heightPctDp(h))
+            .canvaPlace(scope, x, y, w, h)
             .rotate(rotation)
             .scale(scaleX = if (flipH) -1f else 1f, scaleY = if (flipV) -1f else 1f)
+            // The animation has to sit OUTSIDE .clip(). A clip declared before it stays
+            // put while the animation's offset/scale moves the content underneath, so a
+            // fade/slide made the picture slide around inside a stationary rounded frame
+            // instead of the whole element moving. Only the three media composables clip
+            // before animating; text/cta/element/interaction already clip afterwards.
+            .studioElementAnimation(style?.animation, style?.duration, currentTime)
             .clip(RoundedCornerShape(scope.heightPctDp(radius)))
             .alpha(opacity)
-            .studioElementAnimation(style?.animation, style?.duration, currentTime)
     )
 }
 
@@ -575,13 +597,17 @@ private fun ForegroundVideo(
         },
         update = { view -> view.resizeMode = videoResizeMode },
         modifier = Modifier
-            .offset(x = scope.xPctDp(x), y = scope.yPctDp(y))
-            .size(width = scope.widthPctDp(w), height = scope.heightPctDp(h))
+            .canvaPlace(scope, x, y, w, h)
             .rotate(rotation)
             .scale(scaleX = if (flipH) -1f else 1f, scaleY = if (flipV) -1f else 1f)
+            // The animation has to sit OUTSIDE .clip(). A clip declared before it stays
+            // put while the animation's offset/scale moves the content underneath, so a
+            // fade/slide made the picture slide around inside a stationary rounded frame
+            // instead of the whole element moving. Only the three media composables clip
+            // before animating; text/cta/element/interaction already clip afterwards.
+            .studioElementAnimation(style?.animation, style?.duration, currentTime)
             .clip(RoundedCornerShape(scope.heightPctDp(radius)))   // was sizeDp
             .alpha(opacity)
-            .studioElementAnimation(style?.animation, style?.duration, currentTime)
     )
 }
 
@@ -673,9 +699,12 @@ private fun ForegroundText(
 
     Box(
         modifier = Modifier
-            .offset(x = scope.xPctDp(x), y = scope.yPctDp(y))
-            .size(width = scope.widthPctDp(w), height = scope.heightPctDp(h))
+            .canvaPlace(scope, x, y, w, h)
             .rotate(rotation)
+            .scale(
+                scaleX = if (style?.flip?.horizontal == true) -1f else 1f,
+                scaleY = if (style?.flip?.vertical == true) -1f else 1f
+            )
             .alpha(opacity)
             .studioElementAnimation(style?.animation, style?.duration, currentTime),
         contentAlignment = boxAlign
@@ -778,8 +807,7 @@ private fun ForegroundCta(
     }
 
     val baseModifier = Modifier
-        .offset(x = scope.xPctDp(x), y = scope.yPctDp(y))
-        .size(width = scope.widthPctDp(w), height = scope.heightPctDp(h))
+        .canvaPlace(scope, x, y, w, h)
         .rotate(rotation)
         .alpha(opacity)
         .studioElementAnimation(style?.animation, duration = null, currentTime = currentTime)
@@ -808,7 +836,10 @@ private fun ForegroundCta(
                     Image(
                         painter = rememberAsyncImagePainter(img),
                         contentDescription = cta.text,
-                        contentScale = ContentScale.Fit,
+                        // Crop-fill, not Fit: the box's borderRadius is clipped by
+                        // baseModifier, so a letterboxed image never reaches the corners
+                        // being rounded and the authored radius renders as a no-op.
+                        contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()
                     )
                 }
@@ -827,11 +858,13 @@ private fun ForegroundCta(
             // chevron stretches vertically (scaleY 1.0 → 1.10) in lockstep. A configured
             // animation wins and skips the pulse.
             val configuredAnimationType = style?.animation?.type?.trim()?.lowercase()
-            val useDefaultBounce =
-                configuredAnimationType.isNullOrEmpty() || configuredAnimationType == "none"
-            val swipeUpAnimation: StoryAnimation = style?.animation
-                ?.takeUnless { it.type.isNullOrBlank() || it.type?.trim()?.lowercase() == "none" }
-                ?: StoryAnimation(type = "bounce")
+            // The bob is swipe-up's AFFORDANCE — the thing that says "swipe me" — so it
+            // repeats for the life of the slide whether it is the built-in default or the
+            // dashboard explicitly picked "bounce". Any other configured type is a normal
+            // one-shot entrance and runs through studioElementAnimation like everything else.
+            val useDefaultBounce = configuredAnimationType.isNullOrEmpty() ||
+                    configuredAnimationType == "none" ||
+                    configuredAnimationType == "bounce"
 
             // Chevron vertical pulse — same 550ms / easeInOut / autoreverse timing as the
             // bounce, starting from 1.0, so the arrow is tallest at the top of the bob and
@@ -848,16 +881,31 @@ private fun ForegroundCta(
             )
             val chevronScale = if (useDefaultBounce) chevronScaleRaw else 1f
 
+            // Swipe-up's default bob is a standing AFFORDANCE, not an entrance: the whole
+            // column — chevron and pill together — keeps bobbing for the life of the slide,
+            // in phase with the chevron pulse above. Every other studio animation plays once
+            // and rests, so this cannot go through studioElementAnimation's "bounce".
+            // A dashboard-configured animation wins and runs once like everything else.
+            val defaultBobDy by chevronPulse.animateFloat(
+                initialValue = 0f,
+                targetValue = -12f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(durationMillis = 550, easing = EaseInOut),
+                    repeatMode = RepeatMode.Reverse,
+                ),
+                label = "swipeUpColumnBob",
+            )
+
             val swipeUpModifier = Modifier
-                .offset(x = scope.xPctDp(x), y = scope.yPctDp(y))
-                .size(width = scope.widthPctDp(w), height = scope.heightPctDp(h))
+                .canvaPlace(scope, x, y, w, h)
                 .rotate(rotation)
                 .alpha(opacity)
                 .studioElementAnimation(
-                    swipeUpAnimation,
+                    if (useDefaultBounce) null else style?.animation,
                     duration = null,
                     currentTime = currentTime
                 )
+                .offset(y = if (useDefaultBounce) defaultBobDy.dp else 0.dp)
                 .pointerInput(Unit) {
                     // ONE gesture loop handles both tap and swipe-up.
                     //
@@ -956,7 +1004,6 @@ private fun ForegroundCta(
                         scope.fontPctDp(style?.arrowSize ?: 2.08f).coerceAtLeast(10.dp)
                     }
                     val chevronWidth = chevronHeight * 1.9f
-                    val strokeWidthPx = with(density) { chevronHeight.toPx() } * 0.3f
 
                     androidx.compose.foundation.Canvas(
                         modifier = Modifier
@@ -972,7 +1019,13 @@ private fun ForegroundCta(
                             path = path,
                             color = arrowColor,
                             style = androidx.compose.ui.graphics.drawscope.Stroke(
-                                width = strokeWidthPx,
+                                // Thickness follows the box actually drawn into, not the
+                                // requested chevronHeight — Modifier.size is coerced by the
+                                // parent row, so deriving from the request made a large
+                                // arrowSize paint a stroke wider than the box holding it.
+                                // 0.18 is the weight that reads well from ~50px to ~200px:
+                                // lower is more delicate, higher is bolder. Tune here.
+                                width = size.height * 0.18f,
                                 cap = androidx.compose.ui.graphics.StrokeCap.Round,
                                 join = androidx.compose.ui.graphics.StrokeJoin.Round
                             )
@@ -1053,8 +1106,7 @@ private fun ForegroundElement(
     val flipY = if (flip.contains("vertical")) -1f else 1f
 
     val baseModifier = Modifier
-        .offset(x = scope.xPctDp(x), y = scope.yPctDp(y))
-        .size(width = scope.widthPctDp(w), height = scope.heightPctDp(h))
+        .canvaPlace(scope, x, y, w, h)
         .scale(scaleX = flipX, scaleY = flipY)
         .rotate(rotation)
         .alpha(opacity)
@@ -1074,15 +1126,15 @@ private fun ForegroundElement(
         "frame" -> {
             val stroke =
                 parseStoryColorElement(style?.strokeColor ?: el.stroke) ?: Color.Transparent
-            // strokeWidth in JSON is in SVG/canva units; scale against sizeDp for consistency
-            val strokeW = style?.strokeWidth ?: el.strokeWidth ?: 0f
+            // Same unit and same field preference as the "shape" branch above.
+            val strokeW = el.strokeWidth ?: style?.strokeWidth ?: 0f
             val cr = scope.sizeDp(style?.cornerRadius ?: el.cornerRadius ?: 0f)
             Box(
                 modifier = baseModifier
                     .clip(RoundedCornerShape(cr))
                     .let {
                         if (strokeW > 0f) it.border(
-                            scope.sizeDp(strokeW * 10f).coerceAtLeast(0.5.dp),
+                            scope.heightPctDp(strokeW).coerceAtLeast(0.5.dp),
                             stroke,
                             RoundedCornerShape(cr)
                         ) else it
@@ -1099,8 +1151,14 @@ private fun ForegroundElement(
             val parsedPath = remember(el.svgPath) { el.svgPath?.let { parseSvgPathData(it) } }
             val fillColor = parseStoryColorElement(style?.color ?: el.fill)
             val strokeColor = parseStoryColorElement(style?.strokeColor ?: el.stroke)
-            // strokeWidth arrives as a % of canvas width, like every other size field.
-            val strokeWidthDp = scope.widthPctDp(el.strokeWidth ?: style?.strokeWidth ?: 0f)
+            // strokeWidth is a % of canva HEIGHT, like every other scalar (font size,
+            // border radius). Proof from the studio payload: 0.1667 / 0.0417 / 0.4167
+            // map to exactly 4 / 1 / 10 canva px against a 2400-tall canvas, but to
+            // 1.8 / 0.45 / 4.5 against its 1080 width. Measuring against width rendered
+            // every shape outline 2.22x too thin.
+            // Note `content.strokeWidth` is the authored value; `styling.strokeWidth`
+            // carries the same stroke divided by 24, so it must stay the fallback.
+            val strokeWidthDp = scope.heightPctDp(el.strokeWidth ?: style?.strokeWidth ?: 0f)
             val strokeWidthPx = with(LocalDensity.current) { strokeWidthDp.toPx() }
             val outlined = el.styleType.equals("outline", ignoreCase = true)
 
@@ -1502,4 +1560,8 @@ private fun jsonObjectOrNull(e: kotlinx.serialization.json.JsonElement?): kotlin
 
 private fun jsonFloat(e: kotlinx.serialization.json.JsonElement?): Float? = runCatching {
     (e as? kotlinx.serialization.json.JsonPrimitive)?.content?.toFloatOrNull()
+}.getOrNull()
+
+private fun jsonString(e: kotlinx.serialization.json.JsonElement?): String? = runCatching {
+    (e as? kotlinx.serialization.json.JsonPrimitive)?.content
 }.getOrNull()

@@ -50,8 +50,10 @@ import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -2716,8 +2718,19 @@ object AppStorys {
         }
 
         if (isScreenCaptureEnabled && !isCapturing) {
+            // Popup content sizes its own window, so padding here would make the
+            // window (and its touch area) cover the nav bar. Offset the window instead.
+            val density = LocalDensity.current
+            val fabOffset = remember(density) {
+                with(density) { IntOffset(-16.dp.roundToPx(), -86.dp.roundToPx()) }
+            }
+            val snackbarOffset = remember(density) {
+                with(density) { IntOffset(0, -80.dp.roundToPx()) }
+            }
+
             Popup(
                 alignment = Alignment.BottomEnd,
+                offset = fabOffset,
                 properties = PopupProperties(
                     focusable = false,
                     dismissOnBackPress = false,
@@ -2730,7 +2743,7 @@ object AppStorys {
                         shouldAnalyze = true
                         Log.i(TAG, "shouldAnalyze = true")
                     },
-                    modifier = modifier.padding(bottom = 86.dp, end = 16.dp),
+                    modifier = modifier,
                     containerColor = Color.White
                 ) {
                     Text(modifier = Modifier.padding(horizontal = 12.dp), text = "Capture Screen")
@@ -2738,16 +2751,14 @@ object AppStorys {
             }
             Popup(
                 alignment = Alignment.BottomCenter,
+                offset = snackbarOffset,
                 properties = PopupProperties(
                     focusable = false,
                     dismissOnBackPress = false,
                     dismissOnClickOutside = false
                 )
             ) {
-                SnackbarHost(
-                    hostState = snackbarHostState,
-                    modifier = Modifier.padding(bottom = 80.dp)
-                )
+                SnackbarHost(hostState = snackbarHostState)
             }
         }
     }

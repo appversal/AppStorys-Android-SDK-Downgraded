@@ -257,24 +257,19 @@ private fun ImageContent(tooltip: Tooltip, modifier: Modifier = Modifier) {
         bottomEnd = (tooltip.styling?.appearance?.cornerRadius?.bottomRight ?: 0f).toDp(),
     )
 
+    // The caller already sized this Box to styling.appearance.imageDimensions,
+    // so every media type fills that box edge-to-edge and crops the overflow
+    // (Crop keeps the aspect ratio; FillBounds would stretch the artwork).
+    val mediaModifier = Modifier.fillMaxSize()
+
     Box(
-        modifier =
-            modifier.then(
-                tooltip.styling?.let { padding ->
-                    Modifier
-                        .background(
-                            color = tooltip.styling.appearance?.colors?.tooltip.toColor(
-                                Color.Transparent
-                            ), shape = cornerRadius
-                        )
-                        .clip(cornerRadius)
-                        .noRippleClickable(
-                            onClick = {
-                                handleTooltipAction(tooltip, true)
-                            }
-                        )
-                } ?: Modifier
-            ),
+        modifier = modifier
+            .background(
+                color = tooltip.styling?.appearance?.colors?.tooltip.toColor(Color.Transparent),
+                shape = cornerRadius
+            )
+            .clip(cornerRadius)
+            .noRippleClickable(onClick = { handleTooltipAction(tooltip, true) }),
         content = {
             when {
                 isLottieUrl(url) -> {
@@ -285,7 +280,8 @@ private fun ImageContent(tooltip: Tooltip, modifier: Modifier = Modifier) {
                     LottieAnimation(
                         composition = composition,
                         iterations = LottieConstants.IterateForever,
-                        modifier = Modifier.fillMaxSize()
+                        contentScale = ContentScale.Crop,
+                        modifier = mediaModifier
                     )
                 }
 
@@ -318,8 +314,8 @@ private fun ImageContent(tooltip: Tooltip, modifier: Modifier = Modifier) {
                     Image(
                         painter = painter,
                         contentDescription = null,
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier.fillMaxSize()
+                        contentScale = ContentScale.Crop,
+                        modifier = mediaModifier
                     )
                 }
 
@@ -338,8 +334,8 @@ private fun ImageContent(tooltip: Tooltip, modifier: Modifier = Modifier) {
                     AsyncImage(
                         model = imageRequest,
                         contentDescription = null,
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier.fillMaxSize()
+                        contentScale = ContentScale.Crop,
+                        modifier = mediaModifier
                     )
                 }
             }
