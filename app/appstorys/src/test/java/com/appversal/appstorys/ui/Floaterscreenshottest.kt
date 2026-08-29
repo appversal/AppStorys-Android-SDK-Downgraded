@@ -160,9 +160,9 @@ class FloaterScreenshotTest {
         val height = (details?.height ?: 60).dp
 
         val styling   = details?.styling
-        val bottomPad = styling?.floaterBottomPadding?.toFloatOrNull()?.dp ?: 0.dp
-        val rightPad  = styling?.floaterRightPadding?.toFloatOrNull()?.dp  ?: 0.dp
-        val leftPad   = styling?.floaterLeftPadding?.toFloatOrNull()?.dp   ?: 0.dp
+        val bottomPad = styling?.marginBottom?.toFloatOrNull()?.dp ?: 0.dp
+        val rightPad  = styling?.marginRight?.toFloatOrNull()?.dp  ?: 0.dp
+        val leftPad   = styling?.marginLeft?.toFloatOrNull()?.dp   ?: 0.dp
 
         val shape = RoundedCornerShape(
             topStart    = styling?.topLeftRadius?.toFloatOrNull()?.dp    ?: 0.dp,
