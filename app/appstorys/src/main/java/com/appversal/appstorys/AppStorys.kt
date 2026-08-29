@@ -50,8 +50,10 @@ import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -461,6 +463,9 @@ object AppStorys {
                     currentScreen = screenName
                     backPressCampaignConsumed = false
                     _showBottomSheet.update { true }
+                    _showCsat.update { false }
+                    _showModal.update { true }
+                    tooltipViewed.update { emptyList() }
                     delay(100)
                 }
 
@@ -483,7 +488,9 @@ object AppStorys {
 
                 ensureActive()
 
-                campaignsList?.let { campaigns.emit(it) }
+                campaignsList?.let { list ->
+                    campaigns.emit(list.sortedBy { it.priority })
+                }
                 campaignVariants.emit(variants ?: emptyList())
                 Log.e("AppStorys", "Campaign: ${campaigns.value}")
             } catch (exception: Exception) {
@@ -553,7 +560,7 @@ object AppStorys {
                     }
                     val client = OkHttpClient()
                     val request = Request.Builder()
-                        .url("https://tracking.appstorys.co/capture-event")
+                        .url("https://tracking.appstorys.com/capture-event")
                         .post(
                             requestBody.toString()
                                 .toRequestBody("application/json".toMediaTypeOrNull())
@@ -1015,9 +1022,12 @@ object AppStorys {
                         CsatDialog(
                             onDismiss = {
                                 isVisibleState = false
+                                val screenAtDismiss = currentScreen
                                 coroutineScope.launch {
                                     delay(500L)
-                                    _showCsat.update { true }
+                                    if (currentScreen == screenAtDismiss) {
+                                        _showCsat.update { true }
+                                    }
                                 }
                             },
                             onSubmitFeedback = { feedback ->
@@ -1090,10 +1100,10 @@ object AppStorys {
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(
-                        bottom = styling?.floaterBottomPadding?.toFloatOrNull()?.dp
+                        bottom = (styling?.marginBottom?.toFloatOrNull()?.dp?.plus(bottomPadding))
                             ?: bottomPadding,
-                        start = styling?.floaterLeftPadding?.toFloatOrNull()?.dp ?: 0.dp,
-                        end = styling?.floaterRightPadding?.toFloatOrNull()?.dp ?: 0.dp,
+                        start = styling?.marginLeft?.toFloatOrNull()?.dp ?: 0.dp,
+                        end = styling?.marginRight?.toFloatOrNull()?.dp ?: 0.dp,
                     ),
                 content = {
                     OverlayFloater(
@@ -1752,7 +1762,7 @@ object AppStorys {
                     modifier = modifier,
                     staticWidth = LocalConfiguration.current.screenWidthDp.dp,
                     placeHolder = placeholder,
-                    contentScale = ContentScale.FillWidth,
+                    contentScale = ContentScale.Crop,
                     position = position,
                 )
 
@@ -2710,8 +2720,19 @@ object AppStorys {
         }
 
         if (isScreenCaptureEnabled && !isCapturing) {
+            // Popup content sizes its own window, so padding here would make the
+            // window (and its touch area) cover the nav bar. Offset the window instead.
+            val density = LocalDensity.current
+            val fabOffset = remember(density) {
+                with(density) { IntOffset(-16.dp.roundToPx(), -86.dp.roundToPx()) }
+            }
+            val snackbarOffset = remember(density) {
+                with(density) { IntOffset(0, -80.dp.roundToPx()) }
+            }
+
             Popup(
                 alignment = Alignment.BottomEnd,
+                offset = fabOffset,
                 properties = PopupProperties(
                     focusable = false,
                     dismissOnBackPress = false,
@@ -2724,7 +2745,7 @@ object AppStorys {
                         shouldAnalyze = true
                         Log.i(TAG, "shouldAnalyze = true")
                     },
-                    modifier = modifier.padding(bottom = 86.dp, end = 16.dp),
+                    modifier = modifier,
                     containerColor = Color.White
                 ) {
                     Text(modifier = Modifier.padding(horizontal = 12.dp), text = "Capture Screen")
@@ -2732,16 +2753,14 @@ object AppStorys {
             }
             Popup(
                 alignment = Alignment.BottomCenter,
+                offset = snackbarOffset,
                 properties = PopupProperties(
                     focusable = false,
                     dismissOnBackPress = false,
                     dismissOnClickOutside = false
                 )
             ) {
-                SnackbarHost(
-                    hostState = snackbarHostState,
-                    modifier = Modifier.padding(bottom = 80.dp)
-                )
+                SnackbarHost(hostState = snackbarHostState)
             }
         }
     }

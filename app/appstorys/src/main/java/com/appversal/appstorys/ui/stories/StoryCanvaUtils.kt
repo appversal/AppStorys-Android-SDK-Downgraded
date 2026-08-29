@@ -1,6 +1,11 @@
 package com.appversal.appstorys.ui.stories
 
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.runtime.Immutable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
@@ -209,3 +214,32 @@ internal fun parseStoryColorElement(element: JsonElement?): Color? {
         else -> null
     }
 }
+
+/**
+ * Places a studio-canvas element at its authored top-left with its authored
+ * size, in canva percentage units.
+ *
+ * The [wrapContentSize] step is what makes rotation work. Studio elements are
+ * legitimately allowed to be bigger than the canvas — a text rotated 90° is
+ * authored as a box ~165 % of the canvas *width* so that, once turned on its
+ * side, it runs the full canvas *height*. `Modifier.size` alone coerces into
+ * the incoming constraints, so such a box was silently clamped to the screen
+ * width: the text re-wrapped onto extra lines and, because the clamp shrinks
+ * the box around a different centre, the rotated result drifted in from the
+ * edge it was authored against. Measuring unbounded and aligning TopStart
+ * reproduces CSS `left/top/width/height`, which is what the studio editor and
+ * the dashboard preview use.
+ *
+ * Rotation itself stays with the caller (`Modifier.rotate`), which spins the
+ * box about its own centre — the same origin as CSS `transform: rotate()`.
+ */
+internal fun Modifier.canvaPlace(
+    scope: StoryCanvaScope,
+    x: Float,
+    y: Float,
+    w: Float,
+    h: Float
+): Modifier = this
+    .offset(x = scope.xPctDp(x), y = scope.yPctDp(y))
+    .wrapContentSize(align = Alignment.TopStart, unbounded = true)
+    .size(width = scope.widthPctDp(w), height = scope.heightPctDp(h))

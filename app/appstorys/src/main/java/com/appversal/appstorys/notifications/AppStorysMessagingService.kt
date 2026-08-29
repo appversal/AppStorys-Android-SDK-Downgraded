@@ -126,6 +126,7 @@ class AppStorysMessagingService : FirebaseMessagingService() {
                 val notificationId = data["notification_id"]
                 if (notificationId.isNullOrBlank()) return false
                 val variantId = data["variant_id"]
+                val runId = data["run_id"]
 
                 val shown = showNotification(
                     context.applicationContext,
@@ -134,7 +135,8 @@ class AppStorysMessagingService : FirebaseMessagingService() {
                     body  = data["body"].orEmpty(),
                     deepLink = data["deep_link"] ?: data["url"],
                     imageUrl = data["image_url"],
-                    variantId = variantId
+                    variantId = variantId,
+                    runId = runId
                 )
 
                 // "viewed" must fire synchronously here (we are already on a
@@ -143,7 +145,7 @@ class AppStorysMessagingService : FirebaseMessagingService() {
                 // not running and was cold-started purely for this FCM message.
                 if (shown) {
                     OutreachEventTracker.fireEventBlocking(
-                        context.applicationContext, notificationId, "viewed", variantId
+                        context.applicationContext, notificationId, "viewed", variantId, runId
                     )
                 } else {
                     Log.w(
@@ -167,7 +169,8 @@ class AppStorysMessagingService : FirebaseMessagingService() {
             body: String,
             deepLink: String?,
             imageUrl: String?,
-            variantId: String?
+            variantId: String?,
+            runId: String? = null
         ): Boolean {
             return try {
                 val nm = NotificationManagerCompat.from(context)
@@ -193,7 +196,7 @@ class AppStorysMessagingService : FirebaseMessagingService() {
                 // hit Android 12+'s notification-trampoline restriction. The
                 // target activity is transparent and finishes immediately.
                 val clickIntent = AppStorysNotificationActivity.newIntent(
-                    context, notificationId, deepLink, variantId
+                    context, notificationId, deepLink, variantId, runId
                 )
                 val pendingIntent = PendingIntent.getActivity(
                     context,

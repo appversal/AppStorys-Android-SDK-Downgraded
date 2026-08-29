@@ -61,9 +61,18 @@ import com.appversal.appstorys.utils.asInt
 import com.appversal.appstorys.utils.isGifUrl
 import com.appversal.appstorys.utils.isLottieUrl
 import android.os.Build.VERSION.SDK_INT
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import coil.size.Dimension
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -116,9 +125,12 @@ internal fun BottomSheetComponent(
         scrimColor = backdropColor.copy(alpha = backdropOpacity), // Apply backdrop with opacity
         dragHandle = null,
         sheetState = sheetState,
+        windowInsets = WindowInsets(0, 0, 0, 0), // insets applied on the content Box
         content = {
             Box(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .windowInsetsPadding(WindowInsets.systemBars),
                 content = {
 
 
@@ -132,20 +144,34 @@ internal fun BottomSheetComponent(
 
                     val hasOverlayButton = imageElement?.overlayButton == true
 
-                    val navBarBottomPadding = WindowInsets.navigationBars
-                        .asPaddingValues()
-                        .calculateBottomPadding()
+//                    val navBarBottomPadding = WindowInsets.navigationBars
+//                        .asPaddingValues()
+//                        .calculateBottomPadding()
 
                     if (imageElement != null && hasOverlayButton) {
-                        ImageElement(imageElement, onClick = onClick, onState = onImageState)
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(
+                                    RoundedCornerShape(
+                                        topStart = topLeftRadius,
+                                        topEnd = topRightRadius
+                                    )
+                                )
+                        ) {
+                            ImageElement(imageElement, onClick = onClick, onState = onImageState)
+                        }
                     }
 
                     Column(
                         modifier = Modifier
-                            .clip(
-                                RoundedCornerShape(
-                                    topStart = topLeftRadius,
-                                    topEnd = topRightRadius
+                            .then(
+                                if (hasOverlayButton) Modifier
+                                else Modifier.clip(
+                                    RoundedCornerShape(
+                                        topStart = topLeftRadius,
+                                        topEnd = topRightRadius
+                                    )
                                 )
                             )
                             .then(
@@ -155,7 +181,8 @@ internal fun BottomSheetComponent(
                                 }
                             )
                             .fillMaxWidth()
-                            .padding(bottom = navBarBottomPadding),
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState()),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         content = {
                             // Render elements in order, excluding overlay images
@@ -286,11 +313,25 @@ private fun ImageElement(
                 val composition by rememberLottieComposition(
                     spec = LottieCompositionSpec.Url(element.url.orEmpty())
                 )
+                val lottieAspectRatio = composition?.bounds?.let { bounds ->
+                    if (bounds.height() > 0) {
+                        bounds.width().toFloat() / bounds.height().toFloat()
+                    } else {
+                        null
+                    }
+                }
                 LottieAnimation(
                     composition = composition,
                     iterations = LottieConstants.IterateForever,
                     modifier = Modifier
                         .fillMaxWidth()
+                        .then(
+                            if (lottieAspectRatio != null) {
+                                Modifier.aspectRatio(lottieAspectRatio)
+                            } else {
+                                Modifier
+                            }
+                        )
                         .clip(
                             RoundedCornerShape(
                                 topStart = (element.cornerRadius?.topLeft ?: 0).dp,
@@ -344,8 +385,18 @@ private fun ImageElement(
                     contentScale = ContentScale.FillWidth
                 )
             } else {
+                val widthPx = with(LocalDensity.current) {
+                    LocalConfiguration.current.screenWidthDp.dp.roundToPx()
+                }
                 Image(
-                    painter = rememberAsyncImagePainter(element.url, onState = onState),
+                    painter = rememberAsyncImagePainter(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(element.url)
+                            .size(coil.size.Size(Dimension.Pixels(widthPx), Dimension.Undefined))
+                            .crossfade(true)
+                            .build(),
+                        onState = onState
+                    ),
                     contentDescription = "Image",
                     modifier = Modifier
                         .fillMaxWidth()
@@ -414,7 +465,7 @@ private fun BodyElement(element: BottomSheetElement) {
                 CommonText(
                     modifier = Modifier.fillMaxWidth(),
                     text = element.titleText,
-                    lineHeight = ((element.titleLineHeight ?: 1f) * titleFontSizeValue),
+                    lineHeight = element.titleLineHeight?.times(titleFontSizeValue),
                     styling = TextStyling(
                         color = element.titleFontStyle?.colour,
                         fontSize = titleFontSizeValue,
@@ -441,7 +492,7 @@ private fun BodyElement(element: BottomSheetElement) {
                 CommonText(
                     modifier = Modifier.fillMaxWidth(),
                     text = element.descriptionText,
-                    lineHeight = ((element.descriptionLineHeight ?: 1f) * descFontSizeValue),
+                    lineHeight = element.descriptionLineHeight?.times(descFontSizeValue),
                     styling = TextStyling(
                         color = element.descriptionFontStyle?.colour,
                         fontSize = descFontSizeValue,
@@ -475,6 +526,16 @@ private fun CTAElement(element: BottomSheetElement, onClick: () -> Unit = {}) {
         Color(colorString.toColorInt())
     } catch (_: Exception) {
         Color.Black
+    }
+
+    val borderStroke = try {
+        val colorString = element.cta?.container?.borderColor?.takeIf { it.isNotBlank() }
+        val width = element.cta?.container?.borderWidth?.asInt(0) ?: 0
+        if (colorString != null && width > 0) {
+            BorderStroke(width.dp, Color(colorString.toColorInt()))
+        } else null
+    } catch (_: Exception) {
+        null
     }
 
     // Support both nested cta.text.color and flat ctaTextColour
@@ -537,6 +598,7 @@ private fun CTAElement(element: BottomSheetElement, onClick: () -> Unit = {}) {
                         ?: element.ctaBorderRadius?.bottomLeft ?: 0).dp
                 ),
                 colors = ButtonDefaults.buttonColors(containerColor = buttonColor),
+                border = borderStroke,
                 modifier = Modifier
                     .height(buttonHeight)
                     .then(

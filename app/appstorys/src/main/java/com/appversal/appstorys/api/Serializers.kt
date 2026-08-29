@@ -21,6 +21,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.serializer
+import kotlinx.serialization.json.intOrNull
 
 object CampaignDeserializer : KSerializer<Campaign> {
     override val descriptor: SerialDescriptor =
@@ -32,6 +33,7 @@ object CampaignDeserializer : KSerializer<Campaign> {
             value.id?.let { put("id", it) }
             value.campaignType?.let { put("campaign_type", it) }
             value.position?.let { put("position", it) }
+            put("priority", value.priority)
             value.screen?.let { put("screen", it) }
             value.triggerEvent?.let { trigger ->
                 when (trigger) {
@@ -61,6 +63,7 @@ object CampaignDeserializer : KSerializer<Campaign> {
         val campaignType = element["campaign_type"]?.jsonPrimitive?.contentOrNull ?: ""
         val position = element["position"]?.jsonPrimitive?.contentOrNull
         val screen = element["screen"]?.jsonPrimitive?.contentOrNull ?: ""
+        val priority = element["priority"]?.jsonPrimitive?.intOrNull ?: Int.MAX_VALUE
 
         val triggerEvent: TriggerEvent? = element["trigger_event"]?.let { triggerElement ->
             when (triggerElement) {
@@ -211,7 +214,8 @@ object CampaignDeserializer : KSerializer<Campaign> {
             details = details,
             position = position,
             screen = screen,
-            triggerEvent = triggerEvent
+            triggerEvent = triggerEvent,
+            priority = priority
         )
     }
 }

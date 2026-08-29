@@ -1,17 +1,13 @@
 package com.appversal.appstorys.ui.stories
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.EaseInOut
 import androidx.compose.animation.core.EaseOut
-import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.SpringSpec
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.repeatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.offset
 import androidx.compose.runtime.Composable
@@ -45,11 +41,13 @@ import kotlinx.serialization.json.JsonPrimitive
  *
  * Behaviour parity with the Swift version:
  *
- *   classic  scale 0.05 → 1.0 + fade in   (spring, response 0.45 / damping 0.58)
- *   slide    directional offset → 0 + fade (spring, response 0.50 / damping 0.72)
- *   fade     directional offset → 0 + fade (easeOut, 0.55s)
- *   rotate   continuous 0 → ±360°          (linear, 2.0s, forever)
- *   bounce   continuous y 0 → -12 → 0      (easeInOut, 0.55s, forever, autoreverse)
+ * All five share one duration, [ENTRANCE_MILLIS], and one easing curve:
+ *
+ *   classic  scale 0.05 → 1.0 + fade in
+ *   slide    directional offset (60dp) → 0 + fade in
+ *   fade     directional offset (40dp) → 0 + fade in
+ *   rotate   ±[ROTATE_SETTLE_DEGREES]° → 0 + fade in
+ *   bounce   y 0 → -12 → 0, one bob (easeInOut, so the bob eases at both ends)
  *   <other>  visible only while inside the duration window (if a window is set)
  *
  * Entrance animations (classic / slide / fade) re-trigger whenever the element
@@ -90,20 +88,25 @@ fun Modifier.studioElementAnimation(
             (durationEnd == null || currentTime <= durationEnd)
     val hasDuration = durationStart > 0.0 || durationEnd != null
 
+    // ONE entrance curve for every animation type. Each type used to bring its own
+    // timing (two different springs, a 550 ms tween, a 2 s spin), so a slide mixing
+    // them settled at four different moments. They now all finish together.
+    val floatSpec: AnimationSpec<Float> = tween(ENTRANCE_MILLIS, easing = EaseOut)
+    val dpSpec: AnimationSpec<Dp> = tween(ENTRANCE_MILLIS, easing = EaseOut)
+
     when (type) {
 
         // ---- classic: scale-up + fade-in entrance ----
         "classic" -> {
             val appeared = rememberEntrance(isInDuration)
-            val spec = swiftSpring<Float>(response = 0.45, damping = 0.58)
             val scaleV by animateFloatAsState(
                 targetValue = if (appeared) 1f else 0.05f,
-                animationSpec = spec,
+                animationSpec = floatSpec,
                 label = "studioClassicScale",
             )
             val op by animateFloatAsState(
                 targetValue = if (appeared && isInDuration) 1f else 0f,
-                animationSpec = spec,
+                animationSpec = floatSpec,
                 label = "studioClassicOpacity",
             )
             this.scale(scaleV).alpha(op)
@@ -112,8 +115,6 @@ fun Modifier.studioElementAnimation(
         // ---- slide: directional slide-in + fade-in entrance ----
         "slide" -> {
             val appeared = rememberEntrance(isInDuration)
-            val floatSpec = swiftSpring<Float>(response = 0.50, damping = 0.72)
-            val dpSpec = swiftSpring<Dp>(response = 0.50, damping = 0.72)
             val (sx, sy) = directionalOffset(dir, distance = 60.dp)
             val ox by animateDpAsState(
                 targetValue = if (appeared) 0.dp else sx,
@@ -136,8 +137,6 @@ fun Modifier.studioElementAnimation(
         // ---- fade: gentle directional fade-in entrance ----
         "fade" -> {
             val appeared = rememberEntrance(isInDuration)
-            val floatSpec: AnimationSpec<Float> = tween(durationMillis = 550, easing = EaseOut)
-            val dpSpec: AnimationSpec<Dp> = tween(durationMillis = 550, easing = EaseOut)
             val (sx, sy) = directionalOffset(dir, distance = 40.dp)
             val ox by animateDpAsState(
                 targetValue = if (appeared) 0.dp else sx,
@@ -157,35 +156,46 @@ fun Modifier.studioElementAnimation(
             this.offset(x = ox, y = oy).alpha(op)
         }
 
-        // ---- rotate: continuous spin ----
+        // ---- rotate: angular settle + fade-in entrance ----
         "rotate" -> {
-            val transition = rememberInfiniteTransition(label = "studioRotate")
-            val target = if (dir == "anticlockwise") -360f else 360f
-            val angle by transition.animateFloat(
-                initialValue = 0f,
-                targetValue = target,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(durationMillis = 2000, easing = LinearEasing),
-                    repeatMode = RepeatMode.Restart,
-                ),
+            val appeared = rememberEntrance(isInDuration)
+            val from =
+                if (dir == "anticlockwise") -ROTATE_SETTLE_DEGREES else ROTATE_SETTLE_DEGREES
+            val angle by animateFloatAsState(
+                targetValue = if (appeared) 0f else from,
+                animationSpec = floatSpec,
                 label = "studioRotateAngle",
             )
-            this.rotate(angle).alpha(if (isInDuration) 1f else 0f)
+            val op by animateFloatAsState(
+                targetValue = if (appeared && isInDuration) 1f else 0f,
+                animationSpec = floatSpec,
+                label = "studioRotateOpacity",
+            )
+            this.rotate(angle).alpha(op)
         }
 
-        // ---- bounce: continuous vertical bob ----
+        // ---- bounce: one vertical bob, bounded to the entrance ----
         "bounce" -> {
-            val transition = rememberInfiniteTransition(label = "studioBounce")
-            val dy by transition.animateFloat(
-                initialValue = 0f,
-                targetValue = -12f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(durationMillis = 550, easing = EaseInOut),
-                    repeatMode = RepeatMode.Reverse,
-                ),
-                label = "studioBounceY",
-            )
-            this.offset(y = dy.dp).alpha(if (isInDuration) 1f else 0f)
+            val dy = remember { Animatable(0f) }
+            LaunchedEffect(isInDuration) {
+                dy.snapTo(0f)
+                if (!isInDuration) return@LaunchedEffect
+                dy.animateTo(
+                    targetValue = -12f,
+                    animationSpec = repeatable(
+                        // Two half-cycles = down and back up. Must stay even: with
+                        // RepeatMode.Reverse an odd count parks the element at the top
+                        // of the bob instead of back on its baseline.
+                        iterations = 2,
+                        animation = tween(
+                            durationMillis = ENTRANCE_MILLIS / 2,
+                            easing = EaseInOut,
+                        ),
+                        repeatMode = RepeatMode.Reverse,
+                    ),
+                )
+            }
+            this.offset(y = dy.value.dp).alpha(if (isInDuration) 1f else 0f)
         }
 
         // ---- none / unknown: only gate visibility on the duration window ----
@@ -194,6 +204,23 @@ fun Modifier.studioElementAnimation(
         }
     }
 }
+
+/**
+ * Every studio animation is an ENTRANCE animation: it plays once when the
+ * element appears and then holds still, so a 5-second slide and a 30-second
+ * slide look identical.
+ *
+ * Both numbers are measured off the studio's own preview: the element group
+ * moves for 0.96 s and is then pixel-for-pixel static for the rest of the
+ * slide, and "rotate" travels +0.48° → -22.39° — a small decelerating settle
+ * back to the element's authored angle, not a spin. (The SDK used to read
+ * "rotate" as a continuous 0 → ±360° turn, which is a different animation.)
+ *
+ * These are the tuning knobs: ENTRANCE_MILLIS sets how long every entrance
+ * runs, ROTATE_SETTLE_DEGREES how far the settle swings.
+ */
+private const val ENTRANCE_MILLIS = 950
+private const val ROTATE_SETTLE_DEGREES = 24f
 
 /**
  * Mirrors the SwiftUI `appeared` @State + `onAppear` / `onChange(isInDuration)`
@@ -229,16 +256,6 @@ private fun directionalOffset(direction: String, distance: Dp): Pair<Dp, Dp> =
         else -> 0.dp to distance
     }
 
-/**
- * Converts a SwiftUI `spring(response:dampingFraction:)` into a Compose
- * [SpringSpec]. Natural frequency ω = 2π / response, and Compose stiffness
- * k = ω² (unit mass), with dampingRatio == dampingFraction.
- */
-private fun <T> swiftSpring(response: Double, damping: Double): SpringSpec<T> {
-    val omega = (2.0 * Math.PI) / response
-    val stiffness = (omega * omega).toFloat()
-    return spring(dampingRatio = damping.toFloat(), stiffness = stiffness)
-}
 
 /**
  * Parses a studio `duration` payload (`{ "start": s, "end": e }`) into a

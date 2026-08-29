@@ -37,6 +37,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
@@ -276,6 +277,15 @@ private fun JsonObject?.borderRadiusDp(
 // reaction / input), that answer is locked in permanently — the same durability
 // model already used for viewed-story tracking (SharedPreferences), so it survives
 // process death and full app restarts, not just recomposition or navigation.
+/**
+ * Turns the studio's "Input Radius" value into a 0..1 slider fraction:
+ * `fraction = RADIUS_SLIDER_SCALE * optionRadius / stickerHeightInCanvaPx`.
+ *
+ * 48 = 2 * 2400/100, i.e. slider 50 % arrives as a radius of one quarter of the
+ * sticker's height in canva px. See the note at the call site in InputInteraction.
+ */
+private const val RADIUS_SLIDER_SCALE = 48f
+
 private const val INTERACTION_RESPONSES_PREFS = "AppStoryInteractionResponses"
 
 private fun loadInteractionResponse(context: Context, interactionId: String?): String? {
@@ -660,29 +670,29 @@ private fun PollInteraction(
         val rowGap = unit * 0.4f
         // Was a fixed `top = 8.dp`; now scales with the poll's own size so the
         // question doesn't crowd the options on small stickers or float on large ones.
-        val questionTopPadding = unit
-        val questionGap = unit * 0.1f
+        // ponytail: both this and questionSize below are calibrated against the studio
+        // preview, not derived from the payload — the poll authors a padding (styling.padding)
+        // and a font size (styling.question.font.fontSize) but nothing reads either, and the
+        // unit those numbers are in is still unknown. Measured on the reference: the gap above
+        // the question is ~8 % of the card (it was 17.7 % when this was a full `unit`) and the
+        // question block ~17 % (it was 22 %). Swap both for the authored values once the
+        // studio's padding/font-size units are pinned down.
+        val questionTopPadding = unit * 0.2f
+        val questionGap = unit * 0.5f
         val questionLineHeightMultiplier = 1.25f
 
         // Question text — bounded by both axes so it never grows past what the box can
         // hold either way.
-        val questionSize = minOf(h * 0.15f, w * 0.13f)
+        val questionSize = minOf(h * 0.09f, w * 0.08f)
 
-        // Option text — scaled from the question for visual hierarchy, then capped by
-        // however much room each option actually gets: shared row width for horizontal/
-        // pill layouts, shared column height for the vertical layout.
-        val optionByHierarchy = questionSize * 0.82f
-        val optionByAvailable = if (isHorizontal) {
-            unitFitToSpace(available = w - containerPadding * 2, count = n, itemRatio = 5.2f)
-        } else {
-            unitFitToSpace(
-                available = h - containerPadding * 2 - questionSize * 1.4f,
-                count = n,
-                itemRatio = 2.1f,
-                gapRatio = 0.5f
-            )
-        }
-        val optionSize = minOf(optionByHierarchy, optionByAvailable)
+        val innerW = (w - containerPadding * 2).coerceAtLeast(0.dp)
+        val innerH = (h - containerPadding * 2).coerceAtLeast(0.dp)
+
+        // Horizontal / pill option text — unchanged: capped by the shared row width.
+        val horizontalOptionSize = minOf(
+            questionSize * 0.82f,
+            unitFitToSpace(available = innerW, count = n, itemRatio = 5.2f)
+        )
 
         // Horizontal layouts (pill included) DON'T stretch their options to fill the
         // leftover height — they get an explicit, text-proportional height and sit
@@ -690,7 +700,80 @@ private fun PollInteraction(
         // ballooning into tall slabs on a short question / tall sticker. Only the
         // vertical/stacked layout divides the remaining height between its rows.
         val optionsRowHeight =
-            (optionSize * 2.4f + unit * 0.6f).coerceIn(unit * 1.8f, h * 0.45f)
+            (horizontalOptionSize * 2.4f + unit * 0.6f).coerceIn(unit * 1.8f, h * 0.45f)
+
+        // ── Question / options fit ───────────────────────────────────────────────
+        // The question used to be laid out unbounded, with the options simply taking
+        // whatever height was left over. In the vertical layout the options stack
+        // instead of sharing one row, so a question that wraps onto two or three lines
+        // consumes the whole box: the rows collapse to a few dp and their labels spill
+        // out over the question. Reserve the height the options need FIRST, then
+        // measure the question and shrink its font until it fits in what remains —
+        // giving the vertical layout the same "always fits" behaviour the horizontal
+        // one already gets from its fixed row height.
+        val textMeasurer = rememberTextMeasurer()
+        val minRowHeight = unit * 1.4f
+        val reservedOptionsHeight = if (isHorizontal) {
+            optionsRowHeight
+        } else {
+            minRowHeight * n + rowGap * (n - 1).coerceAtLeast(0)
+        }
+        // Top padding above the question plus the Column's own question→options gap.
+        val questionChromeHeight =
+            if (question.isEmpty()) 0.dp else questionTopPadding + questionGap
+        val maxQuestionHeight =
+            (innerH - reservedOptionsHeight - questionChromeHeight).coerceAtLeast(unit)
+        val innerWPx = with(density) { innerW.roundToPx() }.coerceAtLeast(1)
+
+        fun measureQuestionHeight(size: Dp): Dp {
+            if (question.isEmpty()) return 0.dp
+            val result = textMeasurer.measure(
+                text = AnnotatedString(question),
+                style = TextStyle(
+                    fontSize = with(density) { size.toSp() },
+                    lineHeight = with(density) { (size * questionLineHeightMultiplier).toSp() },
+                    fontFamily = questionFontFamily,
+                    fontWeight = questionFontStyle.fontWeight,
+                    fontStyle = questionFontStyle.fontStyle,
+                    textDecoration = questionFontStyle.textDecoration,
+                    textAlign = questionFontStyle.textAlign ?: TextAlign.Center
+                ),
+                constraints = Constraints(maxWidth = innerWPx)
+            )
+            return with(density) { result.size.height.toDp() }
+        }
+
+        // A question that already fits keeps its size exactly as before — the loop only
+        // runs when the text would otherwise overrun the space left for the options.
+        val minQuestionSize = questionSize * 0.45f
+        var fittedQuestionSize = questionSize
+        var fittedQuestionHeight = measureQuestionHeight(fittedQuestionSize)
+        var shrinkGuard = 0
+        while (fittedQuestionHeight > maxQuestionHeight &&
+            fittedQuestionSize > minQuestionSize &&
+            shrinkGuard < 12
+        ) {
+            fittedQuestionSize *= 0.88f
+            fittedQuestionHeight = measureQuestionHeight(fittedQuestionSize)
+            shrinkGuard++
+        }
+        fittedQuestionHeight = fittedQuestionHeight.coerceAtMost(maxQuestionHeight)
+
+        // Height each stacked row actually receives once the question is placed.
+        val verticalRowHeight = (
+                (innerH
+                        - (if (question.isEmpty()) 0.dp else fittedQuestionHeight + questionChromeHeight)
+                        - rowGap * (n - 1).coerceAtLeast(0)) / n
+                ).coerceAtLeast(minRowHeight)
+
+        // Option text — scaled from the question for visual hierarchy, then capped by
+        // however much room each option actually gets: shared row width for horizontal /
+        // pill layouts, the row's real height for the vertical layout.
+        val optionSize = if (isHorizontal) {
+            horizontalOptionSize
+        } else {
+            minOf(fittedQuestionSize * 0.82f, verticalRowHeight * 0.42f)
+        }
 
         Column(
             modifier = Modifier
@@ -708,8 +791,8 @@ private fun PollInteraction(
                     text = question,
                     color = { questionTextColor },
                     style = TextStyle(
-                        fontSize = with(density) { questionSize.toSp() },
-                        lineHeight = with(density) { (questionSize * questionLineHeightMultiplier).toSp() },
+                        fontSize = with(density) { fittedQuestionSize.toSp() },
+                        lineHeight = with(density) { (fittedQuestionSize * questionLineHeightMultiplier).toSp() },
                         fontFamily = questionFontFamily,
                         fontWeight = questionFontStyle.fontWeight,
                         fontStyle = questionFontStyle.fontStyle,
@@ -718,6 +801,9 @@ private fun PollInteraction(
                     ),
                     modifier = Modifier
                         .padding(top = questionTopPadding)
+                        // Hard ceiling: whatever the text ends up measuring, it can
+                        // never claim the space reserved for the option rows.
+                        .heightIn(max = maxQuestionHeight)
                         .fillMaxWidth()
                 )
             }
@@ -1222,7 +1308,10 @@ private fun QuizInteraction(
         )
         val optGap = optRowH * optGapRatio
         val optionRadius = minOf(
-            styling.borderRadiusDp(scope, w * optionRadiusRatio),
+            // Was reading the default "borderRadius" key, i.e. the CONTAINER's radius —
+            // so the quiz's own `optionRadius` was never applied and its options
+            // inherited the card's corner instead (square whenever borderRadius is 0).
+            styling.borderRadiusDp(scope, w * optionRadiusRatio, key = "optionRadius"),
             optRowH * 0.5f
         )
         val optHPad = minOf(w * 0.06f, optRowH * 0.3f)
@@ -1517,7 +1606,11 @@ private fun MediaQuizInteraction(
 ) {
     val question = config.str("question") ?: ""
     val correctId = config.str("correctAnswerId") ?: config.str("correctOption")
-    val columns = (config.int("columns") ?: 2).coerceAtLeast(1)
+    // The studio sends the per-row count as `layout` (a bare number, e.g. 3).
+    // "columns" is not a key it emits, so this always fell back to 2 and a
+    // three-option media quiz wrapped onto two rows instead of one.
+    // `int()` runs through runCatching, so POLL-style object layouts read as null here.
+    val columns = (config.int("layout") ?: config.int("columns") ?: 2).coerceAtLeast(1)
 
     val optionsArray =
         config?.get("options")?.let { runCatching { it.jsonArray }.getOrNull() } ?: return
@@ -3220,11 +3313,21 @@ private fun InputInteraction(
 
         val borderRadius = styling.borderRadiusDp(scope, minOf(w, h) * 0.12f)
         val padding = minOf(w, h) * 0.1f
-        val optionRadius = styling.borderRadiusDp(
-            scope,
-            fallback = minOf(w, h) * 0.09f,
-            key = "optionRadius"
-        )
+        // "Input Radius" is a 0-100 % slider where 100 % is a full pill, and the studio
+        // sends the result as a radius in % of canvas height. Recover the slider fraction
+        // and hand Compose a PERCENT corner rather than a Dp, so the corner resolves
+        // against whatever height the field actually has: expressing it in Dp let the
+        // half-the-short-side cap swallow the whole upper half of the slider range.
+        //
+        // ponytail: RADIUS_SLIDER_SCALE is calibrated, not derived. Every sample so far
+        // lands on optionRadius / sizeHeightPct == 0.25 at the slider's 50 % mark, on
+        // stickers of two different heights -- so 0.25 maps to half a pill. The top of the
+        // slider's range has never been observed; if 100 % turns out not to be a full pill,
+        // this is the one number to change.
+        val optionShape: RoundedCornerShape = styling.float("optionRadius")?.let { pct ->
+            val fraction = RADIUS_SLIDER_SCALE * pct / h.value
+            RoundedCornerShape(percent = (fraction * 50f).roundToInt().coerceIn(0, 50))
+        } ?: RoundedCornerShape(minOf(w, h) * 0.09f)
         val titleSize = minOf(h * 0.19f, w * 0.08f)
         val inputFontSize = titleSize * 0.9f
         val rowGap = padding * 1.6f
@@ -3309,7 +3412,7 @@ private fun InputInteraction(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(optionRadius))
+                            .clip(optionShape)
                             .background(inputBg)
                             .padding(
                                 horizontal = fieldHPadding,
@@ -3338,7 +3441,12 @@ private fun InputInteraction(
                                     if (value.isEmpty()) {
                                         BasicTextWrap(
                                             text = placeholder,
-                                            color = Color(0xFF9CA3AF),
+                                            // Was a hardcoded grey, so a sticker styled
+                                            // with e.g. inputTextColor #FFFFFF showed white
+                                            // typing on a grey placeholder. The studio sends
+                                            // no separate placeholder colour, so the field's
+                                            // own text colour is the authored value.
+                                            color = inputTextColor,
                                             fontSizeSp = with(density) { inputFontSize.toSp() },
                                             align = TextAlign.Start
                                         )

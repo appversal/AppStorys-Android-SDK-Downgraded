@@ -71,7 +71,7 @@ private fun ModalWithCTA(
         bottomEnd = cornerRadius?.bottomRight?.dp ?: 0.dp
     )
 
-    val modalWidth = (dimension?.height?.toFloatOrNull()?.dp ?: 300.dp)
+    val modalWidth = dimension?.width?.dp ?: 300.dp
 
     // Background color for modal content area (from styling or default white for CTA modals)
     val backgroundColor = parseColorString(appearance?.backgroundColor) ?: Color.White
