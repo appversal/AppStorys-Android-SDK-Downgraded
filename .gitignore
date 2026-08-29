@@ -44,12 +44,13 @@ Maestro/*.png
 # Maestro's own cache/working dir.
 Maestro/.maestro/
 
-# Device goldens: nothing here is tracked — baseline, _current and _diff alike.
-# The directory is kept (.gitkeep) so the pipeline never fails on a missing path.
-# NOTE: with no committed baseline, Layer 3.5 has nothing to compare against on
-# a fresh clone and will adopt whatever the first run produces.
-Maestro/device-goldens/*
-!Maestro/device-goldens/.gitkeep
+# Device-golden RUN OUTPUT: <TYPE>_smoke_current.png is this run's capture and
+# <TYPE>_smoke_diff.png is the comparison image. Both are regenerated every run.
+# The BASELINE — Maestro/device-goldens/<TYPE>_smoke.png — is deliberately NOT
+# ignored: Layer 3.5 has nothing to compare against without it, and a baseline
+# that is not in git cannot be reviewed in a diff. Matches Flutter and RN.
+Maestro/device-goldens/*_current.png
+Maestro/device-goldens/*_diff.png
 
 # Campaign media pulled fresh from the CDN by Layer 3 before every run (~30 MB,
 # str_images alone is 21 MB). Tracking it meant every campaign edit rewrote
@@ -60,16 +61,12 @@ Maestro/device-goldens/*
 # media until the pipeline has run once (Layer 3 downloads it).
 app/appstorys/src/test/resources/*_images/
 
-# Screenshot-test render inputs (backgrounds/) and Paparazzi output (snapshots/).
-# Both directories are kept (.gitkeep) so the pipeline never fails on a missing
-# path; nothing inside them is tracked.
-# NOTE: snapshots/ holds Paparazzi's REFERENCE images. With none committed,
-# verifyPaparazziDebug records a fresh baseline instead of comparing, so Layer 3
-# reports green without testing anything until a run has populated it.
-app/appstorys/src/test/resources/backgrounds/*
-!app/appstorys/src/test/resources/backgrounds/.gitkeep
-app/appstorys/src/test/snapshots/*
-!app/appstorys/src/test/snapshots/.gitkeep
+# NOT ignored, deliberately — these two ARE the test, as on Flutter and RN:
+#   backgrounds/       one-time device capture of the host screen. A golden
+#                      composited over it is unreproducible without it.
+#   ../snapshots/      Paparazzi's REFERENCE images. With none committed,
+#                      verifyPaparazziDebug records a fresh baseline instead of
+#                      comparing, so Layer 3 reports green having tested nothing.
 
 # FontCache download dir created when Paparazzi warms custom fonts.
 # Regenerated on demand; never a source artifact.
