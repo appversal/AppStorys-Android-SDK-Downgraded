@@ -29,8 +29,11 @@ PIP_CTA_OPTIMIZATION_SUMMARY.md
 
 graphify-out
 
-# QA pipeline transient output — regenerated on every run, never a baseline
-Maestro/screenshots/
+# QA pipeline transient output — regenerated on every run, never a baseline.
+# The directory itself is kept (.gitkeep) so the pipeline never fails on a
+# missing path; nothing inside it is ever tracked.
+Maestro/screenshots/*
+!Maestro/screenshots/.gitkeep
 .idea/shelf/
 
 # Maestro writes takeScreenshot output into its working directory, so running a
@@ -40,22 +43,32 @@ Maestro/*.png
 # Maestro's own cache/working dir.
 Maestro/.maestro/
 
-# Device-golden RUN OUTPUT: <TYPE>_smoke_current.png is this run's capture and
-# <TYPE>_smoke_diff.png is the comparison image. Both are regenerated every run.
-# The BASELINE — Maestro/device-goldens/<TYPE>_smoke.png — is deliberately NOT
-# ignored: Layer 3.5 has nothing to compare against without it.
-Maestro/device-goldens/*_current.png
-Maestro/device-goldens/*_diff.png
+# Device goldens: nothing here is tracked — baseline, _current and _diff alike.
+# The directory is kept (.gitkeep) so the pipeline never fails on a missing path.
+# NOTE: with no committed baseline, Layer 3.5 has nothing to compare against on
+# a fresh clone and will adopt whatever the first run produces.
+Maestro/device-goldens/*
+!Maestro/device-goldens/.gitkeep
 
 # Campaign media pulled fresh from the CDN by Layer 3 before every run (~30 MB,
 # str_images alone is 21 MB). Tracking it meant every campaign edit rewrote
 # megabytes of binaries and left the tree dirty after each run.
 # NOT ignored, deliberately:
 #   campaign-data/*.json  — 95 KB of text; the diffs show what changed
-#   backgrounds/          — stable app-screenshot fixtures, not regenerated
 # Consequence: on a fresh clone `gradlew verifyPaparazziDebug` has no campaign
 # media until the pipeline has run once (Layer 3 downloads it).
 app/appstorys/src/test/resources/*_images/
+
+# Screenshot-test render inputs (backgrounds/) and Paparazzi output (snapshots/).
+# Both directories are kept (.gitkeep) so the pipeline never fails on a missing
+# path; nothing inside them is tracked.
+# NOTE: snapshots/ holds Paparazzi's REFERENCE images. With none committed,
+# verifyPaparazziDebug records a fresh baseline instead of comparing, so Layer 3
+# reports green without testing anything until a run has populated it.
+app/appstorys/src/test/resources/backgrounds/*
+!app/appstorys/src/test/resources/backgrounds/.gitkeep
+app/appstorys/src/test/snapshots/*
+!app/appstorys/src/test/snapshots/.gitkeep
 
 # FontCache download dir created when Paparazzi warms custom fonts.
 # Regenerated on demand; never a source artifact.
