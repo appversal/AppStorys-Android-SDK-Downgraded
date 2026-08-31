@@ -1,10 +1,10 @@
 {
-  "button_text": "ZZZSENTINELZZZ.",
+  "button_text": "jj",
   "crossButtonImage": null,
   "height": 148,
-  "id": "09aba3e8-4a0e-439c-ada3-b205c4e0096a",
+  "id": "1711364f-407a-41e3-b09e-644d7161ccf3",
   "large_video": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/pip/WhatsApp_Video_2026-06-04_at_5.34.21_PM.mp4",
-  "link": "https://google.com",
+  "link": "https://chat.deepseek.com/",
   "maximiseImage": null,
   "minimiseImage": null,
   "muteImage": null,
@@ -67,7 +67,7 @@
       "maximise": {
         "color": {
           "cross": "#FFFFFF",
-          "fill": "#000000",
+          "fill": "",
           "stroke": ""
         },
         "image": "",
@@ -77,13 +77,13 @@
           "right": 4,
           "top": 4
         },
-        "selectedStyle": "maximise3",
+        "selectedStyle": "maximise1",
         "size": 18
       },
       "minimise": {
         "color": {
           "cross": "#FFFFFF",
-          "fill": "#000000",
+          "fill": "",
           "stroke": ""
         },
         "image": "",
@@ -93,7 +93,7 @@
           "right": 4,
           "top": 4
         },
-        "selectedStyle": "minimise3",
+        "selectedStyle": "minimise1",
         "size": 18
       },
       "option": "default"

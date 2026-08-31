@@ -1,52 +1,45 @@
 {
-  "id": "c36e16be-24f0-40af-831d-0f8bdad367e2",
-  "name": "🙂Survey_Campaign",
+  "id": "8b2b6e63-5edb-4316-9d2a-c64e82daad90",
+  "name": "h",
   "slides": [
     {
       "additionalComment": {
         "enabled": true,
-        "placeholder": "Else is else Shuuu"
+        "placeholder": "vbnnvb"
       },
-      "id": "95cf5e57-976b-410d-9641-94eb2a99faaa",
-      "logic": [
-        {
-          "redirectTo": "thank-you",
-          "selectOption": [
-            "Prem"
-          ]
-        }
-      ],
+      "id": "67f7e416-e8da-4a2d-a676-b54da61db3e5",
+      "logic": [],
       "options": {
-        "option1": "Prem",
-        "option2": "Saarthak",
-        "option3": "Yash",
-        "option4": "Kabir",
-        "option5": "Dinesh"
+        "option1": "vb",
+        "option2": "v",
+        "option3": "v b",
+        "option4": "vn",
+        "option5": "vb"
       },
       "order": 0,
-      "parent": "c36e16be-24f0-40af-831d-0f8bdad367e2",
-      "question": "What is your name?",
-      "submitButtonText": "Next",
-      "subtitle": "Tell me",
-      "title": "What is your name?"
+      "parent": "8b2b6e63-5edb-4316-9d2a-c64e82daad90",
+      "question": "The main question or heading displayed to the user",
+      "submitButtonText": "Submit",
+      "subtitle": "Additional context or description to help users understand the question",
+      "title": "The main question or heading displayed to the user"
     },
     {
       "additionalComment": {
-        "enabled": false,
-        "placeholder": ""
+        "enabled": true,
+        "placeholder": "gbn"
       },
-      "id": "c36473db-f86b-4de7-a8e6-d1af3c059e04",
+      "id": "2ddff2e2-63b1-4c1e-8e4f-1ccc0c10b610",
       "logic": [],
       "options": {
-        "option1": "YES",
-        "option2": "NO"
+        "option1": "bn",
+        "option2": "gb"
       },
       "order": 1,
-      "parent": "c36e16be-24f0-40af-831d-0f8bdad367e2",
-      "question": "If Next then Its Next",
-      "submitButtonText": "SUBMIT",
-      "subtitle": "You are in already",
-      "title": "If Next then Its Next"
+      "parent": "8b2b6e63-5edb-4316-9d2a-c64e82daad90",
+      "question": "heading",
+      "submitButtonText": "Submit",
+      "subtitle": "description",
+      "title": "heading"
     }
   ],
   "styling": {
@@ -79,7 +72,7 @@
         "top": 4
       },
       "selectedStyle": "cross4",
-      "size": 30
+      "size": 15
     },
     "cta": {
       "container": {
@@ -269,10 +262,10 @@
   "thankYouButtonConfig": {
     "action": "redirect",
     "enabled": true,
-    "redirectUrl": "https://google.com"
+    "redirectUrl": "https://admin.appstorys.co/#/surveyCampaign/create"
   },
-  "thankYouButtonText": "BYE",
-  "thankYouImage": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/survey_thankyou/web-site-under-construction-6s-2561x1441.jpg",
-  "thankYouText": "BYE",
-  "thankYouTitle": "ERROR"
+  "thankYouButtonText": "n",
+  "thankYouImage": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/survey_thankyou/afl-player-matt-cottrell-australian.gif",
+  "thankYouText": "bnbn",
+  "thankYouTitle": "nb"
 }

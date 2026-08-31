@@ -1,5 +1,4 @@
-package com.example.carousal
-
+import com.example.carousal.App
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
@@ -23,6 +22,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.appversal.appstorys.utils.appstorys
+import com.example.carousal.CopyUserIdText
+import com.example.carousal.R
 
 /**
  * Lab — the isolated campaign + analytics testbed. Bottom-nav tab 0, and the
@@ -59,7 +60,7 @@ fun LabScreen(padding: PaddingValues) {
 
     LaunchedEffect(Unit) {
         val screenName = "Lab Home Screen Kotlin"
-        val positions = listOf("widget_one")
+        val positions = listOf("lab_widget_one")
         campaignManager.getScreenCampaigns(
             screenName,
             positions,
@@ -118,7 +119,7 @@ fun LabScreen(padding: PaddingValues) {
             campaignManager.Widget(
                 modifier = Modifier.fillMaxWidth(),
                 placeholder = context.getDrawable(R.drawable.ic_launcher_foreground),
-                position = "widget_one"
+                position = "lab_widget_one"
             )
         }
 

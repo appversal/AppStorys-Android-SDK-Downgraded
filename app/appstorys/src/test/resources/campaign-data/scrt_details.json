@@ -1,0 +1,83 @@
+{
+  "bannerImage": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/bannerImage/broadway.png",
+  "button_text": "this is test",
+  "clicks": 0,
+  "content": {
+    "card_size": {
+      "corner_radius": 20,
+      "width": 300
+    },
+    "crossButton": {
+      "alignment": "center",
+      "color": {
+        "cross": "#FFFFFF",
+        "fill": "#000000"
+      },
+      "enabled": true,
+      "image": "",
+      "margin": {
+        "bottom": 0,
+        "left": "auto",
+        "right": "auto",
+        "top": "auto"
+      },
+      "selectedStyle": "cross3",
+      "size": 30
+    },
+    "cta": {
+      "container": {
+        "alignment": "center",
+        "backgroundColor": "#ff8629",
+        "borderColor": "#fa6837",
+        "borderWidth": 2,
+        "ctaFullWidth": false,
+        "ctaWidth": 120,
+        "height": 50
+      },
+      "cornerRadius": {
+        "bottomLeft": 12,
+        "bottomRight": 12,
+        "topLeft": 12,
+        "topRight": 12
+      },
+      "margin": {
+        "bottom": 10,
+        "left": 10,
+        "right": 10,
+        "top": 10
+      },
+      "text": {
+        "color": "#FFFFFF",
+        "fontDecoration": [],
+        "fontFamily": "Arial",
+        "fontSize": 14
+      }
+    },
+    "custom_sound_enabled": false,
+    "haptic_feedback_enabled": false,
+    "haptic_style": "",
+    "interactions": {
+      "haptics": false
+    },
+    "reward_content": {
+      "background_color": "",
+      "couponCodeCta": null,
+      "imageCircle": null,
+      "offerSubtitle": null,
+      "offerTitle": null,
+      "onlyImage": true
+    },
+    "terms_and_conditions": "",
+    "trigger_points": []
+  },
+  "coupon_code": "",
+  "coverImage": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/coverImage/istockphoto-1211396774-612x612.jpg",
+  "height": 0,
+  "id": "cbf0c654-e326-4a8f-a3c6-cee983cd38a9",
+  "link": "https://google.com",
+  "scratches": 0,
+  "soundFile": null,
+  "styling": {},
+  "views": 0,
+  "width": 300
+}

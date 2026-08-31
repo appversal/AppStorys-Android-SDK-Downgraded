@@ -2,7 +2,7 @@
   "backdropColor": "#808080",
   "backdropOpacity": 40,
   "backgroundColor": "#FFFFFF",
-  "bottomsheetType": "imageOnly",
+  "bottomsheetType": "basic",
   "cornerRadius": {
     "bottomLeft": 0,
     "bottomRight": 0,
@@ -11,9 +11,9 @@
   },
   "crossButton": {
     "color": {
-      "cross": "#fb0909",
-      "fill": "#f5f0f0",
-      "stroke": "#fb0404"
+      "cross": "#666666",
+      "fill": "#f5f9fa",
+      "stroke": "#666666"
     },
     "enabled": true,
     "image": "",
@@ -24,20 +24,94 @@
       "top": 4
     },
     "selectedStyle": "cross4",
-    "size": 30
+    "size": 18
   },
   "elements": [
     {
-      "id": "image-1785320639255",
-      "imageLink": "https://google.com",
+      "alignment": "left",
+      "id": "item-1-1788021237282",
+      "imageBackgroundColor": "",
+      "imageLink": "",
+      "order": 1,
+      "overlayButton": false,
       "paddingBottom": 0,
       "paddingLeft": 0,
       "paddingRight": 0,
       "paddingTop": 0,
       "type": "image",
-      "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/ChatGPT%20Image%20Jan%205%2C%202026%2C%2012_23_09%20AM_cysti.jpeg"
+      "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/main_ezdsd.png"
+    },
+    {
+      "bodyBackgroundColor": "",
+      "descriptionFontSize": 14,
+      "descriptionFontStyle": {
+        "alignment": "center",
+        "colour": "#000000",
+        "decoration": [],
+        "fontFamily": "",
+        "fontSize": 14
+      },
+      "descriptionLineHeight": 1.5,
+      "descriptionText": "Cross SDK verification",
+      "id": "item-2-1788021278122",
+      "marginBottom": 4,
+      "marginLeft": 4,
+      "marginRight": 4,
+      "marginTop": 4,
+      "order": 2,
+      "spacingBetweenTitleDesc": 0,
+      "titleFontSize": 26,
+      "titleFontStyle": {
+        "alignment": "center",
+        "colour": "#000000",
+        "decoration": [
+          "bold"
+        ],
+        "fontFamily": "",
+        "fontSize": 26
+      },
+      "titleLineHeight": 1.7,
+      "titleText": "QA Sheet Kotlin",
+      "type": "body"
+    },
+    {
+      "cta": {
+        "container": {
+          "alignment": "center",
+          "backgroundColor": "",
+          "borderColor": "#800000",
+          "borderWidth": 2,
+          "ctaBoxColor": "#800000",
+          "ctaFullWidth": false,
+          "ctaWidth": 164,
+          "height": 45
+        },
+        "cornerRadius": {
+          "bottomLeft": 7,
+          "bottomRight": 7,
+          "topLeft": 7,
+          "topRight": 7
+        },
+        "margin": {
+          "bottom": 16,
+          "left": 4,
+          "right": 4,
+          "top": 4
+        },
+        "text": {
+          "color": "#FFFFFF",
+          "fontDecoration": [],
+          "fontFamily": "Arial",
+          "fontSize": 14
+        }
+      },
+      "ctaLink": "https://www.google.com",
+      "ctaText": "Continue",
+      "id": "item-3-1788021290354",
+      "order": 3,
+      "type": "cta"
     }
   ],
-  "id": "407019ae-30ed-43fd-b03b-f7b19c5adb9d",
-  "name": "BottomSheet_Image Only"
+  "id": "72d5e3b2-a38d-492c-b421-cc42f4aa8a79",
+  "name": "BottomSheet_Campaign"
 }

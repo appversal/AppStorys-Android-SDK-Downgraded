@@ -1,13 +1,13 @@
 {
-  "height": 992,
-  "id": "62767f69-5742-438d-9779-5c2424452593",
+  "height": 142,
+  "id": "09bd170d-3794-4a34-94d3-60a05205165a",
   "styling": {
     "borderRadius": 0,
     "bottomLeftRadius": 16,
     "bottomMargin": 4,
     "bottomRightRadius": 16,
-    "leftMargin": 4,
-    "rightMargin": 4,
+    "leftMargin": 40,
+    "rightMargin": 0,
     "topLeftRadius": 16,
     "topMargin": 4,
     "topRightRadius": 16
@@ -16,25 +16,25 @@
   "widget_images": [
     {
       "cohorts": {},
-      "id": "b252354f-f20f-4152-af06-8dfbb65e7fcd",
-      "image": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/widget_image/ChatGPT_Image_Jun_9_2026_12_01_44_PM.png",
+      "id": "2bc1efa7-41b3-43f5-ae96-a88e8b3ac5e4",
+      "image": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/widget_image/banner1q.jpg",
       "link": "https://google.com",
       "order": 0
     },
     {
       "cohorts": {},
-      "id": "17800690-3925-47da-a89a-24520187ae28",
-      "image": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/widget_image/download_5_.png",
+      "id": "f3b95d18-51ff-4b60-9399-053bf91505d5",
+      "image": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/widget_image/banner2.jpg",
       "link": "https://google.com",
       "order": 1
     },
     {
       "cohorts": {},
-      "id": "a8e96d68-98c2-4c15-906d-f9061151c692",
-      "image": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/widget_image/WhatsApp_Image_2026-05-13_at_3_40_21_PM.jpeg",
+      "id": "10049ff7-0335-49ce-9c1e-a8650d646fec",
+      "image": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/widget_image/ChatGPT_Image_Jan_5_2026_12_23_09_AM.jpeg",
       "link": "https://google.com",
       "order": 2
     }
   ],
-  "width": 1586
+  "width": 259
 }

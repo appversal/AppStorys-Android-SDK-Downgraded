@@ -1,13 +1,13 @@
 {
   "tooltips": [
     {
-      "_id": "2b5469cf-a978-4456-854c-30c988d3241e",
+      "_id": "8900e0d7-37a4-46c3-a7d0-67781716ae59",
       "arrowPosition": null,
       "clickAction": "nextStep",
       "ctaText": null,
       "enableBackdrop": true,
       "eventName": "",
-      "link": "https:youtube.com",
+      "link": "https://www.youtube.com/",
       "order": 0,
       "position": "left",
       "styling": {
@@ -16,7 +16,7 @@
             "height": 12,
             "width": 6
           },
-          "backdropOpacity": 0,
+          "backdropOpacity": 50,
           "colors": {
             "arrow": "#fe6b35",
             "backdrop": "#000000"
@@ -32,24 +32,24 @@
             "radius": 12
           },
           "imageDimensions": {
-            "height": 200,
+            "height": 100,
             "width": 200
           }
         }
       },
       "subtitleText": null,
-      "target": "statusBarBackground",
+      "target": "tooltip_one",
       "titleText": null,
-      "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/banner1q_gjnwj.jpg"
+      "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/lottie_json/Alien%20Button_pxvkw.json"
     },
     {
-      "_id": "c5955385-3050-48d5-9a29-4411e05cae78",
+      "_id": "a46c1ebf-464b-42b1-9b44-5ad3c343bdcb",
       "arrowPosition": null,
       "clickAction": "nextStep",
       "ctaText": null,
-      "enableBackdrop": false,
+      "enableBackdrop": true,
       "eventName": "",
-      "link": "Home",
+      "link": "https://www.youtube.com/",
       "order": 1,
       "position": "left",
       "styling": {
@@ -80,93 +80,9 @@
         }
       },
       "subtitleText": null,
-      "target": "lab_hero",
+      "target": "tooltip_two",
       "titleText": null,
-      "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/banner2_jneei.jpg"
-    },
-    {
-      "_id": "159c3479-68df-421c-b1d4-da1524e7203f",
-      "arrowPosition": null,
-      "clickAction": "nextStep",
-      "ctaText": null,
-      "enableBackdrop": false,
-      "eventName": "",
-      "link": "1245:414141441",
-      "order": 2,
-      "position": "left",
-      "styling": {
-        "appearance": {
-          "arrowStyle": {
-            "height": 12,
-            "width": 6
-          },
-          "backdropOpacity": 70,
-          "colors": {
-            "arrow": "#fe6b35",
-            "backdrop": "#000000"
-          },
-          "cornerRadius": {
-            "bottomLeft": 12,
-            "bottomRight": 12,
-            "topLeft": 12,
-            "topRight": 12
-          },
-          "highlight": {
-            "padding": 4,
-            "radius": 12
-          },
-          "imageDimensions": {
-            "height": 200,
-            "width": 200
-          }
-        }
-      },
-      "subtitleText": null,
-      "target": "lab_switch_user",
-      "titleText": null,
-      "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/ChatGPT%20Image%20Jan%205%2C%202026%2C%2012_23_09%20AM_xxvls.jpeg"
-    },
-    {
-      "_id": "a08f987f-2b5d-4442-8609-75ef140db10c",
-      "arrowPosition": null,
-      "clickAction": "nextStep",
-      "ctaText": null,
-      "enableBackdrop": true,
-      "eventName": "",
-      "link": "APPSTORYS-CLOSE",
-      "order": 3,
-      "position": "left",
-      "styling": {
-        "appearance": {
-          "arrowStyle": {
-            "height": 12,
-            "width": 6
-          },
-          "backdropOpacity": 70,
-          "colors": {
-            "arrow": "#fe6b35",
-            "backdrop": "#000000"
-          },
-          "cornerRadius": {
-            "bottomLeft": 12,
-            "bottomRight": 12,
-            "topLeft": 12,
-            "topRight": 12
-          },
-          "highlight": {
-            "padding": 4,
-            "radius": 12
-          },
-          "imageDimensions": {
-            "height": 200,
-            "width": 200
-          }
-        }
-      },
-      "subtitleText": null,
-      "target": "lab_track_event",
-      "titleText": null,
-      "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/WhatsApp%20Image%202025-12-08%20at%2017.21.57_83886e3c_hcdsw.jpg"
+      "url": "https://appstorysmediabucketdev.s3.ap-south-1.amazonaws.com/media/uploads/WhatsApp%20Image%202026-05-13%20at%203.48.55%20PM_dxqrj.jpeg"
     }
   ]
 }
