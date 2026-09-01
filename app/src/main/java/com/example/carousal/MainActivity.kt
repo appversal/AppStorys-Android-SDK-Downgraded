@@ -70,7 +70,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
-import com.appversal.appstorys.ui.CardScratch
+import com.appversal.appstorys.ui.scratchcard.CardScratch
 import kotlinx.coroutines.delay
 import android.Manifest
 import android.content.pm.PackageManager
