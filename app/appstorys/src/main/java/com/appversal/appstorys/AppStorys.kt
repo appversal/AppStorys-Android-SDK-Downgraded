@@ -96,7 +96,7 @@ import com.appversal.appstorys.api.WidgetImage
 import com.appversal.appstorys.api.safeApiCall
 import com.appversal.appstorys.ui.AutoSlidingCarousel
 import com.appversal.appstorys.ui.BottomSheetComponent
-import com.appversal.appstorys.ui.CardScratch
+import com.appversal.appstorys.ui.scratchcard.CardScratch
 import com.appversal.appstorys.ui.CarousalImage
 import com.appversal.appstorys.ui.CsatDialog
 import com.appversal.appstorys.ui.DoubleWidgets
@@ -114,11 +114,11 @@ import com.appversal.appstorys.ui.stories.StoryAppMain
 import com.appversal.appstorys.ui.SurveyBottomSheet
 import com.appversal.appstorys.ui.common_components.createCrossButtonConfig
 import com.appversal.appstorys.ui.reels.getLikedReels
-import com.appversal.appstorys.ui.getScratchedCampaigns
+import com.appversal.appstorys.ui.scratchcard.getScratchedCampaigns
 import com.appversal.appstorys.ui.common_components.createExpandButtonConfig
 import com.appversal.appstorys.ui.common_components.createSoundToggleButtonConfig
 import com.appversal.appstorys.ui.reels.saveLikedReels
-import com.appversal.appstorys.ui.saveScratchedCampaigns
+import com.appversal.appstorys.ui.scratchcard.saveScratchedCampaigns
 import com.appversal.appstorys.ui.spinwheel.getSpinCount
 import com.appversal.appstorys.ui.spinwheel.saveSpinCount
 import com.appversal.appstorys.utils.AppStorysSdkState
