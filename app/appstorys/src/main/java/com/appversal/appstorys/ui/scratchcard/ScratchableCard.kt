@@ -36,6 +36,10 @@ import kotlin.math.sqrt
 import androidx.core.graphics.scale
 import androidx.core.graphics.createBitmap
 
+/** Scratch brush size, in dp so it is the same physical size on every screen. */
+private val BRUSH_RADIUS = 16.dp
+private val ERASER_STROKE = 48.dp
+
 @Composable
 fun ScratchableCard(
     cardWidth: Dp,
@@ -114,12 +118,23 @@ fun ScratchableCard(
     var measuredHeightPx by remember { mutableStateOf(0) }
 
     val cardWidthPx = with(LocalDensity.current) { cardWidth.toPx() }.toInt()
+
+    // Brush geometry in dp. These were raw pixel literals (40f radius / 120f stroke),
+    // so the scratch brush was ~16dp on a 2.55x phone but 40dp on a 1x screen — the
+    // same code felt like a different tool per device. The dp values below reproduce
+    // the previous size on a typical modern phone.
+    val brushRadiusPx = with(LocalDensity.current) { BRUSH_RADIUS.toPx() }
+    val eraserStrokePx = with(LocalDensity.current) { ERASER_STROKE.toPx() }
     val cardHeightPx = measuredHeightPx
     val coroutineScope = rememberCoroutineScope()
 
-    // Media player for sound
-    val mediaPlayer = remember {
-        MediaPlayer().apply {
+    // Media player for sound. Built only when this card actually has a sound to
+    // play — an unconditional MediaPlayer holds a media session for every scratch
+    // card, and it cannot be constructed off-device (Paparazzi/JVM), which is why
+    // this component had no screenshot test.
+    val mediaPlayer = remember(customSoundEnabled, soundFileUrl) {
+        if (!customSoundEnabled || soundFileUrl.isEmpty()) null
+        else MediaPlayer().apply {
             setOnPreparedListener {
                 // Ready to play
             }
@@ -130,9 +145,10 @@ fun ScratchableCard(
         }
     }
 
-    // Vibrator for haptic feedback
-    val vibrator = remember {
-        try {
+    // Vibrator for haptic feedback — only when the campaign asks for haptics.
+    val vibrator = remember(haptics) {
+        if (!haptics) null
+        else try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 val vibratorManager =
                     context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
@@ -156,9 +172,9 @@ fun ScratchableCard(
         if (customSoundEnabled && soundFileUrl.isNotEmpty() && !soundLoaded) {
             try {
                 withContext(Dispatchers.IO) {
-                    mediaPlayer.reset()
-                    mediaPlayer.setDataSource(soundFileUrl)
-                    mediaPlayer.prepareAsync()
+                    mediaPlayer?.reset()
+                    mediaPlayer?.setDataSource(soundFileUrl)
+                    mediaPlayer?.prepareAsync()
                 }
                 soundLoaded = true
             } catch (e: Exception) {
@@ -176,7 +192,7 @@ fun ScratchableCard(
             if (customSoundEnabled) {
                 coroutineScope.launch {
                     try {
-                        if (soundLoaded && !mediaPlayer.isPlaying) {
+                        if (soundLoaded && mediaPlayer?.isPlaying == false) {
                             mediaPlayer.start()
                         }
                     } catch (e: Exception) {
@@ -214,7 +230,7 @@ fun ScratchableCard(
     DisposableEffect(Unit) {
         onDispose {
             try {
-                mediaPlayer.release()
+                mediaPlayer?.release()
             } catch (e: Exception) {
                 Log.e("ScratchCard", "Error releasing media player: ${e.message}")
             }
@@ -234,7 +250,7 @@ fun ScratchableCard(
     }
 
     // Improved eraser paint with larger stroke for smoother scratching
-    val eraserPaint = remember {
+    val eraserPaint = remember(eraserStrokePx) {
         android.graphics.Paint().apply {
             isAntiAlias = true
             isDither = true
@@ -242,7 +258,7 @@ fun ScratchableCard(
             xfermode = android.graphics.PorterDuffXfermode(
                 android.graphics.PorterDuff.Mode.CLEAR
             )
-            strokeWidth = 120f
+            strokeWidth = eraserStrokePx
             strokeCap = android.graphics.Paint.Cap.ROUND
             strokeJoin = android.graphics.Paint.Join.ROUND
             style = android.graphics.Paint.Style.STROKE
@@ -428,7 +444,7 @@ fun ScratchableCard(
                                             scratchCanvas?.drawCircle(
                                                 interpolatedX,
                                                 interpolatedY,
-                                                40f,
+                                                brushRadiusPx,
                                                 circlePaint
                                             )
                                         }
@@ -464,7 +480,7 @@ fun ScratchableCard(
                                 val t = j.toFloat() / steps
                                 val x = prev.x + dx * t
                                 val y = prev.y + dy * t
-                                scratchCanvas?.drawCircle(x, y, 40f, circlePaint)
+                                scratchCanvas?.drawCircle(x, y, brushRadiusPx, circlePaint)
                             }
                         }
 

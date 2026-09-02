@@ -560,7 +560,7 @@ object AppStorys {
                     }
                     val client = OkHttpClient()
                     val request = Request.Builder()
-                        .url("https://tracking.appstorys.com/capture-event")
+                        .url("https://tracking.appstorys.co/capture-event")
                         .post(
                             requestBody.toString()
                                 .toRequestBody("application/json".toMediaTypeOrNull())
@@ -2366,51 +2366,6 @@ object AppStorys {
                 wasFullyScratched = wasFullyScratched,
                 onWasFullyScratched = { wasFullyScratched = it },
 
-                crossButtonConfig = run {
-
-                    val crossObj = scratchCardDetails.content
-                        ?.get("crossButton")
-                        ?.takeIf { it !is kotlinx.serialization.json.JsonNull }
-                        ?.jsonObject
-
-                    val colors = crossObj
-                        ?.get("color")
-                        ?.takeIf { it !is kotlinx.serialization.json.JsonNull }
-                        ?.jsonObject
-
-                    val margin = crossObj
-                        ?.get("margin")
-                        ?.takeIf { it !is kotlinx.serialization.json.JsonNull }
-                        ?.jsonObject
-
-                    createCrossButtonConfig(
-                        fillColorString = colors?.get("fill")?.jsonPrimitive?.contentOrNull,
-                        crossColorString = colors?.get("cross")?.jsonPrimitive?.contentOrNull,
-                        strokeColorString = colors?.get("stroke")?.jsonPrimitive?.contentOrNull,
-                        marginTop = margin?.get("top")?.jsonPrimitive?.intOrNull,
-                        marginEnd = margin?.get("right")?.jsonPrimitive?.intOrNull,
-                        size = crossObj?.get("size")?.jsonPrimitive?.intOrNull,
-                        imageUrl = crossObj?.get("image")?.jsonPrimitive?.contentOrNull
-                    )
-                },
-                crossButtonMarginBottom = run {
-                    val crossObj = scratchCardDetails.content
-                        ?.get("crossButton")
-                        ?.takeIf { it !is kotlinx.serialization.json.JsonNull }
-                        ?.jsonObject
-                    val margin = crossObj
-                        ?.get("margin")
-                        ?.takeIf { it !is kotlinx.serialization.json.JsonNull }
-                        ?.jsonObject
-                    margin?.get("bottom")?.jsonPrimitive?.intOrNull?.dp ?: 0.dp
-                },
-                crossButtonAlignment = run {
-                    val crossObj = scratchCardDetails.content
-                        ?.get("crossButton")
-                        ?.takeIf { it !is kotlinx.serialization.json.JsonNull }
-                        ?.jsonObject
-                    crossObj?.get("alignment")?.jsonPrimitive?.contentOrNull ?: "center"
-                },
                 scratchCardDetails = scratchCardDetails,
                 onCtaClick = {
                     campaign?.id?.let {

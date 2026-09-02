@@ -61,15 +61,17 @@ fun OnlyImageView(
     ) {
         if (bannerImageUrl.isNotEmpty()) {
             if (isGifUrl(bannerImageUrl)) {
-                val imageLoader = ImageLoader.Builder(context)
-                    .components {
-                        if (SDK_INT >= 28) {
-                            add(ImageDecoderDecoder.Factory())
-                        } else {
-                            add(GifDecoder.Factory())
+                val imageLoader = remember(context) {
+                    ImageLoader.Builder(context)
+                        .components {
+                            if (SDK_INT >= 28) {
+                                add(ImageDecoderDecoder.Factory())
+                            } else {
+                                add(GifDecoder.Factory())
+                            }
                         }
-                    }
-                    .build()
+                        .build()
+                }
 
                 val painter = rememberAsyncImagePainter(
                     ImageRequest.Builder(context)

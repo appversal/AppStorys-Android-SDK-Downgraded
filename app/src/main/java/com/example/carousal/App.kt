@@ -28,10 +28,10 @@ class App : Application() {
         // Initialize CampaignManager with userId and appId
         AppStorys.initialize(
             context = this,
-            appId =  "37ca2d75-8484-4cc1-97ed-d9475ce5a631",
-            accountId = "4e109ac3-be92-4a5c-bbe6-42e6c712ec9a",
-//            appId = "f69bdccf-b20f-4938-b39e-7075d76db791",  // dev test
-//            accountId = "12a9eac5-94ee-4735-9aa6-b8a94cb8fbbb",  // dev test
+//            appId =  "37ca2d75-8484-4cc1-97ed-d9475ce5a631",
+//            accountId = "4e109ac3-be92-4a5c-bbe6-42e6c712ec9a",
+            appId = "f69bdccf-b20f-4938-b39e-7075d76db791",  // dev test
+            accountId = "12a9eac5-94ee-4735-9aa6-b8a94cb8fbbb",  // dev test
 //            userId = userId,
             userId = "anirudh-uuidds",
 //            userId = "001e756sdf27948b",
