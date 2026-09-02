@@ -18,6 +18,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -77,6 +78,19 @@ fun CardScratch(
             imageUrl = cfg.crossImageUrl
         )
     }
+
+    // Decode the cover before the card is composed, then seed the scratch bitmap
+    // with it (see ScratchableCard). Painting grey first and drawing the cover from
+    // a LaunchedEffect afterwards cost a measured ~400ms of visible grey on every
+    // launch, warm cache or not, because that effect cannot run before the first
+    // frame. Skipped when already scratched — no cover is drawn then.
+    val imageLoader = scratchCardImageLoader(LocalContext.current)
+    val coverPx = with(LocalDensity.current) {
+        cfg.cardWidth.roundToPx() to cfg.cardHeightDp.roundToPx()
+    }
+    val coverState = rememberCover(cfg.overlayImage, imageLoader, coverPx.first, coverPx.second)
+    if (coverState is CoverState.Loading && !wasFullyScratched) return
+    val coverBitmap = (coverState as? CoverState.Ready)?.bitmap
 
     with(cfg) {
         LaunchedEffect(wasFullyScratched) {
@@ -143,7 +157,7 @@ fun CardScratch(
                             cardHeight = cardHeightDp,
                             points = points,
                             isRevealed = isRevealed,
-                            overlayImageUrl = overlayImage,
+                            coverBitmap = coverBitmap,
                             bannerImageUrl = bannerImage,
                             offerTitle = offerTitle,
                             offerSubtitle = offerSubtitle,

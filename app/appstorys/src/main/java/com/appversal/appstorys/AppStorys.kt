@@ -97,6 +97,9 @@ import com.appversal.appstorys.api.safeApiCall
 import com.appversal.appstorys.ui.AutoSlidingCarousel
 import com.appversal.appstorys.ui.BottomSheetComponent
 import com.appversal.appstorys.ui.scratchcard.CardScratch
+import kotlin.math.roundToInt
+import com.appversal.appstorys.ui.scratchcard.prefetchScratchCardCover
+import com.appversal.appstorys.ui.scratchcard.ScratchCardConfig
 import com.appversal.appstorys.ui.CarousalImage
 import com.appversal.appstorys.ui.CsatDialog
 import com.appversal.appstorys.ui.DoubleWidgets
@@ -490,6 +493,7 @@ object AppStorys {
 
                 campaignsList?.let { list ->
                     campaigns.emit(list.sortedBy { it.priority })
+                    prefetchScratchCardCovers(list)
                 }
                 campaignVariants.emit(variants ?: emptyList())
                 Log.e("AppStorys", "Campaign: ${campaigns.value}")
@@ -497,6 +501,34 @@ object AppStorys {
                 Log.e("AppStorys", "Error getting campaigns for $screenName", exception)
             }
         }
+    }
+
+    /**
+     * Warms scratch-card covers into Coil's cache as soon as the campaigns for a
+     * screen are known. The cover is typically a multi-megabyte image, and without
+     * this the fetch only starts when the card is about to render, so the card is
+     * held back for the whole download.
+     *
+     * Sizes come from [ScratchCardConfig.from] — the same pure parse the UI uses —
+     * so the prefetched entry has the cache key the card will look up.
+     */
+    private fun prefetchScratchCardCovers(list: List<Campaign>) {
+        val screenWidthDp = context.resources.configuration.screenWidthDp.dp
+        val density = context.resources.displayMetrics.density
+        list.asSequence()
+            .filter { it.campaignType == "SCRT" }
+            .mapNotNull { it.details as? ScratchCardDetails }
+            .forEach { details ->
+                runCatching {
+                    val cfg = ScratchCardConfig.from(details, screenWidthDp)
+                    prefetchScratchCardCover(
+                        context = context,
+                        url = cfg.overlayImage,
+                        widthPx = (cfg.cardWidth.value * density).roundToInt(),
+                        heightPx = (cfg.cardHeightDp.value * density).roundToInt()
+                    )
+                }.onFailure { Log.w("AppStorys", "SCRT cover prefetch skipped: ${it.message}") }
+            }
     }
 
     fun getPersonalizationData(): Map<String, String> {

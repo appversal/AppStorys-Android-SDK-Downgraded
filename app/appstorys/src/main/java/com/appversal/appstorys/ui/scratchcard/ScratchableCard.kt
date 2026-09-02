@@ -36,17 +36,23 @@ import kotlin.math.sqrt
 import androidx.core.graphics.scale
 import androidx.core.graphics.createBitmap
 
-/** Scratch brush size, in dp so it is the same physical size on every screen. */
+/** Scratch brush radius, in dp so it is the same physical size on every screen. */
 private val BRUSH_RADIUS = 16.dp
-private val ERASER_STROKE = 48.dp
 
 @Composable
 fun ScratchableCard(
     cardWidth: Dp,
     cardHeight: Dp,
+    // Erasing happens in onDrag via drawCircle, which mutates scratchBitmap
+    // directly — Compose cannot see that. This list is what actually triggers the
+    // repaint: every drag event pushes a new value to the parent, which recomposes
+    // and re-runs drawImage below. Its CONTENTS are meaningless (pointerInput
+    // captures the list once, so it never holds more than one element — verified on
+    // device: 70 drag events, every one size 1). Remove it and scratching stops
+    // painting entirely.
     points: List<Offset>,
     isRevealed: Boolean,
-    overlayImageUrl: String,
+    coverBitmap: Bitmap?,
     bannerImageUrl: String,
     offerTitle: String,
     offerSubtitle: String,
@@ -119,12 +125,10 @@ fun ScratchableCard(
 
     val cardWidthPx = with(LocalDensity.current) { cardWidth.toPx() }.toInt()
 
-    // Brush geometry in dp. These were raw pixel literals (40f radius / 120f stroke),
-    // so the scratch brush was ~16dp on a 2.55x phone but 40dp on a 1x screen — the
-    // same code felt like a different tool per device. The dp values below reproduce
-    // the previous size on a typical modern phone.
+    // Brush size in dp. This was a raw pixel literal (40f), so the scratch brush was
+    // ~16dp on a 2.55x phone but 40dp on a 1x screen — the same code felt like a
+    // different tool per device.
     val brushRadiusPx = with(LocalDensity.current) { BRUSH_RADIUS.toPx() }
-    val eraserStrokePx = with(LocalDensity.current) { ERASER_STROKE.toPx() }
     val cardHeightPx = measuredHeightPx
     val coroutineScope = rememberCoroutineScope()
 
@@ -237,32 +241,24 @@ fun ScratchableCard(
         }
     }
 
-    val scratchBitmap = remember(cardWidthPx, cardHeightPx) {
+    val scratchBitmap = remember(cardWidthPx, cardHeightPx, coverBitmap) {
         if (cardHeightPx > 0) {
-            createBitmap(cardWidthPx, cardHeightPx)
-                .apply { eraseColor(Color.Gray.toArgb()) }
+            createBitmap(cardWidthPx, cardHeightPx).apply {
+                // Seeded with the cover so the very first painted frame has the
+                // artwork. Grey is only the fallback when the cover is unavailable.
+                if (coverBitmap != null) {
+                    android.graphics.Canvas(this)
+                        .drawBitmap(coverBitmap.scale(cardWidthPx, cardHeightPx), 0f, 0f, null)
+                } else {
+                    eraseColor(Color.Gray.toArgb())
+                }
+            }
         } else null
     }
 
 
     val scratchCanvas = remember(scratchBitmap) {
         scratchBitmap?.let { android.graphics.Canvas(it) }
-    }
-
-    // Improved eraser paint with larger stroke for smoother scratching
-    val eraserPaint = remember(eraserStrokePx) {
-        android.graphics.Paint().apply {
-            isAntiAlias = true
-            isDither = true
-            color = android.graphics.Color.TRANSPARENT
-            xfermode = android.graphics.PorterDuffXfermode(
-                android.graphics.PorterDuff.Mode.CLEAR
-            )
-            strokeWidth = eraserStrokePx
-            strokeCap = android.graphics.Paint.Cap.ROUND
-            strokeJoin = android.graphics.Paint.Join.ROUND
-            style = android.graphics.Paint.Style.STROKE
-        }
     }
 
     // Circle paint for filling gaps
@@ -275,31 +271,6 @@ fun ScratchableCard(
                 android.graphics.PorterDuff.Mode.CLEAR
             )
             style = android.graphics.Paint.Style.FILL
-        }
-    }
-
-    // Overlay image
-    var overlayBitmap by remember { mutableStateOf<Bitmap?>(null) }
-
-    LaunchedEffect(overlayImageUrl, cardWidthPx, cardHeightPx) {
-        if (overlayImageUrl.isNotEmpty() && cardWidthPx > 0 && cardHeightPx > 0) {
-            val loader = ImageLoader(context)
-            val request = ImageRequest.Builder(context)
-                .data(overlayImageUrl)
-                // Decode straight to the card's pixel size. With no size and no view
-                // target Coil decodes at full resolution, so a large cover allocates its
-                // entire ARGB_8888 bitmap (6000x4000 = ~92 MB) before being scaled down.
-                .size(cardWidthPx, cardHeightPx)
-                .allowHardware(false)
-                .build()
-
-            val result = loader.execute(request)
-            val bmp = (result.drawable as? BitmapDrawable)?.bitmap
-
-            bmp?.let {
-                overlayBitmap = it.scale(cardWidthPx, cardHeightPx)
-                scratchCanvas?.drawBitmap(overlayBitmap!!, 0f, 0f, null)
-            }
         }
     }
 
@@ -459,37 +430,6 @@ fun ScratchableCard(
                         )
                     }
             ) {
-                // Apply smooth erase to bitmap
-                if (points.size >= 2) {
-                    // Draw path
-                    val path = android.graphics.Path()
-                    path.moveTo(points.first().x, points.first().y)
-
-                    for (i in 1 until points.size) {
-                        val prev = points[i - 1]
-                        val curr = points[i]
-
-                        // Draw circles along the path to fill gaps
-                        val dx = curr.x - prev.x
-                        val dy = curr.y - prev.y
-                        val distance = sqrt(dx * dx + dy * dy)
-
-                        if (distance > 10f) {
-                            val steps = (distance / 10f).toInt()
-                            for (j in 0..steps) {
-                                val t = j.toFloat() / steps
-                                val x = prev.x + dx * t
-                                val y = prev.y + dy * t
-                                scratchCanvas?.drawCircle(x, y, brushRadiusPx, circlePaint)
-                            }
-                        }
-
-                        path.lineTo(curr.x, curr.y)
-                    }
-
-                    scratchCanvas?.drawPath(path, eraserPaint)
-                }
-
                 // Draw the updated scratch bitmap on screen
                 scratchBitmap?.let {
                     drawImage(

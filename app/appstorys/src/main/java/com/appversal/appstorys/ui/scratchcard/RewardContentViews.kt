@@ -41,6 +41,86 @@ import com.appversal.appstorys.api.TextStyling
 import com.appversal.appstorys.ui.common_components.CommonText
 import com.appversal.appstorys.utils.isLottieUrl
 
+/**
+ * Renders a reward banner, whatever the dashboard let the user upload.
+ *
+ * The upload control offers "JPEG, PNG, GIF, Lottie or HTML", but only
+ * [OnlyImageView] ever handled GIF and Lottie — [CashBackInfoView] went straight
+ * to Coil, which has no decoder for a Lottie `.json`, so a Lottie reward drew
+ * nothing at all whenever "Image only" was off. Verified on device: 0 non-white
+ * pixels across the whole banner region for a Lottie with black and green fills.
+ *
+ * One implementation, both call sites, so the two cannot drift apart again.
+ *
+ * HTML is still unhandled — it falls through to Coil and renders nothing. That
+ * needs a WebView, which is a bigger decision than this fix.
+ */
+@Composable
+private fun RewardMedia(
+    bannerImageUrl: String,
+    targetWidthPx: Int,
+    targetHeightPx: Int,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    when {
+        isGifUrl(bannerImageUrl) -> {
+            // Coil's default loader cannot decode GIF; this one registers a decoder.
+            val imageLoader = remember(context) {
+                ImageLoader.Builder(context)
+                    .components {
+                        if (SDK_INT >= 28) {
+                            add(ImageDecoderDecoder.Factory())
+                        } else {
+                            add(GifDecoder.Factory())
+                        }
+                    }
+                    .build()
+            }
+
+            val painter = rememberAsyncImagePainter(
+                ImageRequest.Builder(context)
+                    .data(bannerImageUrl)
+                    .memoryCacheKey(bannerImageUrl)
+                    .diskCacheKey(bannerImageUrl)
+                    .diskCachePolicy(CachePolicy.ENABLED)
+                    .memoryCachePolicy(CachePolicy.ENABLED)
+                    .crossfade(true)
+                    .size(targetWidthPx, targetHeightPx)
+                    .build(),
+                imageLoader = imageLoader
+            )
+
+            Image(
+                painter = painter,
+                contentDescription = "Banner",
+                contentScale = ContentScale.Crop,
+                modifier = modifier
+            )
+        }
+
+        isLottieUrl(bannerImageUrl) -> {
+            val composition by rememberLottieComposition(
+                spec = LottieCompositionSpec.Url(bannerImageUrl)
+            )
+            LottieAnimation(
+                composition = composition,
+                iterations = LottieConstants.IterateForever,
+                modifier = modifier
+            )
+        }
+
+        else -> {
+            SubcomposeAsyncImage(
+                model = bannerImageUrl,
+                contentDescription = "Banner",
+                contentScale = ContentScale.Crop,
+                modifier = modifier
+            )
+        }
+    }
+}
+
 @Composable
 fun OnlyImageView(
     modifier: Modifier = Modifier,
@@ -48,8 +128,6 @@ fun OnlyImageView(
     cardWidth: Dp,
     cardHeight: Dp
 ) {
-    val context = LocalContext.current
-
     // The reward image is only ever drawn at card size, so decode it at that size.
     val density = LocalDensity.current
     val targetWidthPx = with(density) { cardWidth.roundToPx() }
@@ -60,55 +138,12 @@ fun OnlyImageView(
         contentAlignment = Alignment.Center
     ) {
         if (bannerImageUrl.isNotEmpty()) {
-            if (isGifUrl(bannerImageUrl)) {
-                val imageLoader = remember(context) {
-                    ImageLoader.Builder(context)
-                        .components {
-                            if (SDK_INT >= 28) {
-                                add(ImageDecoderDecoder.Factory())
-                            } else {
-                                add(GifDecoder.Factory())
-                            }
-                        }
-                        .build()
-                }
-
-                val painter = rememberAsyncImagePainter(
-                    ImageRequest.Builder(context)
-                        .data(bannerImageUrl)
-                        .memoryCacheKey(bannerImageUrl)
-                        .diskCacheKey(bannerImageUrl)
-                        .diskCachePolicy(CachePolicy.ENABLED)
-                        .memoryCachePolicy(CachePolicy.ENABLED)
-                        .crossfade(true)
-                        .size(targetWidthPx, targetHeightPx)
-                        .build(),
-                    imageLoader = imageLoader
-                )
-
-                Image(
-                    painter = painter,
-                    contentDescription = "Banner",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-            } else if (isLottieUrl(bannerImageUrl)) {
-                val composition by rememberLottieComposition(
-                    spec = LottieCompositionSpec.Url(bannerImageUrl)
-                )
-                LottieAnimation(
-                    composition = composition,
-                    iterations = LottieConstants.IterateForever,
-                    modifier = Modifier.fillMaxSize()
-                )
-            } else {
-                SubcomposeAsyncImage(
-                    model = bannerImageUrl,
-                    contentDescription = "Banner",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
+            RewardMedia(
+                bannerImageUrl = bannerImageUrl,
+                targetWidthPx = targetWidthPx,
+                targetHeightPx = targetHeightPx,
+                modifier = Modifier.fillMaxSize()
+            )
         }
     }
 }
@@ -177,6 +212,9 @@ fun CashBackInfoView(
     imageMarginLeft: Dp = 0.dp,
     imageMarginRight: Dp = 0.dp,
 ) {
+    // Decode target for the banner box, which is capped at 30% of the card.
+    val bannerBoxPx = with(LocalDensity.current) { (cardHeight * 0.3f).roundToPx() }
+
     val context = LocalContext.current
 
     Box(
@@ -215,10 +253,10 @@ fun CashBackInfoView(
                             )
                         )
                 ) {
-                    SubcomposeAsyncImage(
-                        model = bannerImageUrl,
-                        contentDescription = "Banner",
-                        contentScale = ContentScale.Crop,
+                    RewardMedia(
+                        bannerImageUrl = bannerImageUrl,
+                        targetWidthPx = bannerBoxPx,
+                        targetHeightPx = bannerBoxPx,
                         modifier = Modifier.fillMaxSize()
                     )
                 }
