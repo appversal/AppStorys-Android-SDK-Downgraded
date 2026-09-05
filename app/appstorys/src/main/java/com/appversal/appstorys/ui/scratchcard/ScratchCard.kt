@@ -47,6 +47,15 @@ fun CardScratch(
     onWasFullyScratched: (Boolean) -> Unit,
     scratchCardDetails: com.appversal.appstorys.api.ScratchCardDetails,
     onCtaClick: () -> Unit = {},
+    /**
+     * Fired when the card is actually composed — after the cover gate, so the user
+     * really is looking at it. `viewed` used to fire on the decision to show the
+     * card instead, which counted impressions nobody saw: a cover that 404s holds
+     * the card for the full timeout, and backgrounding the app in that window still
+     * recorded a view. That matters because dismissals are derived as
+     * `viewed - scratched`, so every phantom view became a phantom dismissal.
+     */
+    onCardShown: () -> Unit = {},
 ) {
     var points by remember { mutableStateOf(listOf<Offset>()) }
     var touchedCells by remember { mutableStateOf(setOf<Int>()) }
@@ -60,6 +69,7 @@ fun CardScratch(
 
     // Card size (from campaign data or adaptive fallback)
     val screenWidth = LocalConfiguration.current.screenWidthDp.dp
+    val screenHeight = LocalConfiguration.current.screenHeightDp.dp
 
     // Parsed once per campaign. CardScratch recomposes on every pointer event
     // while the card is scratched, and the payload cannot change under it.
@@ -85,12 +95,47 @@ fun CardScratch(
     // launch, warm cache or not, because that effect cannot run before the first
     // frame. Skipped when already scratched — no cover is drawn then.
     val imageLoader = scratchCardImageLoader(LocalContext.current)
+    // Decoded against the tallest card we could end up drawing, not the configured
+    // height: the card's height is derived from this very bitmap, so a box of the
+    // configured height would upscale a portrait cover. Coil fits within the box and
+    // preserves aspect, so this only bounds it. prefetchScratchCardCovers must pass
+    // the same numbers or it warms a cache key nothing reads.
     val coverPx = with(LocalDensity.current) {
-        cfg.cardWidth.roundToPx() to cfg.cardHeightDp.roundToPx()
+        cfg.cardWidth.roundToPx() to (screenHeight * MAX_CARD_HEIGHT).roundToPx()
     }
     val coverState = rememberCover(cfg.overlayImage, imageLoader, coverPx.first, coverPx.second)
     if (coverState is CoverState.Loading && !wasFullyScratched) return
     val coverBitmap = (coverState as? CoverState.Ready)?.bitmap
+
+    // An onlyImage card IS the cover, so the container takes the cover's aspect:
+    // height = width x (srcH / srcW). The container then matches the artwork
+    // exactly, which is what makes fit/fill/crop equivalent for it.
+    //
+    // Capped, because a tall upload would otherwise size the card past the screen —
+    // 300dp wide from a 1000x5000 image is a 1500dp card, which is how this
+    // component originally went wrong. When the cap bites the aspects no longer
+    // match, and the centre-crop in ScratchableCard absorbs the difference.
+    val coverAspectHeight = if (coverBitmap != null && coverBitmap.width > 0) {
+        (cfg.cardWidth * (coverBitmap.height.toFloat() / coverBitmap.width))
+            .coerceAtMost(screenHeight * MAX_CARD_HEIGHT)
+    } else {
+        null
+    }
+
+    // onlyImage: the card IS the cover, so it keeps the cover's aspect in both
+    // states and the reward is cropped into it.
+    //
+    // onlyImage off: the two states are sized independently. While covered the box
+    // takes the cover's aspect so the artwork is not distorted; once revealed the
+    // styled content decides, because that is what the backend styling describes.
+    // cardHeight stays the configured value either way — with the toggle off it is
+    // not a height at all, it is the proportion basis the reward view scales its
+    // banner and coupon padding from, and that must not move between states.
+    val cardHeight = if (cfg.onlyImage) coverAspectHeight ?: cfg.cardHeightDp else cfg.cardHeightDp
+
+    // ponytail: snaps between the two heights on reveal. Animate when the jump
+    // reads badly — animateDpAsState on coveredHeight is the whole change.
+    val coveredHeight = if (!cfg.onlyImage && !isRevealed) coverAspectHeight else null
 
     with(cfg) {
         LaunchedEffect(wasFullyScratched) {
@@ -100,6 +145,7 @@ fun CardScratch(
         }
 
         if (isPresented) {
+            LaunchedEffect(Unit) { onCardShown() }
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -154,7 +200,8 @@ fun CardScratch(
                     ) {
                         ScratchableCard(
                             cardWidth = cardWidth,
-                            cardHeight = cardHeightDp,
+                            cardHeight = cardHeight,
+                            coveredHeight = coveredHeight,
                             points = points,
                             isRevealed = isRevealed,
                             coverBitmap = coverBitmap,
@@ -363,3 +410,6 @@ fun CardScratch(
         }
     }
 }
+
+/** Ceiling for a cover-derived card height, as a fraction of screen height. */
+private const val MAX_CARD_HEIGHT = 0.75f

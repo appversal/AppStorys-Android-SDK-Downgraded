@@ -32,6 +32,7 @@ import coil.request.ImageRequest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.math.roundToInt
 import kotlin.math.sqrt
 import androidx.core.graphics.scale
 import androidx.core.graphics.createBitmap
@@ -53,6 +54,13 @@ fun ScratchableCard(
     points: List<Offset>,
     isRevealed: Boolean,
     coverBitmap: Bitmap?,
+    /**
+     * Height to force while the card is still covered, so the cover keeps its own
+     * aspect instead of being stretched to whatever the reward content happens to
+     * measure. Null once revealed (and always when onlyImage is on), leaving the
+     * reward to size itself from the backend styling.
+     */
+    coveredHeight: Dp? = null,
     bannerImageUrl: String,
     offerTitle: String,
     offerSubtitle: String,
@@ -247,8 +255,24 @@ fun ScratchableCard(
                 // Seeded with the cover so the very first painted frame has the
                 // artwork. Grey is only the fallback when the cover is unavailable.
                 if (coverBitmap != null) {
-                    android.graphics.Canvas(this)
-                        .drawBitmap(coverBitmap.scale(cardWidthPx, cardHeightPx), 0f, 0f, null)
+                    // Centre-crop, not stretch. The container is built from this
+                    // bitmap's aspect, so normally nothing is trimmed and this is a
+                    // straight copy; it only bites when the height cap clamped the
+                    // card, and then trimming beats distorting.
+                    val srcW = coverBitmap.width
+                    val srcH = coverBitmap.height
+                    val scale = maxOf(cardWidthPx.toFloat() / srcW, cardHeightPx.toFloat() / srcH)
+                    val visW = (cardWidthPx / scale).roundToInt().coerceIn(1, srcW)
+                    val visH = (cardHeightPx / scale).roundToInt().coerceIn(1, srcH)
+                    android.graphics.Canvas(this).drawBitmap(
+                        coverBitmap,
+                        android.graphics.Rect(
+                            (srcW - visW) / 2, (srcH - visH) / 2,
+                            (srcW - visW) / 2 + visW, (srcH - visH) / 2 + visH
+                        ),
+                        android.graphics.Rect(0, 0, cardWidthPx, cardHeightPx),
+                        android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG)
+                    )
                 } else {
                     eraseColor(Color.Gray.toArgb())
                 }
@@ -298,7 +322,10 @@ fun ScratchableCard(
             CashBackInfoView(
                 modifier = Modifier
                     .width(cardWidth)
-                    .wrapContentHeight(),
+                    .then(
+                        if (coveredHeight != null) Modifier.height(coveredHeight)
+                        else Modifier.wrapContentHeight()
+                    ),
                 bannerImageUrl = bannerImageUrl,
                 offerTitle = offerTitle,
                 offerSubtitle = offerSubtitle,

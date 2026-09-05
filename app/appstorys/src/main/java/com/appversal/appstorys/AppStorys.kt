@@ -514,6 +514,7 @@ object AppStorys {
      */
     private fun prefetchScratchCardCovers(list: List<Campaign>) {
         val screenWidthDp = context.resources.configuration.screenWidthDp.dp
+        val screenHeightDp = context.resources.configuration.screenHeightDp.dp
         val density = context.resources.displayMetrics.density
         list.asSequence()
             .filter { it.campaignType == "SCRT" }
@@ -525,7 +526,9 @@ object AppStorys {
                         context = context,
                         url = cfg.overlayImage,
                         widthPx = (cfg.cardWidth.value * density).roundToInt(),
-                        heightPx = (cfg.cardHeightDp.value * density).roundToInt()
+                        // Must match the decode box in CardScratch (screen height x
+                        // the same 0.75 cap) or this warms a key the card never reads.
+                        heightPx = (screenHeightDp.value * 0.75f * density).roundToInt()
                     )
                 }.onFailure { Log.w("AppStorys", "SCRT cover prefetch skipped: ${it.message}") }
             }
@@ -2350,12 +2353,6 @@ object AppStorys {
 
         if (scratchCardDetails != null && shouldShowScratchCard && isPresented) {
 
-            LaunchedEffect(Unit) {
-                campaign?.id?.let {
-                    trackEvents(it, "viewed")
-                }
-            }
-
             LaunchedEffect(wasFullyScratched) {
                 if (wasFullyScratched && campaign?.id != null && !isAlreadyScratched) {
                     trackEvents(campaign.id, "scratched")
@@ -2399,6 +2396,11 @@ object AppStorys {
                 onWasFullyScratched = { wasFullyScratched = it },
 
                 scratchCardDetails = scratchCardDetails,
+                onCardShown = {
+                    campaign?.id?.let {
+                        trackEvents(it, "viewed")
+                    }
+                },
                 onCtaClick = {
                     campaign?.id?.let {
                         clickEvent(link = ctaUrl, campaignId = it)
