@@ -56,11 +56,12 @@ import com.appversal.appstorys.utils.isLottieUrl
  * needs a WebView, which is a bigger decision than this fix.
  */
 @Composable
-private fun RewardMedia(
+internal fun RewardMedia(
     bannerImageUrl: String,
     targetWidthPx: Int,
     targetHeightPx: Int,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    contentScale: ContentScale = ContentScale.Crop
 ) {
     val context = LocalContext.current
     when {
@@ -94,7 +95,7 @@ private fun RewardMedia(
             Image(
                 painter = painter,
                 contentDescription = "Banner",
-                contentScale = ContentScale.Crop,
+                contentScale = contentScale,
                 modifier = modifier
             )
         }
@@ -114,7 +115,7 @@ private fun RewardMedia(
             SubcomposeAsyncImage(
                 model = bannerImageUrl,
                 contentDescription = "Banner",
-                contentScale = ContentScale.Crop,
+                contentScale = contentScale,
                 modifier = modifier
             )
         }

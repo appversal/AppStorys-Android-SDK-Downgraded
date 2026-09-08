@@ -9,6 +9,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
@@ -42,6 +43,7 @@ fun WheelView(
     slices: List<WheelSlice>,
     rotation: Float,
     wheelImage: String?,
+    wheelImageAlpha: Float = 1f,
     backgroundColor: String?,
     borderColor: Color = Color.White,
     borderWidth: Int = 5,
@@ -60,7 +62,8 @@ fun WheelView(
                 contentDescription = "Wheel",
                 modifier = Modifier
                     .fillMaxSize()
-                    .rotate(rotation),
+                    .rotate(rotation)
+                    .alpha(wheelImageAlpha.coerceIn(0f, 1f)),
                 contentScale = ContentScale.Fit,
                 loading = {
                     Box(
@@ -266,7 +269,9 @@ fun WheelView(
                             path = path,
                             color = sliceStrokeColor,
                             style = Stroke(
-                                width = sliceStrokeWidth.toFloat(),
+                                // dp, like every other dashboard dimension — as raw px
+                                // this was a hairline on dense screens.
+                                width = sliceStrokeWidth.dp.toPx(),
                             )
                         )
                     }
@@ -370,14 +375,10 @@ fun WheelView(
             }
         }
 
-        // Enhanced Pointer/Indicator at top with shadow
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .offset(y = (-8).dp)
-        ) {
-            WheelPointer()
-        }
+        // Pointer: a hub at the centre with the arrow rising out of it, rather than
+        // a separate triangle floating at the rim. Drawn outside the rotating layer so
+        // it stays put while the wheel turns.
+        WheelPointer(modifier = Modifier.fillMaxSize())
     }
 }
 
@@ -563,59 +564,66 @@ private fun WheelSliceContent(
 }
 
 /**
- * Triangle pointer indicator for the wheel with enhanced styling
+ * The wheel's pointer: a coin-like hub at the centre with a short arrow rising from its
+ * top edge. Sizes are fractions of the wheel, so it scales with `wheelConfiguration.size`.
  */
 @Composable
 fun WheelPointer(
-    color: Color = Color(0xFFFF1744)
+    modifier: Modifier = Modifier,
+    hubFill: Color = Color(0xFFFFD469),
+    hubEdge: Color = Color(0xFFB9791A)
 ) {
-    Box(
-        modifier = Modifier.size(width = 40.dp, height = 40.dp)
-    ) {
-        // Shadow layer
-        Canvas(
-            modifier = Modifier
-                .size(width = 40.dp, height = 40.dp)
-                .offset(y = 2.dp)
-        ) {
-            val shadowPath = Path().apply {
-                moveTo(size.width / 2, size.height)
-                lineTo(0f, 0f)
-                lineTo(size.width, 0f)
-                close()
-            }
-            drawPath(
-                path = shadowPath,
-                color = Color.Black.copy(alpha = 0.3f)
-            )
-        }
+    Canvas(modifier = modifier) {
+        val radius = size.minDimension / 2f
+        val hubRadius = radius * 0.105f
+        // A slim needle, not a spike: the reference arrow is roughly half the hub's
+        // width and barely taller than the hub itself.
+        val arrowHeight = hubRadius * 1.25f
+        val arrowHalfWidth = hubRadius * 0.64f
+        val c = center
 
-        // Main pointer with gradient
-        Canvas(
-            modifier = Modifier.size(width = 40.dp, height = 40.dp)
-        ) {
-            val path = Path().apply {
-                moveTo(size.width / 2, size.height)
-                lineTo(0f, 0f)
-                lineTo(size.width, 0f)
-                close()
-            }
-            drawPath(
-                path = path,
-                brush = androidx.compose.ui.graphics.Brush.verticalGradient(
-                    colors = listOf(
-                        Color(0xFFFF1744),
-                        Color(0xFFFF4081)
-                    )
-                )
-            )
-            // Border
-            drawPath(
-                path = path,
-                color = Color.White,
-                style = Stroke(width = 3f)
-            )
+        // Arrow first, so the hub's rim overlaps its base and the two read as one piece.
+        val arrow = Path().apply {
+            moveTo(c.x, c.y - hubRadius - arrowHeight)
+            lineTo(c.x - arrowHalfWidth, c.y - hubRadius * 0.15f)
+            lineTo(c.x + arrowHalfWidth, c.y - hubRadius * 0.15f)
+            close()
         }
+        drawPath(
+            path = arrow,
+            brush = Brush.verticalGradient(
+                colors = listOf(Color(0xFFFFCF6A), Color(0xFFE59317)),
+                startY = c.y - hubRadius - arrowHeight,
+                endY = c.y
+            )
+        )
+
+        // Coin: solid gold face with a darker rim and a soft highlight, no emblem.
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(Color(0xFFFFE9A8), Color(0xFFF3C24D), Color(0xFFDC9A1F)),
+                center = Offset(c.x - hubRadius * 0.35f, c.y - hubRadius * 0.4f),
+                radius = hubRadius * 1.9f
+            ),
+            radius = hubRadius,
+            center = c
+        )
+        drawCircle(
+            color = hubEdge,
+            radius = hubRadius,
+            center = c,
+            style = Stroke(width = hubRadius * 0.14f)
+        )
+        // Inner face, a shade lighter than the rim — reads as a struck coin.
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(Color(0xFFFFF1C6), Color(0xFFF6CB63)),
+                center = Offset(c.x - hubRadius * 0.2f, c.y - hubRadius * 0.25f),
+                radius = hubRadius
+            ),
+            radius = hubRadius * 0.66f,
+            center = c
+        )
     }
 }
 

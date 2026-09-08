@@ -122,6 +122,7 @@ import com.appversal.appstorys.ui.common_components.createExpandButtonConfig
 import com.appversal.appstorys.ui.common_components.createSoundToggleButtonConfig
 import com.appversal.appstorys.ui.reels.saveLikedReels
 import com.appversal.appstorys.ui.scratchcard.saveScratchedCampaigns
+import com.appversal.appstorys.ui.spinwheel.SpinRun
 import com.appversal.appstorys.ui.spinwheel.getSpinCount
 import com.appversal.appstorys.ui.spinwheel.saveSpinCount
 import com.appversal.appstorys.utils.AppStorysSdkState
@@ -203,6 +204,9 @@ object AppStorys {
     private val scratchedCampaigns = MutableStateFlow<List<String>>(emptyList())
 
     // In-memory spin count per campaign — keyed by campaign ID, value = remaining spins
+    /** In-flight or landed spins, kept here so a rotation cannot cancel one. */
+    private val _spinRunByCampaign = MutableStateFlow<Map<String, SpinRun>>(emptyMap())
+
     private val _spinCountByCampaign = MutableStateFlow<Map<String, Int>>(emptyMap())
 
     private var accessToken = ""
@@ -538,6 +542,23 @@ object AppStorys {
         return personalizationData ?: emptyMap()
     }
 
+    /**
+     * Events that are pure analytics. Everything else a campaign emits is also written
+     * into [_trackedEventNames], the trigger registry — so an event named here can never
+     * accidentally launch another campaign that is waiting on that name.
+     */
+    private val analyticsOnlyEvents = setOf(
+        "viewed",
+        "clicked",
+        "csat captured",
+        "survey captured",
+        "shared",
+        "SurveySubmitted",
+        "SurveyDismissed",
+        "ThankYouCTAClicked",
+        "spin_completed"
+    )
+
     fun trackEvents(
         campaign_id: String? = null,
         event: String,
@@ -545,16 +566,7 @@ object AppStorys {
     ) {
         coroutineScope.launch {
             if (accessToken.isNotEmpty()) {
-                if (
-                    event != "viewed"
-                    && event != "clicked"
-                    && event != "csat captured"
-                    && event != "survey captured"
-                    && event != "shared"
-                    && event != "SurveySubmitted"
-                    && event != "SurveyDismissed"
-                    && event != "ThankYouCTAClicked"
-                ) {
+                if (event !in analyticsOnlyEvents) {
                     _trackedEventNames.update { it + TrackedEventData(event, metadata) }
                 }
                 try {
@@ -571,16 +583,7 @@ object AppStorys {
                     val deviceInfo = getDeviceInfo(context)
 
                     val mergedMetadata =
-                        if (
-                            event != "viewed"
-                            && event != "clicked"
-                            && event != "csat captured"
-                            && event != "survey captured"
-                            && event != "shared"
-                            && event != "SurveySubmitted"
-                            && event != "SurveyDismissed"
-                            && event != "ThankYouCTAClicked"
-                        ) {
+                        if (event !in analyticsOnlyEvents) {
                             updatedMetadata + deviceInfo
                         } else {
                             updatedMetadata
@@ -2472,6 +2475,7 @@ object AppStorys {
                 }
 
                 val redirectUrl = spinTheWheelDetails.link ?: ""
+                val spinRuns by _spinRunByCampaign.collectAsStateWithLifecycle()
 
                 com.appversal.appstorys.ui.spinwheel.SpinTheWheel(
                     isPresented = isPresented,
@@ -2491,6 +2495,22 @@ object AppStorys {
                     },
                     spinTheWheelDetails = spinTheWheelDetails,
                     spinsLeft = spinsLeft,
+                    spinRun = spinRuns[campaignId],
+                    onSpinStarted = { run ->
+                        _spinRunByCampaign.update { it + (campaignId to run) }
+                    },
+                    onSpinResolved = {
+                        // Marking it finished is what makes the charge idempotent: a
+                        // wheel recreated after this point sees a finished run and does
+                        // not pay again.
+                        _spinRunByCampaign.update { runs ->
+                            runs[campaignId]?.let { runs + (campaignId to it.copy(finished = true)) }
+                                ?: runs
+                        }
+                    },
+                    onRewardDismissed = {
+                        _spinRunByCampaign.update { it - campaignId }
+                    },
                     onSpinUsed = {
                         val updated = (spinCountMap[campaignId] ?: initialSpins) - 1
                         val clamped = updated.coerceAtLeast(0)

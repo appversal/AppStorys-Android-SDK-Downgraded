@@ -180,6 +180,8 @@ object OverlayContainer {
 
                 AppStorys.ScratchCard()
 
+                AppStorys.SpinTheWheel()
+
                 AppStorys.BottomSheet()
 
                 AppStorys.TestUserButton(
