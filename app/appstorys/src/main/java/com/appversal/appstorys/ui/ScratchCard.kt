@@ -1,5 +1,6 @@
 package com.appversal.appstorys.ui
 
+import com.appversal.appstorys.utils.SdkErrorTracker
 import android.content.Context
 import android.content.SharedPreferences
 import android.graphics.Bitmap
@@ -1316,6 +1317,17 @@ fun OnlyImageView(
                 SubcomposeAsyncImage(
                     model = bannerImageUrl,
                     contentDescription = "Banner",
+                    onError = { assetError ->
+                        SdkErrorTracker.onAssetFailed(
+                            campaignId = null,
+                            campaignType = "SCRT",
+                            screen = null,
+                            assetType = "image",
+                            url = assetError.result.request.data.toString(),
+                            message = assetError.result.throwable.message
+                                ?: assetError.result.throwable::class.java.simpleName
+                        )
+                    },
                     contentScale = ContentScale.FillBounds,
                     modifier = Modifier.fillMaxSize()
                 )
@@ -1440,6 +1452,17 @@ fun CashBackInfoView(
                     SubcomposeAsyncImage(
                         model = bannerImageUrl,
                         contentDescription = "Banner",
+                        onError = { assetError ->
+                            SdkErrorTracker.onAssetFailed(
+                                campaignId = null,
+                                campaignType = "SCRT",
+                                screen = null,
+                                assetType = "image",
+                                url = assetError.result.request.data.toString(),
+                                message = assetError.result.throwable.message
+                                    ?: assetError.result.throwable::class.java.simpleName
+                            )
+                        },
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()
                     )

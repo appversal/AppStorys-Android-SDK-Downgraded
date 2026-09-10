@@ -1,5 +1,6 @@
 package com.appversal.appstorys.ui.spinwheel
 
+import com.appversal.appstorys.utils.SdkErrorTracker
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
@@ -955,6 +956,17 @@ private fun RewardContent(
                                             .crossfade(true)
                                             .build(),
                                         contentDescription = "Prize",
+                                        onError = { assetError ->
+                                            SdkErrorTracker.onAssetFailed(
+                                                campaignId = null,
+                                                campaignType = "STW",
+                                                screen = null,
+                                                assetType = "image",
+                                                url = assetError.result.request.data.toString(),
+                                                message = assetError.result.throwable.message
+                                                    ?: assetError.result.throwable::class.java.simpleName
+                                            )
+                                        },
                                         modifier = Modifier
                                             .fillMaxSize()
                                             .padding(12.dp),

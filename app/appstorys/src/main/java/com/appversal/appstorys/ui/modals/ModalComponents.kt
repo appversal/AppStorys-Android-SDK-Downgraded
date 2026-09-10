@@ -1,5 +1,6 @@
 package com.appversal.appstorys.ui.modals
 
+import com.appversal.appstorys.utils.SdkErrorTracker
 import android.os.Build.VERSION.SDK_INT
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
@@ -294,6 +295,18 @@ fun VideoPlayerInlineWithCallback(
     // Also listen for first frame rendered to trigger the callback
     DisposableEffect(exo, onVideoRendered) {
         val listener = object : Player.Listener {
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                // Observational only — playback behaviour is untouched.
+                com.appversal.appstorys.utils.SdkErrorTracker.onAssetFailed(
+                    campaignId = null,
+                    campaignType = "MOD",
+                    screen = null,
+                    assetType = "video",
+                    url = null,
+                    message = error.message ?: error.errorCodeName
+                )
+            }
+
             override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
                 if (videoSize.width > 0 && videoSize.height > 0) {
                     videoAspectRatio = videoSize.width.toFloat() / videoSize.height.toFloat()
@@ -548,6 +561,17 @@ fun ModalMediaRendererWithCallback(
             AsyncImage(
                 model = ImageRequest.Builder(context).data(mediaUrl).diskCachePolicy(CachePolicy.ENABLED).memoryCachePolicy(CachePolicy.ENABLED).build(),
                 contentDescription = contentDescription,
+                onError = { assetError ->
+                    SdkErrorTracker.onAssetFailed(
+                        campaignId = null,
+                        campaignType = "MOD",
+                        screen = null,
+                        assetType = "image",
+                        url = assetError.result.request.data.toString(),
+                        message = assetError.result.throwable.message
+                            ?: assetError.result.throwable::class.java.simpleName
+                    )
+                },
                 modifier = aspectModifier,
                 contentScale = if (preloadedAspectRatio != null) UiContentScale.Crop else contentScale,
                 onSuccess = { onMediaRendered() }

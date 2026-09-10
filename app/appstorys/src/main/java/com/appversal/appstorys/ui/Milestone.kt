@@ -1,5 +1,6 @@
 package com.appversal.appstorys.ui
 
+import com.appversal.appstorys.utils.SdkErrorTracker
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -74,6 +75,17 @@ internal fun MilestoneBanner(
                     .crossfade(true)
                     .build(),
                 contentDescription = "Milestone",
+                onError = { assetError ->
+                    SdkErrorTracker.onAssetFailed(
+                        campaignId = null,
+                        campaignType = "MIL",
+                        screen = null,
+                        assetType = "image",
+                        url = assetError.result.request.data.toString(),
+                        message = assetError.result.throwable.message
+                            ?: assetError.result.throwable::class.java.simpleName
+                    )
+                },
                 contentScale = ContentScale.FillWidth,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -167,6 +179,17 @@ internal fun MilestoneModal(
                     .crossfade(true)
                     .build(),
                 contentDescription = "Milestone",
+                onError = { assetError ->
+                    SdkErrorTracker.onAssetFailed(
+                        campaignId = null,
+                        campaignType = "MIL",
+                        screen = null,
+                        assetType = "image",
+                        url = assetError.result.request.data.toString(),
+                        message = assetError.result.throwable.message
+                            ?: assetError.result.throwable::class.java.simpleName
+                    )
+                },
                 contentScale = ContentScale.Fit,
                 alignment = Alignment.TopCenter,
                 modifier = Modifier
@@ -241,6 +264,17 @@ internal fun MilestoneWidgets(
                     .crossfade(true)
                     .build(),
                 contentDescription = "Milestone",
+                onError = { assetError ->
+                    SdkErrorTracker.onAssetFailed(
+                        campaignId = null,
+                        campaignType = "MIL",
+                        screen = null,
+                        assetType = "image",
+                        url = assetError.result.request.data.toString(),
+                        message = assetError.result.throwable.message
+                            ?: assetError.result.throwable::class.java.simpleName
+                    )
+                },
                 contentScale = ContentScale.FillWidth,
                 modifier = Modifier
                     .fillMaxWidth()

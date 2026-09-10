@@ -1,5 +1,6 @@
 package com.appversal.appstorys.ui
 
+import com.appversal.appstorys.utils.SdkErrorTracker
 import android.graphics.drawable.Drawable
 import android.os.Build.VERSION.SDK_INT
 import androidx.compose.foundation.Image
@@ -163,6 +164,17 @@ internal fun ImageCard(
                         .crossfade(true)
                         .build(),
                     contentDescription = null,
+                    onError = { assetError ->
+                        SdkErrorTracker.onAssetFailed(
+                            campaignId = null,
+                            campaignType = "WID",
+                            screen = null,
+                            assetType = "image",
+                            url = assetError.result.request.data.toString(),
+                            message = assetError.result.throwable.message
+                                ?: assetError.result.throwable::class.java.simpleName
+                        )
+                    },
                     contentScale = ContentScale.FillWidth,
                     modifier = Modifier
                         .then(if (height != null) Modifier.height(height) else Modifier)

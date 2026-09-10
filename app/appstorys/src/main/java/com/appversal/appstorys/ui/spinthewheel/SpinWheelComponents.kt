@@ -1,5 +1,6 @@
 package com.appversal.appstorys.ui.spinwheel
 
+import com.appversal.appstorys.utils.SdkErrorTracker
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -58,6 +59,17 @@ fun WheelView(
                     .crossfade(true)
                     .build(),
                 contentDescription = "Wheel",
+                onError = { assetError ->
+                    SdkErrorTracker.onAssetFailed(
+                        campaignId = null,
+                        campaignType = "STW",
+                        screen = null,
+                        assetType = "image",
+                        url = assetError.result.request.data.toString(),
+                        message = assetError.result.throwable.message
+                            ?: assetError.result.throwable::class.java.simpleName
+                    )
+                },
                 modifier = Modifier
                     .fillMaxSize()
                     .rotate(rotation),
@@ -475,6 +487,17 @@ private fun WheelSliceContent(
                         .crossfade(true)
                         .build(),
                     contentDescription = slice.prizeLabel,
+                    onError = { assetError ->
+                        SdkErrorTracker.onAssetFailed(
+                            campaignId = null,
+                            campaignType = "STW",
+                            screen = null,
+                            assetType = "image",
+                            url = assetError.result.request.data.toString(),
+                            message = assetError.result.throwable.message
+                                ?: assetError.result.throwable::class.java.simpleName
+                        )
+                    },
                     modifier = Modifier
                         .padding(
                             top = (sliceMargin?.top ?: 0).dp,

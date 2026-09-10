@@ -94,6 +94,12 @@ class AppStorysMessagingService : FirebaseMessagingService() {
                 AppStorys.setFirebaseToken(token)
             } catch (e: Exception) {
                 Log.e(TAG, "handleNewToken failed", e)
+                com.appversal.appstorys.utils.SdkErrorTracker.onLogicError(
+                    step = "fcm-new-token",
+                    message = e.message ?: e::class.java.simpleName,
+                    throwable = e,
+                    failureClass = com.appversal.appstorys.utils.SdkFailureClass.P3
+                )
             }
         }
 
@@ -157,6 +163,12 @@ class AppStorysMessagingService : FirebaseMessagingService() {
                 true
             } catch (e: Exception) {
                 Log.e(TAG, "handleMessage failed", e)
+                com.appversal.appstorys.utils.SdkErrorTracker.onLogicError(
+                    step = "fcm-handle-message",
+                    message = e.message ?: e::class.java.simpleName,
+                    throwable = e,
+                    failureClass = com.appversal.appstorys.utils.SdkFailureClass.P3
+                )
                 false
             }
         }
@@ -237,6 +249,12 @@ class AppStorysMessagingService : FirebaseMessagingService() {
                 true
             } catch (e: Exception) {
                 Log.e(TAG, "showNotification failed", e)
+                com.appversal.appstorys.utils.SdkErrorTracker.onLogicError(
+                    step = "fcm-show-notification",
+                    message = e.message ?: e::class.java.simpleName,
+                    throwable = e,
+                    failureClass = com.appversal.appstorys.utils.SdkFailureClass.P3
+                )
                 false
             }
         }

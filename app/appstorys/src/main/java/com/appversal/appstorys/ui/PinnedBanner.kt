@@ -1,5 +1,6 @@
 package com.appversal.appstorys.ui
 
+import com.appversal.appstorys.utils.SdkErrorTracker
 import android.graphics.drawable.Drawable
 import android.os.Build.VERSION.SDK_INT
 import androidx.compose.foundation.Image
@@ -145,6 +146,17 @@ internal fun PinnedBanner(
                         SubcomposeAsyncImage(
                             model = imageUrl,
                             contentDescription = null,
+                            onError = { assetError ->
+                                SdkErrorTracker.onAssetFailed(
+                                    campaignId = null,
+                                    campaignType = "BAN",
+                                    screen = null,
+                                    assetType = "image",
+                                    url = assetError.result.request.data.toString(),
+                                    message = assetError.result.throwable.message
+                                        ?: assetError.result.throwable::class.java.simpleName
+                                )
+                            },
                             contentScale = effectiveContentScale,
                             modifier = Modifier.fillMaxSize(),
                             loading = {

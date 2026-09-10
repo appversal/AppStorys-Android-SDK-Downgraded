@@ -1,5 +1,6 @@
 package com.appversal.appstorys.ui
 
+import com.appversal.appstorys.utils.SdkErrorTracker
 import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
@@ -828,6 +829,17 @@ private fun ThankYouContent(
                     AsyncImage(
                         model = image,
                         contentDescription = "Thank you",
+                        onError = { assetError ->
+                            SdkErrorTracker.onAssetFailed(
+                                campaignId = null,
+                                campaignType = "CSAT",
+                                screen = null,
+                                assetType = "image",
+                                url = assetError.result.request.data.toString(),
+                                message = assetError.result.throwable.message
+                                    ?: assetError.result.throwable::class.java.simpleName
+                            )
+                        },
                         modifier = mediaModifier,
                         contentScale = ContentScale.Fit
                     )

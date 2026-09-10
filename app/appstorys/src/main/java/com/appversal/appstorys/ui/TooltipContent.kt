@@ -1,5 +1,6 @@
 package com.appversal.appstorys.ui
 
+import com.appversal.appstorys.utils.SdkErrorTracker
 import android.annotation.SuppressLint
 import android.graphics.Rect
 import android.os.Build.VERSION.SDK_INT
@@ -334,6 +335,17 @@ private fun ImageContent(tooltip: Tooltip, modifier: Modifier = Modifier) {
                     AsyncImage(
                         model = imageRequest,
                         contentDescription = null,
+                        onError = { assetError ->
+                            SdkErrorTracker.onAssetFailed(
+                                campaignId = null,
+                                campaignType = "TTP",
+                                screen = null,
+                                assetType = "image",
+                                url = assetError.result.request.data.toString(),
+                                message = assetError.result.throwable.message
+                                    ?: assetError.result.throwable::class.java.simpleName
+                            )
+                        },
                         contentScale = ContentScale.Crop,
                         modifier = mediaModifier
                     )

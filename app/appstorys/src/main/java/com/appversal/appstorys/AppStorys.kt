@@ -122,6 +122,9 @@ import com.appversal.appstorys.ui.saveScratchedCampaigns
 import com.appversal.appstorys.ui.spinwheel.getSpinCount
 import com.appversal.appstorys.ui.spinwheel.saveSpinCount
 import com.appversal.appstorys.utils.AppStorysSdkState
+import com.appversal.appstorys.utils.SdkErrorBoundary
+import com.appversal.appstorys.utils.SdkErrorTracker
+import com.appversal.appstorys.utils.SdkFailureClass
 import com.appversal.appstorys.utils.TriggerEventMatcher
 import com.appversal.appstorys.utils.ViewTreeAnalyzer
 import com.appversal.appstorys.utils.getDeviceInfo
@@ -363,6 +366,15 @@ object AppStorys {
             currentScreen
         }
 
+        // Error tracking is purely observational: it never touches campaign state or control flow.
+        SdkErrorTracker.initialize(
+            context = context,
+            userIdProvider = { this@AppStorys.userId },
+            tokenProvider = { this@AppStorys.accessToken }
+        )
+        SdkErrorTracker.reconcile()
+        SdkErrorTracker.installCrashReporter()
+
         if (sdkState == AppStorysSdkState.Initialized || sdkState == AppStorysSdkState.Initializing) {
             return
         }
@@ -373,6 +385,7 @@ object AppStorys {
             object : DefaultLifecycleObserver {
                 override fun onResume(owner: LifecycleOwner) {
                     super.onResume(owner)
+                    SdkErrorTracker.onSessionForeground()
                     if (sdkState == AppStorysSdkState.Paused && currentScreen.isNotBlank()) {
                         sdkState = AppStorysSdkState.Initialized
                         getScreenCampaigns(currentScreen, emptyList())
@@ -406,12 +419,21 @@ object AppStorys {
                     this@AppStorys.accessToken = accessToken
                     sdkState = AppStorysSdkState.Initialized
 
+                    // Token is available now — drain anything the error tracker buffered offline.
+                    SdkErrorTracker.flushPending()
+
                     try {
                         OutreachEventTracker.saveUserId(context, this@AppStorys.userId)
                         OutreachEventTracker.saveSdkAccessToken(context, accessToken)
                         OutreachEventTracker.drainPendingQueue(context)
                     } catch (e: Exception) {
                         Log.e("AppStorys", "Outreach tracker setup failed: ${e.message}", e)
+                        SdkErrorTracker.onLogicError(
+                            step = "outreach-setup",
+                            message = e.message ?: e::class.java.simpleName,
+                            throwable = e,
+                            failureClass = SdkFailureClass.P3
+                        )
                     }
 
                     syncNotificationReachability()
@@ -475,6 +497,8 @@ object AppStorys {
 
                 ensureActive()
 
+                SdkErrorTracker.onFetchStarted(currentScreen)
+
                 val (campaignsList, variants, personalizationResponse, isTestUser, isScreenCaptureEnabled) = repository.getScreenCampaignsData(
                     accessToken = accessToken,
                     accountId = accountId,
@@ -491,10 +515,36 @@ object AppStorys {
                 campaignsList?.let { list ->
                     campaigns.emit(list.sortedBy { it.priority })
                 }
+
+                // S3 -> S4 (campaigns available) or S3 -> S10 (idle, a normal terminal state).
+                SdkErrorTracker.onFetchCompleted(currentScreen, campaignsList?.size ?: 0)
+                // S4 -> S6 for every triggered campaign: the listener is armed and may never fire,
+                // which the spec treats as an acceptable terminal state.
+                campaignsList?.forEach { campaign ->
+                    SdkErrorTracker.registerCampaign(
+                        campaignType = campaign.campaignType,
+                        campaignId = campaign.id,
+                        screen = currentScreen
+                    )
+                    if (campaign.triggerEvent != null) {
+                        SdkErrorTracker.onTriggerArmed(campaign.id, currentScreen)
+                    }
+                }
+
                 campaignVariants.emit(variants ?: emptyList())
                 Log.e("AppStorys", "Campaign: ${campaigns.value}")
             } catch (exception: Exception) {
                 Log.e("AppStorys", "Error getting campaigns for $screenName", exception)
+                // Screen switches cancel this job on purpose — that is not a failure.
+                if (exception !is kotlin.coroutines.cancellation.CancellationException) {
+                    SdkErrorTracker.onFetchFailed(
+                        screen = screenName,
+                        step = "track-user-res",
+                        actual = "exception",
+                        message = exception.message ?: exception::class.java.simpleName,
+                        retryable = false
+                    )
+                }
             }
         }
     }
@@ -568,12 +618,40 @@ object AppStorys {
                         .addHeader("Authorization", "Bearer $accessToken")
                         .build()
 
+                    // S7 -> S8: engagement in flight.
+                    if (event == "viewed") {
+                        SdkErrorTracker.onRendered(campaign_id, null, currentScreen)
+                    }
+                    SdkErrorTracker.onEngageStarted(campaign_id)
+                    val engageStartedAt = System.currentTimeMillis()
+
                     val response = client.newCall(request).execute()
 
                     Log.i("Event Captured", response.toString())
                     Log.i("Event Captured", requestBody.toString())
+
+                    if (response.isSuccessful) {
+                        SdkErrorTracker.onEngageAcked(campaign_id)
+                    } else {
+                        SdkErrorTracker.onEngageFailed(
+                            campaignId = campaign_id,
+                            step = "capture-event",
+                            actual = "http_${response.code}",
+                            message = "capture-event returned ${response.code}",
+                            httpStatus = response.code,
+                            latencyMs = System.currentTimeMillis() - engageStartedAt,
+                            screen = currentScreen
+                        )
+                    }
                 } catch (e: Exception) {
                     e.printStackTrace()
+                    SdkErrorTracker.onEngageFailed(
+                        campaignId = campaign_id,
+                        step = "capture-event",
+                        actual = "exception",
+                        message = e.message ?: e::class.java.simpleName,
+                        screen = currentScreen
+                    )
                 }
             }
         }
@@ -624,6 +702,13 @@ object AppStorys {
 
                 is ApiResult.Error -> {
                     Log.e("AppStorys", "Error updating user properties: ${result.message}")
+                    SdkErrorTracker.onApiFailed(
+                        step = "update-user-atr",
+                        failureClass = SdkFailureClass.P3,
+                        message = result.message,
+                        httpStatus = result.code,
+                        screen = currentScreen
+                    )
                 }
             }
         }
@@ -655,10 +740,22 @@ object AppStorys {
                     OutreachEventTracker.ensureAccessToken(context, userId, fcmToken)
                 } catch (e: Exception) {
                     Log.e("AppStorys", "Outreach ensureAccessToken failed: ${e.message}", e)
+                    SdkErrorTracker.onLogicError(
+                        step = "outreach-ensure-access-token",
+                        message = e.message ?: e::class.java.simpleName,
+                        throwable = e,
+                        failureClass = SdkFailureClass.P3
+                    )
                 }
             }
         } catch (e: Exception) {
             Log.e("AppStorys", "setFirebaseToken failed: ${e.message}", e)
+            SdkErrorTracker.onLogicError(
+                step = "set-firebase-token",
+                message = e.message ?: e::class.java.simpleName,
+                throwable = e,
+                failureClass = SdkFailureClass.P3
+            )
         }
     }
 
@@ -719,12 +816,24 @@ object AppStorys {
                     OutreachEventTracker.saveUserId(context, newUserId)
                 } catch (e: Exception) {
                     Log.e("AppStorys", "Outreach saveUserId failed: ${e.message}", e)
+                    SdkErrorTracker.onLogicError(
+                        step = "outreach-save-user-id",
+                        message = e.message ?: e::class.java.simpleName,
+                        throwable = e,
+                        failureClass = SdkFailureClass.P3
+                    )
                 }
 
                 Log.i("AppStorys", "User ID updated to: $newUserId")
 
             } catch (e: Exception) {
                 Log.e("AppStorys", "Error setting user ID: ${e.message}", e)
+                SdkErrorTracker.onLogicError(
+                    step = "reconcile-anonymous-user",
+                    message = e.message ?: e::class.java.simpleName,
+                    throwable = e,
+                    failureClass = SdkFailureClass.P3
+                )
             }
         }
     }
@@ -774,6 +883,13 @@ object AppStorys {
 
             is ApiResult.Error -> {
                 Log.e("AppStorys", "Error subscribing to notifications: ${result.message}")
+                SdkErrorTracker.onApiFailed(
+                    step = "subscribe-fcm",
+                    failureClass = SdkFailureClass.P3,
+                    message = result.message,
+                    httpStatus = result.code,
+                    screen = currentScreen
+                )
                 false
             }
         }
@@ -807,6 +923,13 @@ object AppStorys {
 
             is ApiResult.Error -> {
                 Log.e("AppStorys", "Error unsubscribing from notifications: ${result.message}")
+                SdkErrorTracker.onApiFailed(
+                    step = "unsubscribe-fcm",
+                    failureClass = SdkFailureClass.P3,
+                    message = result.message,
+                    httpStatus = result.code,
+                    screen = currentScreen
+                )
                 false
             }
         }
@@ -877,6 +1000,12 @@ object AppStorys {
                 }
             } catch (e: Exception) {
                 Log.e("AppStorys", "syncNotificationReachability failed: ${e.message}", e)
+                SdkErrorTracker.onLogicError(
+                    step = "sync-notification-reachability",
+                    message = e.message ?: e::class.java.simpleName,
+                    throwable = e,
+                    failureClass = SdkFailureClass.P3
+                )
             } finally {
                 // First real pass this session is done (whatever the outcome) — release any setFirebaseToken() waiters.
                 subscribeSyncDeferred.complete(Unit)
@@ -900,39 +1029,41 @@ object AppStorys {
         csatBottomPadding: Dp = 0.dp,
         insideBottomSheet: Boolean = false,
     ) {
-        if (insideBottomSheet) {
-            // Tooltip Popups created here get the BottomSheet's window token → appear ABOVE it.
-            // TestUserButton FAB also uses Popup → zero layout impact.
-            // No Banner/Floater/CSAT — those stay at Activity level only.
-            TestUserButton(activity = activity)
-            OverlayContainer.TooltipsOnly()
-            return
-        }
-
-        BackHandler(enabled = true) {
-            if (isBackPressCampaignReady()) {
-                backPressCampaignConsumed = true
-                // Inject sentinel — unlocks back_press campaigns in TriggerEventMatcher.
-                // Conditions are evaluated against metadata already stored from
-                // the client's prior trackEvents() calls. Nothing else needed.
-                _trackedEventNames.update { it + TrackedEventData(TriggerEventMatcher.BACK_PRESS_SENTINEL) }
-            } else {
-                (activity as? androidx.activity.ComponentActivity)
-                    ?.onBackPressedDispatcher
-                    ?.onBackPressed()
+        SdkErrorBoundary(campaignType = "overlay", screen = currentScreen) {
+            if (insideBottomSheet) {
+                // Tooltip Popups created here get the BottomSheet's window token → appear ABOVE it.
+                // TestUserButton FAB also uses Popup → zero layout impact.
+                // No Banner/Floater/CSAT — those stay at Activity level only.
+                TestUserButton(activity = activity)
+                OverlayContainer.TooltipsOnly()
+                return
             }
-        }
 
-        OverlayContainer.Content(
-            bottomPadding = bottomPadding,
-            topPadding = topPadding,
-            activity = activity,
-            bannerBottomPadding = bannerBottomPadding,
-            floaterBottomPadding = floaterBottomPadding,
-            pipTopPadding = pipTopPadding,
-            pipBottomPadding = pipBottomPadding,
-            csatBottomPadding = csatBottomPadding
-        )
+            BackHandler(enabled = true) {
+                if (isBackPressCampaignReady()) {
+                    backPressCampaignConsumed = true
+                    // Inject sentinel — unlocks back_press campaigns in TriggerEventMatcher.
+                    // Conditions are evaluated against metadata already stored from
+                    // the client's prior trackEvents() calls. Nothing else needed.
+                    _trackedEventNames.update { it + TrackedEventData(TriggerEventMatcher.BACK_PRESS_SENTINEL) }
+                } else {
+                    (activity as? androidx.activity.ComponentActivity)
+                        ?.onBackPressedDispatcher
+                        ?.onBackPressed()
+                }
+            }
+
+            OverlayContainer.Content(
+                bottomPadding = bottomPadding,
+                topPadding = topPadding,
+                activity = activity,
+                bannerBottomPadding = bannerBottomPadding,
+                floaterBottomPadding = floaterBottomPadding,
+                pipTopPadding = pipTopPadding,
+                pipBottomPadding = pipBottomPadding,
+                csatBottomPadding = csatBottomPadding
+            )
+        }
     }
 
     suspend fun analyzeViewRoot(
@@ -953,6 +1084,12 @@ object AppStorys {
         }
     }.onFailure { error ->
         Log.i("AnalyzeViewRoot", "Error analyzing view root", error)
+        SdkErrorTracker.onLogicError(
+            step = "identify-elements",
+            message = error.message ?: error::class.java.simpleName,
+            throwable = error,
+            screen = screenName
+        )
     }.onSuccess {
         Log.i("AnalyzeViewRoot", "analyzeViewRoot() finished with success result: $it")
     }
@@ -961,101 +1098,104 @@ object AppStorys {
     fun CSAT(
         bottomPadding: Dp = 0.dp
     ) {
-        val showCsat by _showCsat.collectAsStateWithLifecycle()
-        if (!showCsat) {
-            val campaignsData = campaigns.collectAsStateWithLifecycle()
+        SdkErrorBoundary(campaignType = "CSAT", screen = currentScreen) {
+            val showCsat by _showCsat.collectAsStateWithLifecycle()
+            if (!showCsat) {
+                val campaignsData = campaigns.collectAsStateWithLifecycle()
 
-            val campaign = campaignsData.value.firstOrNull { it.campaignType == "CSAT" }
-            val csatDetails = when (val details = campaign?.details) {
-                is CSATDetails -> details
-                else -> null
-            }
-
-            val trackedEventsData = trackedEventNames.collectAsStateWithLifecycle()
-
-            val shouldShowCSAT = remember(campaign, trackedEventsData.value.size) {
-                TriggerEventMatcher.shouldShowCampaign(
-                    triggerEvent = campaign?.triggerEvent,
-                    campaignId = campaign?.id,
-                    trackedEvents = trackedEventsData.value
-                )
-            }
-
-            if (csatDetails != null && shouldShowCSAT) {
-                val style = csatDetails.styling
-                var isVisibleState by remember { mutableStateOf(false) }
-                val delaySeconds = remember(style) {
-                    style?.appearance?.displayDelay?.let { element ->
-                        if (element is kotlinx.serialization.json.JsonPrimitive) {
-                            element.content.toIntOrNull() ?: 0
-                        } else {
-                            0
-                        }
-                    } ?: 0
+                val campaign = campaignsData.value.firstOrNull { it.campaignType == "CSAT" }
+                val csatDetails = when (val details = campaign?.details) {
+                    is CSATDetails -> details
+                    else -> null
                 }
 
-                LaunchedEffect(Unit) {
-                    campaign?.id?.let {
-                        trackEvents(it, "viewed")
+                val trackedEventsData = trackedEventNames.collectAsStateWithLifecycle()
+
+                val shouldShowCSAT = remember(campaign, trackedEventsData.value.size) {
+                    TriggerEventMatcher.shouldShowCampaign(
+                        triggerEvent = campaign?.triggerEvent,
+                        campaignId = campaign?.id,
+                        trackedEvents = trackedEventsData.value
+                    )
+                }
+
+                if (csatDetails != null && shouldShowCSAT) {
+                    val style = csatDetails.styling
+                    var isVisibleState by remember { mutableStateOf(false) }
+                    val delaySeconds = remember(style) {
+                        style?.appearance?.displayDelay?.let { element ->
+                            if (element is kotlinx.serialization.json.JsonPrimitive) {
+                                element.content.toIntOrNull() ?: 0
+                            } else {
+                                0
+                            }
+                        } ?: 0
                     }
-                    delay(delaySeconds * 1000L)
-                    isVisibleState = true
-                }
 
-                val bottomPaddingValue =
-                    (style?.appearance?.margin?.bottom?.dp?.plus(bottomPadding)) ?: bottomPadding
+                    LaunchedEffect(Unit) {
+                        campaign?.id?.let {
+                            trackEvents(it, "viewed")
+                        }
+                        delay(delaySeconds * 1000L)
+                        isVisibleState = true
+                    }
 
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(
-                            bottom = bottomPaddingValue
-                        ),
-                    contentAlignment = Alignment.BottomCenter
-                ) {
-                    AnimatedVisibility(
-                        modifier = Modifier,
-                        visible = isVisibleState,
-                        enter = slideInVertically() { it },
-                        exit = slideOutVertically { it }
+                    val bottomPaddingValue =
+                        (style?.appearance?.margin?.bottom?.dp?.plus(bottomPadding))
+                            ?: bottomPadding
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(
+                                bottom = bottomPaddingValue
+                            ),
+                        contentAlignment = Alignment.BottomCenter
                     ) {
-                        CsatDialog(
-                            onDismiss = {
-                                isVisibleState = false
-                                val screenAtDismiss = currentScreen
-                                coroutineScope.launch {
-                                    delay(500L)
-                                    if (currentScreen == screenAtDismiss) {
-                                        _showCsat.update { true }
+                        AnimatedVisibility(
+                            modifier = Modifier,
+                            visible = isVisibleState,
+                            enter = slideInVertically() { it },
+                            exit = slideOutVertically { it }
+                        ) {
+                            CsatDialog(
+                                onDismiss = {
+                                    isVisibleState = false
+                                    val screenAtDismiss = currentScreen
+                                    coroutineScope.launch {
+                                        delay(500L)
+                                        if (currentScreen == screenAtDismiss) {
+                                            _showCsat.update { true }
+                                        }
                                     }
-                                }
-                            },
-                            onSubmitFeedback = { feedback ->
-                                coroutineScope.launch {
-                                    repository.captureCSATResponse(
-                                        accessToken,
-                                        CsatFeedbackPostRequest(
-                                            user_id = userId,
-                                            csat = csatDetails.id,
-                                            rating = feedback.rating,
-                                            additional_comments = feedback.additionalComments,
-                                            feedback_option = feedback.feedbackOption
+                                },
+                                onSubmitFeedback = { feedback ->
+                                    coroutineScope.launch {
+                                        repository.captureCSATResponse(
+                                            accessToken,
+                                            CsatFeedbackPostRequest(
+                                                user_id = userId,
+                                                csat = csatDetails.id,
+                                                rating = feedback.rating,
+                                                additional_comments = feedback.additionalComments,
+                                                feedback_option = feedback.feedbackOption
+                                            )
                                         )
-                                    )
-                                    trackEvents(
-                                        campaign_id = campaign?.id,
-                                        event = "csat captured",
-                                        metadata = mapOf(
-                                            "starCount" to feedback.rating,
-                                            "selectedOption" to (feedback.feedbackOption
-                                                ?: "") as Any,
-                                            "additionalComments" to feedback.additionalComments
+                                        trackEvents(
+                                            campaign_id = campaign?.id,
+                                            event = "csat captured",
+                                            metadata = mapOf(
+                                                "starCount" to feedback.rating,
+                                                "selectedOption" to (feedback.feedbackOption
+                                                    ?: "") as Any,
+                                                "additionalComments" to feedback.additionalComments
+                                            )
                                         )
-                                    )
-                                }
-                            },
-                            csatDetails = csatDetails
-                        )
+                                    }
+                                },
+                                csatDetails = csatDetails
+                            )
+                        }
                     }
                 }
             }
@@ -1067,72 +1207,74 @@ object AppStorys {
         modifier: Modifier = Modifier,
         bottomPadding: Dp = 0.dp
     ) {
-        val campaignsData = campaigns.collectAsStateWithLifecycle()
+        SdkErrorBoundary(campaignType = "FLT", screen = currentScreen) {
+            val campaignsData = campaigns.collectAsStateWithLifecycle()
 
-        val campaign =
-            campaignsData.value.firstOrNull { it.campaignType == "FLT" && it.details is FloaterDetails }
+            val campaign =
+                campaignsData.value.firstOrNull { it.campaignType == "FLT" && it.details is FloaterDetails }
 
-        val floaterDetails = when (val details = campaign?.details) {
-            is FloaterDetails -> details
-            else -> null
-        }
-
-        val trackedEventsData = trackedEventNames.collectAsStateWithLifecycle()
-
-        val shouldShowFloater = remember(campaign, trackedEventsData.value.size) {
-            TriggerEventMatcher.shouldShowCampaign(
-                triggerEvent = campaign?.triggerEvent,
-                campaignId = campaign?.id,
-                trackedEvents = trackedEventsData.value
-            )
-        }
-
-        if (floaterDetails != null && (!floaterDetails.image.isNullOrEmpty() || !floaterDetails.lottie_data.isNullOrEmpty()) && shouldShowFloater) {
-            LaunchedEffect(Unit) {
-                campaign?.id?.let {
-                    trackEvents(it, "viewed")
-                }
+            val floaterDetails = when (val details = campaign?.details) {
+                is FloaterDetails -> details
+                else -> null
             }
 
-            val styling = floaterDetails.styling
+            val trackedEventsData = trackedEventNames.collectAsStateWithLifecycle()
 
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(
-                        bottom = (styling?.marginBottom?.toFloatOrNull()?.dp?.plus(bottomPadding))
-                            ?: bottomPadding,
-                        start = styling?.marginLeft?.toFloatOrNull()?.dp ?: 0.dp,
-                        end = styling?.marginRight?.toFloatOrNull()?.dp ?: 0.dp,
-                    ),
-                content = {
-                    OverlayFloater(
-                        modifier = modifier.align(
-                            when (floaterDetails.position) {
-                                "right" -> Alignment.BottomEnd
-                                "left" -> Alignment.BottomStart
-                                else -> Alignment.BottomStart
-                            }
-                        ),
-                        onClick = {
-                            if (campaign?.id != null && !floaterDetails.link.isNullOrEmpty()) {
-                                clickEvent(link = floaterDetails.link, campaignId = campaign.id)
-                                trackEvents(campaign.id, "clicked")
-                            }
-                        },
-                        image = floaterDetails.image ?: "",
-                        lottieUrl = floaterDetails.lottie_data ?: "",
-                        height = floaterDetails.height?.dp ?: 60.dp,
-                        width = floaterDetails.width?.dp ?: 60.dp,
-                        borderRadiusValues = RoundedCornerShape(
-                            topStart = (styling?.topLeftRadius?.toFloatOrNull() ?: 0f).dp,
-                            topEnd = (styling?.topRightRadius?.toFloatOrNull() ?: 0f).dp,
-                            bottomStart = (styling?.bottomLeftRadius?.toFloatOrNull() ?: 0f).dp,
-                            bottomEnd = (styling?.bottomRightRadius?.toFloatOrNull() ?: 0f).dp
-                        )
-                    )
+            val shouldShowFloater = remember(campaign, trackedEventsData.value.size) {
+                TriggerEventMatcher.shouldShowCampaign(
+                    triggerEvent = campaign?.triggerEvent,
+                    campaignId = campaign?.id,
+                    trackedEvents = trackedEventsData.value
+                )
+            }
+
+            if (floaterDetails != null && (!floaterDetails.image.isNullOrEmpty() || !floaterDetails.lottie_data.isNullOrEmpty()) && shouldShowFloater) {
+                LaunchedEffect(Unit) {
+                    campaign?.id?.let {
+                        trackEvents(it, "viewed")
+                    }
                 }
-            )
+
+                val styling = floaterDetails.styling
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(
+                            bottom = (styling?.marginBottom?.toFloatOrNull()?.dp?.plus(bottomPadding))
+                                ?: bottomPadding,
+                            start = styling?.marginLeft?.toFloatOrNull()?.dp ?: 0.dp,
+                            end = styling?.marginRight?.toFloatOrNull()?.dp ?: 0.dp,
+                        ),
+                    content = {
+                        OverlayFloater(
+                            modifier = modifier.align(
+                                when (floaterDetails.position) {
+                                    "right" -> Alignment.BottomEnd
+                                    "left" -> Alignment.BottomStart
+                                    else -> Alignment.BottomStart
+                                }
+                            ),
+                            onClick = {
+                                if (campaign?.id != null && !floaterDetails.link.isNullOrEmpty()) {
+                                    clickEvent(link = floaterDetails.link, campaignId = campaign.id)
+                                    trackEvents(campaign.id, "clicked")
+                                }
+                            },
+                            image = floaterDetails.image ?: "",
+                            lottieUrl = floaterDetails.lottie_data ?: "",
+                            height = floaterDetails.height?.dp ?: 60.dp,
+                            width = floaterDetails.width?.dp ?: 60.dp,
+                            borderRadiusValues = RoundedCornerShape(
+                                topStart = (styling?.topLeftRadius?.toFloatOrNull() ?: 0f).dp,
+                                topEnd = (styling?.topRightRadius?.toFloatOrNull() ?: 0f).dp,
+                                bottomStart = (styling?.bottomLeftRadius?.toFloatOrNull() ?: 0f).dp,
+                                bottomEnd = (styling?.bottomRightRadius?.toFloatOrNull() ?: 0f).dp
+                            )
+                        )
+                    }
+                )
+            }
         }
     }
 
@@ -1143,202 +1285,207 @@ object AppStorys {
         bottomPadding: Dp = 0.dp,
         topPadding: Dp = 0.dp,
     ) {
-        val campaignsData = campaigns.collectAsStateWithLifecycle()
+        SdkErrorBoundary(campaignType = "PIP", screen = currentScreen) {
+            val campaignsData = campaigns.collectAsStateWithLifecycle()
 
-        val campaign =
-            campaignsData.value.firstOrNull { it.campaignType == "PIP" && it.details is PipDetails }
+            val campaign =
+                campaignsData.value.firstOrNull { it.campaignType == "PIP" && it.details is PipDetails }
 
-        val pipDetails = when (val details = campaign?.details) {
-            is PipDetails -> details
-            else -> null
-        }
+            val pipDetails = when (val details = campaign?.details) {
+                is PipDetails -> details
+                else -> null
+            }
 
-        val trackedEventsData = trackedEventNames.collectAsStateWithLifecycle()
+            val trackedEventsData = trackedEventNames.collectAsStateWithLifecycle()
 
-        val shouldShowPip = remember(campaign, trackedEventsData.value.size) {
-            TriggerEventMatcher.shouldShowCampaign(
-                triggerEvent = campaign?.triggerEvent,
-                campaignId = campaign?.id,
-                trackedEvents = trackedEventsData.value
-            )
-        }
+            val shouldShowPip = remember(campaign, trackedEventsData.value.size) {
+                TriggerEventMatcher.shouldShowCampaign(
+                    triggerEvent = campaign?.triggerEvent,
+                    campaignId = campaign?.id,
+                    trackedEvents = trackedEventsData.value
+                )
+            }
 
-        if (pipDetails != null && !pipDetails.small_video.isNullOrEmpty() && shouldShowPip) {
-            key(
-                campaign?.id, campaign?.triggerEvent
-            ) {
+            if (pipDetails != null && !pipDetails.small_video.isNullOrEmpty() && shouldShowPip) {
+                key(
+                    campaign?.id, campaign?.triggerEvent
+                ) {
 
-                var showPip by remember { mutableStateOf(true) }
-                LaunchedEffect(Unit) {
-                    campaign?.id?.let {
-                        trackEvents(it, "viewed", mapOf("is_small_video" to true))
+                    var showPip by remember { mutableStateOf(true) }
+                    LaunchedEffect(Unit) {
+                        campaign?.id?.let {
+                            trackEvents(it, "viewed", mapOf("is_small_video" to true))
+                        }
                     }
-                }
 
-                Box(modifier = modifier?.fillMaxWidth() ?: Modifier.fillMaxWidth()) {
-                    if (showPip) {
-                        // Use appearance dimensions if available, otherwise fall back to root-level dimensions
-                        val pipHeight = pipDetails.styling?.appearance?.pipHeight?.toIntOrNull()?.dp
-                            ?: pipDetails.height?.dp ?: 200.dp
-                        val pipWidth = pipDetails.styling?.appearance?.pipWidth?.toIntOrNull()?.dp
-                            ?: pipDetails.width?.dp ?: 113.dp
+                    Box(modifier = modifier?.fillMaxWidth() ?: Modifier.fillMaxWidth()) {
+                        if (showPip) {
+                            // Use appearance dimensions if available, otherwise fall back to root-level dimensions
+                            val pipHeight =
+                                pipDetails.styling?.appearance?.pipHeight?.toIntOrNull()?.dp
+                                    ?: pipDetails.height?.dp ?: 200.dp
+                            val pipWidth =
+                                pipDetails.styling?.appearance?.pipWidth?.toIntOrNull()?.dp
+                                    ?: pipDetails.width?.dp ?: 113.dp
 
-                        PipVideo(
-                            videoUri = pipDetails.small_video,
-                            fullScreenVideoUri = if (!pipDetails.large_video.isNullOrEmpty()) {
-                                pipDetails.large_video
-                            } else {
-                                null
-                            },
-                            onClose = {
-                                showPip = false
-                                campaign?.triggerEvent?.let { trigger ->
-                                    val eventName = when (trigger) {
-                                        is TriggerEvent.StringTrigger -> trigger.event
-                                        is TriggerEvent.ObjectTrigger -> trigger.event
+                            PipVideo(
+                                videoUri = pipDetails.small_video,
+                                fullScreenVideoUri = if (!pipDetails.large_video.isNullOrEmpty()) {
+                                    pipDetails.large_video
+                                } else {
+                                    null
+                                },
+                                onClose = {
+                                    showPip = false
+                                    campaign?.triggerEvent?.let { trigger ->
+                                        val eventName = when (trigger) {
+                                            is TriggerEvent.StringTrigger -> trigger.event
+                                            is TriggerEvent.ObjectTrigger -> trigger.event
+                                        }
+                                        _trackedEventNames.update { currentSet ->
+                                            currentSet.filterNot {
+                                                it.eventName == eventName
+                                            }.toSet()
+                                        }
                                     }
-                                    _trackedEventNames.update { currentSet ->
-                                        currentSet.filterNot {
-                                            it.eventName == eventName
-                                        }.toSet()
+                                },
+                                height = pipHeight,
+                                width = pipWidth,
+                                button_text = pipDetails.button_text.toString(),
+                                link = pipDetails.link.toString(),
+                                position = pipDetails.position.toString(),
+                                bottomPadding = bottomPadding,
+                                topPadding = topPadding,
+                                isMovable = pipDetails.styling?.isMovable ?: false,
+                                pipStyling = pipDetails.styling,
+
+                                crossButtonConfig = run {
+                                    // Support new backend format with "color" (singular) instead of "colors"
+                                    val pipCrossButton = pipDetails.styling?.crossButton
+                                    val pipCrossColors =
+                                        pipCrossButton?.color ?: pipCrossButton?.colors
+                                    val pipCrossImageUrl = pipCrossButton?.image
+                                    val pipCrossMargin = pipCrossButton?.margin
+
+                                    createCrossButtonConfig(
+                                        fillColorString = pipCrossColors?.fill,
+                                        crossColorString = pipCrossColors?.cross,
+                                        strokeColorString = pipCrossColors?.stroke,
+                                        marginTop = pipCrossButton?.margin?.top,
+                                        marginEnd = pipCrossButton?.margin?.right,
+                                        size = pipCrossButton?.size,
+                                        imageUrl = pipCrossImageUrl
+                                    )
+                                },
+
+                                maximiseButtonConfig = run {
+                                    val expandControls = pipDetails.styling?.expandControls
+                                    val maximise = expandControls?.maximise
+                                    // Check color (singular) first, then fall back to colors (plural) for legacy support
+                                    val maximiseColors = maximise?.color ?: maximise?.colors
+                                    val maximiseMargin = maximise?.margin
+
+                                    createExpandButtonConfig(
+                                        fillColorString = maximiseColors?.fill,
+                                        iconColorString = maximiseColors?.cross,
+                                        strokeColorString = maximiseColors?.stroke,
+                                        marginTop = maximiseMargin?.top,
+                                        marginEnd = maximiseMargin?.right,
+                                        marginBottom = maximiseMargin?.bottom,
+                                        marginStart = maximiseMargin?.left,
+                                        size = maximise?.size,
+                                        imageUrl = maximise?.image ?: pipDetails.maximiseImage
+                                    )
+                                },
+
+                                minimiseButtonConfig = run {
+                                    val expandControls = pipDetails.styling?.expandControls
+                                    val minimise = expandControls?.minimise
+                                    // Check color (singular) first, then fall back to colors (plural) for legacy support
+                                    val minimiseColors = minimise?.color ?: minimise?.colors
+                                    val minimiseMargin = minimise?.margin
+
+                                    createExpandButtonConfig(
+                                        fillColorString = minimiseColors?.fill,
+                                        iconColorString = minimiseColors?.cross,
+                                        strokeColorString = minimiseColors?.stroke,
+                                        marginTop = minimiseMargin?.top,
+                                        marginEnd = minimiseMargin?.right,
+                                        marginBottom = minimiseMargin?.bottom,
+                                        marginStart = minimiseMargin?.left,
+                                        size = minimise?.size,
+                                        imageUrl = minimise?.image ?: pipDetails.minimiseImage
+                                    )
+                                },
+
+                                muteButtonConfig = run {
+                                    val soundToggle = pipDetails.styling?.soundToggle
+                                    val mute = soundToggle?.mute
+                                    // Check color (singular) first, then fall back to colors (plural) for legacy support
+                                    val muteColors = mute?.color ?: mute?.colors
+                                    val muteMargin = mute?.margin
+
+                                    createSoundToggleButtonConfig(
+                                        fillColorString = muteColors?.fill,
+                                        iconColorString = muteColors?.cross,
+                                        strokeColorString = muteColors?.stroke,
+                                        marginTop = muteMargin?.top,
+                                        marginEnd = muteMargin?.right,
+                                        marginBottom = muteMargin?.bottom,
+                                        marginStart = muteMargin?.left,
+                                        size = mute?.size,
+                                        imageUrl = mute?.image ?: pipDetails.muteImage
+                                    )
+                                },
+
+                                unmuteButtonConfig = run {
+                                    val soundToggle = pipDetails.styling?.soundToggle
+                                    val unmute = soundToggle?.unmute
+                                    // Check color (singular) first, then fall back to colors (plural) for legacy support
+                                    val unmuteColors = unmute?.color ?: unmute?.colors
+                                    val unmuteMargin = unmute?.margin
+
+                                    createSoundToggleButtonConfig(
+                                        fillColorString = unmuteColors?.fill,
+                                        iconColorString = unmuteColors?.cross,
+                                        strokeColorString = unmuteColors?.stroke,
+                                        marginTop = unmuteMargin?.top,
+                                        marginEnd = unmuteMargin?.right,
+                                        marginBottom = unmuteMargin?.bottom,
+                                        marginStart = unmuteMargin?.left,
+                                        size = unmute?.size,
+                                        imageUrl = unmute?.image ?: pipDetails.unmuteImage
+                                    )
+                                },
+                                onSmallVideoClick = {
+                                    campaign?.id?.let { campaignId ->
+                                        trackEvents(
+                                            campaignId,
+                                            "clicked",
+                                            mapOf("is_small_video" to true)
+                                        )
+                                    }
+                                },
+                                onButtonClick = { isSmallVideo ->
+                                    campaign?.id?.let { campaignId ->
+                                        trackEvents(
+                                            campaignId,
+                                            "clicked",
+                                            mapOf("is_small_video" to isSmallVideo)
+                                        )
+                                    }
+                                },
+                                onExpandClick = {
+                                    campaign?.id?.let { campaignId ->
+                                        trackEvents(
+                                            campaignId,
+                                            "viewed",
+                                            mapOf("is_small_video" to false)
+                                        )
                                     }
                                 }
-                            },
-                            height = pipHeight,
-                            width = pipWidth,
-                            button_text = pipDetails.button_text.toString(),
-                            link = pipDetails.link.toString(),
-                            position = pipDetails.position.toString(),
-                            bottomPadding = bottomPadding,
-                            topPadding = topPadding,
-                            isMovable = pipDetails.styling?.isMovable ?: false,
-                            pipStyling = pipDetails.styling,
-
-                            crossButtonConfig = run {
-                                // Support new backend format with "color" (singular) instead of "colors"
-                                val pipCrossButton = pipDetails.styling?.crossButton
-                                val pipCrossColors = pipCrossButton?.color ?: pipCrossButton?.colors
-                                val pipCrossImageUrl = pipCrossButton?.image
-                                val pipCrossMargin = pipCrossButton?.margin
-
-                                createCrossButtonConfig(
-                                    fillColorString = pipCrossColors?.fill,
-                                    crossColorString = pipCrossColors?.cross,
-                                    strokeColorString = pipCrossColors?.stroke,
-                                    marginTop = pipCrossButton?.margin?.top,
-                                    marginEnd = pipCrossButton?.margin?.right,
-                                    size = pipCrossButton?.size,
-                                    imageUrl = pipCrossImageUrl
-                                )
-                            },
-
-                            maximiseButtonConfig = run {
-                                val expandControls = pipDetails.styling?.expandControls
-                                val maximise = expandControls?.maximise
-                                // Check color (singular) first, then fall back to colors (plural) for legacy support
-                                val maximiseColors = maximise?.color ?: maximise?.colors
-                                val maximiseMargin = maximise?.margin
-
-                                createExpandButtonConfig(
-                                    fillColorString = maximiseColors?.fill,
-                                    iconColorString = maximiseColors?.cross,
-                                    strokeColorString = maximiseColors?.stroke,
-                                    marginTop = maximiseMargin?.top,
-                                    marginEnd = maximiseMargin?.right,
-                                    marginBottom = maximiseMargin?.bottom,
-                                    marginStart = maximiseMargin?.left,
-                                    size = maximise?.size,
-                                    imageUrl = maximise?.image ?: pipDetails.maximiseImage
-                                )
-                            },
-
-                            minimiseButtonConfig = run {
-                                val expandControls = pipDetails.styling?.expandControls
-                                val minimise = expandControls?.minimise
-                                // Check color (singular) first, then fall back to colors (plural) for legacy support
-                                val minimiseColors = minimise?.color ?: minimise?.colors
-                                val minimiseMargin = minimise?.margin
-
-                                createExpandButtonConfig(
-                                    fillColorString = minimiseColors?.fill,
-                                    iconColorString = minimiseColors?.cross,
-                                    strokeColorString = minimiseColors?.stroke,
-                                    marginTop = minimiseMargin?.top,
-                                    marginEnd = minimiseMargin?.right,
-                                    marginBottom = minimiseMargin?.bottom,
-                                    marginStart = minimiseMargin?.left,
-                                    size = minimise?.size,
-                                    imageUrl = minimise?.image ?: pipDetails.minimiseImage
-                                )
-                            },
-
-                            muteButtonConfig = run {
-                                val soundToggle = pipDetails.styling?.soundToggle
-                                val mute = soundToggle?.mute
-                                // Check color (singular) first, then fall back to colors (plural) for legacy support
-                                val muteColors = mute?.color ?: mute?.colors
-                                val muteMargin = mute?.margin
-
-                                createSoundToggleButtonConfig(
-                                    fillColorString = muteColors?.fill,
-                                    iconColorString = muteColors?.cross,
-                                    strokeColorString = muteColors?.stroke,
-                                    marginTop = muteMargin?.top,
-                                    marginEnd = muteMargin?.right,
-                                    marginBottom = muteMargin?.bottom,
-                                    marginStart = muteMargin?.left,
-                                    size = mute?.size,
-                                    imageUrl = mute?.image ?: pipDetails.muteImage
-                                )
-                            },
-
-                            unmuteButtonConfig = run {
-                                val soundToggle = pipDetails.styling?.soundToggle
-                                val unmute = soundToggle?.unmute
-                                // Check color (singular) first, then fall back to colors (plural) for legacy support
-                                val unmuteColors = unmute?.color ?: unmute?.colors
-                                val unmuteMargin = unmute?.margin
-
-                                createSoundToggleButtonConfig(
-                                    fillColorString = unmuteColors?.fill,
-                                    iconColorString = unmuteColors?.cross,
-                                    strokeColorString = unmuteColors?.stroke,
-                                    marginTop = unmuteMargin?.top,
-                                    marginEnd = unmuteMargin?.right,
-                                    marginBottom = unmuteMargin?.bottom,
-                                    marginStart = unmuteMargin?.left,
-                                    size = unmute?.size,
-                                    imageUrl = unmute?.image ?: pipDetails.unmuteImage
-                                )
-                            },
-                            onSmallVideoClick = {
-                                campaign?.id?.let { campaignId ->
-                                    trackEvents(
-                                        campaignId,
-                                        "clicked",
-                                        mapOf("is_small_video" to true)
-                                    )
-                                }
-                            },
-                            onButtonClick = { isSmallVideo ->
-                                campaign?.id?.let { campaignId ->
-                                    trackEvents(
-                                        campaignId,
-                                        "clicked",
-                                        mapOf("is_small_video" to isSmallVideo)
-                                    )
-                                }
-                            },
-                            onExpandClick = {
-                                campaign?.id?.let { campaignId ->
-                                    trackEvents(
-                                        campaignId,
-                                        "viewed",
-                                        mapOf("is_small_video" to false)
-                                    )
-                                }
-                            }
-                        )
+                            )
+                        }
                     }
                 }
             }
@@ -1376,81 +1523,90 @@ object AppStorys {
     @OptIn(UnstableApi::class)
     @Composable
     fun Stories() {
-        val campaignsData = campaigns.collectAsStateWithLifecycle()
-        val campaign = campaignsData.value.firstOrNull { it.campaignType == "STR" }
-        val storiesDetails = campaign?.details as? StoriesDetails
+        SdkErrorBoundary(campaignType = "STR", screen = currentScreen) {
+            val campaignsData = campaigns.collectAsStateWithLifecycle()
+            val campaign = campaignsData.value.firstOrNull { it.campaignType == "STR" }
+            val storiesDetails = campaign?.details as? StoriesDetails
 
-        val trackedEventsData = trackedEventNames.collectAsStateWithLifecycle()
+            val trackedEventsData = trackedEventNames.collectAsStateWithLifecycle()
 
-        val shouldShowStories = remember(campaign, trackedEventsData.value.size) {
-            TriggerEventMatcher.shouldShowCampaign(
-                triggerEvent = campaign?.triggerEvent,
-                campaignId = campaign?.id,
-                trackedEvents = trackedEventsData.value
-            )
-        }
+            val shouldShowStories = remember(campaign, trackedEventsData.value.size) {
+                TriggerEventMatcher.shouldShowCampaign(
+                    triggerEvent = campaign?.triggerEvent,
+                    campaignId = campaign?.id,
+                    trackedEvents = trackedEventsData.value
+                )
+            }
 
-        if (storiesDetails != null && !storiesDetails.groups.isNullOrEmpty() && shouldShowStories) {
-            StoryAppMain(
-                apiStoriesDetails = storiesDetails,
-                sendEvent = {
-                    coroutineScope.launch {
-                        trackEvents(campaign.id, "viewed", mapOf("story_slide" to it.first.id!!))
-                    }
-                },
-                sendClickEvent = {
-                    trackEvents(campaign.id, it.second, mapOf("story_slide" to it.first.id!!))
-                },
-                campaignId = campaign.id ?: ""
-            )
+            if (storiesDetails != null && !storiesDetails.groups.isNullOrEmpty() && shouldShowStories) {
+                StoryAppMain(
+                    apiStoriesDetails = storiesDetails,
+                    sendEvent = {
+                        coroutineScope.launch {
+                            trackEvents(
+                                campaign.id,
+                                "viewed",
+                                mapOf("story_slide" to it.first.id!!)
+                            )
+                        }
+                    },
+                    sendClickEvent = {
+                        trackEvents(campaign.id, it.second, mapOf("story_slide" to it.first.id!!))
+                    },
+                    campaignId = campaign.id ?: ""
+                )
+            }
         }
     }
 
     @Composable
     fun Reels(modifier: Modifier = Modifier) {
-        val campaignsData = campaigns.collectAsStateWithLifecycle()
-        val campaign =
-            campaignsData.value.firstOrNull { it.campaignType == "REL" && it.details is ReelsDetails }
-        val reelsDetails = campaign?.details as? ReelsDetails
-        val selectedReelIndex by selectedReelIndex.collectAsStateWithLifecycle()
-        val visibility by reelFullScreenVisible.collectAsStateWithLifecycle()
+        SdkErrorBoundary(campaignType = "REL", screen = currentScreen) {
+            val campaignsData = campaigns.collectAsStateWithLifecycle()
+            val campaign =
+                campaignsData.value.firstOrNull { it.campaignType == "REL" && it.details is ReelsDetails }
+            val reelsDetails = campaign?.details as? ReelsDetails
+            val selectedReelIndex by selectedReelIndex.collectAsStateWithLifecycle()
+            val visibility by reelFullScreenVisible.collectAsStateWithLifecycle()
 
-        val trackedEventsData = trackedEventNames.collectAsStateWithLifecycle()
+            val trackedEventsData = trackedEventNames.collectAsStateWithLifecycle()
 
-        val shouldShowReels = remember(campaign, trackedEventsData.value.size) {
-            TriggerEventMatcher.shouldShowCampaign(
-                triggerEvent = campaign?.triggerEvent,
-                campaignId = campaign?.id,
-                trackedEvents = trackedEventsData.value
-            )
-        }
-
-        if (reelsDetails?.reels != null && reelsDetails.reels.isNotEmpty() && shouldShowReels) {
-            Box(modifier = Modifier.fillMaxSize()) {
-
-                ReelsRow(
-                    modifier = modifier,
-                    reels = reelsDetails.reels,
-                    onReelClick = { index ->
-                        coroutineScope.launch {
-                            this@AppStorys.selectedReelIndex.emit(index)
-                            reelFullScreenVisible.emit(true)
-                        }
-                    },
-                    height = reelsDetails.styling?.thumbnailHeight?.toIntOrNull()?.dp ?: 180.dp,
-                    width = reelsDetails.styling?.thumbnailWidth?.toIntOrNull()?.dp ?: 120.dp,
-                    cornerRadius = reelsDetails.styling?.cornerRadius?.toIntOrNull()?.dp ?: 12.dp
+            val shouldShowReels = remember(campaign, trackedEventsData.value.size) {
+                TriggerEventMatcher.shouldShowCampaign(
+                    triggerEvent = campaign?.triggerEvent,
+                    campaignId = campaign?.id,
+                    trackedEvents = trackedEventsData.value
                 )
+            }
 
-                if (visibility) {
-                    ReelFullScreen(
-                        campaignId = campaign.id,
-                        reelsDetails = reelsDetails,
-                        selectedReelIndex = selectedReelIndex
-                    ) {
-                        coroutineScope.launch {
-                            this@AppStorys.selectedReelIndex.emit(0)
-                            reelFullScreenVisible.emit(false)
+            if (reelsDetails?.reels != null && reelsDetails.reels.isNotEmpty() && shouldShowReels) {
+                Box(modifier = Modifier.fillMaxSize()) {
+
+                    ReelsRow(
+                        modifier = modifier,
+                        reels = reelsDetails.reels,
+                        onReelClick = { index ->
+                            coroutineScope.launch {
+                                this@AppStorys.selectedReelIndex.emit(index)
+                                reelFullScreenVisible.emit(true)
+                            }
+                        },
+                        height = reelsDetails.styling?.thumbnailHeight?.toIntOrNull()?.dp ?: 180.dp,
+                        width = reelsDetails.styling?.thumbnailWidth?.toIntOrNull()?.dp ?: 120.dp,
+                        cornerRadius = reelsDetails.styling?.cornerRadius?.toIntOrNull()?.dp
+                            ?: 12.dp
+                    )
+
+                    if (visibility) {
+                        ReelFullScreen(
+                            campaignId = campaign.id,
+                            reelsDetails = reelsDetails,
+                            selectedReelIndex = selectedReelIndex
+                        ) {
+                            coroutineScope.launch {
+                                this@AppStorys.selectedReelIndex.emit(0)
+                                reelFullScreenVisible.emit(false)
+                            }
                         }
                     }
                 }
@@ -1465,108 +1621,110 @@ object AppStorys {
         selectedReelIndex: Int,
         onDismiss: () -> Unit
     ) {
-        if (!reelsDetails.reels.isNullOrEmpty()) {
+        SdkErrorBoundary(campaignType = "REL", screen = currentScreen) {
+            if (!reelsDetails.reels.isNullOrEmpty()) {
 
-            var likedReels by remember {
-                mutableStateOf(
-                    getLikedReels(
-                        context.getSharedPreferences(
-                            "AppStory",
-                            Context.MODE_PRIVATE
+                var likedReels by remember {
+                    mutableStateOf(
+                        getLikedReels(
+                            context.getSharedPreferences(
+                                "AppStory",
+                                Context.MODE_PRIVATE
+                            )
                         )
                     )
-                )
-            }
-
-            Dialog(
-                onDismissRequest = onDismiss,
-                properties = DialogProperties(
-                    dismissOnBackPress = true,
-                    dismissOnClickOutside = false,
-                    usePlatformDefaultWidth = false
-                )
-            ) {
-
-                BackHandler {
-                    coroutineScope.launch {
-                        this@AppStorys.selectedReelIndex.emit(0)
-                        reelFullScreenVisible.emit(false)
-                    }
                 }
 
-                FullScreenVideoScreen(
-                    reelsDetails = reelsDetails,
-                    reels = reelsDetails.reels,
-                    likedReels = likedReels,
-                    startIndex = selectedReelIndex,
-                    sendLikesStatus = {
-                        coroutineScope.launch {
-                            if (it.second == "like") {
-                                val list = ArrayList(likedReels)
-                                list.add(it.first.id)
-                                likedReels = list.distinct()
-                                saveLikedReels(
-                                    idList = list.distinct(),
-                                    sharedPreferences = context.getSharedPreferences(
-                                        "AppStory",
-                                        Context.MODE_PRIVATE
-                                    )
-                                )
-                            } else {
-                                val list = ArrayList(likedReels)
-                                list.remove(it.first.id)
-                                likedReels = list.distinct()
-                                saveLikedReels(
-                                    idList = list.distinct(),
-                                    sharedPreferences = context.getSharedPreferences(
-                                        "AppStory",
-                                        Context.MODE_PRIVATE
-                                    )
-                                )
-                            }
+                Dialog(
+                    onDismissRequest = onDismiss,
+                    properties = DialogProperties(
+                        dismissOnBackPress = true,
+                        dismissOnClickOutside = false,
+                        usePlatformDefaultWidth = false
+                    )
+                ) {
 
-                            repository.sendReelLikeStatus(
-                                accessToken = accessToken,
-                                actions = ReelStatusRequest(
-                                    user_id = userId,
-                                    action = it.second,
-                                    reel = it.first.id
-                                )
-                            )
-                        }
-                    },
-                    sendEvents = {
-                        if (it.second == "IMP") {
-                            if (!impressions.value.contains(it.first.id)) {
-                                coroutineScope.launch {
-                                    val impressions = ArrayList(impressions.value)
-                                    impressions.add(it.first.id)
-                                    this@AppStorys.impressions.emit(impressions)
-                                    trackEvents(
-                                        campaignId,
-                                        "viewed",
-                                        mapOf("reel_id" to it.first.id!!)
-                                    )
-                                }
-                            }
-                        } else {
-                            coroutineScope.launch {
-                                trackEvents(
-                                    campaignId,
-                                    "clicked",
-                                    mapOf("reel_id" to it.first.id!!)
-                                )
-                            }
-                        }
-
-                    },
-                    onBack = {
+                    BackHandler {
                         coroutineScope.launch {
                             this@AppStorys.selectedReelIndex.emit(0)
                             reelFullScreenVisible.emit(false)
                         }
                     }
-                )
+
+                    FullScreenVideoScreen(
+                        reelsDetails = reelsDetails,
+                        reels = reelsDetails.reels,
+                        likedReels = likedReels,
+                        startIndex = selectedReelIndex,
+                        sendLikesStatus = {
+                            coroutineScope.launch {
+                                if (it.second == "like") {
+                                    val list = ArrayList(likedReels)
+                                    list.add(it.first.id)
+                                    likedReels = list.distinct()
+                                    saveLikedReels(
+                                        idList = list.distinct(),
+                                        sharedPreferences = context.getSharedPreferences(
+                                            "AppStory",
+                                            Context.MODE_PRIVATE
+                                        )
+                                    )
+                                } else {
+                                    val list = ArrayList(likedReels)
+                                    list.remove(it.first.id)
+                                    likedReels = list.distinct()
+                                    saveLikedReels(
+                                        idList = list.distinct(),
+                                        sharedPreferences = context.getSharedPreferences(
+                                            "AppStory",
+                                            Context.MODE_PRIVATE
+                                        )
+                                    )
+                                }
+
+                                repository.sendReelLikeStatus(
+                                    accessToken = accessToken,
+                                    actions = ReelStatusRequest(
+                                        user_id = userId,
+                                        action = it.second,
+                                        reel = it.first.id
+                                    )
+                                )
+                            }
+                        },
+                        sendEvents = {
+                            if (it.second == "IMP") {
+                                if (!impressions.value.contains(it.first.id)) {
+                                    coroutineScope.launch {
+                                        val impressions = ArrayList(impressions.value)
+                                        impressions.add(it.first.id)
+                                        this@AppStorys.impressions.emit(impressions)
+                                        trackEvents(
+                                            campaignId,
+                                            "viewed",
+                                            mapOf("reel_id" to it.first.id!!)
+                                        )
+                                    }
+                                }
+                            } else {
+                                coroutineScope.launch {
+                                    trackEvents(
+                                        campaignId,
+                                        "clicked",
+                                        mapOf("reel_id" to it.first.id!!)
+                                    )
+                                }
+                            }
+
+                        },
+                        onBack = {
+                            coroutineScope.launch {
+                                this@AppStorys.selectedReelIndex.emit(0)
+                                reelFullScreenVisible.emit(false)
+                            }
+                        }
+                    )
+                }
             }
         }
     }
@@ -1595,45 +1753,46 @@ object AppStorys {
         placeholderContent: (@Composable () -> Unit)? = null,
         bottomPadding: Dp = 0.dp,
     ) {
-        val campaignsData = campaigns.collectAsStateWithLifecycle()
-        val disabledCampaigns = disabledCampaigns.collectAsStateWithLifecycle()
+        SdkErrorBoundary(campaignType = "BAN", screen = currentScreen) {
+            val campaignsData = campaigns.collectAsStateWithLifecycle()
+            val disabledCampaigns = disabledCampaigns.collectAsStateWithLifecycle()
 
-        val configuration = LocalConfiguration.current
-        val screenWidth = configuration.screenWidthDp.dp
+            val configuration = LocalConfiguration.current
+            val screenWidth = configuration.screenWidthDp.dp
 
-        val campaign = campaignsData.value.firstOrNull {
-            it.campaignType == "BAN" && it.details is BannerDetails
-        }
-
-        val trackedEventsData = trackedEventNames.collectAsStateWithLifecycle()
-
-        val shouldShowBanner = remember(campaign, trackedEventsData.value.size) {
-            TriggerEventMatcher.shouldShowCampaign(
-                triggerEvent = campaign?.triggerEvent,
-                campaignId = campaign?.id,
-                trackedEvents = trackedEventsData.value
-            )
-        }
-
-        val bannerDetails = campaign?.details as? BannerDetails
-
-        if (bannerDetails != null && !disabledCampaigns.value.contains(campaign.id) && shouldShowBanner) {
-            val style = bannerDetails.styling
-            val bannerUrl = bannerDetails.image
-
-            val aspectRatio: Float? = remember(bannerDetails) {
-                val w = bannerDetails.width
-                val h = bannerDetails.height
-                if (w != null && h != null && w > 0 && h > 0) {
-                    h.toFloat() / w.toFloat()
-                } else null
+            val campaign = campaignsData.value.firstOrNull {
+                it.campaignType == "BAN" && it.details is BannerDetails
             }
 
-            val forcedHeight: Dp? = remember(bannerDetails) {
-                if (bannerDetails.width == null && bannerDetails.height != null) {
-                    bannerDetails.height.dp   // 👈 explicit stretch intent
-                } else null
+            val trackedEventsData = trackedEventNames.collectAsStateWithLifecycle()
+
+            val shouldShowBanner = remember(campaign, trackedEventsData.value.size) {
+                TriggerEventMatcher.shouldShowCampaign(
+                    triggerEvent = campaign?.triggerEvent,
+                    campaignId = campaign?.id,
+                    trackedEvents = trackedEventsData.value
+                )
             }
+
+            val bannerDetails = campaign?.details as? BannerDetails
+
+            if (bannerDetails != null && !disabledCampaigns.value.contains(campaign.id) && shouldShowBanner) {
+                val style = bannerDetails.styling
+                val bannerUrl = bannerDetails.image
+
+                val aspectRatio: Float? = remember(bannerDetails) {
+                    val w = bannerDetails.width
+                    val h = bannerDetails.height
+                    if (w != null && h != null && w > 0 && h > 0) {
+                        h.toFloat() / w.toFloat()
+                    } else null
+                }
+
+                val forcedHeight: Dp? = remember(bannerDetails) {
+                    if (bannerDetails.width == null && bannerDetails.height != null) {
+                        bannerDetails.height.dp   // 👈 explicit stretch intent
+                    } else null
+                }
 
 //
 //            val calculatedHeight =
@@ -1650,78 +1809,81 @@ object AppStorys {
 //                    bannerDetails.height?.dp
 //                }
 
-            LaunchedEffect(Unit) {
-                campaign.id?.let {
-                    trackEvents(it, "viewed")
-                }
-            }
-
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(bottom = bottomPadding)
-            ) {
-                com.appversal.appstorys.ui.PinnedBanner(
-                    modifier = modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth(),
-                    imageUrl = bannerUrl ?: "",
-                    lottieUrl = bannerDetails.lottie_data,
-                    //width = bannerDetails.width?.dp ?: screenWidth,
-                    exitIcon = (style?.crossButton?.enabled ?: style?.enableCloseButton) != false,
-                    exitUnit = {
-                        val ids: ArrayList<String> = ArrayList(disabledCampaigns.value)
-                        campaign.id?.let {
-                            ids.add(it)
-                            coroutineScope.launch {
-                                this@AppStorys.disabledCampaigns.emit(ids.toList())
-                            }
-                        }
-                    },
-                    shape = RoundedCornerShape(
-                        topStart = style?.topLeftRadius?.toIntOrNull()?.dp ?: 0.dp,
-                        topEnd = style?.topRightRadius?.toIntOrNull()?.dp ?: 0.dp,
-                        bottomEnd = style?.bottomRightRadius?.toIntOrNull()?.dp ?: 0.dp,
-                        bottomStart = style?.bottomLeftRadius?.toIntOrNull()?.dp ?: 0.dp
-                    ),
-                    bottomMargin = style?.marginBottom?.dp ?: 0.dp,
-                    leftMargin = style?.marginLeft?.dp ?: 0.dp,
-                    rightMargin = style?.marginRight?.dp ?: 0.dp,
-                    contentScale = ContentScale.FillWidth,
-                    //height = null,
-                    aspectRatio = aspectRatio,
-                    forcedHeight = forcedHeight,
-                    placeHolder = placeholder,
-                    placeholderContent = placeholderContent,
-                    crossButtonConfig = run {
-                        // Support new backend format with "color" (singular) instead of "colors"
-                        val crossColors = style?.crossButton?.color ?: style?.crossButton?.colors
-                        val crossImageUrl =
-                            style?.crossButton?.image ?: bannerDetails.crossButtonImage
-                        createCrossButtonConfig(
-                            fillColorString = crossColors?.fill,
-                            crossColorString = crossColors?.cross,
-                            strokeColorString = crossColors?.stroke,
-                            marginTop = style?.crossButton?.margin?.top,
-                            marginEnd = style?.crossButton?.margin?.right,
-                            size = style?.crossButton?.size,
-                            imageUrl = crossImageUrl
-                        )
-                    },
-                    onClick = {
-                        if (bannerDetails.link.toString().trim().removeSurrounding("\"")
-                                .isNotEmpty()
-                        ) {
-                            campaign.id?.let {
-                                clickEvent(
-                                    link = bannerDetails.link.toString().trim()
-                                        .removeSurrounding("\""), campaignId = it
-                                )
-                                trackEvents(it, "clicked")
-                            }
-                        }
+                LaunchedEffect(Unit) {
+                    campaign.id?.let {
+                        trackEvents(it, "viewed")
                     }
-                )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(bottom = bottomPadding)
+                ) {
+                    com.appversal.appstorys.ui.PinnedBanner(
+                        modifier = modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth(),
+                        imageUrl = bannerUrl ?: "",
+                        lottieUrl = bannerDetails.lottie_data,
+                        //width = bannerDetails.width?.dp ?: screenWidth,
+                        exitIcon = (style?.crossButton?.enabled
+                            ?: style?.enableCloseButton) != false,
+                        exitUnit = {
+                            val ids: ArrayList<String> = ArrayList(disabledCampaigns.value)
+                            campaign.id?.let {
+                                ids.add(it)
+                                coroutineScope.launch {
+                                    this@AppStorys.disabledCampaigns.emit(ids.toList())
+                                }
+                            }
+                        },
+                        shape = RoundedCornerShape(
+                            topStart = style?.topLeftRadius?.toIntOrNull()?.dp ?: 0.dp,
+                            topEnd = style?.topRightRadius?.toIntOrNull()?.dp ?: 0.dp,
+                            bottomEnd = style?.bottomRightRadius?.toIntOrNull()?.dp ?: 0.dp,
+                            bottomStart = style?.bottomLeftRadius?.toIntOrNull()?.dp ?: 0.dp
+                        ),
+                        bottomMargin = style?.marginBottom?.dp ?: 0.dp,
+                        leftMargin = style?.marginLeft?.dp ?: 0.dp,
+                        rightMargin = style?.marginRight?.dp ?: 0.dp,
+                        contentScale = ContentScale.FillWidth,
+                        //height = null,
+                        aspectRatio = aspectRatio,
+                        forcedHeight = forcedHeight,
+                        placeHolder = placeholder,
+                        placeholderContent = placeholderContent,
+                        crossButtonConfig = run {
+                            // Support new backend format with "color" (singular) instead of "colors"
+                            val crossColors =
+                                style?.crossButton?.color ?: style?.crossButton?.colors
+                            val crossImageUrl =
+                                style?.crossButton?.image ?: bannerDetails.crossButtonImage
+                            createCrossButtonConfig(
+                                fillColorString = crossColors?.fill,
+                                crossColorString = crossColors?.cross,
+                                strokeColorString = crossColors?.stroke,
+                                marginTop = style?.crossButton?.margin?.top,
+                                marginEnd = style?.crossButton?.margin?.right,
+                                size = style?.crossButton?.size,
+                                imageUrl = crossImageUrl
+                            )
+                        },
+                        onClick = {
+                            if (bannerDetails.link.toString().trim().removeSurrounding("\"")
+                                    .isNotEmpty()
+                            ) {
+                                campaign.id?.let {
+                                    clickEvent(
+                                        link = bannerDetails.link.toString().trim()
+                                            .removeSurrounding("\""), campaignId = it
+                                    )
+                                    trackEvents(it, "clicked")
+                                }
+                            }
+                        }
+                    )
+                }
             }
         }
     }
@@ -1732,47 +1894,49 @@ object AppStorys {
         placeholder: Drawable? = null,
         position: String? = null
     ) {
-        val campaignsData = campaigns.collectAsStateWithLifecycle()
-        val campaign =
-            campaignsData.value.filter { it.campaignType == "WID" && it.details is WidgetDetails }
-                .firstOrNull {
-                    if (position == null) {
-                        it.position == null
-                    } else {
-                        it.position == position
+        SdkErrorBoundary(campaignType = "WID", screen = currentScreen) {
+            val campaignsData = campaigns.collectAsStateWithLifecycle()
+            val campaign =
+                campaignsData.value.filter { it.campaignType == "WID" && it.details is WidgetDetails }
+                    .firstOrNull {
+                        if (position == null) {
+                            it.position == null
+                        } else {
+                            it.position == position
+                        }
                     }
+            val widgetDetails = campaign?.details as? WidgetDetails
+
+            val trackedEventsData = trackedEventNames.collectAsStateWithLifecycle()
+
+            val shouldShowWidget = remember(campaign, trackedEventsData.value.size) {
+                TriggerEventMatcher.shouldShowCampaign(
+                    triggerEvent = campaign?.triggerEvent,
+                    campaignId = campaign?.id,
+                    trackedEvents = trackedEventsData.value
+                )
+            }
+
+            if (widgetDetails != null && shouldShowWidget) {
+
+                if (widgetDetails.type == "full") {
+
+                    FullWidget(
+                        modifier = modifier,
+                        staticWidth = LocalConfiguration.current.screenWidthDp.dp,
+                        placeHolder = placeholder,
+                        contentScale = ContentScale.Crop,
+                        position = position,
+                    )
+
+                } else if (widgetDetails.type == "half") {
+                    DoubleWidget(
+                        modifier = modifier,
+                        staticWidth = LocalConfiguration.current.screenWidthDp.dp,
+                        position = position,
+                        placeHolder = placeholder,
+                    )
                 }
-        val widgetDetails = campaign?.details as? WidgetDetails
-
-        val trackedEventsData = trackedEventNames.collectAsStateWithLifecycle()
-
-        val shouldShowWidget = remember(campaign, trackedEventsData.value.size) {
-            TriggerEventMatcher.shouldShowCampaign(
-                triggerEvent = campaign?.triggerEvent,
-                campaignId = campaign?.id,
-                trackedEvents = trackedEventsData.value
-            )
-        }
-
-        if (widgetDetails != null && shouldShowWidget) {
-
-            if (widgetDetails.type == "full") {
-
-                FullWidget(
-                    modifier = modifier,
-                    staticWidth = LocalConfiguration.current.screenWidthDp.dp,
-                    placeHolder = placeholder,
-                    contentScale = ContentScale.Crop,
-                    position = position,
-                )
-
-            } else if (widgetDetails.type == "half") {
-                DoubleWidget(
-                    modifier = modifier,
-                    staticWidth = LocalConfiguration.current.screenWidthDp.dp,
-                    position = position,
-                    placeHolder = placeholder,
-                )
             }
         }
     }
@@ -1787,129 +1951,135 @@ object AppStorys {
         placeholderContent: (@Composable () -> Unit)? = null,
         position: String?
     ) {
-        val campaignsData = campaigns.collectAsStateWithLifecycle()
-        val disabledCampaigns = disabledCampaigns.collectAsStateWithLifecycle()
-        val campaign = campaignsData.value
-            .filter { it.campaignType == "WID" && it.details is WidgetDetails && it.position == position }
-            .firstOrNull { (it.details as WidgetDetails).type == "full" }
+        SdkErrorBoundary(campaignType = "WID", screen = currentScreen) {
+            val campaignsData = campaigns.collectAsStateWithLifecycle()
+            val disabledCampaigns = disabledCampaigns.collectAsStateWithLifecycle()
+            val campaign = campaignsData.value
+                .filter { it.campaignType == "WID" && it.details is WidgetDetails && it.position == position }
+                .firstOrNull { (it.details as WidgetDetails).type == "full" }
 
-        val widgetDetails = (campaign?.details as? WidgetDetails)
+            val widgetDetails = (campaign?.details as? WidgetDetails)
 
-        var isVisible by remember { mutableStateOf(false) }
-        val configuration = LocalConfiguration.current
-        val screenWidth = configuration.screenWidthDp.dp
+            var isVisible by remember { mutableStateOf(false) }
+            val configuration = LocalConfiguration.current
+            val screenWidth = configuration.screenWidthDp.dp
 
 
-        if (widgetDetails?.widgetImages != null && widgetDetails.widgetImages.isNotEmpty() && campaign.id != null && !disabledCampaigns.value.contains(
-                campaign.id
-            ) && widgetDetails.type == "full"
-        ) {
-            val sortedWidgetImages = widgetDetails.widgetImages.sortedBy { it.order }
-            val pagerState = rememberPagerState(pageCount = {
-                sortedWidgetImages.count()
-            })
-            val widthInDp: Dp? = widgetDetails.width?.dp
+            if (widgetDetails?.widgetImages != null && widgetDetails.widgetImages.isNotEmpty() && campaign.id != null && !disabledCampaigns.value.contains(
+                    campaign.id
+                ) && widgetDetails.type == "full"
+            ) {
+                val sortedWidgetImages = widgetDetails.widgetImages.sortedBy { it.order }
+                val pagerState = rememberPagerState(pageCount = {
+                    sortedWidgetImages.count()
+                })
+                val widthInDp: Dp? = widgetDetails.width?.dp
 
-            val calculatedHeight =
-                if (widgetDetails.width != null && widgetDetails.height != null) {
-                    val aspectRatio = widgetDetails.height.toFloat() / widgetDetails.width.toFloat()
+                val calculatedHeight =
+                    if (widgetDetails.width != null && widgetDetails.height != null) {
+                        val aspectRatio =
+                            widgetDetails.height.toFloat() / widgetDetails.width.toFloat()
 
-                    val marginLeft = (widgetDetails.styling?.leftMargin ?: 0).dp
-                    val marginRight = (widgetDetails.styling?.rightMargin ?: 0).dp
+                        val marginLeft = (widgetDetails.styling?.leftMargin ?: 0).dp
+                        val marginRight = (widgetDetails.styling?.rightMargin ?: 0).dp
 
-                    val actualWidth = (staticWidth ?: screenWidth) - marginLeft - marginRight
-                    (actualWidth.value.minus(
-                        0
+                        val actualWidth = (staticWidth ?: screenWidth) - marginLeft - marginRight
+                        (actualWidth.value.minus(
+                            0
 //                        32
-                        // for the new widget
+                            // for the new widget
 //                            +26
-                    ) * aspectRatio).dp
-                } else {
-                    widgetDetails.height?.dp
-                }
+                        ) * aspectRatio).dp
+                    } else {
+                        widgetDetails.height?.dp
+                    }
 
-            LaunchedEffect(pagerState.currentPage, isVisible) {
-                if (isVisible) {
-                    campaign?.id?.let {
-                        val currentWidgetId = sortedWidgetImages[pagerState.currentPage].id
+                LaunchedEffect(pagerState.currentPage, isVisible) {
+                    if (isVisible) {
+                        campaign?.id?.let {
+                            val currentWidgetId = sortedWidgetImages[pagerState.currentPage].id
 
-                        if (currentWidgetId != null && !impressions.value.contains(currentWidgetId)) {
-                            val impressions = ArrayList(impressions.value)
-                            impressions.add(currentWidgetId)
-                            this@AppStorys.impressions.emit(impressions)
-                            trackEvents(
-                                it,
-                                "viewed",
-                                mapOf("widget_image" to currentWidgetId)
-                            )
+                            if (currentWidgetId != null && !impressions.value.contains(
+                                    currentWidgetId
+                                )
+                            ) {
+                                val impressions = ArrayList(impressions.value)
+                                impressions.add(currentWidgetId)
+                                this@AppStorys.impressions.emit(impressions)
+                                trackEvents(
+                                    it,
+                                    "viewed",
+                                    mapOf("widget_image" to currentWidgetId)
+                                )
+                            }
                         }
                     }
                 }
-            }
 
-            AutoSlidingCarousel(
-                modifier = modifier
-                    .padding(
-                        top = (widgetDetails.styling?.topMargin ?: 0).dp,
-                        bottom = (widgetDetails.styling?.bottomMargin ?: 0).dp,
-                        start = (widgetDetails.styling?.leftMargin ?: 0).dp,
-                        end = (widgetDetails.styling?.rightMargin ?: 0).dp,
-                    )
-                    .onGloballyPositioned { layoutCoordinates ->
-                        val visibilityRect = layoutCoordinates.boundsInWindow()
-                        val parentHeight =
-                            layoutCoordinates.parentLayoutCoordinates?.size?.height ?: 0
-                        val widgetHeight = layoutCoordinates.size.height
-                        val isAtLeastHalfVisible = visibilityRect.top < parentHeight &&
-                                visibilityRect.bottom > 0 &&
-                                (visibilityRect.height >= widgetHeight * 0.5f)
-
-                        isVisible = isAtLeastHalfVisible
-                    },
-                widgetDetails = widgetDetails,
-                pagerState = pagerState,
-                itemsCount = sortedWidgetImages.count(),
-                width = staticWidth,
-                itemContent = { index ->
-
-                    sortedWidgetImages[index].takeIf {
-                        it.image != null || it.lottie_data != null
-                    }?.let {
-
-                        CarousalImage(
-                            modifier = modifier.clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                            ) {
-                                if (sortedWidgetImages[index].link.toString().trim()
-                                        .removeSurrounding("\"").isNotEmpty()
-                                ) {
-                                    clickEvent(
-                                        link = sortedWidgetImages[index].link.toString().trim()
-                                            .removeSurrounding("\""),
-                                        campaignId = campaign.id,
-                                        widgetImageId = sortedWidgetImages[index].id
-                                    )
-
-                                    trackEvents(
-                                        campaign.id,
-                                        "clicked",
-                                        mapOf("widget_image" to sortedWidgetImages[index].id!!)
-                                    )
-                                }
-                            },
-                            contentScale = contentScale,
-                            imageUrl = sortedWidgetImages[index].image ?: "",
-                            lottieUrl = sortedWidgetImages[index].lottie_data ?: "",
-                            placeHolder = placeHolder,
-                            height = calculatedHeight,
-                            width = widthInDp ?: staticWidth,
-                            placeholderContent = placeholderContent
+                AutoSlidingCarousel(
+                    modifier = modifier
+                        .padding(
+                            top = (widgetDetails.styling?.topMargin ?: 0).dp,
+                            bottom = (widgetDetails.styling?.bottomMargin ?: 0).dp,
+                            start = (widgetDetails.styling?.leftMargin ?: 0).dp,
+                            end = (widgetDetails.styling?.rightMargin ?: 0).dp,
                         )
-                    }
-                }
-            )
+                        .onGloballyPositioned { layoutCoordinates ->
+                            val visibilityRect = layoutCoordinates.boundsInWindow()
+                            val parentHeight =
+                                layoutCoordinates.parentLayoutCoordinates?.size?.height ?: 0
+                            val widgetHeight = layoutCoordinates.size.height
+                            val isAtLeastHalfVisible = visibilityRect.top < parentHeight &&
+                                    visibilityRect.bottom > 0 &&
+                                    (visibilityRect.height >= widgetHeight * 0.5f)
 
+                            isVisible = isAtLeastHalfVisible
+                        },
+                    widgetDetails = widgetDetails,
+                    pagerState = pagerState,
+                    itemsCount = sortedWidgetImages.count(),
+                    width = staticWidth,
+                    itemContent = { index ->
+
+                        sortedWidgetImages[index].takeIf {
+                            it.image != null || it.lottie_data != null
+                        }?.let {
+
+                            CarousalImage(
+                                modifier = modifier.clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                ) {
+                                    if (sortedWidgetImages[index].link.toString().trim()
+                                            .removeSurrounding("\"").isNotEmpty()
+                                    ) {
+                                        clickEvent(
+                                            link = sortedWidgetImages[index].link.toString().trim()
+                                                .removeSurrounding("\""),
+                                            campaignId = campaign.id,
+                                            widgetImageId = sortedWidgetImages[index].id
+                                        )
+
+                                        trackEvents(
+                                            campaign.id,
+                                            "clicked",
+                                            mapOf("widget_image" to sortedWidgetImages[index].id!!)
+                                        )
+                                    }
+                                },
+                                contentScale = contentScale,
+                                imageUrl = sortedWidgetImages[index].image ?: "",
+                                lottieUrl = sortedWidgetImages[index].lottie_data ?: "",
+                                placeHolder = placeHolder,
+                                height = calculatedHeight,
+                                width = widthInDp ?: staticWidth,
+                                placeholderContent = placeholderContent
+                            )
+                        }
+                    }
+                )
+
+            }
         }
     }
 
@@ -1922,569 +2092,439 @@ object AppStorys {
         placeHolder: Drawable?,
         placeholderContent: (@Composable () -> Unit)? = null,
     ) {
-        val campaignsData = campaigns.collectAsStateWithLifecycle()
-        val disabledCampaigns = disabledCampaigns.collectAsStateWithLifecycle()
+        SdkErrorBoundary(campaignType = "WID", screen = currentScreen) {
+            val campaignsData = campaigns.collectAsStateWithLifecycle()
+            val disabledCampaigns = disabledCampaigns.collectAsStateWithLifecycle()
 
-        val campaign = campaignsData.value
-            .filter { it.campaignType == "WID" && it.details is WidgetDetails && it.position == position }
-            .firstOrNull { (it.details as WidgetDetails).type == "half" }
+            val campaign = campaignsData.value
+                .filter { it.campaignType == "WID" && it.details is WidgetDetails && it.position == position }
+                .firstOrNull { (it.details as WidgetDetails).type == "half" }
 
-        val widgetDetails = (campaign?.details as? WidgetDetails)
+            val widgetDetails = (campaign?.details as? WidgetDetails)
 
-        var isVisible by remember { mutableStateOf(false) }
-        val configuration = LocalConfiguration.current
-        val screenWidth = configuration.screenWidthDp.dp
+            var isVisible by remember { mutableStateOf(false) }
+            val configuration = LocalConfiguration.current
+            val screenWidth = configuration.screenWidthDp.dp
 
-        if (widgetDetails != null && campaign.id != null &&
-            !disabledCampaigns.value.contains(campaign.id) && widgetDetails.widgetImages != null && widgetDetails.type == "half"
-        ) {
-            val widthInDp: Dp? = widgetDetails.width?.dp
+            if (widgetDetails != null && campaign.id != null &&
+                !disabledCampaigns.value.contains(campaign.id) && widgetDetails.widgetImages != null && widgetDetails.type == "half"
+            ) {
+                val widthInDp: Dp? = widgetDetails.width?.dp
 
-            val calculatedHeight =
-                if (widgetDetails.width != null && widgetDetails.height != null) {
-                    val aspectRatio = widgetDetails.height.toFloat() / widgetDetails.width.toFloat()
+                val calculatedHeight =
+                    if (widgetDetails.width != null && widgetDetails.height != null) {
+                        val aspectRatio =
+                            widgetDetails.height.toFloat() / widgetDetails.width.toFloat()
 
-                    val marginLeft = (widgetDetails.styling?.leftMargin ?: 0).dp
-                    val marginRight = (widgetDetails.styling?.rightMargin ?: 0).dp
+                        val marginLeft = (widgetDetails.styling?.leftMargin ?: 0).dp
+                        val marginRight = (widgetDetails.styling?.rightMargin ?: 0).dp
 
-                    val horizontalMargin = marginLeft + marginRight
+                        val horizontalMargin = marginLeft + marginRight
 
-                    val actualWidth = (staticWidth ?: screenWidth) - horizontalMargin
-                    ((actualWidth.value.minus(12) * aspectRatio).div(2)).dp
-                } else {
-                    (widgetDetails.height?.minus(12))?.div(2)?.dp
-                }
+                        val actualWidth = (staticWidth ?: screenWidth) - horizontalMargin
+                        ((actualWidth.value.minus(12) * aspectRatio).div(2)).dp
+                    } else {
+                        (widgetDetails.height?.minus(12))?.div(2)?.dp
+                    }
 
-            val widgetImagesPairs = widgetDetails.widgetImages.turnToPair()
-            val pagerState = rememberPagerState(pageCount = {
-                widgetImagesPairs.count()
-            })
+                val widgetImagesPairs = widgetDetails.widgetImages.turnToPair()
+                val pagerState = rememberPagerState(pageCount = {
+                    widgetImagesPairs.count()
+                })
 
-            LaunchedEffect(pagerState.currentPage, isVisible) {
-                if (isVisible) {
-                    campaign?.id?.let {
+                LaunchedEffect(pagerState.currentPage, isVisible) {
+                    if (isVisible) {
+                        campaign?.id?.let {
 
-                        if (widgetImagesPairs[pagerState.currentPage].first.id != null && !impressions.value.contains(
-                                widgetImagesPairs[pagerState.currentPage].first.id
-                            )
-                        ) {
-                            val impressions = ArrayList(impressions.value)
-                            impressions.add(widgetImagesPairs[pagerState.currentPage].first.id)
-                            this@AppStorys.impressions.emit(impressions)
-                            trackEvents(
-                                it,
-                                "viewed",
-                                mapOf("widget_image" to widgetImagesPairs[pagerState.currentPage].first.id!!)
-                            )
+                            if (widgetImagesPairs[pagerState.currentPage].first.id != null && !impressions.value.contains(
+                                    widgetImagesPairs[pagerState.currentPage].first.id
+                                )
+                            ) {
+                                val impressions = ArrayList(impressions.value)
+                                impressions.add(widgetImagesPairs[pagerState.currentPage].first.id)
+                                this@AppStorys.impressions.emit(impressions)
+                                trackEvents(
+                                    it,
+                                    "viewed",
+                                    mapOf("widget_image" to widgetImagesPairs[pagerState.currentPage].first.id!!)
+                                )
 
-                        }
+                            }
 
-                        if (widgetImagesPairs[pagerState.currentPage].second.id != null && !impressions.value.contains(
-                                widgetImagesPairs[pagerState.currentPage].second.id
-                            )
-                        ) {
-                            val impressions = ArrayList(impressions.value)
-                            impressions.add(widgetImagesPairs[pagerState.currentPage].second.id)
-                            this@AppStorys.impressions.emit(impressions)
-                            trackEvents(
-                                it,
-                                "viewed",
-                                mapOf("widget_image" to widgetImagesPairs[pagerState.currentPage].second.id!!)
-                            )
+                            if (widgetImagesPairs[pagerState.currentPage].second.id != null && !impressions.value.contains(
+                                    widgetImagesPairs[pagerState.currentPage].second.id
+                                )
+                            ) {
+                                val impressions = ArrayList(impressions.value)
+                                impressions.add(widgetImagesPairs[pagerState.currentPage].second.id)
+                                this@AppStorys.impressions.emit(impressions)
+                                trackEvents(
+                                    it,
+                                    "viewed",
+                                    mapOf("widget_image" to widgetImagesPairs[pagerState.currentPage].second.id!!)
+                                )
 
+                            }
                         }
                     }
                 }
+
+                DoubleWidgets(
+                    modifier = modifier
+                        .padding(
+                            top = (widgetDetails.styling?.topMargin ?: 0).dp,
+                            bottom = (widgetDetails.styling?.bottomMargin ?: 0).dp,
+                            start = (widgetDetails.styling?.leftMargin ?: 0).dp,
+                            end = (widgetDetails.styling?.rightMargin ?: 0).dp,
+                        )
+                        .onGloballyPositioned { layoutCoordinates ->
+                            val visibilityRect = layoutCoordinates.boundsInWindow()
+                            val parentHeight =
+                                layoutCoordinates.parentLayoutCoordinates?.size?.height ?: 0
+                            val widgetHeight = layoutCoordinates.size.height
+                            val isAtLeastHalfVisible = visibilityRect.top < parentHeight &&
+                                    visibilityRect.bottom > 0 &&
+                                    (visibilityRect.height >= widgetHeight * 0.5f)
+
+                            isVisible = isAtLeastHalfVisible
+                        },
+                    pagerState = pagerState,
+                    itemsCount = widgetImagesPairs.count(),
+                    width = widthInDp ?: staticWidth,
+                    itemContent = { index ->
+                        val (leftImage, rightImage) = widgetImagesPairs[index]
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            if (leftImage.image != null || leftImage.lottie_data != null) {
+                                ImageCard(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable(
+                                            interactionSource = remember { MutableInteractionSource() },
+                                            indication = null,
+                                        ) {
+                                            if (leftImage.link.toString().trim()
+                                                    .removeSurrounding("\"").isNotEmpty()
+                                            ) {
+                                                clickEvent(
+                                                    link = leftImage.link.toString().trim()
+                                                        .removeSurrounding("\""),
+                                                    campaignId = campaign.id,
+                                                    widgetImageId = leftImage.id
+                                                )
+
+                                                trackEvents(
+                                                    campaign.id,
+                                                    "clicked",
+                                                    mapOf("widget_image" to leftImage.id!!)
+                                                )
+                                            }
+
+                                        },
+                                    imageUrl = leftImage.image ?: "",
+                                    lottieUrl = leftImage.lottie_data ?: "",
+                                    widgetDetails = widgetDetails,
+                                    height = calculatedHeight,
+                                    placeHolder = placeHolder,
+                                    placeholderContent = placeholderContent
+                                )
+                            }
+                            if (rightImage.image != null || rightImage.lottie_data != null) {
+                                ImageCard(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable(
+                                            interactionSource = remember { MutableInteractionSource() },
+                                            indication = null,
+                                        ) {
+                                            if (rightImage.link.toString().trim()
+                                                    .removeSurrounding("\"").isNotEmpty()
+                                            ) {
+                                                clickEvent(
+                                                    link = rightImage.link.toString().trim()
+                                                        .removeSurrounding("\""),
+                                                    campaignId = campaign.id,
+                                                    widgetImageId = rightImage.id
+                                                )
+
+                                                trackEvents(
+                                                    campaign.id,
+                                                    "clicked",
+                                                    mapOf("widget_image" to rightImage.id!!)
+                                                )
+                                            }
+                                        },
+                                    imageUrl = rightImage.image ?: "",
+                                    lottieUrl = rightImage.lottie_data ?: "",
+                                    widgetDetails = widgetDetails,
+                                    height = calculatedHeight,
+                                    placeHolder = placeHolder,
+                                    placeholderContent = placeholderContent
+                                )
+                            }
+                        }
+                    }
+                )
             }
-
-            DoubleWidgets(
-                modifier = modifier
-                    .padding(
-                        top = (widgetDetails.styling?.topMargin ?: 0).dp,
-                        bottom = (widgetDetails.styling?.bottomMargin ?: 0).dp,
-                        start = (widgetDetails.styling?.leftMargin ?: 0).dp,
-                        end = (widgetDetails.styling?.rightMargin ?: 0).dp,
-                    )
-                    .onGloballyPositioned { layoutCoordinates ->
-                        val visibilityRect = layoutCoordinates.boundsInWindow()
-                        val parentHeight =
-                            layoutCoordinates.parentLayoutCoordinates?.size?.height ?: 0
-                        val widgetHeight = layoutCoordinates.size.height
-                        val isAtLeastHalfVisible = visibilityRect.top < parentHeight &&
-                                visibilityRect.bottom > 0 &&
-                                (visibilityRect.height >= widgetHeight * 0.5f)
-
-                        isVisible = isAtLeastHalfVisible
-                    },
-                pagerState = pagerState,
-                itemsCount = widgetImagesPairs.count(),
-                width = widthInDp ?: staticWidth,
-                itemContent = { index ->
-                    val (leftImage, rightImage) = widgetImagesPairs[index]
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        if (leftImage.image != null || leftImage.lottie_data != null) {
-                            ImageCard(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clickable(
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication = null,
-                                    ) {
-                                        if (leftImage.link.toString().trim()
-                                                .removeSurrounding("\"").isNotEmpty()
-                                        ) {
-                                            clickEvent(
-                                                link = leftImage.link.toString().trim()
-                                                    .removeSurrounding("\""),
-                                                campaignId = campaign.id,
-                                                widgetImageId = leftImage.id
-                                            )
-
-                                            trackEvents(
-                                                campaign.id,
-                                                "clicked",
-                                                mapOf("widget_image" to leftImage.id!!)
-                                            )
-                                        }
-
-                                    },
-                                imageUrl = leftImage.image ?: "",
-                                lottieUrl = leftImage.lottie_data ?: "",
-                                widgetDetails = widgetDetails,
-                                height = calculatedHeight,
-                                placeHolder = placeHolder,
-                                placeholderContent = placeholderContent
-                            )
-                        }
-                        if (rightImage.image != null || rightImage.lottie_data != null) {
-                            ImageCard(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clickable(
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication = null,
-                                    ) {
-                                        if (rightImage.link.toString().trim()
-                                                .removeSurrounding("\"").isNotEmpty()
-                                        ) {
-                                            clickEvent(
-                                                link = rightImage.link.toString().trim()
-                                                    .removeSurrounding("\""),
-                                                campaignId = campaign.id,
-                                                widgetImageId = rightImage.id
-                                            )
-
-                                            trackEvents(
-                                                campaign.id,
-                                                "clicked",
-                                                mapOf("widget_image" to rightImage.id!!)
-                                            )
-                                        }
-                                    },
-                                imageUrl = rightImage.image ?: "",
-                                lottieUrl = rightImage.lottie_data ?: "",
-                                widgetDetails = widgetDetails,
-                                height = calculatedHeight,
-                                placeHolder = placeHolder,
-                                placeholderContent = placeholderContent
-                            )
-                        }
-                    }
-                }
-            )
         }
     }
 
     @Composable
     fun BottomSheet() {
+        SdkErrorBoundary(campaignType = "BTS", screen = currentScreen) {
 
-        val campaignsData = campaigns.collectAsStateWithLifecycle()
+            val campaignsData = campaigns.collectAsStateWithLifecycle()
 
-        val campaign =
-            campaignsData.value.firstOrNull { it.campaignType == "BTS" && it.details is BottomSheetDetails }
+            val campaign =
+                campaignsData.value.firstOrNull { it.campaignType == "BTS" && it.details is BottomSheetDetails }
 
-        val bottomSheetDetails = when (val details = campaign?.details) {
-            is BottomSheetDetails -> details
-            else -> null
-        }
-
-        val trackedEventsData = trackedEventNames.collectAsStateWithLifecycle()
-
-        val shouldShowBottomSheet = remember(campaign, trackedEventsData.value.size) {
-            TriggerEventMatcher.shouldShowCampaign(
-                triggerEvent = campaign?.triggerEvent,
-                campaignId = campaign?.id,
-                trackedEvents = trackedEventsData.value
-            )
-        }
-
-        val showBottomSheet by _showBottomSheet.collectAsStateWithLifecycle()
-
-        if (bottomSheetDetails != null && showBottomSheet && shouldShowBottomSheet) {
-
-            LaunchedEffect(Unit) {
-                campaign?.id?.let {
-                    trackEvents(it, "viewed")
-                }
+            val bottomSheetDetails = when (val details = campaign?.details) {
+                is BottomSheetDetails -> details
+                else -> null
             }
 
-            BottomSheetComponent(
-                onDismissRequest = {
-                    _showBottomSheet.update { false }
-                    campaign?.triggerEvent?.let { trigger ->
-                        val eventName = when (trigger) {
-                            is TriggerEvent.StringTrigger -> trigger.event
-                            is TriggerEvent.ObjectTrigger -> trigger.event
-                        }
-                        _trackedEventNames.update { currentSet ->
-                            currentSet.filterNot {
-                                it.eventName == eventName
-                            }.toSet()
-                        }
+            val trackedEventsData = trackedEventNames.collectAsStateWithLifecycle()
+
+            val shouldShowBottomSheet = remember(campaign, trackedEventsData.value.size) {
+                TriggerEventMatcher.shouldShowCampaign(
+                    triggerEvent = campaign?.triggerEvent,
+                    campaignId = campaign?.id,
+                    trackedEvents = trackedEventsData.value
+                )
+            }
+
+            val showBottomSheet by _showBottomSheet.collectAsStateWithLifecycle()
+
+            if (bottomSheetDetails != null && showBottomSheet && shouldShowBottomSheet) {
+
+                LaunchedEffect(Unit) {
+                    campaign?.id?.let {
+                        trackEvents(it, "viewed")
                     }
-                },
-                bottomSheetDetails = bottomSheetDetails,
-                onClick = { ctaLink ->
-                    if (!ctaLink.isNullOrEmpty()) {
-                        campaign?.id?.let { campaignId ->
-                            clickEvent(link = ctaLink, campaignId = campaignId)
-                            trackEvents(campaignId, "clicked")
+                }
+
+                BottomSheetComponent(
+                    onDismissRequest = {
+                        _showBottomSheet.update { false }
+                        campaign?.triggerEvent?.let { trigger ->
+                            val eventName = when (trigger) {
+                                is TriggerEvent.StringTrigger -> trigger.event
+                                is TriggerEvent.ObjectTrigger -> trigger.event
+                            }
+                            _trackedEventNames.update { currentSet ->
+                                currentSet.filterNot {
+                                    it.eventName == eventName
+                                }.toSet()
+                            }
                         }
-                    }
-                },
-            )
+                    },
+                    bottomSheetDetails = bottomSheetDetails,
+                    onClick = { ctaLink ->
+                        if (!ctaLink.isNullOrEmpty()) {
+                            campaign?.id?.let { campaignId ->
+                                clickEvent(link = ctaLink, campaignId = campaignId)
+                                trackEvents(campaignId, "clicked")
+                            }
+                        }
+                    },
+                )
+            }
         }
     }
 
     @Composable
     fun Survey() {
-        var showSurvey by remember { mutableStateOf(true) }
+        SdkErrorBoundary(campaignType = "SUR", screen = currentScreen) {
+            var showSurvey by remember { mutableStateOf(true) }
 
-        val campaignsData = campaigns.collectAsStateWithLifecycle()
+            val campaignsData = campaigns.collectAsStateWithLifecycle()
 
-        val campaign =
-            campaignsData.value.firstOrNull { it.campaignType == "SUR" && it.details is SurveyDetails }
+            val campaign =
+                campaignsData.value.firstOrNull { it.campaignType == "SUR" && it.details is SurveyDetails }
 
-        val surveyDetails = when (val details = campaign?.details) {
-            is SurveyDetails -> details
-            else -> null
-        }
+            val surveyDetails = when (val details = campaign?.details) {
+                is SurveyDetails -> details
+                else -> null
+            }
 
-        val trackedEventsData = trackedEventNames.collectAsStateWithLifecycle()
+            val trackedEventsData = trackedEventNames.collectAsStateWithLifecycle()
 
-        val shouldShowSurvey = remember(campaign, trackedEventsData.value.size) {
-            TriggerEventMatcher.shouldShowCampaign(
-                triggerEvent = campaign?.triggerEvent,
-                campaignId = campaign?.id,
-                trackedEvents = trackedEventsData.value
-            )
-        }
+            val shouldShowSurvey = remember(campaign, trackedEventsData.value.size) {
+                TriggerEventMatcher.shouldShowCampaign(
+                    triggerEvent = campaign?.triggerEvent,
+                    campaignId = campaign?.id,
+                    trackedEvents = trackedEventsData.value
+                )
+            }
 
-        if (surveyDetails != null && showSurvey && shouldShowSurvey) {
-            SurveyBottomSheet(
-                onDismissRequest = {
-                    showSurvey = false
-                },
-                surveyDetails = surveyDetails,
-                campaignId = campaign?.id,
-                onTrackEvent = { campId, event, metadata ->
-                    trackEvents(
-                        campaign_id = campId,
-                        event = event,
-                        metadata = metadata
-                    )
-                }
-            )
+            if (surveyDetails != null && showSurvey && shouldShowSurvey) {
+                SurveyBottomSheet(
+                    onDismissRequest = {
+                        showSurvey = false
+                    },
+                    surveyDetails = surveyDetails,
+                    campaignId = campaign?.id,
+                    onTrackEvent = { campId, event, metadata ->
+                        trackEvents(
+                            campaign_id = campId,
+                            event = event,
+                            metadata = metadata
+                        )
+                    }
+                )
+            }
         }
     }
 
     @Composable
     fun Modals() {
-        val campaignsData = campaigns.collectAsStateWithLifecycle()
+        SdkErrorBoundary(campaignType = "MOD", screen = currentScreen) {
+            val campaignsData = campaigns.collectAsStateWithLifecycle()
 
-        val campaign =
-            campaignsData.value.firstOrNull { it.campaignType == "MOD" && it.details is ModalDetails }
+            val campaign =
+                campaignsData.value.firstOrNull { it.campaignType == "MOD" && it.details is ModalDetails }
 
-        val modalDetails = when (val details = campaign?.details) {
-            is ModalDetails -> details
-            else -> null
-        }
-
-        val trackedEventsData = trackedEventNames.collectAsStateWithLifecycle()
-
-        val shouldShowModals = remember(campaign, trackedEventsData.value.size) {
-            TriggerEventMatcher.shouldShowCampaign(
-                triggerEvent = campaign?.triggerEvent,
-                campaignId = campaign?.id,
-                trackedEvents = trackedEventsData.value
-            )
-        }
-
-        val showModal by _showModal.collectAsStateWithLifecycle()
-
-        if (modalDetails != null && showModal && shouldShowModals) {
-
-            LaunchedEffect(Unit) {
-                campaign?.id?.let {
-                    trackEvents(it, "viewed")
-                }
+            val modalDetails = when (val details = campaign?.details) {
+                is ModalDetails -> details
+                else -> null
             }
 
-            PopupModal(
-                onCloseClick = {
-                    _showModal.update { false }
-                },
-                modalDetails = modalDetails,
-                onModalClick = {
-                    val modal = modalDetails.modals?.getOrNull(0)
+            val trackedEventsData = trackedEventNames.collectAsStateWithLifecycle()
 
-                    val link =
-                        modal?.content?.primaryCtaRedirection?.url
-                            ?: modal?.content?.primaryCtaRedirection?.value
-                            ?: modal?.redirection?.url
-                            ?: modal?.redirection?.value
+            val shouldShowModals = remember(campaign, trackedEventsData.value.size) {
+                TriggerEventMatcher.shouldShowCampaign(
+                    triggerEvent = campaign?.triggerEvent,
+                    campaignId = campaign?.id,
+                    trackedEvents = trackedEventsData.value
+                )
+            }
 
-                    campaign?.id?.let { campaignId ->
-                        trackEvents(campaignId, "clicked")
-                        clickEvent(link = link, campaignId = campaignId)
+            val showModal by _showModal.collectAsStateWithLifecycle()
+
+            if (modalDetails != null && showModal && shouldShowModals) {
+
+                LaunchedEffect(Unit) {
+                    campaign?.id?.let {
+                        trackEvents(it, "viewed")
                     }
-                },
+                }
 
-
-                onPrimaryCta = { link ->
-                    // primary CTA receives resolved URL string
-                    campaign?.id?.let { campaignId ->
-                        trackEvents(campaignId, "clicked")
-                        clickEvent(link = link, campaignId = campaignId)
-                    }
-                },
-                onSecondaryCta = { link ->
-                    campaign?.id?.let { campaignId ->
-                        trackEvents(campaignId, "clicked")
-                        clickEvent(link = link, campaignId = campaignId)
+                PopupModal(
+                    onCloseClick = {
                         _showModal.update { false }
-                    }
-                },
-            )
+                    },
+                    modalDetails = modalDetails,
+                    onModalClick = {
+                        val modal = modalDetails.modals?.getOrNull(0)
+
+                        val link =
+                            modal?.content?.primaryCtaRedirection?.url
+                                ?: modal?.content?.primaryCtaRedirection?.value
+                                ?: modal?.redirection?.url
+                                ?: modal?.redirection?.value
+
+                        campaign?.id?.let { campaignId ->
+                            trackEvents(campaignId, "clicked")
+                            clickEvent(link = link, campaignId = campaignId)
+                        }
+                    },
+
+
+                    onPrimaryCta = { link ->
+                        // primary CTA receives resolved URL string
+                        campaign?.id?.let { campaignId ->
+                            trackEvents(campaignId, "clicked")
+                            clickEvent(link = link, campaignId = campaignId)
+                        }
+                    },
+                    onSecondaryCta = { link ->
+                        campaign?.id?.let { campaignId ->
+                            trackEvents(campaignId, "clicked")
+                            clickEvent(link = link, campaignId = campaignId)
+                            _showModal.update { false }
+                        }
+                    },
+                )
+            }
         }
     }
 
     @RequiresApi(Build.VERSION_CODES.M)
     @Composable
     fun ScratchCard() {
+        SdkErrorBoundary(campaignType = "SCRT", screen = currentScreen) {
 
-        var confettiTrigger by remember { mutableStateOf(0) }
-        val campaignsData = campaigns.collectAsStateWithLifecycle()
+            var confettiTrigger by remember { mutableStateOf(0) }
+            val campaignsData = campaigns.collectAsStateWithLifecycle()
 
-        val scratchedCampaignsData = scratchedCampaigns.collectAsStateWithLifecycle()
+            val scratchedCampaignsData = scratchedCampaigns.collectAsStateWithLifecycle()
 
-        val campaign =
-            campaignsData.value.firstOrNull { it.campaignType == "SCRT" && it.details is ScratchCardDetails }
+            val campaign =
+                campaignsData.value.firstOrNull { it.campaignType == "SCRT" && it.details is ScratchCardDetails }
 
-        val scratchCardDetails = when (val details = campaign?.details) {
-            is ScratchCardDetails -> details
-            else -> null
-        }
-
-        val trackedEventsData = trackedEventNames.collectAsStateWithLifecycle()
-
-        val shouldShowScratchCard = remember(campaign, trackedEventsData.value.size) {
-            TriggerEventMatcher.shouldShowCampaign(
-                triggerEvent = campaign?.triggerEvent,
-                campaignId = campaign?.id,
-                trackedEvents = trackedEventsData.value
-            )
-        }
-
-        val isAlreadyScratched = campaign?.id?.let {
-            scratchedCampaignsData.value.contains(it)
-        } ?: false
-
-        var wasFullyScratched by remember(campaign?.id, isAlreadyScratched) {
-            mutableStateOf(isAlreadyScratched)
-        }
-
-        var isPresented by remember(campaign?.id) { mutableStateOf(true) }
-
-        LaunchedEffect(shouldShowScratchCard) {
-            if (shouldShowScratchCard && !isPresented) {
-                isPresented = true
-            }
-        }
-
-        if (scratchCardDetails != null && shouldShowScratchCard && isPresented) {
-
-            LaunchedEffect(Unit) {
-                campaign?.id?.let {
-                    trackEvents(it, "viewed")
-                }
+            val scratchCardDetails = when (val details = campaign?.details) {
+                is ScratchCardDetails -> details
+                else -> null
             }
 
-            LaunchedEffect(wasFullyScratched) {
-                if (wasFullyScratched && campaign?.id != null && !isAlreadyScratched) {
-                    trackEvents(campaign.id, "scratched")
+            val trackedEventsData = trackedEventNames.collectAsStateWithLifecycle()
 
-                    val currentScratchedCampaigns = ArrayList(scratchedCampaigns.value)
-                    currentScratchedCampaigns.add(campaign.id)
-                    scratchedCampaigns.emit(currentScratchedCampaigns.distinct())
-
-                    saveScratchedCampaigns(
-                        campaignIds = currentScratchedCampaigns.distinct(),
-                        sharedPreferences = context.getSharedPreferences(
-                            "AppStory",
-                            Context.MODE_PRIVATE
-                        )
-                    )
-                }
-            }
-
-            val ctaUrl = scratchCardDetails.link ?: ""
-
-            CardScratch(
-                isPresented = isPresented,
-                onDismiss = {
-                    isPresented = false
-                    campaign?.triggerEvent?.let { trigger ->
-                        val eventName = when (trigger) {
-                            is TriggerEvent.StringTrigger -> trigger.event
-                            is TriggerEvent.ObjectTrigger -> trigger.event
-                        }
-                        _trackedEventNames.update { currentSet ->
-                            currentSet.filterNot {
-                                it.eventName == eventName
-                            }.toSet()
-                        }
-                    }
-                },
-                onConfettiTrigger = {
-                    confettiTrigger++
-                },
-                wasFullyScratched = wasFullyScratched,
-                onWasFullyScratched = { wasFullyScratched = it },
-
-                crossButtonConfig = run {
-
-                    val crossObj = scratchCardDetails.content
-                        ?.get("crossButton")
-                        ?.takeIf { it !is kotlinx.serialization.json.JsonNull }
-                        ?.jsonObject
-
-                    val colors = crossObj
-                        ?.get("color")
-                        ?.takeIf { it !is kotlinx.serialization.json.JsonNull }
-                        ?.jsonObject
-
-                    val margin = crossObj
-                        ?.get("margin")
-                        ?.takeIf { it !is kotlinx.serialization.json.JsonNull }
-                        ?.jsonObject
-
-                    createCrossButtonConfig(
-                        fillColorString = colors?.get("fill")?.jsonPrimitive?.contentOrNull,
-                        crossColorString = colors?.get("cross")?.jsonPrimitive?.contentOrNull,
-                        strokeColorString = colors?.get("stroke")?.jsonPrimitive?.contentOrNull,
-                        marginTop = margin?.get("top")?.jsonPrimitive?.intOrNull,
-                        marginEnd = margin?.get("right")?.jsonPrimitive?.intOrNull,
-                        size = crossObj?.get("size")?.jsonPrimitive?.intOrNull,
-                        imageUrl = crossObj?.get("image")?.jsonPrimitive?.contentOrNull
-                    )
-                },
-                crossButtonMarginBottom = run {
-                    val crossObj = scratchCardDetails.content
-                        ?.get("crossButton")
-                        ?.takeIf { it !is kotlinx.serialization.json.JsonNull }
-                        ?.jsonObject
-                    val margin = crossObj
-                        ?.get("margin")
-                        ?.takeIf { it !is kotlinx.serialization.json.JsonNull }
-                        ?.jsonObject
-                    margin?.get("bottom")?.jsonPrimitive?.intOrNull?.dp ?: 0.dp
-                },
-                crossButtonAlignment = run {
-                    val crossObj = scratchCardDetails.content
-                        ?.get("crossButton")
-                        ?.takeIf { it !is kotlinx.serialization.json.JsonNull }
-                        ?.jsonObject
-                    crossObj?.get("alignment")?.jsonPrimitive?.contentOrNull ?: "center"
-                },
-                scratchCardDetails = scratchCardDetails,
-                onCtaClick = {
-                    campaign?.id?.let {
-                        clickEvent(link = ctaUrl, campaignId = it)
-                        trackEvents(it, "clicked")
-                    }
-                }
-            )
-        }
-    }
-
-    @RequiresApi(Build.VERSION_CODES.M)
-    @Composable
-    fun SpinTheWheel() {
-        val campaignsData = campaigns.collectAsStateWithLifecycle()
-
-        val campaign = campaignsData.value.firstOrNull {
-            it.campaignType == "STW" && it.details is SpinTheWheelDetails
-        }
-
-        val spinTheWheelDetails = when (val details = campaign?.details) {
-            is SpinTheWheelDetails -> details
-            else -> null
-        }
-
-        val trackedEventsData = trackedEventNames.collectAsStateWithLifecycle()
-
-        val shouldShowSpinWheel = remember(campaign, trackedEventsData.value.size) {
-            TriggerEventMatcher.shouldShowCampaign(
-                triggerEvent = campaign?.triggerEvent,
-                campaignId = campaign?.id,
-                trackedEvents = trackedEventsData.value
-            )
-        }
-
-        var isPresented by remember(campaign?.id) { mutableStateOf(true) }
-
-        LaunchedEffect(shouldShowSpinWheel) {
-            if (shouldShowSpinWheel && !isPresented) {
-                isPresented = true
-            }
-        }
-
-        // ── Spin count: hoist here so it survives recomposition and screen navigation ──
-        val campaignId = campaign?.id
-        if (spinTheWheelDetails != null && campaignId != null) {
-            val spinCountMap by _spinCountByCampaign.collectAsStateWithLifecycle()
-            val initialSpins = spinTheWheelDetails.availableSpins
-                ?: spinTheWheelDetails.content?.userInteraction?.numberSpin
-                ?: 3
-
-            // Seed in-memory map on first encounter (also covers post-restart restore)
-            if (!spinCountMap.containsKey(campaignId)) {
-                val persisted = getSpinCount(
-                    campaignId = campaignId,
-                    sharedPreferences = context.getSharedPreferences(
-                        "appstorys_spin_counts",
-                        Context.MODE_PRIVATE
-                    )
+            val shouldShowScratchCard = remember(campaign, trackedEventsData.value.size) {
+                TriggerEventMatcher.shouldShowCampaign(
+                    triggerEvent = campaign?.triggerEvent,
+                    campaignId = campaign?.id,
+                    trackedEvents = trackedEventsData.value
                 )
-                _spinCountByCampaign.update { it + (campaignId to (persisted ?: initialSpins)) }
             }
 
-            val spinsLeft = spinCountMap[campaignId] ?: initialSpins
+            val isAlreadyScratched = campaign?.id?.let {
+                scratchedCampaignsData.value.contains(it)
+            } ?: false
 
-            if (shouldShowSpinWheel && isPresented) {
+            var wasFullyScratched by remember(campaign?.id, isAlreadyScratched) {
+                mutableStateOf(isAlreadyScratched)
+            }
+
+            var isPresented by remember(campaign?.id) { mutableStateOf(true) }
+
+            LaunchedEffect(shouldShowScratchCard) {
+                if (shouldShowScratchCard && !isPresented) {
+                    isPresented = true
+                }
+            }
+
+            if (scratchCardDetails != null && shouldShowScratchCard && isPresented) {
 
                 LaunchedEffect(Unit) {
-                    trackEvents(campaignId, "viewed")
+                    campaign?.id?.let {
+                        trackEvents(it, "viewed")
+                    }
                 }
 
-                val redirectUrl = spinTheWheelDetails.link ?: ""
+                LaunchedEffect(wasFullyScratched) {
+                    if (wasFullyScratched && campaign?.id != null && !isAlreadyScratched) {
+                        trackEvents(campaign.id, "scratched")
 
-                com.appversal.appstorys.ui.spinwheel.SpinTheWheel(
+                        val currentScratchedCampaigns = ArrayList(scratchedCampaigns.value)
+                        currentScratchedCampaigns.add(campaign.id)
+                        scratchedCampaigns.emit(currentScratchedCampaigns.distinct())
+
+                        saveScratchedCampaigns(
+                            campaignIds = currentScratchedCampaigns.distinct(),
+                            sharedPreferences = context.getSharedPreferences(
+                                "AppStory",
+                                Context.MODE_PRIVATE
+                            )
+                        )
+                    }
+                }
+
+                val ctaUrl = scratchCardDetails.link ?: ""
+
+                CardScratch(
                     isPresented = isPresented,
                     onDismiss = {
                         isPresented = false
@@ -2500,37 +2540,180 @@ object AppStorys {
                             }
                         }
                     },
-                    spinTheWheelDetails = spinTheWheelDetails,
-                    spinsLeft = spinsLeft,
-                    onSpinUsed = {
-                        val updated = (spinCountMap[campaignId] ?: initialSpins) - 1
-                        val clamped = updated.coerceAtLeast(0)
-                        _spinCountByCampaign.update { it + (campaignId to clamped) }
-                        saveSpinCount(
-                            campaignId = campaignId,
-                            count = clamped,
-                            sharedPreferences = context.getSharedPreferences(
-                                "appstorys_spin_counts",
-                                Context.MODE_PRIVATE
-                            )
+                    onConfettiTrigger = {
+                        confettiTrigger++
+                    },
+                    wasFullyScratched = wasFullyScratched,
+                    onWasFullyScratched = { wasFullyScratched = it },
+
+                    crossButtonConfig = run {
+
+                        val crossObj = scratchCardDetails.content
+                            ?.get("crossButton")
+                            ?.takeIf { it !is kotlinx.serialization.json.JsonNull }
+                            ?.jsonObject
+
+                        val colors = crossObj
+                            ?.get("color")
+                            ?.takeIf { it !is kotlinx.serialization.json.JsonNull }
+                            ?.jsonObject
+
+                        val margin = crossObj
+                            ?.get("margin")
+                            ?.takeIf { it !is kotlinx.serialization.json.JsonNull }
+                            ?.jsonObject
+
+                        createCrossButtonConfig(
+                            fillColorString = colors?.get("fill")?.jsonPrimitive?.contentOrNull,
+                            crossColorString = colors?.get("cross")?.jsonPrimitive?.contentOrNull,
+                            strokeColorString = colors?.get("stroke")?.jsonPrimitive?.contentOrNull,
+                            marginTop = margin?.get("top")?.jsonPrimitive?.intOrNull,
+                            marginEnd = margin?.get("right")?.jsonPrimitive?.intOrNull,
+                            size = crossObj?.get("size")?.jsonPrimitive?.intOrNull,
+                            imageUrl = crossObj?.get("image")?.jsonPrimitive?.contentOrNull
                         )
                     },
-                    onCtaClick = { link ->
-                        val targetLink = link?.takeIf { it.isNotEmpty() } ?: redirectUrl
-                        if (targetLink.isNotEmpty()) {
-                            clickEvent(link = targetLink, campaignId = campaignId)
-                            trackEvents(campaignId, "clicked")
+                    crossButtonMarginBottom = run {
+                        val crossObj = scratchCardDetails.content
+                            ?.get("crossButton")
+                            ?.takeIf { it !is kotlinx.serialization.json.JsonNull }
+                            ?.jsonObject
+                        val margin = crossObj
+                            ?.get("margin")
+                            ?.takeIf { it !is kotlinx.serialization.json.JsonNull }
+                            ?.jsonObject
+                        margin?.get("bottom")?.jsonPrimitive?.intOrNull?.dp ?: 0.dp
+                    },
+                    crossButtonAlignment = run {
+                        val crossObj = scratchCardDetails.content
+                            ?.get("crossButton")
+                            ?.takeIf { it !is kotlinx.serialization.json.JsonNull }
+                            ?.jsonObject
+                        crossObj?.get("alignment")?.jsonPrimitive?.contentOrNull ?: "center"
+                    },
+                    scratchCardDetails = scratchCardDetails,
+                    onCtaClick = {
+                        campaign?.id?.let {
+                            clickEvent(link = ctaUrl, campaignId = it)
+                            trackEvents(it, "clicked")
                         }
-                    },
-                    onSpinComplete = { prizeLabel, couponCode ->
-                        trackEvents(
-                            campaignId, "spin_completed", mapOf(
-                                "prize_label" to (prizeLabel ?: ""),
-                                "coupon_code" to (couponCode ?: "")
-                            )
-                        )
                     }
                 )
+            }
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.M)
+    @Composable
+    fun SpinTheWheel() {
+        SdkErrorBoundary(campaignType = "STW", screen = currentScreen) {
+            val campaignsData = campaigns.collectAsStateWithLifecycle()
+
+            val campaign = campaignsData.value.firstOrNull {
+                it.campaignType == "STW" && it.details is SpinTheWheelDetails
+            }
+
+            val spinTheWheelDetails = when (val details = campaign?.details) {
+                is SpinTheWheelDetails -> details
+                else -> null
+            }
+
+            val trackedEventsData = trackedEventNames.collectAsStateWithLifecycle()
+
+            val shouldShowSpinWheel = remember(campaign, trackedEventsData.value.size) {
+                TriggerEventMatcher.shouldShowCampaign(
+                    triggerEvent = campaign?.triggerEvent,
+                    campaignId = campaign?.id,
+                    trackedEvents = trackedEventsData.value
+                )
+            }
+
+            var isPresented by remember(campaign?.id) { mutableStateOf(true) }
+
+            LaunchedEffect(shouldShowSpinWheel) {
+                if (shouldShowSpinWheel && !isPresented) {
+                    isPresented = true
+                }
+            }
+
+            // ── Spin count: hoist here so it survives recomposition and screen navigation ──
+            val campaignId = campaign?.id
+            if (spinTheWheelDetails != null && campaignId != null) {
+                val spinCountMap by _spinCountByCampaign.collectAsStateWithLifecycle()
+                val initialSpins = spinTheWheelDetails.availableSpins
+                    ?: spinTheWheelDetails.content?.userInteraction?.numberSpin
+                    ?: 3
+
+                // Seed in-memory map on first encounter (also covers post-restart restore)
+                if (!spinCountMap.containsKey(campaignId)) {
+                    val persisted = getSpinCount(
+                        campaignId = campaignId,
+                        sharedPreferences = context.getSharedPreferences(
+                            "appstorys_spin_counts",
+                            Context.MODE_PRIVATE
+                        )
+                    )
+                    _spinCountByCampaign.update { it + (campaignId to (persisted ?: initialSpins)) }
+                }
+
+                val spinsLeft = spinCountMap[campaignId] ?: initialSpins
+
+                if (shouldShowSpinWheel && isPresented) {
+
+                    LaunchedEffect(Unit) {
+                        trackEvents(campaignId, "viewed")
+                    }
+
+                    val redirectUrl = spinTheWheelDetails.link ?: ""
+
+                    com.appversal.appstorys.ui.spinwheel.SpinTheWheel(
+                        isPresented = isPresented,
+                        onDismiss = {
+                            isPresented = false
+                            campaign?.triggerEvent?.let { trigger ->
+                                val eventName = when (trigger) {
+                                    is TriggerEvent.StringTrigger -> trigger.event
+                                    is TriggerEvent.ObjectTrigger -> trigger.event
+                                }
+                                _trackedEventNames.update { currentSet ->
+                                    currentSet.filterNot {
+                                        it.eventName == eventName
+                                    }.toSet()
+                                }
+                            }
+                        },
+                        spinTheWheelDetails = spinTheWheelDetails,
+                        spinsLeft = spinsLeft,
+                        onSpinUsed = {
+                            val updated = (spinCountMap[campaignId] ?: initialSpins) - 1
+                            val clamped = updated.coerceAtLeast(0)
+                            _spinCountByCampaign.update { it + (campaignId to clamped) }
+                            saveSpinCount(
+                                campaignId = campaignId,
+                                count = clamped,
+                                sharedPreferences = context.getSharedPreferences(
+                                    "appstorys_spin_counts",
+                                    Context.MODE_PRIVATE
+                                )
+                            )
+                        },
+                        onCtaClick = { link ->
+                            val targetLink = link?.takeIf { it.isNotEmpty() } ?: redirectUrl
+                            if (targetLink.isNotEmpty()) {
+                                clickEvent(link = targetLink, campaignId = campaignId)
+                                trackEvents(campaignId, "clicked")
+                            }
+                        },
+                        onSpinComplete = { prizeLabel, couponCode ->
+                            trackEvents(
+                                campaignId, "spin_completed", mapOf(
+                                    "prize_label" to (prizeLabel ?: ""),
+                                    "coupon_code" to (couponCode ?: "")
+                                )
+                            )
+                        }
+                    )
+                }
             }
         }
     }
@@ -2541,58 +2724,59 @@ object AppStorys {
         bottomPadding: Dp = 0.dp,
         isWidgets: Boolean = true
     ) {
-        val campaignsData = campaigns.collectAsStateWithLifecycle()
-        val disabledCampaigns = disabledCampaigns.collectAsStateWithLifecycle()
+        SdkErrorBoundary(campaignType = "MIL", screen = currentScreen) {
+            val campaignsData = campaigns.collectAsStateWithLifecycle()
+            val disabledCampaigns = disabledCampaigns.collectAsStateWithLifecycle()
 
-        val campaign = campaignsData.value.firstOrNull {
-            it.campaignType == "MIL" && it.details is MilestoneDetails
-        }
+            val campaign = campaignsData.value.firstOrNull {
+                it.campaignType == "MIL" && it.details is MilestoneDetails
+            }
 
-        val milestoneDetails = campaign?.details as? MilestoneDetails
+            val milestoneDetails = campaign?.details as? MilestoneDetails
 
-        val trackedEventsData = trackedEventNames.collectAsStateWithLifecycle()
+            val trackedEventsData = trackedEventNames.collectAsStateWithLifecycle()
 
-        val shouldShowMilestone = remember(campaign, trackedEventsData.value.size) {
-            TriggerEventMatcher.shouldShowCampaign(
-                triggerEvent = campaign?.triggerEvent,
-                campaignId = campaign?.id,
-                trackedEvents = trackedEventsData.value
-            )
-        }
+            val shouldShowMilestone = remember(campaign, trackedEventsData.value.size) {
+                TriggerEventMatcher.shouldShowCampaign(
+                    triggerEvent = campaign?.triggerEvent,
+                    campaignId = campaign?.id,
+                    trackedEvents = trackedEventsData.value
+                )
+            }
 
-        val currentIndex by currentMilestoneIndex.collectAsStateWithLifecycle()
-        val showMilestone by _showMilestone.collectAsStateWithLifecycle()
+            val currentIndex by currentMilestoneIndex.collectAsStateWithLifecycle()
+            val showMilestone by _showMilestone.collectAsStateWithLifecycle()
 
-        // Track events and update milestone index
-        LaunchedEffect(trackedEventNames.value.size, milestoneDetails) {
-            milestoneDetails?.milestoneItems?.let { items ->
-                val sortedItems = items.sortedBy { it.order }
+            // Track events and update milestone index
+            LaunchedEffect(trackedEventNames.value.size, milestoneDetails) {
+                milestoneDetails?.milestoneItems?.let { items ->
+                    val sortedItems = items.sortedBy { it.order }
 
-                for ((index, item) in sortedItems.withIndex()) {
-                    item.triggerEvents?.forEach { trigger ->
-                        trigger.eventName?.let { eventName ->
-                            if (trackedEventsData.value.any { it.eventName == eventName } && index > currentIndex) {
-                                currentMilestoneIndex.emit(index)
-                                return@LaunchedEffect
+                    for ((index, item) in sortedItems.withIndex()) {
+                        item.triggerEvents?.forEach { trigger ->
+                            trigger.eventName?.let { eventName ->
+                                if (trackedEventsData.value.any { it.eventName == eventName } && index > currentIndex) {
+                                    currentMilestoneIndex.emit(index)
+                                    return@LaunchedEffect
+                                }
                             }
                         }
                     }
                 }
             }
-        }
 
-        if (milestoneDetails != null &&
-            campaign?.id != null &&
-            !disabledCampaigns.value.contains(campaign.id) &&
-            shouldShowMilestone &&
-            showMilestone
-        ) {
-            val sortedItems = milestoneDetails.milestoneItems?.sortedBy { it.order } ?: return
+            if (milestoneDetails != null &&
+                campaign?.id != null &&
+                !disabledCampaigns.value.contains(campaign.id) &&
+                shouldShowMilestone &&
+                showMilestone
+            ) {
+                val sortedItems = milestoneDetails.milestoneItems?.sortedBy { it.order } ?: return
 
-            if (currentIndex >= sortedItems.size) return
+                if (currentIndex >= sortedItems.size) return
 
-            val currentItem = sortedItems[currentIndex]
-            val showAs = milestoneDetails.content?.showStreaksAs ?: "banner"
+                val currentItem = sortedItems[currentIndex]
+                val showAs = milestoneDetails.content?.showStreaksAs ?: "banner"
 
 //            LaunchedEffect(currentIndex) {
 //                campaign.id?.let {
@@ -2600,39 +2784,51 @@ object AppStorys {
 //                }
 //            }
 
-            if ((showAs == "banner" || showAs == "modals") && !isWidgets) {
-                when (showAs) {
-                    "banner" -> MilestoneBanner(
-                        milestoneItem = currentItem,
-                        styling = milestoneDetails.styling,
-                        bottomPadding = bottomPadding,
-                        onClose = {
-                            _showMilestone.update { false }
-                            val ids = ArrayList(disabledCampaigns.value)
-                            campaign.id?.let { ids.add(it) }
-                            coroutineScope.launch {
-                                this@AppStorys.disabledCampaigns.emit(ids.toList())
-                            }
-                        },
-                        onClick = {
+                if ((showAs == "banner" || showAs == "modals") && !isWidgets) {
+                    when (showAs) {
+                        "banner" -> MilestoneBanner(
+                            milestoneItem = currentItem,
+                            styling = milestoneDetails.styling,
+                            bottomPadding = bottomPadding,
+                            onClose = {
+                                _showMilestone.update { false }
+                                val ids = ArrayList(disabledCampaigns.value)
+                                campaign.id?.let { ids.add(it) }
+                                coroutineScope.launch {
+                                    this@AppStorys.disabledCampaigns.emit(ids.toList())
+                                }
+                            },
+                            onClick = {
 //                        campaign.id?.let { campaignId ->
 //                            trackEvents(campaignId, "clicked", mapOf("milestone_item" to currentItem.id!!))
 //                        }
-                        }
-                    )
+                            }
+                        )
 
-                    "modals" -> MilestoneModal(
+                        "modals" -> MilestoneModal(
+                            milestoneItem = currentItem,
+                            styling = milestoneDetails.styling,
+                            bottomPadding = bottomPadding,
+                            onClose = {
+                                _showMilestone.update { false }
+                                val ids = ArrayList(disabledCampaigns.value)
+                                campaign.id?.let { ids.add(it) }
+                                coroutineScope.launch {
+                                    this@AppStorys.disabledCampaigns.emit(ids.toList())
+                                }
+                            },
+                            onClick = {
+//                        campaign.id?.let { campaignId ->
+//                            trackEvents(campaignId, "clicked", mapOf("milestone_item" to currentItem.id!!))
+//                        }
+                            }
+                        )
+                    }
+                } else if (showAs == "widgets" && isWidgets) {
+                    // MileStone Widgets
+                    MilestoneWidgets(
                         milestoneItem = currentItem,
                         styling = milestoneDetails.styling,
-                        bottomPadding = bottomPadding,
-                        onClose = {
-                            _showMilestone.update { false }
-                            val ids = ArrayList(disabledCampaigns.value)
-                            campaign.id?.let { ids.add(it) }
-                            coroutineScope.launch {
-                                this@AppStorys.disabledCampaigns.emit(ids.toList())
-                            }
-                        },
                         onClick = {
 //                        campaign.id?.let { campaignId ->
 //                            trackEvents(campaignId, "clicked", mapOf("milestone_item" to currentItem.id!!))
@@ -2640,17 +2836,6 @@ object AppStorys {
                         }
                     )
                 }
-            } else if (showAs == "widgets" && isWidgets) {
-                // MileStone Widgets
-                MilestoneWidgets(
-                    milestoneItem = currentItem,
-                    styling = milestoneDetails.styling,
-                    onClick = {
-//                        campaign.id?.let { campaignId ->
-//                            trackEvents(campaignId, "clicked", mapOf("milestone_item" to currentItem.id!!))
-//                        }
-                    }
-                )
             }
         }
     }
@@ -2661,106 +2846,111 @@ object AppStorys {
         screenName: String? = null,
         activity: Activity? = null
     ) {
-        val TAG = "TestUserButton"
+        SdkErrorBoundary(campaignType = "test_user", screen = currentScreen) {
+            val TAG = "TestUserButton"
 
 //        val activityRef = activity ?: LocalContext.current as? Activity
-        val localContext = LocalContext.current
-        val activityRef = activity ?: generateSequence(localContext) {
-            (it as? android.content.ContextWrapper)?.baseContext
-        }.filterIsInstance<Activity>().firstOrNull()
+            val localContext = LocalContext.current
+            val activityRef = activity ?: generateSequence(localContext) {
+                (it as? android.content.ContextWrapper)?.baseContext
+            }.filterIsInstance<Activity>().firstOrNull()
 
-        val isScreenCaptureEnabled by _isScreenCaptureEnabled.collectAsStateWithLifecycle()
+            val isScreenCaptureEnabled by _isScreenCaptureEnabled.collectAsStateWithLifecycle()
 
-        var shouldAnalyze by remember { mutableStateOf(false) }
-        var isCapturing by remember { mutableStateOf(false) }
+            var shouldAnalyze by remember { mutableStateOf(false) }
+            var isCapturing by remember { mutableStateOf(false) }
 
-        val snackbarHostState = remember { SnackbarHostState() }
-        val coroutineScope = rememberCoroutineScope()
+            val snackbarHostState = remember { SnackbarHostState() }
+            val coroutineScope = rememberCoroutineScope()
 
-        LaunchedEffect(shouldAnalyze) {
-            Log.i(TAG, "LaunchedEffect triggered. shouldAnalyze = $shouldAnalyze")
+            LaunchedEffect(shouldAnalyze) {
+                Log.i(TAG, "LaunchedEffect triggered. shouldAnalyze = $shouldAnalyze")
 
-            if (shouldAnalyze) {
-                Log.i(TAG, "Starting screen capture flow")
-                isCapturing = true
-                Log.i(TAG, "isCapturing = true")
-                delay(500)
-                val activity = activityRef
-                Log.i(TAG, "Activity reference: $activity")
-                val rootView = activity?.window?.decorView?.rootView
-                Log.i(TAG, "Root view acquired: $rootView")
-                rootView?.let {
-                    val screenToAnalyze = screenName ?: currentScreen
-                    Log.i(TAG, "Screen to analyze: $screenToAnalyze")
+                if (shouldAnalyze) {
+                    Log.i(TAG, "Starting screen capture flow")
+                    isCapturing = true
+                    Log.i(TAG, "isCapturing = true")
+                    delay(500)
+                    val activity = activityRef
+                    Log.i(TAG, "Activity reference: $activity")
+                    val rootView = activity?.window?.decorView?.rootView
+                    Log.i(TAG, "Root view acquired: $rootView")
+                    rootView?.let {
+                        val screenToAnalyze = screenName ?: currentScreen
+                        Log.i(TAG, "Screen to analyze: $screenToAnalyze")
 
-                    Log.i(TAG, "Calling analyzeViewRoot()")
-                    analyzeViewRoot(it, screenToAnalyze, activity)
-                    Log.i(TAG, "analyzeViewRoot() completed")
+                        Log.i(TAG, "Calling analyzeViewRoot()")
+                        analyzeViewRoot(it, screenToAnalyze, activity)
+                        Log.i(TAG, "analyzeViewRoot() completed")
 
-                    coroutineScope.launch {
-                        Log.i(TAG, "Showing snackbar")
-                        snackbarHostState.showSnackbar("Screen captured successfully!")
+                        coroutineScope.launch {
+                            Log.i(TAG, "Showing snackbar")
+                            snackbarHostState.showSnackbar("Screen captured successfully!")
+                        }
+                    }
+                    shouldAnalyze = false
+                    isCapturing = false
+
+                    if (widgetPositionList.isNotEmpty() && widgetPositionList[0].isNotEmpty()) {
+                        Log.i(TAG, "widgetPositionList is valid")
+                        coroutineScope.launch {
+                            Log.i(TAG, "Calling repository.sendWidgetPositions()")
+                            repository.sendWidgetPositions(
+                                accessToken = accessToken,
+                                screenName = currentScreen,
+                                positionList = widgetPositionList
+                            )
+                        }
                     }
                 }
-                shouldAnalyze = false
-                isCapturing = false
+            }
 
-                if (widgetPositionList.isNotEmpty() && widgetPositionList[0].isNotEmpty()) {
-                    Log.i(TAG, "widgetPositionList is valid")
-                    coroutineScope.launch {
-                        Log.i(TAG, "Calling repository.sendWidgetPositions()")
-                        repository.sendWidgetPositions(
-                            accessToken = accessToken,
-                            screenName = currentScreen,
-                            positionList = widgetPositionList
+            if (isScreenCaptureEnabled && !isCapturing) {
+                // Popup content sizes its own window, so padding here would make the
+                // window (and its touch area) cover the nav bar. Offset the window instead.
+                val density = LocalDensity.current
+                val fabOffset = remember(density) {
+                    with(density) { IntOffset(-16.dp.roundToPx(), -86.dp.roundToPx()) }
+                }
+                val snackbarOffset = remember(density) {
+                    with(density) { IntOffset(0, -80.dp.roundToPx()) }
+                }
+
+                Popup(
+                    alignment = Alignment.BottomEnd,
+                    offset = fabOffset,
+                    properties = PopupProperties(
+                        focusable = false,
+                        dismissOnBackPress = false,
+                        dismissOnClickOutside = false
+                    )
+                ) {
+                    FloatingActionButton(
+                        onClick = {
+                            Log.i(TAG, "Capture button clicked")
+                            shouldAnalyze = true
+                            Log.i(TAG, "shouldAnalyze = true")
+                        },
+                        modifier = modifier,
+                        containerColor = Color.White
+                    ) {
+                        Text(
+                            modifier = Modifier.padding(horizontal = 12.dp),
+                            text = "Capture Screen"
                         )
                     }
                 }
-            }
-        }
-
-        if (isScreenCaptureEnabled && !isCapturing) {
-            // Popup content sizes its own window, so padding here would make the
-            // window (and its touch area) cover the nav bar. Offset the window instead.
-            val density = LocalDensity.current
-            val fabOffset = remember(density) {
-                with(density) { IntOffset(-16.dp.roundToPx(), -86.dp.roundToPx()) }
-            }
-            val snackbarOffset = remember(density) {
-                with(density) { IntOffset(0, -80.dp.roundToPx()) }
-            }
-
-            Popup(
-                alignment = Alignment.BottomEnd,
-                offset = fabOffset,
-                properties = PopupProperties(
-                    focusable = false,
-                    dismissOnBackPress = false,
-                    dismissOnClickOutside = false
-                )
-            ) {
-                FloatingActionButton(
-                    onClick = {
-                        Log.i(TAG, "Capture button clicked")
-                        shouldAnalyze = true
-                        Log.i(TAG, "shouldAnalyze = true")
-                    },
-                    modifier = modifier,
-                    containerColor = Color.White
+                Popup(
+                    alignment = Alignment.BottomCenter,
+                    offset = snackbarOffset,
+                    properties = PopupProperties(
+                        focusable = false,
+                        dismissOnBackPress = false,
+                        dismissOnClickOutside = false
+                    )
                 ) {
-                    Text(modifier = Modifier.padding(horizontal = 12.dp), text = "Capture Screen")
+                    SnackbarHost(hostState = snackbarHostState)
                 }
-            }
-            Popup(
-                alignment = Alignment.BottomCenter,
-                offset = snackbarOffset,
-                properties = PopupProperties(
-                    focusable = false,
-                    dismissOnBackPress = false,
-                    dismissOnClickOutside = false
-                )
-            ) {
-                SnackbarHost(hostState = snackbarHostState)
             }
         }
     }
@@ -2886,5 +3076,16 @@ object AppStorys {
     }
 
     @JvmStatic
+            /**
+             * Turns SDK error/state reporting on or off. Reporting is on by default and is entirely
+             * observational — disabling it changes nothing about how campaigns are fetched or rendered.
+             */
+    fun setErrorReportingEnabled(enabled: Boolean) {
+        SdkErrorTracker.setEnabled(enabled)
+    }
+
+    /** Version of the AppStorys SDK, also stamped on every error report. */
+    fun sdkVersion(): String = SdkErrorTracker.SDK_VERSION
+
     fun getInstance() = this
 }

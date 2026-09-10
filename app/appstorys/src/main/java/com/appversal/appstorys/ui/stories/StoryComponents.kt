@@ -540,6 +540,18 @@ internal fun StoryScreenContent(
                 }
             }
 
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                // Observational only — playback behaviour is untouched.
+                com.appversal.appstorys.utils.SdkErrorTracker.onAssetFailed(
+                    campaignId = null,
+                    campaignType = "STR",
+                    screen = null,
+                    assetType = "video",
+                    url = null,
+                    message = error.message ?: error.errorCodeName
+                )
+            }
+
             override fun onVideoSizeChanged(videoSize: VideoSize) {
                 videoAspectRatio = if (videoSize.width > 0 && videoSize.height > 0) {
                     (videoSize.width.toFloat() * videoSize.pixelWidthHeightRatio) / videoSize.height.toFloat()

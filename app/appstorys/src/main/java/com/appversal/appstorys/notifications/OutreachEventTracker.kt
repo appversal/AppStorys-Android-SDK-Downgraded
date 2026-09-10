@@ -113,6 +113,12 @@ internal object OutreachEventTracker {
                 drainPendingQueueLocked(p)
             } catch (e: Exception) {
                 Log.e(TAG, "ensureAccessToken failed", e)
+                com.appversal.appstorys.utils.SdkErrorTracker.onLogicError(
+                    step = "outreach-ensure-access-token",
+                    message = e.message ?: e::class.java.simpleName,
+                    throwable = e,
+                    failureClass = com.appversal.appstorys.utils.SdkFailureClass.P3
+                )
             }
         }
     }
@@ -182,6 +188,12 @@ internal object OutreachEventTracker {
             }
         } catch (e: Exception) {
             Log.e(TAG, "fireEventBlocking failed", e)
+            com.appversal.appstorys.utils.SdkErrorTracker.onLogicError(
+                step = "outreach-fire-event",
+                message = e.message ?: e::class.java.simpleName,
+                throwable = e,
+                failureClass = com.appversal.appstorys.utils.SdkFailureClass.P3
+            )
             try {
                 queueEvent(prefs(context), notificationId, event, variantId, runId)
             } catch (_: Exception) {
@@ -195,6 +207,12 @@ internal object OutreachEventTracker {
                 drainPendingQueueLocked(prefs(context))
             } catch (e: Exception) {
                 Log.e(TAG, "drainPendingQueue failed", e)
+                com.appversal.appstorys.utils.SdkErrorTracker.onLogicError(
+                    step = "outreach-drain-queue",
+                    message = e.message ?: e::class.java.simpleName,
+                    throwable = e,
+                    failureClass = com.appversal.appstorys.utils.SdkFailureClass.P3
+                )
             }
         }
     }
@@ -239,6 +257,12 @@ internal object OutreachEventTracker {
             }
         } catch (e: Exception) {
             Log.e(TAG, "sendEvent failed: ${e.message}", e)
+            com.appversal.appstorys.utils.SdkErrorTracker.onLogicError(
+                step = "outreach-send-event",
+                message = e.message ?: e::class.java.simpleName,
+                throwable = e,
+                failureClass = com.appversal.appstorys.utils.SdkFailureClass.P3
+            )
             SendResult.OTHER_ERROR
         }
     }
@@ -318,6 +342,12 @@ internal object OutreachEventTracker {
             }
         } catch (e: Exception) {
             Log.e(TAG, "refreshLongLivedToken failed: ${e.message}", e)
+            com.appversal.appstorys.utils.SdkErrorTracker.onLogicError(
+                step = "refresh-fcm-refresh-token",
+                message = e.message ?: e::class.java.simpleName,
+                throwable = e,
+                failureClass = com.appversal.appstorys.utils.SdkFailureClass.P3
+            )
             null
         }
     }
@@ -380,6 +410,12 @@ internal object OutreachEventTracker {
             }
         } catch (e: Exception) {
             Log.e(TAG, "fetchAndStoreAccessToken failed: ${e.message}", e)
+            com.appversal.appstorys.utils.SdkErrorTracker.onLogicError(
+                step = "update-user-device-token",
+                message = e.message ?: e::class.java.simpleName,
+                throwable = e,
+                failureClass = com.appversal.appstorys.utils.SdkFailureClass.P3
+            )
             null
         }
     }
@@ -402,6 +438,12 @@ internal object OutreachEventTracker {
             p.edit { putString(KEY_QUEUE, queue.toString()) }
         } catch (e: Exception) {
             Log.e(TAG, "queueEvent failed", e)
+            com.appversal.appstorys.utils.SdkErrorTracker.onLogicError(
+                step = "outreach-queue-event",
+                message = e.message ?: e::class.java.simpleName,
+                throwable = e,
+                failureClass = com.appversal.appstorys.utils.SdkFailureClass.P3
+            )
         }
     }
 
@@ -479,6 +521,12 @@ internal object OutreachEventTracker {
                 drainPendingQueueLocked(p)
             } catch (e: Exception) {
                 Log.e(TAG, "forceResyncDeviceToken failed", e)
+                com.appversal.appstorys.utils.SdkErrorTracker.onLogicError(
+                    step = "outreach-resync-device-token",
+                    message = e.message ?: e::class.java.simpleName,
+                    throwable = e,
+                    failureClass = com.appversal.appstorys.utils.SdkFailureClass.P3
+                )
             }
         }
     }

@@ -323,6 +323,18 @@ fun PipPlayerView(
 
     DisposableEffect(exoPlayer) {
         val listener = object : Player.Listener {
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                // Observational only — playback behaviour is untouched.
+                com.appversal.appstorys.utils.SdkErrorTracker.onAssetFailed(
+                    campaignId = null,
+                    campaignType = "PIP",
+                    screen = null,
+                    assetType = "video",
+                    url = null,
+                    message = error.message ?: error.errorCodeName
+                )
+            }
+
             override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
                 if (videoSize.width > 0 && videoSize.height > 0) {
                     videoAspectRatio = (videoSize.width.toFloat() * videoSize.pixelWidthHeightRatio) /

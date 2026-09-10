@@ -1,5 +1,6 @@
 package com.appversal.appstorys.ui
 
+import com.appversal.appstorys.utils.SdkErrorTracker
 import android.content.Intent
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedContentTransitionScope
@@ -691,6 +692,17 @@ private fun SurveyThankYouContent(
                             .decoderFactory(coil.decode.GifDecoder.Factory())
                             .build(),
                         contentDescription = "Thank you image",
+                        onError = { assetError ->
+                            SdkErrorTracker.onAssetFailed(
+                                campaignId = null,
+                                campaignType = "SUR",
+                                screen = null,
+                                assetType = "image",
+                                url = assetError.result.request.data.toString(),
+                                message = assetError.result.throwable.message
+                                    ?: assetError.result.throwable::class.java.simpleName
+                            )
+                        },
                         contentScale = ContentScale.Fit,
                         modifier = imgModifier
                     )
@@ -699,6 +711,17 @@ private fun SurveyThankYouContent(
                     AsyncImage(
                         model = imageUrl,
                         contentDescription = "Thank you image",
+                        onError = { assetError ->
+                            SdkErrorTracker.onAssetFailed(
+                                campaignId = null,
+                                campaignType = "SUR",
+                                screen = null,
+                                assetType = "image",
+                                url = assetError.result.request.data.toString(),
+                                message = assetError.result.throwable.message
+                                    ?: assetError.result.throwable::class.java.simpleName
+                            )
+                        },
                         contentScale = ContentScale.Fit,
                         modifier = imgModifier
                     )

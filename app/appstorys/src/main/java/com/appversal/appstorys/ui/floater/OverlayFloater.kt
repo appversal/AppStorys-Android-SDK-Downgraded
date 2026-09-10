@@ -1,5 +1,6 @@
 package com.appversal.appstorys.ui.floater
 
+import com.appversal.appstorys.utils.SdkErrorTracker
 import android.os.Build.VERSION.SDK_INT
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
@@ -120,6 +121,17 @@ internal fun OverlayFloater(
                     AsyncImage(
                         model = imageRequest,
                         contentDescription = null,
+                        onError = { assetError ->
+                            SdkErrorTracker.onAssetFailed(
+                                campaignId = null,
+                                campaignType = "FLT",
+                                screen = null,
+                                assetType = "image",
+                                url = assetError.result.request.data.toString(),
+                                message = assetError.result.throwable.message
+                                    ?: assetError.result.throwable::class.java.simpleName
+                            )
+                        },
                         contentScale = ContentScale.FillBounds,
                         modifier = modifier
                             .fillMaxSize()
