@@ -24,6 +24,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -41,6 +42,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.foundation.Canvas
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -58,6 +60,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
+import coil.imageLoader
 import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
 import com.appversal.appstorys.api.CommonMargins
@@ -70,8 +73,11 @@ import com.appversal.appstorys.ui.common_components.CommonText
 import com.appversal.appstorys.ui.common_components.CrossButton
 import com.appversal.appstorys.ui.common_components.createCrossButtonConfig
 import com.appversal.appstorys.ui.scratchcard.RewardMedia
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.random.Random
 
 /**
@@ -182,6 +188,12 @@ data class SpinRun(
 )
 
 /** The easing the wheel decelerates with. Shared so a resumed spin follows the same curve. */
+/**
+ * How long the wheel waits for its slice artwork before showing regardless.
+ * A dead CDN must delay the wheel, never suppress it.
+ */
+internal const val STW_MEDIA_TIMEOUT_MS = 3000L
+
 private val SpinEasing = CubicBezierEasing(0.22f, 1f, 0.36f, 1f)
 
 /** Where the wheel should be right now for [run]. */
@@ -226,6 +238,51 @@ fun SpinTheWheel(
 
     // Direct fields from backend
     val slices = spinTheWheelDetails.slices.orEmpty()
+
+    // ── Hold the wheel back until its prize artwork has arrived ───────────────
+    // The first fetch of each slice image starts when the wheel is composed, so
+    // without this the wheel paints six empty tiles and the prizes pop in one at
+    // a time. Measured cold: no artwork in the wheel's first frame, all six in
+    // the next. Waiting is the lesser of the two — and it is bounded, so a dead
+    // CDN delays the wheel rather than suppressing it.
+    var mediaReady by remember(spinTheWheelDetails) { mutableStateOf(false) }
+    val sliceMediaPx = with(LocalDensity.current) {
+        // The slice slot is 15% of the wheel, and the wheel fills the dialog.
+        (LocalConfiguration.current.screenWidthDp * 0.15f).dp.roundToPx()
+    }
+    LaunchedEffect(spinTheWheelDetails) {
+        val urls = slices
+            .flatMap {
+                listOfNotNull(it.sliceMedia, it.rewards?.firstOrNull()?.sliceRewardMedia)
+            }
+            .filter { it.isNotBlank() }
+            .distinct()
+        if (urls.isNotEmpty()) {
+            val loader = context.imageLoader
+            withTimeoutOrNull(STW_MEDIA_TIMEOUT_MS) {
+                // fully qualified: `coroutineScope` above is a value, not this.
+                kotlinx.coroutines.coroutineScope {
+                    urls.map { url ->
+                        async {
+                            runCatching {
+                                loader.execute(
+                                    ImageRequest.Builder(context)
+                                        .data(url)
+                                        .size(sliceMediaPx, sliceMediaPx)
+                                        .build()
+                                )
+                            }
+                        }
+                    }.awaitAll()
+                }
+            } ?: Log.w(
+                "AppStorys",
+                "STW artwork not ready in ${STW_MEDIA_TIMEOUT_MS}ms, showing the wheel anyway"
+            )
+        }
+        mediaReady = true
+    }
+    if (!mediaReady) return
     val content = spinTheWheelDetails.content
     val styling = spinTheWheelDetails.styling
 
@@ -367,14 +424,11 @@ fun SpinTheWheel(
 
     Dialog(
         onDismissRequest = {
-            if (showResultDialog) {
-                // Back press while reward is showing → go back to wheel
-                showConfetti = false
-                onRewardDismissed()
-            } else {
-                // Back press on wheel → close the whole campaign
-                onDismiss()
-            }
+            // Dismissing the reward ends the campaign, spins left or not — the
+            // same as tapping its close button.
+            showConfetti = false
+            if (showResultDialog) onRewardDismissed()
+            onDismiss()
         },
         properties = DialogProperties(
             dismissOnBackPress = true,
@@ -397,9 +451,13 @@ fun SpinTheWheel(
         // Backdrop — switches between spin backdrop and reward backdrop based on state
         val spinBackdropColor = parseColor(visualTextStyling?.backdropColor, Color.Black)
         val spinBackdropOpacity = (visualTextStyling?.backdropOpacity ?: 70) / 100f
-        // Reward backdrop: the alpha is the last pair of the hex (e.g. #000000ff), there
-        // is no separate opacity field for it.
-        val rewardBackdropColor = parseColor(styling?.rewardConfiguration?.backdropColor, Color.Black.copy(alpha = 0.6f))
+        // Reward backdrop: colour and opacity are two fields, the same pair the spin
+        // backdrop above uses. 60 keeps the old default when the dashboard sends none.
+        val rewardBackdropOpacity =
+            (styling?.rewardConfiguration?.backdropOpacity ?: 60).coerceIn(0, 100) / 100f
+        val rewardBackdropColor =
+            parseColor(styling?.rewardConfiguration?.backdropColor, Color.Black)
+                .copy(alpha = rewardBackdropOpacity)
         val rewardEnableBackdrop = content?.rewardConfiguration?.rewardEnableBackdrop ?: true
 
         val activeBackdropModifier = when {
@@ -437,334 +495,365 @@ fun SpinTheWheel(
                         onLinkClick = { link -> onCtaClick(link) },
                         onDismiss = {
                             showConfetti = false
+                            // Clear the spin first so a re-open starts clean, then
+                            // take the whole campaign down regardless of spins left.
                             onRewardDismissed()
-                            if (spinsLeft <= 0) {
-                                onDismiss()
-                            }
+                            onDismiss()
                         }
                     )
                 }
             } else {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState()),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    // Close button with styling from backend
-                    val crossButtonEnabled = crossButtonConfig?.enabled ?: true
-                    val crossButtonSize = crossButtonConfig?.size ?: 30
-                    val crossButtonAlignment = crossButtonConfig?.alignment ?: "right"
-                    val crossFillColor = crossButtonConfig?.color?.fill ?: "#000000"
-                    val crossCrossColor = crossButtonConfig?.color?.cross ?: "#FFFFFF"
-                    val crossStrokeColor = crossButtonConfig?.color?.stroke ?: "#FFFFFF"
-                    val crossButtonMargin = crossButtonConfig?.margin
+                // Extract spin button styling
+                val buttonContainer = spinButtonStyle?.container
+                val buttonText = spinButtonStyle?.text
+                val buttonMargin = spinButtonStyle?.margin
+                val buttonBackgroundColor =
+                    parseColor(buttonContainer?.backgroundColor, Color(0xFFFFB545))
+                val buttonBorderColor =
+                    parseColor(buttonContainer?.borderColor, Color.Transparent)
+                val buttonBorderWidth = buttonContainer?.borderWidth ?: 0
+                val buttonCornerRadius = buttonContainer?.cornerRadius
+                val buttonHeight = buttonContainer?.height ?: 50
+                val buttonWidth = buttonContainer?.width ?: 160
+                val buttonFullWidth = buttonContainer?.fullWidth ?: false
+                val buttonTextColor = parseColor(buttonText?.color, Color.White)
+                val buttonTextSize = buttonText?.fontSize ?: 16
+                val buttonAlignment = buttonContainer?.alignment ?: "center"
 
-                    if (crossButtonEnabled) {
+                val buttonShape = RoundedCornerShape(
+                    topStart = (buttonCornerRadius?.topLeft ?: 12).dp,
+                    topEnd = (buttonCornerRadius?.topRight ?: 12).dp,
+                    bottomStart = (buttonCornerRadius?.bottomLeft ?: 12).dp,
+                    bottomEnd = (buttonCornerRadius?.bottomRight ?: 12).dp
+                )
+
+                // Same shape as the reward screen: the wheel and its headings are
+                // centred on their OWN height, and the spin button flows below them.
+                // Centring every child together meant spinButton.margin.top made the
+                // block taller and the slack was split evenly, so raising the gap
+                // pushed the WHEEL up as much as it pushed the button down.
+                BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                    val wheelViewport = this@BoxWithConstraints.maxHeight
+                    var wheelHeaderHeight by remember { mutableStateOf(0.dp) }
+                    val wheelHeaderDensity = LocalDensity.current
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState()),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        // The button and its bottom margin have to fit under the
+                        // wheel, so the wheel centres no lower than that allows.
+                        val buttonBlock = buttonHeight.dp + (buttonMargin?.bottom ?: 0).dp
+                        val wheelHeaderTop = minOf(
+                            (wheelViewport - wheelHeaderHeight) / 2,
+                            wheelViewport - wheelHeaderHeight - buttonBlock
+                        ).coerceAtLeast(0.dp)
+                        // Capped rather than scrolled away, as on the reward screen.
+                        val buttonGap = (buttonMargin?.top ?: 0).dp
+                            .coerceAtMost(
+                                (wheelViewport - wheelHeaderTop - wheelHeaderHeight
+                                    - buttonBlock).coerceAtLeast(0.dp)
+                            )
+
+                        Spacer(modifier = Modifier.height(wheelHeaderTop))
+                        Column(
+                            modifier = Modifier.onSizeChanged {
+                                wheelHeaderHeight =
+                                    with(wheelHeaderDensity) { it.height.toDp() }
+                            },
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                        // Close button with styling from backend
+                        val crossButtonEnabled = crossButtonConfig?.enabled ?: true
+                        val crossButtonSize = crossButtonConfig?.size ?: 30
+                        val crossButtonAlignment = crossButtonConfig?.alignment ?: "right"
+                        val crossFillColor = crossButtonConfig?.color?.fill ?: "#000000"
+                        val crossCrossColor = crossButtonConfig?.color?.cross ?: "#FFFFFF"
+                        val crossStrokeColor = crossButtonConfig?.color?.stroke ?: "#FFFFFF"
+                        val crossButtonMargin = crossButtonConfig?.margin
+
+                        if (crossButtonEnabled) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(
+                                        top = (crossButtonMargin?.top ?: 0).dp,
+                                        bottom = (crossButtonMargin?.bottom ?: 0).dp,
+                                        start = (crossButtonMargin?.left ?: 0).dp,
+                                        end = (crossButtonMargin?.right ?: 0).dp
+                                    ),
+                                horizontalArrangement = when (crossButtonAlignment.lowercase()) {
+                                    "left" -> Arrangement.Start
+                                    "center" -> Arrangement.Center
+                                    else -> Arrangement.End
+                                }
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(crossButtonSize.dp)
+                                        .shadow(4.dp, CircleShape)
+                                        .background(
+                                            parseColor(crossFillColor, Color.Black),
+                                            CircleShape
+                                        )
+                                        .clickable { onDismiss() },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    CrossButton(
+                                        config = createCrossButtonConfig(
+                                            fillColorString = crossFillColor,
+                                            crossColorString = crossCrossColor,
+                                            strokeColorString = crossStrokeColor,
+                                            size = crossButtonSize,
+                                            imageUrl = crossButtonConfig?.image
+                                        ),
+                                        onClose = onDismiss
+                                    )
+                                }
+                            }
+                        }
+
+                        // Title with styling from backend (using direct popupTitle field)
+                        val popupTitle = spinTheWheelDetails.popupTitle ?: ""
+                        val titleMargin = titleStyle?.margin
+                        if (popupTitle.isNotEmpty()) {
+                            CommonText(
+                                modifier = Modifier.fillMaxWidth(),
+                                text = popupTitle,
+                                styling = TextStyling(
+                                    color = titleStyle?.color ?: "#FFFFFF",
+                                    fontFamily = titleStyle?.fontFamily,
+                                    fontSize = titleStyle?.fontSize ?: 28,
+                                    textAlign = titleStyle?.textAlign ?: "center",
+                                    fontDecoration = listOfNotNull(
+                                        titleStyle?.fontWeight ?: "bold",
+                                        titleStyle?.fontStyle
+                                    ) + titleStyle?.fontDecoration.orEmpty(),
+                                    margin = CommonMargins(
+                                        top = titleMargin?.top,
+                                        bottom = titleMargin?.bottom,
+                                        left = titleMargin?.left,
+                                        right = titleMargin?.right
+                                    )
+                                )
+                            )
+                        }
+
+                        // Description with styling from backend (using direct popupDescription field)
+                        val popupDescription = spinTheWheelDetails.popupDescription
+                        if (!popupDescription.isNullOrEmpty()) {
+                            val subtitleMargin = subtitleStyle?.margin
+                            CommonText(
+                                modifier = Modifier.fillMaxWidth(),
+                                text = popupDescription,
+                                lineHeight = ((subtitleStyle?.fontSize ?: 15) + 5).toFloat(),
+                                styling = TextStyling(
+                                    color = subtitleStyle?.color ?: "#E6FFFFFF",
+                                    fontFamily = subtitleStyle?.fontFamily,
+                                    fontSize = subtitleStyle?.fontSize ?: 15,
+                                    textAlign = subtitleStyle?.textAlign ?: "center",
+                                    fontDecoration = listOfNotNull(
+                                        subtitleStyle?.fontWeight,
+                                        subtitleStyle?.fontStyle
+                                    ) + subtitleStyle?.fontDecoration.orEmpty(),
+                                    margin = CommonMargins(
+                                        top = subtitleMargin?.top,
+                                        bottom = subtitleMargin?.bottom,
+                                        left = subtitleMargin?.left,
+                                        right = subtitleMargin?.right
+                                    )
+                                )
+                            )
+                        }
+
+                        // Spins left indicator with styling from backend
+                        val spinTextColor = parseColor(availableSpinTextStyle?.color, Color.White)
+                        val spinTextAlign =
+                            parseTextAlign(availableSpinTextStyle?.textAlign ?: "center")
+                        val spinTextFontSize = availableSpinTextStyle?.fontSize ?: 14
+                        val spinTextFontWeight =
+                            parseFontWeight(availableSpinTextStyle?.fontWeight ?: "bold")
+                        val spinTextFontStyle = parseFontStyle(availableSpinTextStyle?.fontStyle)
+
+                        val availableSpinsMargin = availableSpinTextStyle?.margin
+                        // Dynamic: always re-evaluated when spinsLeft changes.
+                        // If backend provides a template (e.g. "{spinsLeft} spins left"), replace the placeholder.
+                        // Otherwise, fall back to a default string built from the live spinsLeft value.
+                        val availableSpinsTemplate =
+                            content?.availableSpinsText?.takeIf { it.isNotBlank() }
+                                ?: "Available Spins"
+                        val hasSpinsPlaceholder = availableSpinsTemplate.contains("{spinsLeft}")
+                        val availableSpinsLabel =
+                            availableSpinsTemplate.replace("{spinsLeft}", spinsLeft.toString())
+
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(
-                                    top = (crossButtonMargin?.top ?: 0).dp,
-                                    bottom = (crossButtonMargin?.bottom ?: 0).dp,
-                                    start = (crossButtonMargin?.left ?: 0).dp,
-                                    end = (crossButtonMargin?.right ?: 0).dp
+                                    top = (availableSpinsMargin?.top ?: 0).dp,
+                                    bottom = (availableSpinsMargin?.bottom ?: 0).dp,
+                                    start = (availableSpinsMargin?.left ?: 0).dp,
+                                    end = (availableSpinsMargin?.right ?: 0).dp
                                 ),
-                            horizontalArrangement = when (crossButtonAlignment.lowercase()) {
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+
+                            // Label from backend
+                            CommonText(
+                                text = availableSpinsLabel,
+                                styling = TextStyling(
+                                    color = availableSpinTextStyle?.color ?: "#FFFFFF",
+                                    fontFamily = availableSpinTextStyle?.fontFamily,
+                                    fontSize = spinTextFontSize,
+                                    textAlign = availableSpinTextStyle?.textAlign ?: "center",
+                                    fontDecoration = listOfNotNull(
+                                        availableSpinTextStyle?.fontWeight ?: "bold",
+                                        availableSpinTextStyle?.fontStyle
+                                    ) + availableSpinTextStyle?.fontDecoration.orEmpty()
+                                )
+                            )
+
+                            if (!hasSpinsPlaceholder) Spacer(modifier = Modifier.width(6.dp))
+
+                            // Dynamic spins number — only when the label has no placeholder
+                            if (!hasSpinsPlaceholder) CommonText(
+                                text = spinsLeft.toString(),
+                                styling = TextStyling(
+                                    color = availableSpinTextStyle?.color ?: "#FFFFFF",
+                                    fontFamily = availableSpinTextStyle?.fontFamily,
+                                    fontSize = spinTextFontSize,
+                                    fontDecoration = listOf("bold")
+                                )
+                            )
+                        }
+
+                        // Enhanced Wheel Container with glow effect
+                        val wheelConfigStyling = mainStyling?.wheelConfiguration
+                        val wheelBorderColor = parseColor(wheelConfigStyling?.borderColor, Color.White)
+                        val wheelBorderWidth = wheelConfigStyling?.borderWidth ?: 5
+                        // Clamp to the screen: an oversized dashboard value used to push the
+                        // spin button out of reach on narrow or short screens.
+                        val wheelSize = (wheelConfigStyling?.size ?: 350).dp
+                            .coerceAtMost((LocalConfiguration.current.screenWidthDp - 32).dp)
+
+                        Box(
+                            modifier = Modifier
+                                .size(wheelSize)
+                                .shadow(
+                                    elevation = 30.dp,
+                                    shape = CircleShape,
+                                    clip = false
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+    //                    // Shadow ring
+    //                    Box(
+    //                        modifier = Modifier
+    //                            .fillMaxSize()
+    //                            .shadow(20.dp, CircleShape)
+    //                    )
+
+                            // Wheel
+                            WheelView(
+                                slices = slices,
+                                rotation = rotation.value,
+                                // Head for the landing angle, so labels are upright there
+                                // from the first frame rather than snapping at the end.
+                                restAngle = spinRun?.toAngle ?: rotation.value,
+                                wheelImage = wheelConfigStyling?.backgroundImage,
+                                wheelImageAlpha = wheelConfigStyling?.backgroundImageOpacity ?: 1f,
+                                backgroundColor = wheelConfigStyling?.backgroundColor,
+                                borderColor = wheelBorderColor,
+                                borderWidth = wheelBorderWidth,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+
+
+                        } // end headings + wheel, the part that stays put
+
+
+                        val isEnabled = spinsLeft > 0 && !isSpinning
+
+                        val interactionSource = remember { MutableInteractionSource() }
+
+                        Spacer(modifier = Modifier.height(buttonGap))
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(
+                                    start = (buttonMargin?.left ?: 0).dp,
+                                    end = (buttonMargin?.right ?: 0).dp
+                                ),
+                            horizontalArrangement = when (buttonAlignment.lowercase()) {
                                 "left" -> Arrangement.Start
-                                "center" -> Arrangement.Center
-                                else -> Arrangement.End
+                                "right" -> Arrangement.End
+                                else -> Arrangement.Center
                             }
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(crossButtonSize.dp)
-                                    .shadow(4.dp, CircleShape)
-                                    .background(
-                                        parseColor(crossFillColor, Color.Black),
-                                        CircleShape
+                                    //scale(if (isEnabled) pulseScale else 1f)
+                                    .then(
+                                        if (buttonFullWidth) Modifier.fillMaxWidth()
+                                        else Modifier.width(buttonWidth.dp)
                                     )
-                                    .clickable { onDismiss() },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                CrossButton(
-                                    config = createCrossButtonConfig(
-                                        fillColorString = crossFillColor,
-                                        crossColorString = crossCrossColor,
-                                        strokeColorString = crossStrokeColor,
-                                        size = crossButtonSize,
-                                        imageUrl = crossButtonConfig?.image
-                                    ),
-                                    onClose = onDismiss
-                                )
-                            }
-                        }
-                    }
-
-                    // Title with styling from backend (using direct popupTitle field)
-                    val popupTitle = spinTheWheelDetails.popupTitle ?: ""
-                    val titleMargin = titleStyle?.margin
-                    if (popupTitle.isNotEmpty()) {
-                        CommonText(
-                            modifier = Modifier.fillMaxWidth(),
-                            text = popupTitle,
-                            styling = TextStyling(
-                                color = titleStyle?.color ?: "#FFFFFF",
-                                fontFamily = titleStyle?.fontFamily,
-                                fontSize = titleStyle?.fontSize ?: 28,
-                                textAlign = titleStyle?.textAlign ?: "center",
-                                fontDecoration = listOfNotNull(
-                                    titleStyle?.fontWeight ?: "bold",
-                                    titleStyle?.fontStyle
-                                ) + titleStyle?.fontDecoration.orEmpty(),
-                                margin = CommonMargins(
-                                    top = titleMargin?.top,
-                                    bottom = titleMargin?.bottom,
-                                    left = titleMargin?.left,
-                                    right = titleMargin?.right
-                                )
-                            )
-                        )
-                    }
-
-                    // Description with styling from backend (using direct popupDescription field)
-                    val popupDescription = spinTheWheelDetails.popupDescription
-                    if (!popupDescription.isNullOrEmpty()) {
-                        val subtitleMargin = subtitleStyle?.margin
-                        CommonText(
-                            modifier = Modifier.fillMaxWidth(),
-                            text = popupDescription,
-                            lineHeight = ((subtitleStyle?.fontSize ?: 15) + 5).toFloat(),
-                            styling = TextStyling(
-                                color = subtitleStyle?.color ?: "#E6FFFFFF",
-                                fontFamily = subtitleStyle?.fontFamily,
-                                fontSize = subtitleStyle?.fontSize ?: 15,
-                                textAlign = subtitleStyle?.textAlign ?: "center",
-                                fontDecoration = listOfNotNull(
-                                    subtitleStyle?.fontWeight,
-                                    subtitleStyle?.fontStyle
-                                ) + subtitleStyle?.fontDecoration.orEmpty(),
-                                margin = CommonMargins(
-                                    top = subtitleMargin?.top,
-                                    bottom = subtitleMargin?.bottom,
-                                    left = subtitleMargin?.left,
-                                    right = subtitleMargin?.right
-                                )
-                            )
-                        )
-                    }
-
-                    // Spins left indicator with styling from backend
-                    val spinTextColor = parseColor(availableSpinTextStyle?.color, Color.White)
-                    val spinTextAlign =
-                        parseTextAlign(availableSpinTextStyle?.textAlign ?: "center")
-                    val spinTextFontSize = availableSpinTextStyle?.fontSize ?: 14
-                    val spinTextFontWeight =
-                        parseFontWeight(availableSpinTextStyle?.fontWeight ?: "bold")
-                    val spinTextFontStyle = parseFontStyle(availableSpinTextStyle?.fontStyle)
-
-                    val availableSpinsMargin = availableSpinTextStyle?.margin
-                    // Dynamic: always re-evaluated when spinsLeft changes.
-                    // If backend provides a template (e.g. "{spinsLeft} spins left"), replace the placeholder.
-                    // Otherwise, fall back to a default string built from the live spinsLeft value.
-                    val availableSpinsTemplate =
-                        content?.availableSpinsText?.takeIf { it.isNotBlank() }
-                            ?: "Available Spins"
-                    val hasSpinsPlaceholder = availableSpinsTemplate.contains("{spinsLeft}")
-                    val availableSpinsLabel =
-                        availableSpinsTemplate.replace("{spinsLeft}", spinsLeft.toString())
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(
-                                top = (availableSpinsMargin?.top ?: 0).dp,
-                                bottom = (availableSpinsMargin?.bottom ?: 0).dp,
-                                start = (availableSpinsMargin?.left ?: 0).dp,
-                                end = (availableSpinsMargin?.right ?: 0).dp
-                            ),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-
-                        // Label from backend
-                        CommonText(
-                            text = availableSpinsLabel,
-                            styling = TextStyling(
-                                color = availableSpinTextStyle?.color ?: "#FFFFFF",
-                                fontFamily = availableSpinTextStyle?.fontFamily,
-                                fontSize = spinTextFontSize,
-                                textAlign = availableSpinTextStyle?.textAlign ?: "center",
-                                fontDecoration = listOfNotNull(
-                                    availableSpinTextStyle?.fontWeight ?: "bold",
-                                    availableSpinTextStyle?.fontStyle
-                                ) + availableSpinTextStyle?.fontDecoration.orEmpty()
-                            )
-                        )
-
-                        if (!hasSpinsPlaceholder) Spacer(modifier = Modifier.width(6.dp))
-
-                        // Dynamic spins number — only when the label has no placeholder
-                        if (!hasSpinsPlaceholder) CommonText(
-                            text = spinsLeft.toString(),
-                            styling = TextStyling(
-                                color = availableSpinTextStyle?.color ?: "#FFFFFF",
-                                fontFamily = availableSpinTextStyle?.fontFamily,
-                                fontSize = spinTextFontSize,
-                                fontDecoration = listOf("bold")
-                            )
-                        )
-                    }
-
-                    // Enhanced Wheel Container with glow effect
-                    val wheelConfigStyling = mainStyling?.wheelConfiguration
-                    val wheelBorderColor = parseColor(wheelConfigStyling?.borderColor, Color.White)
-                    val wheelBorderWidth = wheelConfigStyling?.borderWidth ?: 5
-                    // Clamp to the screen: an oversized dashboard value used to push the
-                    // spin button out of reach on narrow or short screens.
-                    val wheelSize = (wheelConfigStyling?.size ?: 350).dp
-                        .coerceAtMost((LocalConfiguration.current.screenWidthDp - 32).dp)
-
-                    Box(
-                        modifier = Modifier
-                            .size(wheelSize)
-                            .shadow(
-                                elevation = 30.dp,
-                                shape = CircleShape,
-                                clip = false
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-//                    // Shadow ring
-//                    Box(
-//                        modifier = Modifier
-//                            .fillMaxSize()
-//                            .shadow(20.dp, CircleShape)
-//                    )
-
-                        // Wheel
-                        WheelView(
-                            slices = slices,
-                            rotation = rotation.value,
-                            wheelImage = wheelConfigStyling?.backgroundImage,
-                            wheelImageAlpha = wheelConfigStyling?.backgroundImageOpacity ?: 1f,
-                            backgroundColor = wheelConfigStyling?.backgroundColor,
-                            borderColor = wheelBorderColor,
-                            borderWidth = wheelBorderWidth,
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    }
-
-
-                    // Extract spin button styling
-                    val buttonContainer = spinButtonStyle?.container
-                    val buttonText = spinButtonStyle?.text
-                    val buttonMargin = spinButtonStyle?.margin
-                    val buttonBackgroundColor =
-                        parseColor(buttonContainer?.backgroundColor, Color(0xFFFFB545))
-                    val buttonBorderColor =
-                        parseColor(buttonContainer?.borderColor, Color.Transparent)
-                    val buttonBorderWidth = buttonContainer?.borderWidth ?: 0
-                    val buttonCornerRadius = buttonContainer?.cornerRadius
-                    val buttonHeight = buttonContainer?.height ?: 50
-                    val buttonWidth = buttonContainer?.width ?: 160
-                    val buttonFullWidth = buttonContainer?.fullWidth ?: false
-                    val buttonTextColor = parseColor(buttonText?.color, Color.White)
-                    val buttonTextSize = buttonText?.fontSize ?: 16
-                    val buttonAlignment = buttonContainer?.alignment ?: "center"
-
-                    val buttonShape = RoundedCornerShape(
-                        topStart = (buttonCornerRadius?.topLeft ?: 12).dp,
-                        topEnd = (buttonCornerRadius?.topRight ?: 12).dp,
-                        bottomStart = (buttonCornerRadius?.bottomLeft ?: 12).dp,
-                        bottomEnd = (buttonCornerRadius?.bottomRight ?: 12).dp
-                    )
-
-
-                    val isEnabled = spinsLeft > 0 && !isSpinning
-
-                    val interactionSource = remember { MutableInteractionSource() }
-
-                    Spacer(modifier = Modifier.height((buttonMargin?.top ?: 0).dp))
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(
-                                start = (buttonMargin?.left ?: 0).dp,
-                                end = (buttonMargin?.right ?: 0).dp
-                            ),
-                        horizontalArrangement = when (buttonAlignment.lowercase()) {
-                            "left" -> Arrangement.Start
-                            "right" -> Arrangement.End
-                            else -> Arrangement.Center
-                        }
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                //scale(if (isEnabled) pulseScale else 1f)
-                                .then(
-                                    if (buttonFullWidth) Modifier.fillMaxWidth()
-                                    else Modifier.width(buttonWidth.dp)
-                                )
-                                .height(buttonHeight.dp)
-                                .clip(buttonShape)
-                                .background(
-                                    if (isEnabled)
+                                    .height(buttonHeight.dp)
+                                    .clip(buttonShape)
+                                    // The dashboard's colour whatever the state — spinning
+                                    // greyed it out to a hardcoded Color.Gray, which no
+                                    // dashboard setting could reach.
+                                    .background(
                                         Brush.verticalGradient(
                                             listOf(
                                                 buttonBackgroundColor,
                                                 buttonBackgroundColor.copy(alpha = 0.9f)
                                             )
                                         )
-                                    else
-                                        Brush.verticalGradient(
-                                            listOf(
-                                                Color.Gray.copy(alpha = 0.4f),
-                                                Color.Gray.copy(alpha = 0.3f)
-                                            )
-                                        )
-                                )
-                                .border(
-                                    if (buttonBorderWidth > 0) buttonBorderWidth.dp else 0.dp,
-                                    buttonBorderColor,
-                                    buttonShape
-                                )
-                                .clickable(
-                                    enabled = isEnabled,
-                                    interactionSource = interactionSource,
-                                    indication = null
-                                ) {
-                                    performSpin()
-                                },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (isSpinning) {
-                                CircularProgressIndicator(
-                                    strokeWidth = 2.5.dp,
-                                    color = buttonTextColor,
-                                    modifier = Modifier.size(22.dp)
-                                )
-                            } else {
-                                CommonText(
-                                    text = spinTheWheelDetails.spinButtonText ?: "SPIN",
-                                    letterSpacing = 0.5f,
-                                    styling = TextStyling(
-                                        color = buttonText?.color ?: "#FFFFFF",
-                                        fontFamily = buttonText?.fontFamily,
-                                        fontSize = buttonTextSize,
-                                        fontDecoration = listOfNotNull(
-                                            buttonText?.fontWeight ?: "semibold",
-                                            buttonText?.fontStyle
-                                        ) + buttonText?.fontDecoration.orEmpty()
                                     )
-                                )
+                                    .border(
+                                        if (buttonBorderWidth > 0) buttonBorderWidth.dp else 0.dp,
+                                        buttonBorderColor,
+                                        buttonShape
+                                    )
+                                    .clickable(
+                                        enabled = isEnabled,
+                                        interactionSource = interactionSource,
+                                        indication = null
+                                    ) {
+                                        performSpin()
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (isSpinning) {
+                                    CircularProgressIndicator(
+                                        strokeWidth = 2.5.dp,
+                                        color = buttonTextColor,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                } else {
+                                    CommonText(
+                                        text = spinTheWheelDetails.spinButtonText ?: "SPIN",
+                                        letterSpacing = 0.5f,
+                                        styling = TextStyling(
+                                            color = buttonText?.color ?: "#FFFFFF",
+                                            fontFamily = buttonText?.fontFamily,
+                                            fontSize = buttonTextSize,
+                                            fontDecoration = listOfNotNull(
+                                                buttonText?.fontWeight ?: "semibold",
+                                                buttonText?.fontStyle
+                                            ) + buttonText?.fontDecoration.orEmpty()
+                                        )
+                                    )
+                                }
                             }
                         }
-                    }
 
-                    Spacer(modifier = Modifier.height((buttonMargin?.bottom ?: 0).dp))
+                        Spacer(modifier = Modifier.height((buttonMargin?.bottom ?: 0).dp))
+                    }
                 }
             } // end else (wheel view)
         } // end outer Box
@@ -830,25 +919,8 @@ private fun RewardContent(
     val globalSubtitleStyle = rewardStyling?.subtitle?.textStyle
     val crossButtonConfig = rewardStyling?.crossButton
 
-    // Parse title styling (use per-slice if available, then global, then defaults)
-    val titleColor = parseColor(
-        priceLabelStyle?.color ?: globalTitleStyle?.color,
-        if (isWin) Color(0xFF1A1A1A) else Color(0xFF424242)
-    )
     val titleFontSize = priceLabelStyle?.fontSize ?: globalTitleStyle?.fontSize ?: 24
-    val titleTextAlign =
-        parseTextAlign(priceLabelStyle?.textAlign ?: globalTitleStyle?.textAlign ?: "center")
-    val titleTextDecoration =
-        parseTextDecoration(priceLabelStyle?.fontDecoration ?: globalTitleStyle?.fontDecoration)
-
-    // Parse subtitle styling
-    val subtitleColor = parseColor(
-        subtitleTextStyle?.color ?: globalSubtitleStyle?.color,
-        Color(0xFF6B7280)
-    )
     val subtitleFontSize = subtitleTextStyle?.fontSize ?: globalSubtitleStyle?.fontSize ?: 14
-    val subtitleTextAlign =
-        parseTextAlign(subtitleTextStyle?.textAlign ?: globalSubtitleStyle?.textAlign ?: "center")
 
     // Cross button styling
     val crossButtonEnabled = crossButtonConfig?.enabled ?: true
@@ -857,23 +929,30 @@ private fun RewardContent(
     val crossButtonAlignment = crossButtonConfig?.alignment ?: "right"
     val crossButtonImage = crossButtonConfig?.image
 
-    // CTA Button styling
-    val ctaContainer = ctaStyling?.container
-    val ctaText = ctaStyling?.text
-    val ctaCornerRadius = ctaStyling?.cornerRadius
-    val ctaMargin = ctaStyling?.margin
+    // CTA Button styling. The dashboard configures ONE CTA under Reward
+    // Configuration that every slice shares; the per-slice block is what older
+    // payloads carried, so it stays as the fallback rather than the source.
+    val commonCta = rewardStyling?.cta
+    val ctaContainer = commonCta?.container
+    val legacyContainer = ctaStyling?.container
+    val ctaText = commonCta?.text
+    val legacyText = ctaStyling?.text
+    val ctaCornerRadius =
+        commonCta?.cornerRadius ?: ctaContainer?.cornerRadius ?: ctaStyling?.cornerRadius
+    val ctaMargin = commonCta?.margin ?: ctaStyling?.margin
     val ctaBackgroundColor = parseColor(
-        ctaContainer?.backgroundColor,
+        ctaContainer?.backgroundColor ?: legacyContainer?.backgroundColor,
         if (isWin) Color(0xFF2563EB) else Color(0xFF6B7280)
     )
-    val ctaBorderColor = parseColor(ctaContainer?.borderColor, Color.Transparent)
-    val ctaBorderWidth = ctaContainer?.borderWidth ?: 0
-    val ctaHeight = ctaContainer?.height ?: 52
-    val ctaFullWidth = ctaContainer?.ctaFullWidth ?: true
-    val ctaWidth = ctaContainer?.ctaWidth ?: 200
-    val ctaTextColor = parseColor(ctaText?.color, Color.White)
-    val ctaTextSize = ctaText?.fontSize ?: 16
-    val ctaTextDecoration = parseTextDecoration(ctaText?.fontDecoration)
+    val ctaBorderColor = parseColor(
+        ctaContainer?.borderColor ?: legacyContainer?.borderColor,
+        Color.Transparent
+    )
+    val ctaBorderWidth = ctaContainer?.borderWidth ?: legacyContainer?.borderWidth ?: 0
+    val ctaHeight = ctaContainer?.height ?: legacyContainer?.height ?: 52
+    val ctaFullWidth = ctaContainer?.fullWidth ?: legacyContainer?.ctaFullWidth ?: true
+    val ctaWidth = ctaContainer?.width ?: legacyContainer?.ctaWidth ?: 200
+    val ctaTextSize = ctaText?.fontSize ?: legacyText?.fontSize ?: 16
     val ctaShape = RoundedCornerShape(
         topStart = (ctaCornerRadius?.topLeft ?: 12).dp,
         topEnd = (ctaCornerRadius?.topRight ?: 12).dp,
@@ -900,13 +979,14 @@ private fun RewardContent(
     val couponDecorations = couponText?.fontDecoration
 
 
+    // Full-screen reward. The dashboard is dropping its pop-up mode, so this is the
+    // only layout there is — nothing branches on rewardDisplayMode.
+    val cardWidth = 0.9f
+
     Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
-
-
-        // CARD — scale + fade
         AnimatedVisibility(
             visible = visible,
             enter = scaleIn(
@@ -917,16 +997,91 @@ private fun RewardContent(
             ) + fadeIn(),
             exit = scaleOut() + fadeOut()
         ) {
-            Box(
-                modifier = Modifier.wrapContentSize(),
-                contentAlignment = Alignment.TopCenter
-            ) {
-                // 🔥 MAIN CONTENT
+            // The headings and card are centred on their OWN height, and the CTA
+            // flows below them. Centring the whole lot together (Arrangement.Center
+            // over every child) meant a bigger cta.margin.top made the block taller
+            // and the extra space was split evenly, so raising the gap pushed the
+            // card UP as much as it pushed the CTA down and the CTA could never
+            // reach the bottom. Anchoring the card keeps the gap doing only what it
+            // says. The leading Spacer is what does the centring, so the CTA below
+            // still occupies real scrollable space and stays reachable when the gap
+            // is large enough to push it past the fold.
+            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                val viewportHeight = this@BoxWithConstraints.maxHeight
+                var headerHeight by remember { mutableStateOf(0.dp) }
+                val headerDensity = LocalDensity.current
                 Column(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState()),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // ✅ REWARD TITLE — outside card
+                    // The CTA and its bottom margin have to fit under the headings,
+                    // so the headings centre no lower than that leaves room for.
+                    val ctaBlock = ctaHeight.dp + (ctaMargin?.bottom ?: 0).dp
+                    val headerTop = minOf(
+                        (viewportHeight - headerHeight) / 2,
+                        viewportHeight - headerHeight - ctaBlock
+                    ).coerceAtLeast(0.dp)
+                    // A gap wider than the screen can hold is capped rather than
+                    // scrolled away: the dashboard value is a request, the screen
+                    // has the final say.
+                    val ctaGap = (ctaMargin?.top ?: 0).coerceAtLeast(0).dp
+                        .coerceAtMost(
+                            (viewportHeight - headerTop - headerHeight - ctaBlock)
+                                .coerceAtLeast(0.dp)
+                        )
+
+                    Spacer(modifier = Modifier.height(headerTop))
+                    Column(
+                        modifier = Modifier.onSizeChanged {
+                            headerHeight = with(headerDensity) { it.height.toDp() }
+                        },
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                    // Close — placed the way the wheel places its own: a row above the
+                    // content, aligned by the dashboard's alignment, margins honoured.
+                    if (crossButtonEnabled) {
+                        val crossFillColor = crossButtonConfig?.color?.fill ?: "#000000"
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(
+                                    top = (crossMargin?.top ?: 0).dp,
+                                    bottom = (crossMargin?.bottom ?: 0).dp,
+                                    start = (crossMargin?.left ?: 0).dp,
+                                    end = (crossMargin?.right ?: 0).dp
+                                ),
+                            horizontalArrangement = when (crossButtonAlignment.lowercase()) {
+                                "left" -> Arrangement.Start
+                                "center" -> Arrangement.Center
+                                else -> Arrangement.End
+                            }
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(crossButtonSize.dp)
+                                    .shadow(4.dp, CircleShape)
+                                    .background(parseColor(crossFillColor, Color.Black), CircleShape)
+                                    .clickable { onDismiss() },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CrossButton(
+                                    config = createCrossButtonConfig(
+                                        fillColorString = crossFillColor,
+                                        crossColorString = crossButtonConfig?.color?.cross ?: "#FFFFFF",
+                                        strokeColorString =
+                                            crossButtonConfig?.color?.stroke ?: "#FFFFFF",
+                                        size = crossButtonSize,
+                                        imageUrl = crossButtonImage
+                                    ),
+                                    onClose = onDismiss
+                                )
+                            }
+                        }
+                    }
+
+                    // Campaign-level heading — styling.rewardConfiguration.title
                     rewardConfiguration?.rewardPopupTitle?.takeIf { it.isNotBlank() }
                         ?.let { title ->
                             CommonText(
@@ -951,7 +1106,7 @@ private fun RewardContent(
                             )
                         }
 
-                    // ✅ REWARD SUBTITLE — outside card
+                    // Campaign-level sub-heading — styling.rewardConfiguration.subtitle
                     rewardConfiguration?.rewardPopupDescription?.takeIf { it.isNotBlank() }
                         ?.let { subtitle ->
                             CommonText(
@@ -976,31 +1131,70 @@ private fun RewardContent(
                             )
                         }
 
-                    // 🔥 CARD starts here
+                    // ── CARD ───────────────────────────────────────────────────────
                     Box(
                         modifier = Modifier
-                            .fillMaxWidth(0.9f)
+                            .fillMaxWidth(cardWidth)
                             .shadow(32.dp, RoundedCornerShape(28.dp))
                     ) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(28.dp))
-                                .background(parseColor(rewardStyling?.cardBackgroundColor, Color.White)),
+                                .background(
+                                    parseColor(
+                                        rewardStyling?.cardBodyColor
+                                            ?: rewardStyling?.cardBackgroundColor,
+                                        Color.White
+                                    )
+                                ),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-
-
-                            // Brand band with the prize artwork in a circular badge
-                            // that straddles its lower edge. The badge keeps the artwork
-                            // a consistent shape whatever the asset's aspect ratio is.
+                            // Brand band with the prize artwork straddling its lower edge.
+                            // The artwork keeps its own shape — fixed width, height from the
+                            // image — capped, the same way the scratch card sizes its cover
+                            // and for the same reason: a tall upload (1000x5000) would
+                            // otherwise size the card past the bottom of the screen.
                             val bandHeight = 96.dp
-                            // A landscape tile, because uploaded prize art is rectangular
-                            // — a rectangle inside a circle always leaves gaps at the
-                            // corners and reads as a mistake.
-                            val badgeWidth = 156.dp
-                            val badgeHeight = 104.dp
-                            val badgeShape = RoundedCornerShape(18.dp)
+                            // Container styling — styling.rewardConfiguration.rewardImage,
+                            // the same knobs the story circle exposes. Defaults reproduce
+                            // what used to be hardcoded here.
+                            val imageStyling = rewardStyling?.rewardImage
+                            val badgeWidth = (imageStyling?.width ?: 156).dp
+                            val badgeBorder = (imageStyling?.borderWidth ?: 6).dp
+                            val badgeBorderColor =
+                                parseColor(imageStyling?.borderColor, Color.White)
+                            // Inner radius is what the dashboard sets; the frame's outer
+                            // radius is that plus its own width, so the two stay
+                            // concentric — the story circle does the same with ringWidth.
+                            val artworkShape = RoundedCornerShape(
+                                topStart = (imageStyling?.cornerRadius?.topLeft ?: 12).dp,
+                                topEnd = (imageStyling?.cornerRadius?.topRight ?: 12).dp,
+                                bottomStart =
+                                    (imageStyling?.cornerRadius?.bottomLeft ?: 12).dp,
+                                bottomEnd =
+                                    (imageStyling?.cornerRadius?.bottomRight ?: 12).dp
+                            )
+                            // The badge hangs half below the band, so anything over 2x the
+                            // band would poke out of its top. This is the cap the scratch
+                            // card learned it needed: without one, a 1000x5000 upload sizes
+                            // the container off the bottom of the screen.
+                            val badgeMaxHeight = bandHeight * 1.8f
+                            val badgeShape = RoundedCornerShape(
+                                topStart = (imageStyling?.cornerRadius?.topLeft ?: 12).dp
+                                    + badgeBorder,
+                                topEnd = (imageStyling?.cornerRadius?.topRight ?: 12).dp
+                                    + badgeBorder,
+                                bottomStart =
+                                    (imageStyling?.cornerRadius?.bottomLeft ?: 12).dp
+                                        + badgeBorder,
+                                bottomEnd =
+                                    (imageStyling?.cornerRadius?.bottomRight ?: 12).dp
+                                        + badgeBorder
+                            )
+                            val density = LocalDensity.current
+                            var badgeHeight by remember { mutableStateOf(0.dp) }
+
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -1011,101 +1205,62 @@ private fun RewardContent(
                                         .fillMaxWidth()
                                         .height(bandHeight)
                                         .background(
-                                            if (isWin) {
-                                                Brush.linearGradient(
-                                                    colors = listOf(
-                                                        Color(0xFF667EEA),
-                                                        Color(0xFF764BA2)
-                                                    )
-                                                )
-                                            } else {
-                                                Brush.linearGradient(
-                                                    colors = listOf(
-                                                        Color(0xFF9CA3AF),
-                                                        Color(0xFF6B7280)
-                                                    )
-                                                )
-                                            }
+                                            // Dashboard first; the old hardcoded pair is
+                                            // only the fallback now.
+                                            parseColor(
+                                                rewardStyling?.cardHeaderColor,
+                                                if (isWin) Color(0xFF7C3AED) else Color(0xFF9CA3AF)
+                                            )
                                         )
                                 )
-
-                                // Close sits on the band, inset from the card edge. It used
-                                // to be pulled onto the card's rounded corner by a negative
-                                // offset taken from its bottom margin.
-                                if (crossButtonEnabled) {
-                                    Box(
-                                        modifier = Modifier
-                                            .align(
-                                                when (crossButtonAlignment.lowercase()) {
-                                                    "left" -> Alignment.TopStart
-                                                    "center" -> Alignment.TopCenter
-                                                    else -> Alignment.TopEnd
-                                                }
-                                            )
-                                            .padding(
-                                                top = ((crossMargin?.top ?: 0) + 10).dp,
-                                                start = ((crossMargin?.left ?: 0) + 10).dp,
-                                                end = ((crossMargin?.right ?: 0) + 10).dp
-                                            )
-                                    ) {
-                                        CrossButton(
-                                            config = createCrossButtonConfig(
-                                                fillColorString =
-                                                    crossButtonConfig?.color?.fill ?: "#FFFFFF33",
-                                                crossColorString =
-                                                    crossButtonConfig?.color?.cross ?: "#FFFFFF",
-                                                strokeColorString =
-                                                    crossButtonConfig?.color?.stroke ?: "#FFFFFF33",
-                                                size = crossButtonSize,
-                                                imageUrl = crossButtonImage
-                                            ),
-                                            onClose = onDismiss
-                                        )
-                                    }
-                                }
 
                                 Box(
                                     modifier = Modifier
                                         .align(Alignment.BottomCenter)
-                                        .width(badgeWidth)
-                                        .height(badgeHeight)
+                                        // The tile hugs the artwork in BOTH directions. It used
+                                        // to be pinned to badgeWidth, so a portrait upload was
+                                        // scaled down to the height cap and then sat in a tile
+                                        // still 156dp wide — the slack showed up as thick white
+                                        // bars either side of the image.
+                                        //
+                                        // required*, so the artwork's own size wins over the
+                                        // parent it is in the middle of resizing. The floor only
+                                        // stops the tile collapsing while the image loads.
+                                        .requiredSizeIn(
+                                            minWidth = 56.dp,
+                                            minHeight = 56.dp,
+                                            maxWidth = badgeWidth,
+                                            maxHeight = badgeMaxHeight
+                                        )
+                                        .onSizeChanged {
+                                            badgeHeight = with(density) { it.height.toDp() }
+                                        }
                                         .shadow(10.dp, badgeShape)
                                         .clip(badgeShape)
-                                        .background(Color.White)
-                                        .padding(6.dp),
+                                        .background(badgeBorderColor)
+                                        .padding(badgeBorder),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     if (!rewardMedia.isNullOrBlank()) {
-                                        val badgeW = with(LocalDensity.current) {
-                                            badgeWidth.roundToPx()
-                                        }
-                                        val badgeH = with(LocalDensity.current) {
-                                            badgeHeight.roundToPx()
-                                        }
-                                        // Crop fills the tile, so a rectangular upload has
-                                        // no empty corners. Shared with the scratch card so
-                                        // GIF and Lottie prizes animate.
                                         RewardMedia(
                                             bannerImageUrl = rewardMedia,
-                                            targetWidthPx = badgeW,
-                                            targetHeightPx = badgeH,
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .clip(RoundedCornerShape(13.dp)),
-                                            contentScale = ContentScale.Crop
+                                            targetWidthPx = with(density) { badgeWidth.roundToPx() },
+                                            targetHeightPx =
+                                                with(density) { badgeMaxHeight.roundToPx() },
+                                            // No fillMaxWidth: the image reports its own scaled
+                                            // size and the tile wraps it.
+                                            modifier = Modifier.clip(artworkShape),
+                                            // Fit sizes the tile to the image's own shape, and
+                                            // once the cap bites it shrinks to fit rather than
+                                            // cropping the artwork.
+                                            contentScale = ContentScale.Fit
                                         )
                                     } else {
-                                        Text(
-                                            text = if (isWin) "🎁" else "✨",
-                                            fontSize = 40.sp
-                                        )
+                                        Text(text = if (isWin) "🎁" else "✨", fontSize = 40.sp)
                                     }
                                 }
                             }
 
-                            val priceLabelMargin = priceLabelStyle?.margin
-
-                            // Content section
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -1114,22 +1269,19 @@ private fun RewardContent(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                // Prize name
+                                // Prize name — reward.styling.priceLabel
+                                val priceLabelMargin = priceLabelStyle?.margin
                                 CommonText(
                                     text = prizeName,
                                     lineHeight = (titleFontSize + 6).toFloat(),
                                     styling = TextStyling(
                                         color = priceLabelStyle?.color
-                                            ?: globalTitleStyle?.color
                                             ?: if (isWin) "#1A1A1A" else "#424242",
-                                        fontFamily = priceLabelStyle?.fontFamily
-                                            ?: globalTitleStyle?.fontFamily,
+                                        fontFamily = priceLabelStyle?.fontFamily,
                                         fontSize = titleFontSize,
-                                        textAlign = priceLabelStyle?.textAlign
-                                            ?: globalTitleStyle?.textAlign ?: "center",
+                                        textAlign = priceLabelStyle?.textAlign ?: "center",
                                         fontDecoration = listOf("bold") +
-                                            (priceLabelStyle?.fontDecoration
-                                                ?: globalTitleStyle?.fontDecoration).orEmpty(),
+                                            priceLabelStyle?.fontDecoration.orEmpty(),
                                         margin = CommonMargins(
                                             top = priceLabelMargin?.top,
                                             bottom = priceLabelMargin?.bottom,
@@ -1139,23 +1291,19 @@ private fun RewardContent(
                                     )
                                 )
 
+                                // Sub text — reward.styling.subtitleText
                                 val subtitleMargin = subtitleTextStyle?.margin
-
-                                // Sub text / description
                                 subText?.takeIf { it.isNotEmpty() }?.let { text ->
                                     CommonText(
                                         text = text,
                                         lineHeight = (subtitleFontSize + 5).toFloat(),
                                         styling = TextStyling(
-                                            color = subtitleTextStyle?.color
-                                                ?: globalSubtitleStyle?.color ?: "#6B7280",
-                                            fontFamily = subtitleTextStyle?.fontFamily
-                                                ?: globalSubtitleStyle?.fontFamily,
+                                            color = subtitleTextStyle?.color ?: "#6B7280",
+                                            fontFamily = subtitleTextStyle?.fontFamily,
                                             fontSize = subtitleFontSize,
-                                            textAlign = subtitleTextStyle?.textAlign
-                                                ?: globalSubtitleStyle?.textAlign ?: "center",
-                                            fontDecoration = (subtitleTextStyle?.fontDecoration
-                                                ?: globalSubtitleStyle?.fontDecoration).orEmpty(),
+                                            textAlign = subtitleTextStyle?.textAlign ?: "center",
+                                            fontDecoration =
+                                                subtitleTextStyle?.fontDecoration.orEmpty(),
                                             margin = CommonMargins(
                                                 top = subtitleMargin?.top,
                                                 bottom = subtitleMargin?.bottom,
@@ -1166,191 +1314,186 @@ private fun RewardContent(
                                     )
                                 }
 
-
-                                // Coupon Code Section - Modern dashed border style
+                                // Coupon — reward.styling.couponCodeCta
                                 couponCode?.takeIf { it.isNotEmpty() && isWin }?.let { code ->
-
-                                    // Coupon code card
                                     val couponMargin = couponCtaStyling?.margin
-                                    val couponAlignment = couponContainer?.alignment ?: "center"
-
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = when (couponAlignment.lowercase()) {
-                                            "left" -> Arrangement.Start
-                                            "right" -> Arrangement.End
-                                            else -> Arrangement.Center
-                                        }
-                                    ) {
-                                    val dashStroke = with(LocalDensity.current) {
+                                    val dashStroke = with(density) {
                                         couponBorderWidth.dp.toPx().coerceAtLeast(1f)
                                     }
-                                    val dashRadius = with(LocalDensity.current) {
+                                    val dashRadius = with(density) {
                                         (couponCornerRadius?.topLeft ?: 8).dp.toPx()
                                     }
                                     Row(
-                                        modifier = Modifier
-                                            .padding(
-                                                top = (couponMargin?.top ?: 0).dp,
-                                                bottom = (couponMargin?.bottom ?: 0).dp,
-                                                start = (couponMargin?.left ?: 0).dp,
-                                                end = (couponMargin?.right ?: 0).dp
-                                            )
-                                            .then(
-                                                if (couponContainer?.ctaFullWidth == true)
-                                                    Modifier.fillMaxWidth()
-                                                else
-                                                    Modifier.width((couponContainer?.ctaWidth ?: 200).dp)
-                                            )
-                                            .clip(couponShape)
-                                            .background(couponBackgroundColor)
-                                            // Dashed outline — the ticket look. A solid
-                                            // border reads as an input field instead.
-                                            .drawBehind {
-                                                drawRoundRect(
-                                                    color = couponBorderColor,
-                                                    style = Stroke(
-                                                        width = dashStroke,
-                                                        pathEffect = PathEffect.dashPathEffect(
-                                                            floatArrayOf(
-                                                                dashStroke * 6f,
-                                                                dashStroke * 5f
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement =
+                                            when ((couponContainer?.alignment ?: "center").lowercase()) {
+                                                "left" -> Arrangement.Start
+                                                "right" -> Arrangement.End
+                                                else -> Arrangement.Center
+                                            }
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .padding(
+                                                    top = (couponMargin?.top ?: 0).dp,
+                                                    bottom = (couponMargin?.bottom ?: 0).dp,
+                                                    start = (couponMargin?.left ?: 0).dp,
+                                                    end = (couponMargin?.right ?: 0).dp
+                                                )
+                                                .then(
+                                                    if (couponContainer?.ctaFullWidth == true)
+                                                        Modifier.fillMaxWidth()
+                                                    else
+                                                        Modifier.width(
+                                                            (couponContainer?.ctaWidth ?: 200).dp
+                                                        )
+                                                )
+                                                // container.height was parsed and then ignored.
+                                                .height((couponContainer?.height ?: 46).dp)
+                                                .clip(couponShape)
+                                                .background(couponBackgroundColor)
+                                                // Dashed outline — the ticket look. A solid
+                                                // border reads as an input field instead.
+                                                .drawBehind {
+                                                    drawRoundRect(
+                                                        color = couponBorderColor,
+                                                        style = Stroke(
+                                                            width = dashStroke,
+                                                            pathEffect = PathEffect.dashPathEffect(
+                                                                floatArrayOf(
+                                                                    dashStroke * 6f,
+                                                                    dashStroke * 5f
+                                                                )
+                                                            )
+                                                        ),
+                                                        cornerRadius =
+                                                            CornerRadius(dashRadius, dashRadius)
+                                                    )
+                                                }
+                                                .clickable {
+                                                    try {
+                                                        val clipboard =
+                                                            context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                                                        clipboard?.setPrimaryClip(
+                                                            android.content.ClipData.newPlainText(
+                                                                "Coupon Code",
+                                                                code
                                                             )
                                                         )
-                                                    ),
-                                                    cornerRadius = CornerRadius(dashRadius, dashRadius)
-                                                )
-                                            }
-                                            .clickable {
-                                                try {
-                                                    val clipboard =
-                                                        context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
-                                                    clipboard?.setPrimaryClip(
-                                                        android.content.ClipData.newPlainText(
-                                                            "Coupon Code",
-                                                            code
-                                                        )
-                                                    )
-                                                    isCopied = true
-                                                } catch (_: Exception) {
+                                                        isCopied = true
+                                                    } catch (_: Exception) {
+                                                    }
                                                 }
-                                            }
-                                            .padding(horizontal = 18.dp, vertical = 13.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        CommonText(
-                                            modifier = Modifier.weight(1f),
-                                            text = code.uppercase(),
-                                            letterSpacing = 2f,
-                                            styling = TextStyling(
-                                                color = couponText?.color ?: "#FD5F03",
-                                                fontFamily = couponText?.fontFamily,
-                                                fontSize = couponTextSize,
-                                                textAlign = "left",
-                                                fontDecoration = couponDecorations.orEmpty()
-                                            )
-                                        )
-
-                                        // Copy affordance: the two-sheets glyph, drawn
-                                        // rather than pulled from material-icons-extended
-                                        // (only the core icon set is a dependency here).
-                                        val glyphColor =
-                                            if (isCopied) Color(0xFF10B981) else couponTextColor
-                                        Canvas(modifier = Modifier.size(18.dp)) {
-                                            val r = size.minDimension * 0.12f
-                                            val w = size.minDimension * 0.62f
-                                            val line = size.minDimension * 0.09f
-                                            drawRoundRect(
-                                                color = glyphColor,
-                                                topLeft = Offset(0f, size.height - w),
-                                                size = Size(w, w),
-                                                cornerRadius = CornerRadius(r, r),
-                                                style = Stroke(width = line)
-                                            )
-                                            drawRoundRect(
-                                                color = glyphColor,
-                                                topLeft = Offset(size.width - w, 0f),
-                                                size = Size(w, w),
-                                                cornerRadius = CornerRadius(r, r),
-                                                style = Stroke(width = line)
-                                            )
-                                        }
-                                    } // end inner coupon Row
-                                    } // end alignment Row
-
-
-                                }
-
-                                // CTA Button with per-slice styling
-                                Button(
-                                    onClick = {
-                                        if (!redirectLink.isNullOrEmpty()) onLinkClick(redirectLink)
-                                        onDismiss()
-                                    },
-                                    modifier = Modifier
-                                        .padding(
-                                            top = (ctaMargin?.top ?: 0).coerceAtLeast(0).dp,
-                                            bottom = (ctaMargin?.bottom ?: 0).coerceAtLeast(0).dp,
-                                            start = (ctaMargin?.left ?: 0).coerceAtLeast(0).dp,
-                                            end = (ctaMargin?.right ?: 0).coerceAtLeast(0).dp
-                                        )
-                                        .then(
-                                            if (ctaFullWidth) Modifier.fillMaxWidth()
-                                            else Modifier.width(ctaWidth.dp)
-                                        )
-                                        .height(ctaHeight.dp)
-                                        .then(
-                                            if (ctaBorderWidth > 0)
-                                                Modifier.border(
-                                                    ctaBorderWidth.dp,
-                                                    ctaBorderColor,
-                                                    ctaShape
+                                                .padding(horizontal = 18.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            CommonText(
+                                                modifier = Modifier.weight(1f),
+                                                text = code.uppercase(),
+                                                letterSpacing = 2f,
+                                                styling = TextStyling(
+                                                    color = couponText?.color ?: "#FD5F03",
+                                                    fontFamily = couponText?.fontFamily,
+                                                    fontSize = couponTextSize,
+                                                    textAlign = "left",
+                                                    fontDecoration = couponDecorations.orEmpty()
                                                 )
-                                            else Modifier
-                                        ),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = ctaBackgroundColor
-                                    ),
-                                    shape = ctaShape,
-                                    elevation = ButtonDefaults.buttonElevation(
-                                        defaultElevation = 6.dp,
-                                        pressedElevation = 2.dp
-                                    ),
-                                    contentPadding = PaddingValues(0.dp)
-                                ) {
-                                    CommonText(
-                                        text = buttonCtaText,
-                                        letterSpacing = 0.5f,
-                                        styling = TextStyling(
-                                            color = ctaText?.color ?: "#FFFFFF",
-                                            fontFamily = ctaText?.fontFamily,
-                                            fontSize = ctaTextSize,
-                                            fontDecoration = listOf("semibold") +
-                                                ctaText?.fontDecoration.orEmpty()
-                                        )
-                                    )
+                                            )
+
+                                            // Copy affordance: the two-sheets glyph, drawn
+                                            // rather than pulled from material-icons-extended
+                                            // (only the core icon set is a dependency here).
+                                            val glyphColor =
+                                                if (isCopied) Color(0xFF10B981) else couponTextColor
+                                            Canvas(modifier = Modifier.size(18.dp)) {
+                                                val r = size.minDimension * 0.12f
+                                                val w = size.minDimension * 0.62f
+                                                val line = size.minDimension * 0.09f
+                                                drawRoundRect(
+                                                    color = glyphColor,
+                                                    topLeft = Offset(0f, size.height - w),
+                                                    size = Size(w, w),
+                                                    cornerRadius = CornerRadius(r, r),
+                                                    style = Stroke(width = line)
+                                                )
+                                                drawRoundRect(
+                                                    color = glyphColor,
+                                                    topLeft = Offset(size.width - w, 0f),
+                                                    size = Size(w, w),
+                                                    cornerRadius = CornerRadius(r, r),
+                                                    style = Stroke(width = line)
+                                                )
+                                            }
+                                        }
+                                    }
                                 }
 
                                 // Terms & Conditions link
-                                val hasTermsContent = !termsContent.isNullOrEmpty()
-                                if (isWin && hasTermsContent) {
+                                if (isWin && !termsContent.isNullOrEmpty()) {
                                     Text(
                                         text = tncCtaText,
                                         fontSize = 13.sp,
                                         color = Color(0xFF6B7280).copy(alpha = 0.9f),
                                         fontWeight = FontWeight.Medium,
                                         textDecoration = TextDecoration.Underline,
-                                        modifier = Modifier.clickable {
-                                            showTermsDialog = true
-                                        }
+                                        modifier = Modifier.clickable { showTermsDialog = true }
                                     )
                                 }
                             }
-                        } // end card content Column
-                    } // end card Box
-                } // end main content Column
-            } // end wrapContentSize Box
+                        }
+                    }
+
+                    } // end headings + card, the part that stays put
+
+                    // ── CTA, outside the card — reward.styling.cta ─────────────────
+                    // The gap between card and button is cta.margin.top, so it is a
+                    // dashboard setting rather than a number picked here.
+                    Button(
+                        onClick = {
+                            if (!redirectLink.isNullOrEmpty()) onLinkClick(redirectLink)
+                            onDismiss()
+                        },
+                        modifier = Modifier
+                            .padding(
+                                top = ctaGap,
+                                bottom = (ctaMargin?.bottom ?: 0).coerceAtLeast(0).dp,
+                                start = (ctaMargin?.left ?: 0).coerceAtLeast(0).dp,
+                                end = (ctaMargin?.right ?: 0).coerceAtLeast(0).dp
+                            )
+                            .then(
+                                if (ctaFullWidth) Modifier.fillMaxWidth(cardWidth)
+                                else Modifier.width(ctaWidth.dp)
+                            )
+                            .height(ctaHeight.dp)
+                            .then(
+                                if (ctaBorderWidth > 0)
+                                    Modifier.border(ctaBorderWidth.dp, ctaBorderColor, ctaShape)
+                                else Modifier
+                            ),
+                        colors = ButtonDefaults.buttonColors(containerColor = ctaBackgroundColor),
+                        shape = ctaShape,
+                        elevation = ButtonDefaults.buttonElevation(
+                            defaultElevation = 6.dp,
+                            pressedElevation = 2.dp
+                        ),
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
+                        CommonText(
+                            text = buttonCtaText,
+                            letterSpacing = 0.5f,
+                            styling = TextStyling(
+                                color = ctaText?.color ?: legacyText?.color ?: "#FFFFFF",
+                                fontFamily = ctaText?.fontFamily ?: legacyText?.fontFamily,
+                                fontSize = ctaTextSize,
+                                fontDecoration = listOf("semibold") +
+                                    (ctaText?.fontDecoration
+                                        ?: legacyText?.fontDecoration).orEmpty()
+                            )
+                        )
+                    }
+                }
+            }
         }
     }
 

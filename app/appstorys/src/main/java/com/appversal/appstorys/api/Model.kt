@@ -2476,11 +2476,52 @@ data class WheelConfigurationStyling(
 @Serializable
 data class WheelRewardStyling(
     val backdropColor: String? = null,
+    // Paired with backdropColor, exactly as the wheel's own backdrop does it. Its
+    // absence here meant ignoreUnknownKeys dropped the dashboard's opacity slider
+    // and the reward backdrop always painted at full strength.
+    val backdropOpacity: Int? = null,
+    // The dashboard splits the card in two: the band behind the prize artwork and
+    // the body under it. cardBackgroundColor is the older single-colour field and
+    // is no longer sent; it stays as the body's fallback.
+    val cardHeaderColor: String? = null,
+    val cardBodyColor: String? = null,
     val cardBackgroundColor: String? = null,
+    // ONE CTA for every slice, configured under Reward Configuration. Its container
+    // is shaped like the spin button's (fullWidth/width), not like the per-slice
+    // block's (ctaFullWidth/ctaWidth), so it reuses those leaf types.
+    val cta: WheelRewardCtaStyling? = null,
+    val rewardImage: WheelRewardImageStyling? = null,
     val confetti: WheelConfettiConfig? = null,
     val crossButton: WheelCrossButtonConfig? = null,
     val title: WheelTextStyleConfig? = null,
     val subtitle: WheelTextStyleConfig? = null
+)
+
+/**
+ * The frame around the prize artwork on the reward card.
+ *
+ * Shaped like [StoryGroupStyling], which is how the story circle is configured:
+ * a four-corner [CornerRadius] plus the width of the ring drawn around the
+ * image. As there, the outer corners are the inner ones plus the border, so the
+ * frame stays concentric with the artwork instead of pinching at the corners.
+ */
+@Keep
+@Serializable
+data class WheelRewardImageStyling(
+    val cornerRadius: CornerRadius? = null,
+    /** Container width in dp; the height still follows the artwork's own shape. */
+    val width: Int? = null,
+    val borderWidth: Int? = null,
+    val borderColor: String? = null
+)
+
+@Keep
+@Serializable
+data class WheelRewardCtaStyling(
+    val container: WheelButtonContainerStyle? = null,
+    val cornerRadius: CornerRadius? = null,
+    val margin: WheelMargin? = null,
+    val text: WheelButtonTextStyle? = null
 )
 
 @Keep
