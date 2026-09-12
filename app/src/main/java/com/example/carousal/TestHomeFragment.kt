@@ -99,7 +99,7 @@ class TestHomeFragment : Fragment() {
     private lateinit var binding: ActivityHomeBinding
 
     companion object {
-        private const val SCREEN_NAME = "Home Screen Kotlin XML"
+        private const val SCREEN_NAME = "Home Screen Kotlin"
         private val POSITIONS = listOf("widget_one")
     }
 
@@ -137,9 +137,9 @@ class TestHomeFragment : Fragment() {
         //  push next fragment, pop back, widgets stay gone.)
 //        parentFragmentManager.addOnBackStackChangedListener(backStackListener)
 
-        binding.openBottomSheet.setOnClickListener {
-            TestBottomSheetFragment().show(parentFragmentManager, "TestBottomSheet")
-        }
+//        binding.openBottomSheet.setOnClickListener {
+//            TestBottomSheetFragment().show(parentFragmentManager, "TestBottomSheet")
+//        }
 
         binding.openMoreScreen.setOnClickListener {
             startActivity(android.content.Intent(requireContext(), MoreActivity::class.java))

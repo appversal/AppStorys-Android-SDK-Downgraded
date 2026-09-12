@@ -73,7 +73,7 @@
                     android:src="@drawable/home_two" />
 
                 <Button
-                    android:id="@+id/open_bottom_sheet"
+                    android:id="@+id/anirudtest"
                     android:layout_width="187dp"
                     android:layout_height="59dp"
                     android:text="Open Bottom Sheet" />

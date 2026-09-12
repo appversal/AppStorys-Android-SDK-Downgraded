@@ -4,6 +4,8 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     id("maven-publish")
     id("kotlin-parcelize")
+
+    id("io.sentry.android.gradle") version "6.22.0"
 }
 
 android {
@@ -90,4 +92,13 @@ afterEvaluate {
             }
         }
     }
+}
+
+sentry {
+    org.set("appstorys-z3")
+    projectName.set("android")
+
+    // this will upload your source code to Sentry to show it as part of the stack traces
+    // disable if you don't want to expose your sources
+    includeSourceContext.set(true)
 }

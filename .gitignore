@@ -14,6 +14,8 @@
 .externalNativeBuild
 .cxx
 local.properties
+sentry-wizard
+build-qa/
 
 # Documentation files
 CSAT_DEVELOPER_GUIDE.md
