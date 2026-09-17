@@ -68,6 +68,7 @@ dependencies {
     implementation(libs.gson)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.coil.gif)
+    implementation(libs.coil.svg)
     implementation(libs.androidx.activity.ktx)
     implementation(libs.exoplayer.ui)
     implementation(libs.exoplayer.core)

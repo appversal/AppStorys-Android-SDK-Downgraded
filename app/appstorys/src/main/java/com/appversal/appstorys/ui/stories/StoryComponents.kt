@@ -48,6 +48,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -66,6 +67,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.edit
@@ -388,6 +390,16 @@ internal fun StoryScreenContent(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
+    // Hold the screen while the viewer is up — a story is a full-screen media
+    // surface and was letting the device's screen timeout cut videos mid-play.
+    // keepScreenOn is the window flag scoped to this view's lifetime: released
+    // automatically when the sheet is dismissed, no wake lock or permission.
+    val view = LocalView.current
+    DisposableEffect(view) {
+        view.keepScreenOn = true
+        onDispose { view.keepScreenOn = false }
+    }
+
     var isHolding by remember { mutableStateOf(false) }
     // The studio's sound toggle carries the initial state: defaultSound == "no"
     // means "start muted". Previously this was ignored and every story opened
@@ -425,8 +437,15 @@ internal fun StoryScreenContent(
     val completedSlides = remember(storyGroup.id) { mutableSetOf<Int>() }
 
     val isImage = currentSlide.video == null
-    // Use slideShowTime from styling if available, otherwise default to 5 seconds
-    val storyDuration = if (isImage) (storyGroup.styling?.slideShowTime ?: 5) * 1000 else 0
+    // Longest studio-canvas (foreground) video on this slide, reported by its player
+    // once ready; 0 until then / when there is none. Reset per slide below.
+    var foregroundVideoMs by remember { mutableLongStateOf(0L) }
+    // Image slides last slideShowTime (default 5 s) — or longer, if a foreground
+    // video on them runs longer, so the video isn't cut off mid-play. Background
+    // video slides are timed by the player itself (storyDuration unused there).
+    val storyDuration = if (isImage) {
+        maxOf((storyGroup.styling?.slideShowTime ?: 5) * 1000L, foregroundVideoMs).toInt()
+    } else 0
 
     // True when the slide carries ANY playable video — the full-screen background
     // video and/or a studio-canvas foreground video. Drives the visibility of the
@@ -480,6 +499,15 @@ internal fun StoryScreenContent(
                 playWhenReady = true
                 videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT
             }
+    }
+
+    // The player is built with ExoPlayer's default volume (1f) and `isMuted` only
+    // ever reached it from the toggle's click handler — so a group authored
+    // defaultSound == "no" opened with the icon saying "muted" while the video
+    // played out loud, until the first tap brought the two back in line. Drive
+    // the volume from the state itself, like the studio-canvas videos already do.
+    LaunchedEffect(player, isMuted) {
+        player.volume = if (isMuted) 0f else 1f
     }
 
     // Properly stop and reset player when story group changes
@@ -607,6 +635,7 @@ internal fun StoryScreenContent(
         isVideoReady = false
         isBuffering = false
         videoDuration = 0L
+        foregroundVideoMs = 0L
         videoAspectRatio = null
         sendEvent(Pair(currentSlide, "IMP"))
 
@@ -631,7 +660,11 @@ internal fun StoryScreenContent(
         isHolding,
         isDismissing,
         isVideoReady,
-        isInputFocused
+        isInputFocused,
+        // A foreground video reporting its length mid-slide lengthens the slide;
+        // the loop re-bases its start time from the current progress, so the bar
+        // simply slows down rather than jumping.
+        storyDuration
     ) {
         if (isHolding || isDismissing || isInputFocused) {
             return@LaunchedEffect
@@ -824,13 +857,20 @@ internal fun StoryScreenContent(
                 val sizingFill = mediaMeta?.sizing == "fill"
                 val mediaAlign = backgroundMediaAlignment(mediaMeta?.position)
 
+                // "fill" crop-covers the whole screen. "fit" must live in the SAME box as
+                // the foreground canvas below: the studio fits it to the canvas and every
+                // element is authored relative to that canvas. Fitting it to the full
+                // screen instead made it a few % larger whenever the screen isn't exactly
+                // the canvas aspect, so a bottom-anchored image crept up underneath
+                // elements that were authored flush against its top edge.
+                val mediaBox =
+                    if (sizingFill) Modifier.fillMaxSize()
+                    else Modifier.size(canvasW, canvasH).align(Alignment.Center)
+
                 // ── Layer 2: Background image ────────────────────────────────────────
                 if (currentSlide.image != null) {
                     val imageUrl = currentSlide.image
-                    // fit and fill are both resolved against the full screen now (not the
-                    // canva-letterboxed box): fill crop-covers the screen, fit letterboxes
-                    // within the screen — ContentScale below does the actual fit/crop math.
-                    val imgMod = Modifier.fillMaxSize()
+                    val imgMod = mediaBox
 
                     when {
                         // Lottie animation (.json or .lottie files)
@@ -928,14 +968,14 @@ internal fun StoryScreenContent(
                                 // RESIZE_MODE_ZOOM (4) = crop-fill; RESIZE_MODE_FIT (0) = letterbox
                                 view.resizeMode = if (sizingFill) 4 else 0
                             },
-                            modifier = Modifier.fillMaxSize()
+                            modifier = mediaBox
                         )
                     } else {
                         // "fit" sizing with a known aspect ratio — size the player view to the
                         // video's own aspect ratio (like ContentScale.Fit does for images) and
-                        // align it within the full screen using the same `position` styling the
+                        // align it within the canvas box using the same `position` styling the
                         // image path above already honours.
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = mediaAlign) {
+                        Box(modifier = mediaBox, contentAlignment = mediaAlign) {
                             AndroidView(
                                 factory = playerViewFactory,
                                 update = { view -> view.resizeMode = 0 },
@@ -983,7 +1023,14 @@ internal fun StoryScreenContent(
                             sendClickEvent(Pair(currentSlide, "clicked"))
                         },
                         muted = isMuted,
+                        // Seconds into the slide, from the same progress the bar shows —
+                        // this is the clock every element's `duration {start,end}`
+                        // window is gated on. It was never passed before, so it sat at
+                        // 0.0 and windowed elements either never appeared or never left.
+                        currentTime = progress.toDouble() *
+                                (if (isImage) storyDuration.toLong() else videoDuration) / 1000.0,
                         onInputFocusChanged = { focused -> isInputFocused = focused },
+                        onVideoDuration = { ms -> foregroundVideoMs = maxOf(foregroundVideoMs, ms) },
                         onTrack = { event, metadata ->
                             val withSlide =
                                 metadata + mapOf("story_slide" to (currentSlide.id ?: ""))
@@ -1244,14 +1291,7 @@ internal fun StoryScreenContent(
                                         muteConfig = muteButtonConfig,
                                         unmuteConfig = unmuteButtonConfig,
                                         isMuted = isMuted,
-                                        onToggle = {
-                                            isMuted = !isMuted
-                                            if (isMuted) {
-                                                player.volume = 0f
-                                            } else {
-                                                player.volume = 1f
-                                            }
-                                        }
+                                        onToggle = { isMuted = !isMuted }
                                     )
                                 }
                             }
