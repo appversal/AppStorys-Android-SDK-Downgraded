@@ -8,6 +8,7 @@ import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.drawable.Drawable
 import android.os.Build
+import android.util.Base64
 import android.util.Log
 import android.util.Patterns
 import android.view.View
@@ -164,8 +165,10 @@ import kotlin.time.Duration.Companion.milliseconds
 object AppStorys {
     private lateinit var context: Application
 
-    private lateinit var appId: String
+    // v2 only — v3 authenticates with the dashboard API key instead.
+//    private lateinit var appId: String
 
+    // Set from the validate-account token (v3), no longer passed in by the host app.
     private lateinit var accountId: String
 
     private var userId: String = ""
@@ -335,10 +338,17 @@ object AppStorys {
         }
     }
 
+    // v2 signature — v3 takes the API key issued from the dashboard instead of appId/accountId.
+//    fun initialize(
+//        context: Application,
+//        appId: String,
+//        accountId: String,
+//        userId: String = "",
+//        navigateToScreen: (String) -> Unit
+//    ) {
     fun initialize(
         context: Application,
-        appId: String,
-        accountId: String,
+        apiKey: String,
         userId: String = "",
         navigateToScreen: (String) -> Unit
     ) {
@@ -348,8 +358,8 @@ object AppStorys {
         }
 
         this.context = context
-        this.appId = appId
-        this.accountId = accountId
+//        this.appId = appId
+//        this.accountId = accountId
         this.navigateToScreen = navigateToScreen
 
         if (userId.isNotEmpty()) {
@@ -409,13 +419,24 @@ object AppStorys {
         )
         coroutineScope.launch {
             try {
+//                val accessToken = repository.getAccessToken(
+//                    appId,
+//                    accountId,
+//                    this@AppStorys.userId,
+//                    AppStorys.context
+//                )
                 val accessToken = repository.getAccessToken(
-                    appId,
-                    accountId,
+                    apiKey,
                     this@AppStorys.userId,
                     AppStorys.context
                 )
-                if (!accessToken.isNullOrBlank()) {
+                val tokenAccountId = accessToken?.let(::accountIdFromToken)
+                if (!accessToken.isNullOrBlank() && tokenAccountId == null) {
+                    Log.e("AppStorys", "validate-account token has no account id (user_id claim)")
+                    sdkState = AppStorysSdkState.Error
+                }
+                if (!accessToken.isNullOrBlank() && tokenAccountId != null) {
+                    this@AppStorys.accountId = tokenAccountId
                     this@AppStorys.accessToken = accessToken
                     sdkState = AppStorysSdkState.Initialized
 
@@ -451,9 +472,11 @@ object AppStorys {
                         .mapValues { it.value as Int }
                     _spinCountByCampaign.update { restoredCounts }
 
-                    if (campaignsJob?.isActive != true) {
-                        getScreenCampaigns("Home Screen", emptyList())
-                    }
+                    // Removed: a hardcoded "Home Screen" fetch raced the app's own first getScreenCampaigns()
+                    // and got cancelled. Apps always name their screen; an early call already waits for init.
+//                    if (campaignsJob?.isActive != true) {
+//                        getScreenCampaigns("Home Screen", emptyList())
+//                    }
                 }
             } catch (exception: Exception) {
                 Log.e("AppStorys", exception.message ?: "Error Fetch Data")
@@ -462,6 +485,16 @@ object AppStorys {
             showCaseInformation()
         }
     }
+
+    /**
+     * The account id rides in the access token's `user_id` claim (that claim is the ACCOUNT,
+     * not the end user). Only the payload is read — signature checking is the backend's job,
+     * which it does on every call that sends this token.
+     */
+    private fun accountIdFromToken(token: String): String? = runCatching {
+        val payload = Base64.decode(token.split(".")[1], Base64.URL_SAFE or Base64.NO_WRAP)
+        JSONObject(String(payload, Charsets.UTF_8)).optString("user_id").ifBlank { null }
+    }.getOrNull()
 
     fun getScreenCampaigns(
         screenName: String,
@@ -534,17 +567,17 @@ object AppStorys {
                 campaignVariants.emit(variants ?: emptyList())
                 Log.e("AppStorys", "Campaign: ${campaigns.value}")
             } catch (exception: Exception) {
-                Log.e("AppStorys", "Error getting campaigns for $screenName", exception)
                 // Screen switches cancel this job on purpose — that is not a failure.
-                if (exception !is kotlin.coroutines.cancellation.CancellationException) {
-                    SdkErrorTracker.onFetchFailed(
-                        screen = screenName,
-                        step = "track-user-res",
-                        actual = "exception",
-                        message = exception.message ?: exception::class.java.simpleName,
-                        retryable = false
-                    )
-                }
+                // Rethrow so the coroutine finishes cancelling instead of logging it as an error.
+                if (exception is kotlin.coroutines.cancellation.CancellationException) throw exception
+                Log.e("AppStorys", "Error getting campaigns for $screenName", exception)
+                SdkErrorTracker.onFetchFailed(
+                    screen = screenName,
+                    step = "track-user-res",
+                    actual = "exception",
+                    message = exception.message ?: exception::class.java.simpleName,
+                    retryable = false
+                )
             }
         }
     }
@@ -610,7 +643,7 @@ object AppStorys {
                     }
                     val client = OkHttpClient()
                     val request = Request.Builder()
-                        .url("https://tracking.appstorys.com/capture-event")
+                        .url("https://tracking.appstorys.co/capture-event")
                         .post(
                             requestBody.toString()
                                 .toRequestBody("application/json".toMediaTypeOrNull())

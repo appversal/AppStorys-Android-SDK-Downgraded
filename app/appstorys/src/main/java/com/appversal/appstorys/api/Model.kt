@@ -12,8 +12,9 @@ sealed class CampaignDetails
 @Keep
 @Serializable
 data class ValidateAccountRequest(
-    val app_id: String?,
-    val account_id: String?,
+    // v2 only — v3 identifies the account from the X-Api-Key header.
+//    val app_id: String?,
+//    val account_id: String?,
     val user_id: String?,
     val attributes: Map<String, JsonElement>? = null
 )

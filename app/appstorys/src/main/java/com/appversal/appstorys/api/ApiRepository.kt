@@ -54,9 +54,15 @@ internal class ApiRepository(
         private val MIN_REVALIDATE_INTERVAL_MS: Long = 0L
     }
 
+    // v2 signature — v3 swaps app_id/account_id for the dashboard API key.
+//    suspend fun getAccessToken(
+//        app_id: String,
+//        account_id: String,
+//        user_id: String,
+//        context: Context
+//    ): String? {
     suspend fun getAccessToken(
-        app_id: String,
-        account_id: String,
+        apiKey: String,
         user_id: String,
         context: Context
     ): String? {
@@ -73,11 +79,19 @@ internal class ApiRepository(
             }
 
             when (val result = safeApiCall {
+                // v2 call:
+//                webSocketApiService.validateAccount(
+//                    accountId = account_id,
+//                    ValidateAccountRequest(
+//                        app_id = app_id,
+//                        account_id = account_id,
+//                        user_id = user_id,
+//                        attributes = attributes
+//                    )
+//                ).access_token
                 webSocketApiService.validateAccount(
-                    accountId = account_id,
+                    apiKey = apiKey,
                     ValidateAccountRequest(
-                        app_id = app_id,
-                        account_id = account_id,
                         user_id = user_id,
                         attributes = attributes
                     )
@@ -156,11 +170,11 @@ internal class ApiRepository(
                     lastCampaignsCheckAt = nowMs
 
                     // Below link is for prod
-                    val campaignsJsonUrl =
-                        "https://s3.ap-south-1.amazonaws.com/cdn-campaigns.appstorys.com/clients/$accountId/campaigns.json"
+//                    val campaignsJsonUrl =
+//                        "https://s3.ap-south-1.amazonaws.com/cdn-campaigns.appstorys.com/clients/$accountId/campaigns.json"
 
                     // Below link is for dev
-//                    val campaignsJsonUrl = "https://dev-cdn-campaign-appstorys.s3.ap-south-1.amazonaws.com/clients/$accountId/campaigns.json"
+                    val campaignsJsonUrl = "https://dev-cdn-campaign-appstorys.s3.ap-south-1.amazonaws.com/clients/$accountId/campaigns.json"
 
                     val savedETag = sharedPreferences.getString(PREF_ETAG, null)
 
@@ -720,16 +734,16 @@ internal class ApiRepository(
                     }
                 }
             } catch (e: Exception) {
+                // Screen switch cancelled this fetch on purpose — let the cancellation through.
+                if (e is kotlin.coroutines.cancellation.CancellationException) throw e
                 Log.e("ApiRepository", "Error in getScreenCampaignsData: ${e.message}", e)
-                if (e !is kotlin.coroutines.cancellation.CancellationException) {
-                    SdkErrorTracker.onFetchFailed(
-                        screen = screenName,
-                        step = "track-user-res",
-                        actual = "exception",
-                        message = e.message ?: e::class.java.simpleName,
-                        retryable = false
-                    )
-                }
+                SdkErrorTracker.onFetchFailed(
+                    screen = screenName,
+                    step = "track-user-res",
+                    actual = "exception",
+                    message = e.message ?: e::class.java.simpleName,
+                    retryable = false
+                )
                 return@withContext ScreenCampaignResult(
                     campaigns = null,
                     variants = emptyList(),

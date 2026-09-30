@@ -15,9 +15,16 @@ import java.io.IOException
 
 internal interface ApiService {
 
-    @POST("{accountId}/validate-account")
+    // v2 — replaced by v3 below; remove once v3 is verified.
+//    @POST("{accountId}/validate-account")
+//    suspend fun validateAccount(
+//        @Path("accountId") accountId: String,
+//        @Body request: ValidateAccountRequest
+//    ): ValidateAccountResponse
+
+    @POST("v3/validate-account")
     suspend fun validateAccount(
-        @Path("accountId") accountId: String,
+        @Header("X-Api-Key") apiKey: String,
         @Body request: ValidateAccountRequest
     ): ValidateAccountResponse
 
@@ -95,6 +102,8 @@ internal sealed class ApiResult<out T> {
 internal suspend fun <T> safeApiCall(apiCall: suspend () -> T): ApiResult<T> {
     return try {
         ApiResult.Success(apiCall())
+    } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+        throw e // a cancelled call (e.g. screen switch) is not an API error
     } catch (e: HttpException) {
         ApiResult.Error(e.message ?: "Unknown error", e.code())
     } catch (e: IOException) {

@@ -9,8 +9,8 @@ import retrofit2.Retrofit
 
 @OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
 internal object RetrofitClient {
-    private const val BASE_URL = "https://backend.appstorys.com/"
-    private const val WEBSOCKET_BASE_URL = "https://users.appstorys.com/"
+    private const val BASE_URL = "https://backend.appstorys.co/"
+    private const val WEBSOCKET_BASE_URL = "https://users.appstorys.co/"
 
     private val json = Json {
         ignoreUnknownKeys = true
