@@ -1,9 +1,9 @@
 package com.appversal.appstorys.ui.stories
 
 import android.content.Context
+import com.appversal.appstorys.utils.GifImageLoader
 import android.content.Intent
 import android.content.SharedPreferences
-import android.os.Build.VERSION.SDK_INT
 import android.util.Log
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.widget.FrameLayout
@@ -82,10 +82,7 @@ import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
-import coil.ImageLoader
 import coil.compose.rememberAsyncImagePainter
-import coil.decode.GifDecoder
-import coil.decode.ImageDecoderDecoder
 import coil.request.CachePolicy
 import coil.request.ImageRequest
 import com.airbnb.lottie.compose.LottieAnimation
@@ -298,17 +295,7 @@ internal fun StoryItem(
 
                         // GIF images
                         isGifUrl(imageUrl) -> {
-                            val imageLoader = remember(context) {
-                                ImageLoader.Builder(context)
-                                    .components {
-                                        if (SDK_INT >= 28) {
-                                            add(ImageDecoderDecoder.Factory())
-                                        } else {
-                                            add(GifDecoder.Factory())
-                                        }
-                                    }
-                                    .build()
-                            }
+                            val imageLoader = GifImageLoader.get(context)
 
                             val painter = rememberAsyncImagePainter(
                                 ImageRequest.Builder(context)
@@ -850,17 +837,7 @@ internal fun StoryScreenContent(
 
                         // GIF images
                         isGifUrl(imageUrl) -> {
-                            val imageLoader = remember(context) {
-                                ImageLoader.Builder(context)
-                                    .components {
-                                        if (SDK_INT >= 28) {
-                                            add(ImageDecoderDecoder.Factory())
-                                        } else {
-                                            add(GifDecoder.Factory())
-                                        }
-                                    }
-                                    .build()
-                            }
+                            val imageLoader = GifImageLoader.get(context)
 
                             val painter = rememberAsyncImagePainter(
                                 ImageRequest.Builder(context)
@@ -1137,17 +1114,7 @@ internal fun StoryScreenContent(
 
                                 // GIF images
                                 thumbnailUrl != null && isGifUrl(thumbnailUrl) -> {
-                                    val imageLoader = remember(context) {
-                                        ImageLoader.Builder(context)
-                                            .components {
-                                                if (SDK_INT >= 28) {
-                                                    add(ImageDecoderDecoder.Factory())
-                                                } else {
-                                                    add(GifDecoder.Factory())
-                                                }
-                                            }
-                                            .build()
-                                    }
+                                    val imageLoader = GifImageLoader.get(context)
 
                                     val painter = rememberAsyncImagePainter(
                                         ImageRequest.Builder(context)
