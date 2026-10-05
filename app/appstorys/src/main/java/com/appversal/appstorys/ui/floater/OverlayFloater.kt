@@ -1,7 +1,7 @@
 package com.appversal.appstorys.ui.floater
 
 import com.appversal.appstorys.utils.SdkErrorTracker
-import android.os.Build.VERSION.SDK_INT
+import com.appversal.appstorys.utils.GifImageLoader
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -21,11 +21,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import coil.ImageLoader
 import coil.compose.AsyncImage
 import coil.compose.rememberAsyncImagePainter
-import coil.decode.GifDecoder
-import coil.decode.ImageDecoderDecoder
 import coil.request.CachePolicy
 import coil.request.ImageRequest
 import coil.size.Size
@@ -86,15 +83,7 @@ internal fun OverlayFloater(
 
             !image.isNullOrEmpty() -> {
                 if (isGifUrl(image)) {
-                    val imageLoader = ImageLoader.Builder(context)
-                        .components {
-                            if (SDK_INT >= 28) {
-                                add(ImageDecoderDecoder.Factory())
-                            } else {
-                                add(GifDecoder.Factory())
-                            }
-                        }
-                        .build()
+                    val imageLoader = GifImageLoader.get(context)
 
                     val painter = rememberAsyncImagePainter(
                         ImageRequest.Builder(context)

@@ -1,6 +1,8 @@
 package com.appversal.appstorys.ui
 
 import com.appversal.appstorys.utils.SdkErrorTracker
+import coil.imageLoader
+import com.appversal.appstorys.utils.GifImageLoader
 import android.content.Context
 import android.content.SharedPreferences
 import android.graphics.Bitmap
@@ -51,11 +53,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import coil.ImageLoader
 import coil.compose.SubcomposeAsyncImage
 import coil.compose.rememberAsyncImagePainter
-import coil.decode.GifDecoder
-import coil.decode.ImageDecoderDecoder
 import coil.request.CachePolicy
 import coil.request.ImageRequest
 import kotlinx.coroutines.Dispatchers
@@ -1042,7 +1041,7 @@ fun ScratchableCard(
 
     LaunchedEffect(overlayImageUrl, cardWidthPx, cardHeightPx) {
         if (overlayImageUrl.isNotEmpty() && cardWidthPx > 0 && cardHeightPx > 0) {
-            val loader = ImageLoader(context)
+            val loader = context.imageLoader
             val request = ImageRequest.Builder(context)
                 .data(overlayImageUrl)
                 .allowHardware(false)
@@ -1275,15 +1274,7 @@ fun OnlyImageView(
     ) {
         if (bannerImageUrl.isNotEmpty()) {
             if (isGifUrl(bannerImageUrl)) {
-                val imageLoader = ImageLoader.Builder(context)
-                    .components {
-                        if (SDK_INT >= 28) {
-                            add(ImageDecoderDecoder.Factory())
-                        } else {
-                            add(GifDecoder.Factory())
-                        }
-                    }
-                    .build()
+                val imageLoader = GifImageLoader.get(context)
 
                 val painter = rememberAsyncImagePainter(
                     ImageRequest.Builder(context)

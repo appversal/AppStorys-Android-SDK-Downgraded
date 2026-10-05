@@ -1,6 +1,8 @@
 package com.appversal.appstorys.ui.modals
 
 import com.appversal.appstorys.utils.SdkErrorTracker
+import coil.imageLoader
+import com.appversal.appstorys.utils.GifImageLoader
 import android.os.Build.VERSION.SDK_INT
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
@@ -24,11 +26,8 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.PlayerView
 import com.appversal.appstorys.utils.VideoCache
-import coil.ImageLoader
 import coil.compose.AsyncImage
 import coil.compose.rememberAsyncImagePainter
-import coil.decode.GifDecoder
-import coil.decode.ImageDecoderDecoder
 import coil.request.CachePolicy
 import coil.request.ImageRequest
 import com.airbnb.lottie.compose.LottieAnimation
@@ -149,13 +148,9 @@ fun rememberMediaLoadState(mediaUrl: String?): MediaLoadState {
 
                 try {
                     val imageLoader = if (mediaType == "gif") {
-                        ImageLoader.Builder(context)
-                            .components {
-                                if (SDK_INT >= 28) add(ImageDecoderDecoder.Factory()) else add(GifDecoder.Factory())
-                            }
-                            .build()
+                        GifImageLoader.get(context)
                     } else {
-                        ImageLoader.Builder(context).build()
+                        context.imageLoader
                     }
 
                     val request = ImageRequest.Builder(context)
@@ -460,11 +455,7 @@ fun ModalMediaRendererWithCallback(
 
     when (mediaType) {
         "gif" -> {
-            val imageLoader = ImageLoader.Builder(context)
-                .components {
-                    if (SDK_INT >= 28) add(ImageDecoderDecoder.Factory()) else add(GifDecoder.Factory())
-                }
-                .build()
+            val imageLoader = GifImageLoader.get(context)
 
             val painter = rememberAsyncImagePainter(
                 ImageRequest.Builder(context).data(mediaUrl).diskCachePolicy(CachePolicy.ENABLED).memoryCachePolicy(CachePolicy.ENABLED).build(),

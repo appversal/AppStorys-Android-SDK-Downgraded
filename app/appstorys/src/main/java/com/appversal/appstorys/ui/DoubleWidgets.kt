@@ -1,8 +1,8 @@
 package com.appversal.appstorys.ui
 
 import com.appversal.appstorys.utils.SdkErrorTracker
+import com.appversal.appstorys.utils.GifImageLoader
 import android.graphics.drawable.Drawable
-import android.os.Build.VERSION.SDK_INT
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.*
@@ -21,11 +21,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.appversal.appstorys.utils.isGifUrl
 import kotlinx.coroutines.delay
-import coil.ImageLoader
 import coil.compose.SubcomposeAsyncImage
 import coil.compose.rememberAsyncImagePainter
-import coil.decode.GifDecoder
-import coil.decode.ImageDecoderDecoder
 import coil.request.CachePolicy
 import coil.request.ImageRequest
 import com.airbnb.lottie.compose.LottieAnimation
@@ -122,15 +119,7 @@ internal fun ImageCard(
             }
 
             isGifUrl(imageUrl) -> {
-                val imageLoader = ImageLoader.Builder(context)
-                    .components {
-                        if (SDK_INT >= 28) {
-                            add(ImageDecoderDecoder.Factory())
-                        } else {
-                            add(GifDecoder.Factory())
-                        }
-                    }
-                    .build()
+                val imageLoader = GifImageLoader.get(context)
 
                 val painter = rememberAsyncImagePainter(
                     ImageRequest.Builder(context)

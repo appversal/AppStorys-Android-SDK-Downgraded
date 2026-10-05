@@ -1,6 +1,7 @@
 package com.appversal.appstorys.ui
 
 import android.util.Log
+import com.appversal.appstorys.utils.GifImageLoader
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -39,11 +40,8 @@ import androidx.compose.ui.text.googlefonts.GoogleFont
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.toColorInt
-import coil.ImageLoader
 import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
-import coil.decode.GifDecoder
-import coil.decode.ImageDecoderDecoder
 import coil.request.CachePolicy
 import coil.request.ImageRequest
 import com.airbnb.lottie.compose.LottieAnimation
@@ -60,7 +58,6 @@ import com.appversal.appstorys.ui.common_components.createCrossButtonConfig
 import com.appversal.appstorys.utils.asInt
 import com.appversal.appstorys.utils.isGifUrl
 import com.appversal.appstorys.utils.isLottieUrl
-import android.os.Build.VERSION.SDK_INT
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
@@ -346,15 +343,7 @@ private fun ImageElement(
 
                 val imageUrl = element.url
 
-                val imageLoader = ImageLoader.Builder(LocalContext.current)
-                    .components {
-                        if (SDK_INT >= 28) {
-                            add(ImageDecoderDecoder.Factory())
-                        } else {
-                            add(GifDecoder.Factory())
-                        }
-                    }
-                    .build()
+                val imageLoader = GifImageLoader.get(LocalContext.current)
 
                 val painter = rememberAsyncImagePainter(
                     ImageRequest.Builder(LocalContext.current)
