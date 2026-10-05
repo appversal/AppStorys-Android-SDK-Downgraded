@@ -142,6 +142,9 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import androidx.core.content.edit
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
@@ -177,6 +180,10 @@ object AppStorys {
 
     private const val PREFS_USER_ID = "appstorys_user_id"
     private const val PREFS_IS_ANONYMOUS = "appstorys_is_anonymous"
+
+    // A reconcile that failed in setUserId(), retried on the next initialize().
+    private const val PREFS_PENDING_RECONCILE_ANON = "appstorys_pending_reconcile_anonymous"
+    private const val PREFS_PENDING_RECONCILE_IDENTIFIED = "appstorys_pending_reconcile_identified"
 
     internal lateinit var navigateToScreen: (String) -> Unit
 
@@ -458,6 +465,7 @@ object AppStorys {
                     }
 
                     syncNotificationReachability()
+                    retryPendingReconcile()
 
                     val savedScratchedCampaigns = getScratchedCampaigns(
                         context.getSharedPreferences("AppStory", Context.MODE_PRIVATE)
@@ -792,6 +800,21 @@ object AppStorys {
         }
     }
 
+    /** Serialises setUserId() calls so a quick second login can't interleave with the first. */
+    private val userSwitchMutex = Mutex()
+
+    /**
+     * Switches the SDK to [newUserId], typically right after the user logs in.
+     *
+     * Coming from an anonymous ID, the backend is first told both IDs are the same person
+     * (reconcile-anonymous-user) so the pre-login history is kept; a failed reconcile is saved
+     * and retried on the next launch.
+     *
+     * Deliberately no new login and no campaign reload: the access token is tied to the account,
+     * not the end user, so it stays valid; and reloading the screen would re-send `viewed` for
+     * campaigns the user already saw while anonymous. The next screen change or app resume
+     * fetches campaigns with the new ID.
+     */
     fun setUserId(newUserId: String) {
         if (newUserId.isEmpty()) {
             Log.w("AppStorys", "Cannot set empty user ID")
@@ -803,71 +826,117 @@ object AppStorys {
                 Log.e("AppStorys", "SDK not initialized. Call initialize() first")
                 return@launch
             }
-
-            val previousUserId = userId
-            val wasAnonymous = isAnonymousUser
-
-            // If already using this identified user ID, no need to reconcile
-            if (!wasAnonymous && previousUserId == newUserId) {
-                Log.d("AppStorys", "User ID already set to: $newUserId")
-                return@launch
-            }
-
-            try {
-                // Only call reconcile endpoint if we're transitioning from anonymous to identified
-                if (wasAnonymous) {
-                    Log.d(
-                        "AppStorys",
-                        "Reconciling anonymous user $previousUserId with identified user $newUserId"
-                    )
-
-                    val result = webSocketService.reconcileAnonymousUser(
-
-                        token = "Bearer $accessToken",
-                        request = ReconcileUserRequest(
-                            anonymous_user_id = previousUserId,
-                            identified_user_id = newUserId
-                        )
-                    )
-
-                    when (result) {
-                        else -> {
-                            Log.i(
-                                "AppStorys",
-                                "Successfully reconciled anonymous user with identified user"
-                            )
-                        }
-                    }
+            userSwitchMutex.withLock {
+                // Reconcile needs the session token, so wait for init to finish.
+                if (!checkIfInitialized()) {
+                    Log.e("AppStorys", "setUserId: SDK failed to initialize, user ID not changed")
+                    return@withLock
                 }
 
-                // Update user ID
-                userId = newUserId
-                isAnonymousUser = false
-                saveUserId(newUserId, false)
+                val previousUserId = userId
+                val wasAnonymous = isAnonymousUser
+
+                // If already using this identified user ID, no need to reconcile
+                if (!wasAnonymous && previousUserId == newUserId) {
+                    Log.d("AppStorys", "User ID already set to: $newUserId")
+                    return@withLock
+                }
 
                 try {
-                    OutreachEventTracker.saveUserId(context, newUserId)
+                    // 1. Only call reconcile when going from anonymous to identified.
+                    if (wasAnonymous) {
+                        Log.d(
+                            "AppStorys",
+                            "Reconciling anonymous user $previousUserId with identified user $newUserId"
+                        )
+                        if (reconcile(previousUserId, newUserId)) {
+                            Log.i("AppStorys", "Reconcile accepted by backend")
+                        } else {
+                            savePendingReconcile(previousUserId, newUserId)
+                            Log.w("AppStorys", "Reconcile failed — will retry on next app launch")
+                        }
+                    }
+
+                    // 2. Update user ID
+                    userId = newUserId
+                    isAnonymousUser = false
+                    saveUserId(newUserId, false)
+
+                    try {
+                        OutreachEventTracker.saveUserId(context, newUserId)
+                    } catch (e: Exception) {
+                        Log.e("AppStorys", "Outreach saveUserId failed: ${e.message}", e)
+                        SdkErrorTracker.onLogicError(
+                            step = "outreach-save-user-id",
+                            message = e.message ?: e::class.java.simpleName,
+                            throwable = e,
+                            failureClass = SdkFailureClass.P3
+                        )
+                    }
+
+                    Log.i("AppStorys", "User ID updated to: $newUserId")
+
                 } catch (e: Exception) {
-                    Log.e("AppStorys", "Outreach saveUserId failed: ${e.message}", e)
+                    Log.e("AppStorys", "Error setting user ID: ${e.message}", e)
                     SdkErrorTracker.onLogicError(
-                        step = "outreach-save-user-id",
+                        step = "set-user-id",
                         message = e.message ?: e::class.java.simpleName,
                         throwable = e,
                         failureClass = SdkFailureClass.P3
                     )
                 }
+            }
+        }
+    }
 
-                Log.i("AppStorys", "User ID updated to: $newUserId")
-
-            } catch (e: Exception) {
-                Log.e("AppStorys", "Error setting user ID: ${e.message}", e)
+    /** True only when the backend accepted the merge (any 2xx; it answers 202). */
+    private suspend fun reconcile(anonymousUserId: String, identifiedUserId: String): Boolean =
+        try {
+            val response = webSocketService.reconcileAnonymousUser(
+                token = "Bearer $accessToken",
+                request = ReconcileUserRequest(
+                    anonymous_user_id = anonymousUserId,
+                    identified_user_id = identifiedUserId
+                )
+            )
+            if (!response.isSuccessful) {
+                Log.e("AppStorys", "Reconcile rejected: ${response.code()} ${response.errorBody()?.string()}")
                 SdkErrorTracker.onLogicError(
                     step = "reconcile-anonymous-user",
-                    message = e.message ?: e::class.java.simpleName,
-                    throwable = e,
+                    message = "HTTP ${response.code()}",
                     failureClass = SdkFailureClass.P3
                 )
             }
+            response.isSuccessful
+        } catch (e: Exception) {
+            Log.e("AppStorys", "Reconcile request failed: ${e.message}", e)
+            SdkErrorTracker.onLogicError(
+                step = "reconcile-anonymous-user",
+                message = e.message ?: e::class.java.simpleName,
+                throwable = e,
+                failureClass = SdkFailureClass.P3
+            )
+            false
+        }
+
+    private fun savePendingReconcile(anonymousUserId: String, identifiedUserId: String) {
+        context.getSharedPreferences("AppStory", Context.MODE_PRIVATE).edit {
+            putString(PREFS_PENDING_RECONCILE_ANON, anonymousUserId)
+            putString(PREFS_PENDING_RECONCILE_IDENTIFIED, identifiedUserId)
+        }
+    }
+
+    /** Retries a reconcile that failed in setUserId() on an earlier launch. */
+    private suspend fun retryPendingReconcile() {
+        val prefs = context.getSharedPreferences("AppStory", Context.MODE_PRIVATE)
+        val anonymousUserId = prefs.getString(PREFS_PENDING_RECONCILE_ANON, null) ?: return
+        val identifiedUserId = prefs.getString(PREFS_PENDING_RECONCILE_IDENTIFIED, null) ?: return
+        if (reconcile(anonymousUserId, identifiedUserId)) {
+            prefs.edit {
+                remove(PREFS_PENDING_RECONCILE_ANON)
+                remove(PREFS_PENDING_RECONCILE_IDENTIFIED)
+            }
+            Log.i("AppStorys", "Pending reconcile retried successfully")
         }
     }
 
