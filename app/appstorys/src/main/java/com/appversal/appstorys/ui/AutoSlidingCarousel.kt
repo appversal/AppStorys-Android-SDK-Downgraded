@@ -55,6 +55,9 @@ import com.airbnb.lottie.compose.LottieCompositionSpec
 import com.airbnb.lottie.compose.LottieConstants
 import com.airbnb.lottie.compose.rememberLottieComposition
 import com.appversal.appstorys.api.WidgetDetails
+import com.appversal.appstorys.ui.modals.MediaType
+import com.appversal.appstorys.ui.modals.VideoPlayerInline
+import com.appversal.appstorys.ui.modals.determineMediaType
 import com.appversal.appstorys.utils.isGifUrl
 
 const val AUTO_SLIDE_DURATION = 5000L
@@ -249,6 +252,16 @@ internal fun CarousalImage(
                     modifier = Modifier
                         .height(height ?: Dp.Unspecified)
                         .width(width ?: Dp.Unspecified)
+                )
+            }
+
+            // Video slides size to the video's own aspect ratio (not the campaign's
+            // width/height), so the creative is never cropped or stretched.
+            determineMediaType(imageUrl) == MediaType.VIDEO -> {
+                VideoPlayerInline(
+                    videoUrl = imageUrl,
+                    modifier = Modifier.fillMaxWidth(),
+                    muted = true
                 )
             }
 
