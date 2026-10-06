@@ -72,12 +72,12 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import com.appversal.appstorys.ui.CardScratch
 import kotlinx.coroutines.delay
-import android.Manifest
-import android.content.pm.PackageManager
+// import android.Manifest   // NOTIFICATIONS DISABLED
+// import android.content.pm.PackageManager   // NOTIFICATIONS DISABLED
 import android.os.Build
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.ContextCompat
+// import androidx.activity.compose.rememberLauncherForActivityResult   // NOTIFICATIONS DISABLED
+// import androidx.activity.result.contract.ActivityResultContracts   // NOTIFICATIONS DISABLED
+// import androidx.core.content.ContextCompat   // NOTIFICATIONS DISABLED
 
 
 class MainActivity : ComponentActivity() {
@@ -102,7 +102,7 @@ fun MyApp() {
     val screenName by app.screenNameNavigation.collectAsState()
     var currentScreen by remember { mutableStateOf("HomeScreen") }
 
-    RequestNotificationPermission()
+    // RequestNotificationPermission()   // NOTIFICATIONS DISABLED
 
     var selectedTab by remember { mutableStateOf(0) } // Track selected tab index
 
@@ -194,30 +194,31 @@ fun MyApp() {
     }
 }
 
-@Composable
-fun RequestNotificationPermission() {
-    val context = LocalContext.current
+// NOTIFICATIONS DISABLED: uncomment to re-enable push notifications.
+// @Composable
+// fun RequestNotificationPermission() {
+//     val context = LocalContext.current
 
-    val launcher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        Log.d("NotifPerm", if (granted) "granted" else "denied")
-    }
+//     val launcher = rememberLauncherForActivityResult(
+//         contract = ActivityResultContracts.RequestPermission()
+//     ) { granted ->
+//         Log.d("NotifPerm", if (granted) "granted" else "denied")
+//     }
 
-    LaunchedEffect(Unit) {
-        // Below Android 13 the permission is granted automatically — nothing to do.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val alreadyGranted = ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.POST_NOTIFICATIONS
-            ) == PackageManager.PERMISSION_GRANTED
+//     LaunchedEffect(Unit) {
+//         // Below Android 13 the permission is granted automatically — nothing to do.
+//         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+//             val alreadyGranted = ContextCompat.checkSelfPermission(
+//                 context,
+//                 Manifest.permission.POST_NOTIFICATIONS
+//             ) == PackageManager.PERMISSION_GRANTED
 
-            if (!alreadyGranted) {
-                launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
-            }
-        }
-    }
-}
+//             if (!alreadyGranted) {
+//                 launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
+//             }
+//         }
+//     }
+// }
 
 @Composable
 fun CopyUserIdText() {
@@ -478,7 +479,7 @@ fun HomeScreen(
 
                 Button(
                     onClick = {
-                        campaignManager.subscribeNotifications()
+                        // campaignManager.subscribeNotifications()   // NOTIFICATIONS DISABLED
                     },
                     modifier = Modifier.appstorys("tooltip_two")
                 ) {
@@ -487,7 +488,7 @@ fun HomeScreen(
 
                 Button(
                     onClick = {
-                        campaignManager.unsubscribeNotifications()
+                        // campaignManager.unsubscribeNotifications()   // NOTIFICATIONS DISABLED
                     },
                     modifier = Modifier
                 ) {

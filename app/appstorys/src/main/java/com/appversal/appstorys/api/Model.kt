@@ -33,12 +33,13 @@ data class CampaignVariant(
     val v_id: String
 )
 
-@Keep
-@Serializable
-data class FcmSubscriptionRequest(
-    val user_id: String,
-    val device_push_token: String? = null
-)
+// NOTIFICATIONS DISABLED: request body for subscribe-fcm / unsubscribe-fcm, uncomment to re-enable.
+// @Keep
+// @Serializable
+// data class FcmSubscriptionRequest(
+//     val user_id: String,
+//     val device_push_token: String? = null
+// )
 
 @Keep
 @Serializable
