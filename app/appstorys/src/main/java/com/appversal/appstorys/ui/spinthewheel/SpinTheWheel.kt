@@ -37,6 +37,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
@@ -1155,15 +1156,24 @@ private fun RewardContent(
                             // image — capped, the same way the scratch card sizes its cover
                             // and for the same reason: a tall upload (1000x5000) would
                             // otherwise size the card past the bottom of the screen.
-                            val bandHeight = 96.dp
-                            // Container styling — styling.rewardConfiguration.rewardImage,
-                            // the same knobs the story circle exposes. Defaults reproduce
-                            // what used to be hardcoded here.
-                            val imageStyling = rewardStyling?.rewardImage
-                            val badgeWidth = (imageStyling?.width ?: 156).dp
-                            val badgeBorder = (imageStyling?.borderWidth ?: 6).dp
-                            val badgeBorderColor =
-                                parseColor(imageStyling?.borderColor, Color.White)
+                            // Sized from the card so it stays proportional on any screen —
+                            // Zepto's reward card puts a brand badge about two-fifths of
+                            // the card's width straddling the header band; a fixed 156dp
+                            // matched that on one phone and nothing else. The band follows
+                            // the badge so the overhang keeps its ratio too.
+                            // The SHORTER side, so a landscape screen (where the card is
+                            // 90% of ~940dp) doesn't blow the badge up with it.
+                            val badgeWidth = with(LocalConfiguration.current) {
+                                (minOf(screenWidthDp, screenHeightDp) * cardWidth * 0.40f).dp
+                            }
+                            val bandHeight = badgeWidth * 0.6f
+                            // Artwork styling — styling.rewardConfiguration.image, shared by
+                            // every slice's reward. The corner radius is the dashboard's,
+                            // like the story circle's; the white frame is the SDK's.
+                            val imageStyling = rewardStyling?.image
+                            val badgeBorder = 6.dp
+                            val badgeBorderColor = Color.White
+                            val artworkRotation = (imageStyling?.rotation ?: 0).toFloat()
                             // Inner radius is what the dashboard sets; the frame's outer
                             // radius is that plus its own width, so the two stay
                             // concentric — the story circle does the same with ringWidth.
@@ -1175,11 +1185,6 @@ private fun RewardContent(
                                 bottomEnd =
                                     (imageStyling?.cornerRadius?.bottomRight ?: 12).dp
                             )
-                            // The badge hangs half below the band, so anything over 2x the
-                            // band would poke out of its top. This is the cap the scratch
-                            // card learned it needed: without one, a 1000x5000 upload sizes
-                            // the container off the bottom of the screen.
-                            val badgeMaxHeight = bandHeight * 1.8f
                             val badgeShape = RoundedCornerShape(
                                 topStart = (imageStyling?.cornerRadius?.topLeft ?: 12).dp
                                     + badgeBorder,
@@ -1193,12 +1198,11 @@ private fun RewardContent(
                                         + badgeBorder
                             )
                             val density = LocalDensity.current
-                            var badgeHeight by remember { mutableStateOf(0.dp) }
 
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(bandHeight + badgeHeight / 2)
+                                    .height(bandHeight + badgeWidth / 2)
                             ) {
                                 Box(
                                     modifier = Modifier
@@ -1217,24 +1221,14 @@ private fun RewardContent(
                                 Box(
                                     modifier = Modifier
                                         .align(Alignment.BottomCenter)
-                                        // The tile hugs the artwork in BOTH directions. It used
-                                        // to be pinned to badgeWidth, so a portrait upload was
-                                        // scaled down to the height cap and then sat in a tile
-                                        // still 156dp wide — the slack showed up as thick white
-                                        // bars either side of the image.
-                                        //
-                                        // required*, so the artwork's own size wins over the
-                                        // parent it is in the middle of resizing. The floor only
-                                        // stops the tile collapsing while the image loads.
-                                        .requiredSizeIn(
-                                            minWidth = 56.dp,
-                                            minHeight = 56.dp,
-                                            maxWidth = badgeWidth,
-                                            maxHeight = badgeMaxHeight
-                                        )
-                                        .onSizeChanged {
-                                            badgeHeight = with(density) { it.height.toDp() }
-                                        }
+                                        // A fixed SQUARE, the way the story circle is a fixed
+                                        // square: the artwork is cropped to fill it, so the
+                                        // dashboard's corner radius always acts on the same
+                                        // shape and half the width gives a circle. (An earlier
+                                        // version let the tile take the artwork's own aspect;
+                                        // a portrait upload then made a tall rectangle that no
+                                        // radius could turn into a circle.)
+                                        .size(badgeWidth)
                                         .shadow(10.dp, badgeShape)
                                         .clip(badgeShape)
                                         .background(badgeBorderColor)
@@ -1245,15 +1239,13 @@ private fun RewardContent(
                                         RewardMedia(
                                             bannerImageUrl = rewardMedia,
                                             targetWidthPx = with(density) { badgeWidth.roundToPx() },
-                                            targetHeightPx =
-                                                with(density) { badgeMaxHeight.roundToPx() },
-                                            // No fillMaxWidth: the image reports its own scaled
-                                            // size and the tile wraps it.
-                                            modifier = Modifier.clip(artworkShape),
-                                            // Fit sizes the tile to the image's own shape, and
-                                            // once the cap bites it shrinks to fit rather than
-                                            // cropping the artwork.
-                                            contentScale = ContentScale.Fit
+                                            targetHeightPx = with(density) { badgeWidth.roundToPx() },
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .rotate(artworkRotation)
+                                                .clip(artworkShape),
+                                            // Crop fills the square, as the story thumbnail does.
+                                            contentScale = ContentScale.Crop
                                         )
                                     } else {
                                         Text(text = if (isWin) "🎁" else "✨", fontSize = 40.sp)

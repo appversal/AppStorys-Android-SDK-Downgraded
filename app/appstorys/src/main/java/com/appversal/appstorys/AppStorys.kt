@@ -207,6 +207,16 @@ object AppStorys {
     /** In-flight or landed spins, kept here so a rotation cannot cancel one. */
     private val _spinRunByCampaign = MutableStateFlow<Map<String, SpinRun>>(emptyMap())
 
+    /**
+     * Spin wheels the user has closed this session. Lives here, beside the spin run
+     * and spin count, for the same reason they do: a rotation recreates the
+     * Activity and throws away composable state, and a wheel the user had just
+     * closed was coming straight back — an accidental rotation handing out another
+     * look at the spins. Process-scoped on purpose; a fresh launch is governed by
+     * the campaign's own frequency rules, not by this.
+     */
+    private val _dismissedSpinWheels = MutableStateFlow<Set<String>>(emptySet())
+
     private val _spinCountByCampaign = MutableStateFlow<Map<String, Int>>(emptyMap())
 
     private var accessToken = ""
@@ -464,6 +474,9 @@ object AppStorys {
                         OverlayContainer.clearAll()
                     }
                     disabledCampaigns.emit(emptyList())
+                    // A closed wheel comes back on the next screen entry, like every
+                    // other campaign; only a rotation (same screen) keeps it closed.
+                    _dismissedSpinWheels.update { emptySet() }
                     impressions.emit(emptyList())
                     campaigns.emit(emptyList())
                     _trackedEventNames.emit(emptySet())
@@ -2438,12 +2451,20 @@ object AppStorys {
             )
         }
 
-        var isPresented by remember(campaign?.id) { mutableStateOf(true) }
+        val dismissedWheels by _dismissedSpinWheels.collectAsStateWithLifecycle()
+        val isPresented = campaign?.id?.let { it !in dismissedWheels } ?: true
 
+        // A trigger event firing AGAIN after a dismissal re-presents the wheel. The
+        // first evaluation after an Activity recreation is not that — it is the same
+        // trigger being re-read — so only a false→true transition counts. Keyed on
+        // a plain remember deliberately: it resets to the current value on
+        // recreation, which is exactly what makes the first read a no-op.
+        var wasShowing by remember(campaign?.id) { mutableStateOf(shouldShowSpinWheel) }
         LaunchedEffect(shouldShowSpinWheel) {
-            if (shouldShowSpinWheel && !isPresented) {
-                isPresented = true
+            if (shouldShowSpinWheel && !wasShowing) {
+                campaign?.id?.let { id -> _dismissedSpinWheels.update { it - id } }
             }
+            wasShowing = shouldShowSpinWheel
         }
 
         // ── Spin count: hoist here so it survives recomposition and screen navigation ──
@@ -2480,7 +2501,7 @@ object AppStorys {
                 com.appversal.appstorys.ui.spinwheel.SpinTheWheel(
                     isPresented = isPresented,
                     onDismiss = {
-                        isPresented = false
+                        _dismissedSpinWheels.update { it + campaignId }
                         campaign?.triggerEvent?.let { trigger ->
                             val eventName = when (trigger) {
                                 is TriggerEvent.StringTrigger -> trigger.event
