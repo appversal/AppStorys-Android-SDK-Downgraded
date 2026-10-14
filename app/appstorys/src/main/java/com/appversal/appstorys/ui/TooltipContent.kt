@@ -28,7 +28,10 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import android.media.AudioAttributes
+import android.media.MediaPlayer
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -48,6 +51,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import coil.ImageLoader
 import coil.compose.AsyncImage
 import coil.compose.rememberAsyncImagePainter
@@ -78,6 +84,8 @@ internal fun TooltipContent(
     tooltip: Tooltip,
     coordinates: AppStorysCoordinates,
 ) {
+    TooltipAudioEffect(tooltip)
+
     val density = LocalDensity.current.density
     val view = LocalView.current.rootView
 
@@ -540,6 +548,123 @@ private fun TextContent(tooltip: Tooltip, modifier: Modifier = Modifier) {
             }
         }
     )
+}
+
+/**
+ * Plays the step's audio while its popup is on screen. Leaving composition (dismiss,
+ * CTA, next step, screen change) stops it; the app going to background pauses it.
+ */
+@Composable
+private fun TooltipAudioEffect(tooltip: Tooltip) {
+    val id = tooltip.id ?: return
+    val url = tooltip.audioConfig?.link?.takeIf { it.isNotBlank() } ?: return
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    DisposableEffect(id, url, lifecycleOwner) {
+        TooltipAudio.start(id, url)
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_STOP -> TooltipAudio.pause()
+                Lifecycle.Event.ON_START -> TooltipAudio.resume()
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            TooltipAudio.release(id)
+        }
+    }
+}
+
+/**
+ * One player for all tooltips. The same step can be composed twice at once
+ * (OverlayContainer.Content + TooltipsOnly share the tooltip list), so playback is
+ * ref-counted per step id: it plays once and stops when the last copy leaves.
+ * All calls happen on the main thread (composition / lifecycle callbacks).
+ */
+private object TooltipAudio {
+    private var player: MediaPlayer? = null
+    private var ownerId: String? = null
+    private var refs = 0
+    private var inBackground = false
+    private var resumePending = false
+
+    fun start(id: String, url: String) {
+        if (id == ownerId) {
+            refs++
+            return
+        }
+        stop()
+        ownerId = id
+        refs = 1
+        val mp = MediaPlayer()
+        player = mp
+        mp.apply {
+            setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build()
+            )
+            setOnPreparedListener {
+                if (inBackground) resumePending = true else it.start()
+            }
+            setOnErrorListener { _, what, extra ->
+                reportFailure(url, "MediaPlayer error what=$what extra=$extra")
+                stop()
+                true
+            }
+            try {
+                setDataSource(url)
+                prepareAsync()
+            } catch (e: Exception) {
+                reportFailure(url, e.message ?: e::class.java.simpleName)
+                stop()
+            }
+        }
+    }
+
+    fun release(id: String) {
+        if (id != ownerId) return
+        if (--refs <= 0) stop()
+    }
+
+    // Only resumes what was actually interrupted, so a finished clip doesn't replay.
+    fun pause() {
+        inBackground = true
+        player?.takeIf { it.isPlaying }?.let {
+            it.pause()
+            resumePending = true
+        }
+    }
+
+    fun resume() {
+        inBackground = false
+        if (resumePending) {
+            resumePending = false
+            player?.start()
+        }
+    }
+
+    private fun stop() {
+        player?.release()
+        player = null
+        ownerId = null
+        refs = 0
+        resumePending = false
+    }
+
+    private fun reportFailure(url: String, message: String) {
+        SdkErrorTracker.onAssetFailed(
+            campaignId = null,
+            campaignType = "TTP",
+            screen = null,
+            assetType = "audio",
+            url = url,
+            message = message
+        )
+    }
 }
 
 private fun parseTextAlign(alignment: String?): TextAlign {

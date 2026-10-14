@@ -1210,7 +1210,15 @@ data class Tooltip(
     val titleText: String?,
     val subtitleText: String?,
     val ctaText: String?,
-    val styling: TooltipStyling?
+    val styling: TooltipStyling?,
+    // Per-step audio uploaded on the dashboard. Defaulted so payloads without it still decode.
+    val audioConfig: TooltipAudioConfig? = null
+)
+
+@Keep
+@Serializable
+data class TooltipAudioConfig(
+    val link: String? = null
 )
 
 @Keep
