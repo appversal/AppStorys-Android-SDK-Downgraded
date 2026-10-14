@@ -261,13 +261,21 @@ internal fun FullPageCarouselModal(
                             )
                         } else null
 
-                        // Use the common CTA row
-                        ModalCTARow(
-                            primaryConfig = primaryConfig,
-                            secondaryConfig = secondaryConfig,
+                        // cta_config (slide, else modal) wins; otherwise the legacy primary/secondary row
+                        val ctaListShown = ModalCtaList(
+                            items = slide.ctaConfig ?: modal.content?.ctaConfig,
+                            layout = slide.layout ?: modal.content?.layout,
                             onPrimaryCta = onPrimaryCta,
                             onSecondaryCta = onSecondaryCta
                         )
+                        if (!ctaListShown) {
+                            ModalCTARow(
+                                primaryConfig = primaryConfig,
+                                secondaryConfig = secondaryConfig,
+                                onPrimaryCta = onPrimaryCta,
+                                onSecondaryCta = onSecondaryCta
+                            )
+                        }
                     }
             }
             }

@@ -1884,7 +1884,18 @@ data class ModalContent(
     @SerialName("secondayCta") val secondayCta: String? = null,
     @SerialName("secondaryCta") val secondaryCtaAlt: String? = null,
     // Accept content-level enable flag (some payloads put this under content)
-    @SerialName("enableCrossButton") val enableCrossButton: String? = null
+    @SerialName("enableCrossButton") val enableCrossButton: String? = null,
+    // N-CTA format: "vertical" stacks the buttons, "horizontal" puts them in one row
+    val layout: String? = null,
+    @SerialName("cta_config") val ctaConfig: List<ModalCtaItem>? = null
+)
+
+@Serializable
+data class ModalCtaItem(
+    val text: String? = null,
+    val order: Int? = null,
+    val styling: ModalCta? = null,
+    val redirection: ModalRedirection? = null
 )
 
 @Serializable
