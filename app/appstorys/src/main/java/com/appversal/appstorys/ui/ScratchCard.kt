@@ -78,6 +78,7 @@ import com.appversal.appstorys.api.TextStyling
 import com.appversal.appstorys.ui.common_components.CommonText
 import com.appversal.appstorys.ui.common_components.CrossButton
 import com.appversal.appstorys.ui.common_components.CrossButtonConfig
+import com.appversal.appstorys.ui.spinwheel.ConfettiEffect
 import com.appversal.appstorys.ui.xml.toDp
 import com.appversal.appstorys.utils.isLottieUrl
 import kotlinx.serialization.json.JsonNull
@@ -458,6 +459,8 @@ fun CardScratch(
     var touchedCells by remember { mutableStateOf(setOf<Int>()) }
     var isRevealed by remember { mutableStateOf(wasFullyScratched) }
     var showTerms by remember { mutableStateOf(false) }
+    // The SCRT payload has no confetti settings, so a reveal always gets the wheel's default burst.
+    var showConfetti by remember { mutableStateOf(false) }
 
     // Tuning parameters
     val gridCols = 20
@@ -631,6 +634,7 @@ fun CardScratch(
                                     isRevealed = true
                                     onWasFullyScratched(true)
                                     points = emptyList()
+                                    showConfetti = true
                                     onConfettiTrigger()
                                 }
                             }
@@ -790,6 +794,13 @@ fun CardScratch(
                 }
 
                 Spacer(modifier = Modifier.weight(1f))
+            }
+
+            if (showConfetti) {
+                ConfettiEffect(
+                    modifier = Modifier.fillMaxSize(),
+                    onComplete = { showConfetti = false }
+                )
             }
         }
 

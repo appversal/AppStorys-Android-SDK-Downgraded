@@ -282,8 +282,10 @@ fun SpinTheWheel(
 
                 isSpinning = false
 
-                // Show confetti for wins (using 'noPrize' field from backend)
-                if (winningSlice?.noPrize != true) {
+                // Show confetti for wins (using 'noPrize' field from backend), unless the dashboard turned it off
+                if (winningSlice?.noPrize != true &&
+                    !styling?.rewardConfiguration?.confetti?.selectedStyle.equals("none", ignoreCase = true)
+                ) {
                     showConfetti = true
                     delay(300)
                 }
@@ -1370,7 +1372,7 @@ private fun triggerHapticFeedback(context: android.content.Context, duration: Lo
  * Confetti animation effect for celebration
  */
 @Composable
-private fun ConfettiEffect(
+internal fun ConfettiEffect(
     modifier: Modifier = Modifier,
     confettiConfig: com.appversal.appstorys.api.WheelConfettiConfig? = null,
     onComplete: () -> Unit = {}
