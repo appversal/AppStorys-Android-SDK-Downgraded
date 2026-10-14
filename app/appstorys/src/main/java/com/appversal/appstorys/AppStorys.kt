@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.rememberPagerState
@@ -34,6 +35,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateListOf
@@ -50,6 +52,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
@@ -93,6 +96,7 @@ import com.appversal.appstorys.api.TooltipsDetails
 import com.appversal.appstorys.api.TriggerEvent
 import com.appversal.appstorys.api.UpdateUserPropertiesRequest
 import com.appversal.appstorys.api.WidgetDetails
+import com.appversal.appstorys.api.WidgetSlotFrame
 import com.appversal.appstorys.api.WidgetImage
 import com.appversal.appstorys.api.safeApiCall
 import com.appversal.appstorys.ui.AutoSlidingCarousel
@@ -128,6 +132,7 @@ import com.appversal.appstorys.utils.SdkErrorTracker
 import com.appversal.appstorys.utils.SdkFailureClass
 import com.appversal.appstorys.utils.TriggerEventMatcher
 import com.appversal.appstorys.utils.ViewTreeAnalyzer
+import kotlin.math.roundToInt
 import com.appversal.appstorys.utils.getDeviceInfo
 import com.appversal.appstorys.utils.toJsonElementMap
 import com.appversal.appstorys.utils.toMap
@@ -240,6 +245,9 @@ object AppStorys {
     private val trackedEventNames = _trackedEventNames.asStateFlow()
 
     private var widgetPositionList = listOf<String>()
+
+    // position -> last laid-out slot frame; written by Widget's capture-mode probe (main thread only)
+    private val widgetSlotFrames = mutableMapOf<String, WidgetSlotFrame>()
 
     private val viewedTooltips = MutableStateFlow<Set<String>>(emptySet())
 
@@ -518,6 +526,7 @@ object AppStorys {
                 if (currentScreen != screenName) {
                     withContext(Dispatchers.Main) {   // ← add this
                         OverlayContainer.clearAll()
+                        widgetSlotFrames.clear()
                     }
                     disabledCampaigns.emit(emptyList())
                     impressions.emit(emptyList())
@@ -2011,6 +2020,11 @@ object AppStorys {
                     }
             val widgetDetails = campaign?.details as? WidgetDetails
 
+            val isScreenCaptureEnabled by _isScreenCaptureEnabled.collectAsStateWithLifecycle()
+            if (isScreenCaptureEnabled && position != null) {
+                WidgetSlotProbe(position)
+            }
+
             val trackedEventsData = trackedEventNames.collectAsStateWithLifecycle()
 
             val shouldShowWidget = remember(campaign, trackedEventsData.value.size) {
@@ -2045,6 +2059,32 @@ object AppStorys {
         }
     }
 
+
+    /**
+     * Zero-height, full-width marker at the top of the slot, so the dashboard learns where a
+     * widget position sits even when no campaign fills it yet: it cuts the screenshot at `y` and
+     * inserts the widget there. Composed only for test users with screen capture on, so real
+     * users' layouts are untouched. `y` is window px, matching the identify-elements screenshot.
+     */
+    @Composable
+    private fun WidgetSlotProbe(position: String) {
+        val context = LocalContext.current
+        val screenSize = remember(context) { ViewTreeAnalyzer.getScreenSize(context) }
+        Spacer(
+            modifier = Modifier
+                .fillMaxWidth()
+                .onGloballyPositioned { coordinates ->
+                    widgetSlotFrames[position] = WidgetSlotFrame(
+                        y = coordinates.positionInWindow().y.roundToInt(),
+                        screenWidth = screenSize.first,
+                        screenHeight = screenSize.second
+                    )
+                }
+        )
+        DisposableEffect(position) {
+            onDispose { widgetSlotFrames.remove(position) }
+        }
+    }
 
     @Composable
     private fun FullWidget(
@@ -2998,12 +3038,17 @@ object AppStorys {
 
                     if (widgetPositionList.isNotEmpty() && widgetPositionList[0].isNotEmpty()) {
                         Log.i(TAG, "widgetPositionList is valid")
+                        // Snapshot on the main thread; positions never laid out are left out.
+                        val identifierData = widgetPositionList
+                            .mapNotNull { p -> widgetSlotFrames[p]?.let { p to it } }
+                            .toMap()
                         coroutineScope.launch {
-                            Log.i(TAG, "Calling repository.sendWidgetPositions()")
+                            Log.i(TAG, "Calling repository.sendWidgetPositions() with $identifierData")
                             repository.sendWidgetPositions(
                                 accessToken = accessToken,
                                 screenName = currentScreen,
-                                positionList = widgetPositionList
+                                positionList = widgetPositionList,
+                                identifierData = identifierData
                             )
                         }
                     }

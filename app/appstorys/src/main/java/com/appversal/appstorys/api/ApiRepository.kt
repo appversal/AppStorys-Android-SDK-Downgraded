@@ -16,6 +16,7 @@ import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
+import retrofit2.HttpException
 import java.io.File
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.jsonObject
@@ -121,14 +122,19 @@ internal class ApiRepository(
     suspend fun sendWidgetPositions(
         accessToken: String,
         screenName: String,
-        positionList: List<String>
+        positionList: List<String>,
+        identifierData: Map<String, WidgetSlotFrame>
     ) {
         return withContext(Dispatchers.IO) {
             when (val result = safeApiCall {
                 apiService.identifyPositions(
                     token = "Bearer $accessToken",
-                    IdentifyPositionsRequest(screen_name = screenName, position_list = positionList)
-                )
+                    IdentifyPositionsRequest(
+                        screen_name = screenName,
+                        position_list = positionList,
+                        identifier_data = identifierData
+                    )
+                ).also { if (!it.isSuccessful) throw HttpException(it) }
             }) {
                 is ApiResult.Success -> {
                     Log.i("ApiRepository", "Widgets Positions sent successfully.: ${result.data}")

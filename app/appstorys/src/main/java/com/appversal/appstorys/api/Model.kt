@@ -62,7 +62,18 @@ data class EligibleCampaignsResponse(
 @Serializable
 data class IdentifyPositionsRequest(
     val screen_name: String?,
-    val position_list: List<String>?
+    val position_list: List<String>?,
+    // position -> where that widget slot sits on the captured screenshot
+    val identifier_data: Map<String, WidgetSlotFrame>? = null
+)
+
+/** `y` = top of the slot in window px on the identify-elements screenshot; screen size for scaling. */
+@Keep
+@Serializable
+data class WidgetSlotFrame(
+    val y: Int,
+    val screenWidth: Int,
+    val screenHeight: Int
 )
 
 @Keep

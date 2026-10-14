@@ -1,6 +1,5 @@
 package com.appversal.appstorys.api
 
-import androidx.annotation.Nullable
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
 import retrofit2.HttpException
@@ -32,7 +31,7 @@ internal interface ApiService {
     suspend fun identifyPositions(
         @Header("Authorization") token: String,
         @Body request: IdentifyPositionsRequest
-    ): Nullable
+    ): Response<Unit>
 
     @POST("v2/{accountId}/track-user-res")
     suspend fun getEligibleCampaigns(
