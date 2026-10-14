@@ -1460,23 +1460,31 @@ fun CashBackInfoView(
                             )
                         )
                 ) {
-                    SubcomposeAsyncImage(
-                        model = bannerImageUrl,
-                        contentDescription = "Banner",
-                        onError = { assetError ->
-                            SdkErrorTracker.onAssetFailed(
-                                campaignId = null,
-                                campaignType = "SCRT",
-                                screen = null,
-                                assetType = "image",
-                                url = assetError.result.request.data.toString(),
-                                message = assetError.result.throwable.message
-                                    ?: assetError.result.throwable::class.java.simpleName
-                            )
-                        },
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
+                    // GIF/Lottie need their own decoders; OnlyImageView already has them.
+                    if (isLottieUrl(bannerImageUrl) || isGifUrl(bannerImageUrl)) {
+                        OnlyImageView(
+                            modifier = Modifier.fillMaxSize(),
+                            bannerImageUrl = bannerImageUrl
+                        )
+                    } else {
+                        SubcomposeAsyncImage(
+                            model = bannerImageUrl,
+                            contentDescription = "Banner",
+                            onError = { assetError ->
+                                SdkErrorTracker.onAssetFailed(
+                                    campaignId = null,
+                                    campaignType = "SCRT",
+                                    screen = null,
+                                    assetType = "image",
+                                    url = assetError.result.request.data.toString(),
+                                    message = assetError.result.throwable.message
+                                        ?: assetError.result.throwable::class.java.simpleName
+                                )
+                            },
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
                 }
             }
 
@@ -1551,6 +1559,12 @@ fun CashBackInfoView(
                             else -> Arrangement.Center
                         }
                     ) {
+                        val couponShape = RoundedCornerShape(
+                            topStart = couponTopLeft,
+                            topEnd = couponTopRight,
+                            bottomStart = couponBottomLeft,
+                            bottomEnd = couponBottomRight
+                        )
                         Row(
                             modifier = Modifier
                                 .then(
@@ -1566,29 +1580,18 @@ fun CashBackInfoView(
                                 )
                                 .background(
                                     color = parseColorSafe(couponBgColor, Color(0xFF1F1F1F)),
-                                    shape = RoundedCornerShape(
-                                        topStart = couponTopLeft,
-                                        topEnd = couponTopRight,
-                                        bottomStart = couponBottomLeft,
-                                        bottomEnd = couponBottomRight
-                                    )
+                                    shape = couponShape
                                 )
                                 .then(
                                     if (couponBorderColor.isNotEmpty() && couponBorderWidth > 0) {
-                                        Modifier.drawWithContent {
-                                            drawContent()
-                                            drawRoundRect(
-                                                color = parseColorSafe(
-                                                    couponBorderColor,
-                                                    Color(0xFF0066FF)
-                                                ),
-                                                style = Stroke(width = couponBorderWidth.dp.toPx()),
-                                                cornerRadius = androidx.compose.ui.geometry.CornerRadius(
-                                                    couponTopLeft.toPx(),
-                                                    couponTopRight.toPx()
-                                                )
-                                            )
-                                        }
+                                        Modifier.border(
+                                            width = couponBorderWidth.dp,
+                                            color = parseColorSafe(
+                                                couponBorderColor,
+                                                Color(0xFF0066FF)
+                                            ),
+                                            shape = couponShape
+                                        )
                                     } else Modifier
                                 )
                                 .clickable {
