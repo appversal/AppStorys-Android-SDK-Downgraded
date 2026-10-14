@@ -260,7 +260,7 @@ fun HomeScreen(
 //        val screenName = "Home Screen Kotlin"
 //        val screenName = "Home Screen Flutter"
         val screenName = "Home Screen Kotlin"
-        val positions = listOf("widget_one")
+        val positions = listOf("widget_one", "widget_two")
         campaignManager.getScreenCampaigns(
             screenName,
             positions,
@@ -313,14 +313,6 @@ fun HomeScreen(
                     position = "widget_one",
                 )
 
-                campaignManager.Widget(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .appstorys("tooltip_home_prem_test"),
-                    placeholder = context.getDrawable(R.drawable.ic_launcher_foreground),
-                    position = "widget_two",
-                )
-
 //                campaignManager.Streaks()
 
                 // NEW: Scratch Card Button
@@ -357,6 +349,7 @@ fun HomeScreen(
                 ) {
                     Button(
                         onClick = {
+                            showBottomSheet = true
 //                            campaignManager.handleBackPress {
 //                                showBottomSheet = true
 //                                campaignManager.trackEvents(
@@ -373,12 +366,17 @@ fun HomeScreen(
                 }
 
                 if (showBottomSheet) {
+                    // The sheet is its own AppStorys screen; hand Home back its campaigns on close.
+                    val closeSheet = {
+                        showBottomSheet = false
+                        campaignManager.getScreenCampaigns("Home Screen Kotlin", listOf("widget_one"))
+                    }
                     LaunchedEffect(Unit) {
-                        delay(1000)
+                        delay(1000) // let the sheet finish sliding up so tagged positions are final
                         campaignManager.getScreenCampaigns("Bottom Sheet Kotlin")
                     }
                     ModalBottomSheet(
-                        onDismissRequest = { showBottomSheet = false },
+                        onDismissRequest = closeSheet,
                         sheetState = sheetState,
                         containerColor = Color.White
                     ) {
@@ -403,7 +401,7 @@ fun HomeScreen(
                                 color = Color.Gray
                             )
                             Button(
-                                onClick = { showBottomSheet = false },
+                                onClick = closeSheet,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .appstorys("closebutton"),
@@ -414,6 +412,7 @@ fun HomeScreen(
                                 Text("Close")
                             }
                         }
+                        // Tooltips only, drawn in the sheet's window so they sit above it.
                         campaignManager.overlayElements(insideBottomSheet = true)
                     }
                 }
@@ -519,6 +518,14 @@ fun HomeScreen(
 
                 Spacer(
                     Modifier.height(30.dp)
+                )
+
+                campaignManager.Widget(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .appstorys("tooltip_home_prem_test"),
+                    placeholder = context.getDrawable(R.drawable.ic_launcher_foreground),
+                    position = "widget_two",
                 )
 
                 // First user property input and button
@@ -822,7 +829,7 @@ fun BottomNavigationBar(selectedTab: Int, onTabSelected: (Int) -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .height(70.dp)
-
+            .appstorys("bottom_navigation_bar")
     ) {
         val items = listOf("Parties", "More")
         val icons = listOf(Icons.Filled.Person, Icons.Filled.List)
