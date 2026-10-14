@@ -1,9 +1,9 @@
 package com.appversal.appstorys.ui
 
 import com.appversal.appstorys.utils.SdkErrorTracker
+import com.appversal.appstorys.utils.GifImageLoader
 import android.annotation.SuppressLint
 import android.graphics.Rect
-import android.os.Build.VERSION.SDK_INT
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -57,8 +57,6 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import coil.ImageLoader
 import coil.compose.AsyncImage
 import coil.compose.rememberAsyncImagePainter
-import coil.decode.GifDecoder
-import coil.decode.ImageDecoderDecoder
 import coil.request.CachePolicy
 import coil.request.ImageRequest
 import com.airbnb.lottie.compose.LottieAnimation
@@ -295,17 +293,7 @@ private fun ImageContent(tooltip: Tooltip, modifier: Modifier = Modifier) {
                 }
 
                 isGifUrl(url) -> {
-                    val imageLoader = remember {
-                        ImageLoader.Builder(context)
-                            .components {
-                                if (SDK_INT >= 28) {
-                                    add(ImageDecoderDecoder.Factory())
-                                } else {
-                                    add(GifDecoder.Factory())
-                                }
-                            }
-                            .build()
-                    }
+                    val imageLoader = GifImageLoader.get(context)
 
                     val painter = rememberAsyncImagePainter(
                         ImageRequest.Builder(context)
