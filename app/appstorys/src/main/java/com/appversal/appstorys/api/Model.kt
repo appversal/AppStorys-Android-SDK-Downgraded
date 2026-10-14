@@ -757,6 +757,7 @@ data class WidgetStyling(
     val topRightRadius: Int?,
     val bottomLeftRadius: Int?,
     val bottomRightRadius: Int?,
+    val soundToggle: SoundToggle? = null,
 )
 
 @Keep

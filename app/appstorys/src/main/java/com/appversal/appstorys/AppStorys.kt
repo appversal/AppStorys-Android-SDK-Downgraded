@@ -2177,7 +2177,8 @@ object AppStorys {
                                 placeHolder = placeHolder,
                                 height = calculatedHeight,
                                 width = widthInDp ?: staticWidth,
-                                placeholderContent = placeholderContent
+                                placeholderContent = placeholderContent,
+                                soundToggle = widgetDetails.styling?.soundToggle
                             )
                         }
                     }

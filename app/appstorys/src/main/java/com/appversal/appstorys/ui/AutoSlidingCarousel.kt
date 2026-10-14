@@ -54,7 +54,13 @@ import com.airbnb.lottie.compose.LottieAnimation
 import com.airbnb.lottie.compose.LottieCompositionSpec
 import com.airbnb.lottie.compose.LottieConstants
 import com.airbnb.lottie.compose.rememberLottieComposition
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import com.appversal.appstorys.api.SoundToggle
 import com.appversal.appstorys.api.WidgetDetails
+import com.appversal.appstorys.ui.common_components.SoundToggleButton
+import com.appversal.appstorys.ui.common_components.createSoundToggleButtonConfig
 import com.appversal.appstorys.ui.modals.MediaType
 import com.appversal.appstorys.ui.modals.VideoPlayerInline
 import com.appversal.appstorys.ui.modals.determineMediaType
@@ -233,7 +239,8 @@ internal fun CarousalImage(
     height: Dp?,
     width: Dp? = null,
     placeHolder: Drawable? = null,
-    placeholderContent: (@Composable () -> Unit)? = null
+    placeholderContent: (@Composable () -> Unit)? = null,
+    soundToggle: SoundToggle? = null
 ) {
     val context = LocalContext.current
 
@@ -258,11 +265,7 @@ internal fun CarousalImage(
             // Video slides size to the video's own aspect ratio (not the campaign's
             // width/height), so the creative is never cropped or stretched.
             determineMediaType(imageUrl) == MediaType.VIDEO -> {
-                VideoPlayerInline(
-                    videoUrl = imageUrl,
-                    modifier = Modifier.fillMaxWidth(),
-                    muted = true
-                )
+                WidgetVideo(videoUrl = imageUrl, soundToggle = soundToggle)
             }
 
             !imageUrl.isNullOrEmpty() -> {
@@ -345,6 +348,56 @@ internal fun CarousalImage(
                     )
                 }
             }
+        }
+    }
+}
+
+// Widget video slide with the dashboard's mute/unmute button in the top-right corner.
+// defaultSound "yes" starts with sound; anything else starts muted.
+@Composable
+internal fun WidgetVideo(videoUrl: String, soundToggle: SoundToggle?) {
+    var isMuted by remember(videoUrl) { mutableStateOf(soundToggle?.defaultSound != "yes") }
+
+    Box(modifier = Modifier.fillMaxWidth()) {
+        VideoPlayerInline(
+            videoUrl = videoUrl,
+            modifier = Modifier.fillMaxWidth(),
+            muted = isMuted
+        )
+
+        if (soundToggle?.enabled != false) {
+            val mute = soundToggle?.mute
+            val unmute = soundToggle?.unmute
+            val muteColors = mute?.color ?: mute?.colors
+            val unmuteColors = unmute?.color ?: unmute?.colors
+
+            SoundToggleButton(
+                modifier = Modifier.align(Alignment.TopEnd),
+                muteConfig = createSoundToggleButtonConfig(
+                    fillColorString = muteColors?.fill,
+                    iconColorString = muteColors?.cross,
+                    strokeColorString = muteColors?.stroke,
+                    marginTop = mute?.margin?.top,
+                    marginEnd = mute?.margin?.right,
+                    marginBottom = mute?.margin?.bottom,
+                    marginStart = mute?.margin?.left,
+                    size = mute?.size ?: 30,
+                    imageUrl = mute?.image
+                ),
+                unmuteConfig = createSoundToggleButtonConfig(
+                    fillColorString = unmuteColors?.fill,
+                    iconColorString = unmuteColors?.cross,
+                    strokeColorString = unmuteColors?.stroke,
+                    marginTop = unmute?.margin?.top,
+                    marginEnd = unmute?.margin?.right,
+                    marginBottom = unmute?.margin?.bottom,
+                    marginStart = unmute?.margin?.left,
+                    size = unmute?.size ?: 30,
+                    imageUrl = unmute?.image
+                ),
+                isMuted = isMuted,
+                onToggle = { isMuted = !isMuted }
+            )
         }
     }
 }
