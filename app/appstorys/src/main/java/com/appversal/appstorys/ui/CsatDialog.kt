@@ -1060,11 +1060,43 @@ private fun StarRating(
                 ?: csatDetails.styling?.rating?.low?.borderWidth ?: 0
         }
 
+        // Dashboard's per-state star.stylingContainer. When sent, the star sits in a 46dp
+        // box like the emoji rating (Flutter ignores it); without it stars render bare.
+        val container = when {
+            !isSelected -> csatDetails.styling?.rating?.star?.unselected?.stylingContainer
+            isHighRatingMode -> csatDetails.styling?.rating?.star?.high?.stylingContainer
+            else -> csatDetails.styling?.rating?.star?.low?.stylingContainer
+        }
+        val starSize = if (container != null) 30 else 40
+        val shape = ratingShape(csatDetails)
+
         Box(
             modifier = Modifier
                 .padding(
                     horizontal = ratingItemHorizontalPadding(csatDetails, 12),
                     vertical = 3.dp
+                )
+                .then(
+                    if (container != null) {
+                        val containerBorderWidth = container.borderWidth ?: 0
+                        Modifier
+                            .size(46.dp)
+                            .clip(shape)
+                            .background(container.background?.toColor(Color.Transparent) ?: Color.Transparent)
+                            .then(
+                                if (containerBorderWidth > 0) {
+                                    Modifier.border(
+                                        containerBorderWidth.dp,
+                                        container.border?.toColor(Color.Transparent) ?: Color.Transparent,
+                                        shape
+                                    )
+                                } else {
+                                    Modifier
+                                }
+                            )
+                    } else {
+                        Modifier
+                    }
                 )
                 .clickable(
                     indication = null,
@@ -1077,7 +1109,7 @@ private fun StarRating(
                     painter = painterResource(R.drawable.star),
                     contentDescription = null,
                     tint = borderColor,
-                    modifier = Modifier.size((40 + (borderWidth * 3)).dp)
+                    modifier = Modifier.size((starSize + (borderWidth * 3)).dp)
                 )
             }
 
@@ -1085,7 +1117,7 @@ private fun StarRating(
                 painter = painterResource(R.drawable.star),
                 contentDescription = "Star ${index + 1}",
                 tint = starColor,
-                modifier = Modifier.size(40.dp)
+                modifier = Modifier.size(starSize.dp)
             )
         }
     }

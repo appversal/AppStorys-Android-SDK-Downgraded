@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -23,6 +24,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.appversal.appstorys.api.ModalCta
+import com.appversal.appstorys.api.ModalCtaItem
 import com.appversal.appstorys.api.TextStyling
 import com.appversal.appstorys.ui.common_components.CommonText
 import com.appversal.appstorys.ui.common_components.parseColorString
@@ -334,4 +336,45 @@ fun ModalCTARow(
             )
         }
     }
+}
+
+/**
+ * Renders the N-CTA `cta_config` list. "horizontal" puts the first two in one row;
+ * anything else (incl. "vertical" / missing) stacks them, one per row.
+ * The first CTA (lowest order) behaves like the primary, the rest like the secondary.
+ * Returns false when there is nothing to render, so callers fall back to the primary/secondary pair.
+ */
+@Composable
+fun ModalCtaList(
+    items: List<ModalCtaItem>?,
+    layout: String?,
+    onPrimaryCta: ((link: String?) -> Unit)?,
+    onSecondaryCta: ((link: String?) -> Unit)?
+): Boolean {
+    val configs = items.orEmpty()
+        .filter { !it.text.isNullOrBlank() }
+        .sortedBy { it.order ?: Int.MAX_VALUE }
+        .map {
+            createModalCTAButtonConfig(
+                text = it.text!!,
+                styling = it.styling,
+                redirectionUrl = it.redirection?.url?.ifBlank { null }
+                    ?: it.redirection?.value?.ifBlank { null }
+            )
+        }
+    if (configs.isEmpty()) return false
+
+    if (layout?.trim().equals("horizontal", ignoreCase = true)) {
+        // ponytail: ModalCTARow takes two, so a horizontal list shows the first 2 only
+        ModalCTARow(configs[0], configs.getOrNull(1), onPrimaryCta, onSecondaryCta)
+    } else {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            configs.forEachIndexed { index, config ->
+                ModalCTAButton(config = config) {
+                    (if (index == 0) onPrimaryCta else onSecondaryCta)?.invoke(config.redirectionUrl)
+                }
+            }
+        }
+    }
+    return true
 }

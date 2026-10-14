@@ -78,6 +78,7 @@ import com.appversal.appstorys.api.TextStyling
 import com.appversal.appstorys.ui.common_components.CommonText
 import com.appversal.appstorys.ui.common_components.CrossButton
 import com.appversal.appstorys.ui.common_components.CrossButtonConfig
+import com.appversal.appstorys.ui.spinwheel.ConfettiEffect
 import com.appversal.appstorys.ui.xml.toDp
 import com.appversal.appstorys.utils.isLottieUrl
 import kotlinx.serialization.json.JsonNull
@@ -458,6 +459,8 @@ fun CardScratch(
     var touchedCells by remember { mutableStateOf(setOf<Int>()) }
     var isRevealed by remember { mutableStateOf(wasFullyScratched) }
     var showTerms by remember { mutableStateOf(false) }
+    // The SCRT payload has no confetti settings, so a reveal always gets the wheel's default burst.
+    var showConfetti by remember { mutableStateOf(false) }
 
     // Tuning parameters
     val gridCols = 20
@@ -631,6 +634,7 @@ fun CardScratch(
                                     isRevealed = true
                                     onWasFullyScratched(true)
                                     points = emptyList()
+                                    showConfetti = true
                                     onConfettiTrigger()
                                 }
                             }
@@ -790,6 +794,13 @@ fun CardScratch(
                 }
 
                 Spacer(modifier = Modifier.weight(1f))
+            }
+
+            if (showConfetti) {
+                ConfettiEffect(
+                    modifier = Modifier.fillMaxSize(),
+                    onComplete = { showConfetti = false }
+                )
             }
         }
 
@@ -1449,23 +1460,31 @@ fun CashBackInfoView(
                             )
                         )
                 ) {
-                    SubcomposeAsyncImage(
-                        model = bannerImageUrl,
-                        contentDescription = "Banner",
-                        onError = { assetError ->
-                            SdkErrorTracker.onAssetFailed(
-                                campaignId = null,
-                                campaignType = "SCRT",
-                                screen = null,
-                                assetType = "image",
-                                url = assetError.result.request.data.toString(),
-                                message = assetError.result.throwable.message
-                                    ?: assetError.result.throwable::class.java.simpleName
-                            )
-                        },
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
+                    // GIF/Lottie need their own decoders; OnlyImageView already has them.
+                    if (isLottieUrl(bannerImageUrl) || isGifUrl(bannerImageUrl)) {
+                        OnlyImageView(
+                            modifier = Modifier.fillMaxSize(),
+                            bannerImageUrl = bannerImageUrl
+                        )
+                    } else {
+                        SubcomposeAsyncImage(
+                            model = bannerImageUrl,
+                            contentDescription = "Banner",
+                            onError = { assetError ->
+                                SdkErrorTracker.onAssetFailed(
+                                    campaignId = null,
+                                    campaignType = "SCRT",
+                                    screen = null,
+                                    assetType = "image",
+                                    url = assetError.result.request.data.toString(),
+                                    message = assetError.result.throwable.message
+                                        ?: assetError.result.throwable::class.java.simpleName
+                                )
+                            },
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
                 }
             }
 
@@ -1540,6 +1559,12 @@ fun CashBackInfoView(
                             else -> Arrangement.Center
                         }
                     ) {
+                        val couponShape = RoundedCornerShape(
+                            topStart = couponTopLeft,
+                            topEnd = couponTopRight,
+                            bottomStart = couponBottomLeft,
+                            bottomEnd = couponBottomRight
+                        )
                         Row(
                             modifier = Modifier
                                 .then(
@@ -1555,29 +1580,18 @@ fun CashBackInfoView(
                                 )
                                 .background(
                                     color = parseColorSafe(couponBgColor, Color(0xFF1F1F1F)),
-                                    shape = RoundedCornerShape(
-                                        topStart = couponTopLeft,
-                                        topEnd = couponTopRight,
-                                        bottomStart = couponBottomLeft,
-                                        bottomEnd = couponBottomRight
-                                    )
+                                    shape = couponShape
                                 )
                                 .then(
                                     if (couponBorderColor.isNotEmpty() && couponBorderWidth > 0) {
-                                        Modifier.drawWithContent {
-                                            drawContent()
-                                            drawRoundRect(
-                                                color = parseColorSafe(
-                                                    couponBorderColor,
-                                                    Color(0xFF0066FF)
-                                                ),
-                                                style = Stroke(width = couponBorderWidth.dp.toPx()),
-                                                cornerRadius = androidx.compose.ui.geometry.CornerRadius(
-                                                    couponTopLeft.toPx(),
-                                                    couponTopRight.toPx()
-                                                )
-                                            )
-                                        }
+                                        Modifier.border(
+                                            width = couponBorderWidth.dp,
+                                            color = parseColorSafe(
+                                                couponBorderColor,
+                                                Color(0xFF0066FF)
+                                            ),
+                                            shape = couponShape
+                                        )
                                     } else Modifier
                                 )
                                 .clickable {

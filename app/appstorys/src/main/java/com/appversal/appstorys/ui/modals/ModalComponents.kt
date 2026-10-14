@@ -291,6 +291,10 @@ fun VideoPlayerInlineWithCallback(
             }
     }
 
+    LaunchedEffect(exo, muted) {
+        exo.volume = if (muted) 0f else 1f
+    }
+
     // Listen for video size changes to get the actual aspect ratio
     // Also listen for first frame rendered to trigger the callback
     DisposableEffect(exo, onVideoRendered) {

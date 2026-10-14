@@ -1,208 +1,213 @@
 package com.appversal.appstorys.notifications
 
-import android.app.Activity
-import android.content.Context
-import android.content.Intent
-import android.net.Uri
-import android.os.Bundle
-import android.util.Log
+// NOTIFICATIONS DISABLED: push notification support is commented out. Uncomment the
+// original implementation below (and the entries in the SDK AndroidManifest.xml) to re-enable.
 
-/**
- * Transparent trampoline activity used as the click target for AppStorys
- * outreach notifications.
- *
- * ## Why an Activity and not a BroadcastReceiver
- *
- * Android 12 (API 31) blocks **notification trampolines** — when a notification
- * `PendingIntent` fires a `BroadcastReceiver` or `Service` that then calls
- * `startActivity()`. The system logs:
- *
- *     "Indirect notification activity start (trampoline) … blocked"
- *
- * and silently drops the start. Symptom: notifications fire the
- * tracking event but never open the URL when the app was killed.
- *
- * Activities are NOT subject to that restriction — starting an activity
- * from an activity launched by a notification PendingIntent is allowed.
- *
- * ## Lifecycle
- *
- * 1. `onCreate` reads the extras and calls `startActivity(target)` immediately.
- * 2. The "clicked" event is sent on a worker thread; the activity stays alive
- *    (transparent, off-screen) until the network call finishes. This keeps the
- *    process alive long enough to deliver the event even on cold start, same
- *    semantics the old `BroadcastReceiver.goAsync()` flow provided.
- * 3. `finish()` is called from the worker thread when the event completes
- *    (success or failure); the activity is then removed from the task and the
- *    system can reap the process.
- *
- * ## Required manifest declaration
- *
- * Add to the library (or host) `AndroidManifest.xml`:
- *
- *     <activity
- *         android:name="com.appversal.appstorys.notifications.AppStorysNotificationActivity"
- *         android:exported="false"
- *         android:theme="@android:style/Theme.Translucent.NoTitleBar"
- *         android:noHistory="true"
- *         android:excludeFromRecents="true"
- *         android:taskAffinity=""
- *         android:launchMode="singleTop" />
- */
-class AppStorysNotificationActivity : Activity() {
+// ---- original implementation ----
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        // No window animation — we want the browser/host activity to come up
-        // as if the trampoline weren't there.
-        overridePendingTransition(0, 0)
-        handleIntent(intent)
-    }
+// import android.app.Activity
+// import android.content.Context
+// import android.content.Intent
+// import android.net.Uri
+// import android.os.Bundle
+// import android.util.Log
 
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        // singleTop reuses the instance — still act on the new tap.
-        setIntent(intent)
-        handleIntent(intent)
-    }
+// /**
+//  * Transparent trampoline activity used as the click target for AppStorys
+//  * outreach notifications.
+//  *
+//  * ## Why an Activity and not a BroadcastReceiver
+//  *
+//  * Android 12 (API 31) blocks **notification trampolines** — when a notification
+//  * `PendingIntent` fires a `BroadcastReceiver` or `Service` that then calls
+//  * `startActivity()`. The system logs:
+//  *
+//  *     "Indirect notification activity start (trampoline) … blocked"
+//  *
+//  * and silently drops the start. Symptom: notifications fire the
+//  * tracking event but never open the URL when the app was killed.
+//  *
+//  * Activities are NOT subject to that restriction — starting an activity
+//  * from an activity launched by a notification PendingIntent is allowed.
+//  *
+//  * ## Lifecycle
+//  *
+//  * 1. `onCreate` reads the extras and calls `startActivity(target)` immediately.
+//  * 2. The "clicked" event is sent on a worker thread; the activity stays alive
+//  *    (transparent, off-screen) until the network call finishes. This keeps the
+//  *    process alive long enough to deliver the event even on cold start, same
+//  *    semantics the old `BroadcastReceiver.goAsync()` flow provided.
+//  * 3. `finish()` is called from the worker thread when the event completes
+//  *    (success or failure); the activity is then removed from the task and the
+//  *    system can reap the process.
+//  *
+//  * ## Required manifest declaration
+//  *
+//  * Add to the library (or host) `AndroidManifest.xml`:
+//  *
+//  *     <activity
+//  *         android:name="com.appversal.appstorys.notifications.AppStorysNotificationActivity"
+//  *         android:exported="false"
+//  *         android:theme="@android:style/Theme.Translucent.NoTitleBar"
+//  *         android:noHistory="true"
+//  *         android:excludeFromRecents="true"
+//  *         android:taskAffinity=""
+//  *         android:launchMode="singleTop" />
+//  */
+// class AppStorysNotificationActivity : Activity() {
 
-    private fun handleIntent(intent: Intent?) {
-        val notificationId = intent?.getStringExtra(EXTRA_NOTIFICATION_ID)
-        val deepLink = intent?.getStringExtra(EXTRA_DEEP_LINK)
-        val variantId = intent?.getStringExtra(EXTRA_VARIANT_ID)
-        val runId = intent?.getStringExtra(EXTRA_RUN_ID)
+//     override fun onCreate(savedInstanceState: Bundle?) {
+//         super.onCreate(savedInstanceState)
+//         // No window animation — we want the browser/host activity to come up
+//         // as if the trampoline weren't there.
+//         overridePendingTransition(0, 0)
+//         handleIntent(intent)
+//     }
 
-        // 1. Launch the target FIRST. startActivity is synchronous-enqueue and
-        //    the browser/host activity comes to the foreground immediately;
-        //    we keep ourselves transparent so the user never sees a flash.
-        try {
-            launchTarget(deepLink)
-        } catch (e: Exception) {
-            Log.e(TAG, "launchTarget failed", e)
-        }
+//     override fun onNewIntent(intent: Intent) {
+//         super.onNewIntent(intent)
+//         // singleTop reuses the instance — still act on the new tap.
+//         setIntent(intent)
+//         handleIntent(intent)
+//     }
 
-        // 2. Fire the "clicked" event on a worker thread; keep the activity
-        //    alive until it completes so the process doesn't get reaped
-        //    mid-flight during cold-start.
-        if (notificationId.isNullOrBlank()) {
-            finish()
-            overridePendingTransition(0, 0)
-            return
-        }
+//     private fun handleIntent(intent: Intent?) {
+//         val notificationId = intent?.getStringExtra(EXTRA_NOTIFICATION_ID)
+//         val deepLink = intent?.getStringExtra(EXTRA_DEEP_LINK)
+//         val variantId = intent?.getStringExtra(EXTRA_VARIANT_ID)
+//         val runId = intent?.getStringExtra(EXTRA_RUN_ID)
 
-        Thread {
-            try {
-                OutreachEventTracker.fireEventBlocking(
-                    applicationContext, notificationId, "clicked", variantId, runId
-                )
-            } catch (e: Exception) {
-                Log.e(TAG, "fireEventBlocking failed", e)
-            } finally {
-                runOnUiThread {
-                    if (!isFinishing) finish()
-                    overridePendingTransition(0, 0)
-                }
-            }
-        }.start()
-    }
+//         // 1. Launch the target FIRST. startActivity is synchronous-enqueue and
+//         //    the browser/host activity comes to the foreground immediately;
+//         //    we keep ourselves transparent so the user never sees a flash.
+//         try {
+//             launchTarget(deepLink)
+//         } catch (e: Exception) {
+//             Log.e(TAG, "launchTarget failed", e)
+//         }
 
-    /**
-     *  - No link                                → launcher activity
-     *  - http / https URL                       → ALWAYS the system browser
-     *  - Custom scheme (myapp://…, mailto:, tel:, etc.) → in-app first,
-     *    then external, then launcher fallback.
-     *  - Non-URI payload (no scheme)            → launcher activity with the
-     *    payload forwarded as an intent extra.
-     */
-    private fun launchTarget(deepLink: String?) {
-        if (deepLink.isNullOrBlank()) {
-            launchLauncher(null)
-            return
-        }
+//         // 2. Fire the "clicked" event on a worker thread; keep the activity
+//         //    alive until it completes so the process doesn't get reaped
+//         //    mid-flight during cold-start.
+//         if (notificationId.isNullOrBlank()) {
+//             finish()
+//             overridePendingTransition(0, 0)
+//             return
+//         }
 
-        val uri = runCatching { Uri.parse(deepLink) }.getOrNull()
-        val scheme = uri?.scheme?.lowercase()
+//         Thread {
+//             try {
+//                 OutreachEventTracker.fireEventBlocking(
+//                     applicationContext, notificationId, "clicked", variantId, runId
+//                 )
+//             } catch (e: Exception) {
+//                 Log.e(TAG, "fireEventBlocking failed", e)
+//             } finally {
+//                 runOnUiThread {
+//                     if (!isFinishing) finish()
+//                     overridePendingTransition(0, 0)
+//                 }
+//             }
+//         }.start()
+//     }
 
-        if (uri == null || scheme.isNullOrBlank()) {
-            launchLauncher(deepLink)
-            return
-        }
+//     /**
+//      *  - No link                                → launcher activity
+//      *  - http / https URL                       → ALWAYS the system browser
+//      *  - Custom scheme (myapp://…, mailto:, tel:, etc.) → in-app first,
+//      *    then external, then launcher fallback.
+//      *  - Non-URI payload (no scheme)            → launcher activity with the
+//      *    payload forwarded as an intent extra.
+//      */
+//     private fun launchTarget(deepLink: String?) {
+//         if (deepLink.isNullOrBlank()) {
+//             launchLauncher(null)
+//             return
+//         }
 
-        if (scheme == "http" || scheme == "https") {
-            if (startExternal(uri)) return
-            Log.w(TAG, "Failed to open URL '$deepLink' externally — opening app launcher")
-            launchLauncher(deepLink)
-            return
-        }
+//         val uri = runCatching { Uri.parse(deepLink) }.getOrNull()
+//         val scheme = uri?.scheme?.lowercase()
 
-        // Custom schemes: prefer in-app handling.
-        val inApp = Intent(Intent.ACTION_VIEW, uri).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            setPackage(packageName)
-        }
-        if (inApp.resolveActivity(packageManager) != null) {
-            if (runCatching { startActivity(inApp) }.isSuccess) return
-        }
+//         if (uri == null || scheme.isNullOrBlank()) {
+//             launchLauncher(deepLink)
+//             return
+//         }
 
-        if (startExternal(uri)) return
+//         if (scheme == "http" || scheme == "https") {
+//             if (startExternal(uri)) return
+//             Log.w(TAG, "Failed to open URL '$deepLink' externally — opening app launcher")
+//             launchLauncher(deepLink)
+//             return
+//         }
 
-        Log.w(TAG, "No handler for deep link '$deepLink' — opening app launcher")
-        launchLauncher(deepLink)
-    }
+//         // Custom schemes: prefer in-app handling.
+//         val inApp = Intent(Intent.ACTION_VIEW, uri).apply {
+//             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+//             setPackage(packageName)
+//         }
+//         if (inApp.resolveActivity(packageManager) != null) {
+//             if (runCatching { startActivity(inApp) }.isSuccess) return
+//         }
 
-    private fun startExternal(uri: Uri): Boolean {
-        val external = Intent(Intent.ACTION_VIEW, uri).apply {
-            addFlags(
-                Intent.FLAG_ACTIVITY_NEW_TASK or
-                        Intent.FLAG_ACTIVITY_NEW_DOCUMENT
-            )
-        }
-        return runCatching { startActivity(external) }.isSuccess
-    }
+//         if (startExternal(uri)) return
 
-    private fun launchLauncher(payload: String?) {
-        try {
-            val launch = packageManager
-                .getLaunchIntentForPackage(packageName)
-                ?.apply {
-                    addFlags(
-                        Intent.FLAG_ACTIVITY_NEW_TASK or
-                                Intent.FLAG_ACTIVITY_CLEAR_TOP
-                    )
-                    if (!payload.isNullOrBlank()) putExtra(EXTRA_DEEP_LINK, payload)
-                }
-            launch?.let { startActivity(it) }
-        } catch (e: Exception) {
-            Log.e(TAG, "launchLauncher failed", e)
-        }
-    }
+//         Log.w(TAG, "No handler for deep link '$deepLink' — opening app launcher")
+//         launchLauncher(deepLink)
+//     }
 
-    companion object {
-        private const val TAG = "AppStorysClickActivity"
-        const val EXTRA_NOTIFICATION_ID = "appstorys_notification_id"
-        const val EXTRA_DEEP_LINK = "appstorys_deep_link"
+//     private fun startExternal(uri: Uri): Boolean {
+//         val external = Intent(Intent.ACTION_VIEW, uri).apply {
+//             addFlags(
+//                 Intent.FLAG_ACTIVITY_NEW_TASK or
+//                         Intent.FLAG_ACTIVITY_NEW_DOCUMENT
+//             )
+//         }
+//         return runCatching { startActivity(external) }.isSuccess
+//     }
 
-        const val EXTRA_VARIANT_ID = "appstorys_variant_id"
-        const val EXTRA_RUN_ID = "appstorys_run_id"
+//     private fun launchLauncher(payload: String?) {
+//         try {
+//             val launch = packageManager
+//                 .getLaunchIntentForPackage(packageName)
+//                 ?.apply {
+//                     addFlags(
+//                         Intent.FLAG_ACTIVITY_NEW_TASK or
+//                                 Intent.FLAG_ACTIVITY_CLEAR_TOP
+//                     )
+//                     if (!payload.isNullOrBlank()) putExtra(EXTRA_DEEP_LINK, payload)
+//                 }
+//             launch?.let { startActivity(it) }
+//         } catch (e: Exception) {
+//             Log.e(TAG, "launchLauncher failed", e)
+//         }
+//     }
 
-        /** Build the Intent that the notification PendingIntent will fire. */
-        fun newIntent(
-            context: Context,
-            notificationId: String,
-            deepLink: String?,
-            variantId: String? = null,
-            runId: String? = null
-        ): Intent {
-            return Intent(context, AppStorysNotificationActivity::class.java).apply {
-                addFlags(
-                    Intent.FLAG_ACTIVITY_NEW_TASK or
-                            Intent.FLAG_ACTIVITY_CLEAR_TOP
-                )
-                putExtra(EXTRA_NOTIFICATION_ID, notificationId)
-                putExtra(EXTRA_DEEP_LINK, deepLink)
-                putExtra(EXTRA_VARIANT_ID, variantId)
-                putExtra(EXTRA_RUN_ID, runId)
-            }
-        }
-    }
-}
+//     companion object {
+//         private const val TAG = "AppStorysClickActivity"
+//         const val EXTRA_NOTIFICATION_ID = "appstorys_notification_id"
+//         const val EXTRA_DEEP_LINK = "appstorys_deep_link"
+
+//         const val EXTRA_VARIANT_ID = "appstorys_variant_id"
+//         const val EXTRA_RUN_ID = "appstorys_run_id"
+
+//         /** Build the Intent that the notification PendingIntent will fire. */
+//         fun newIntent(
+//             context: Context,
+//             notificationId: String,
+//             deepLink: String?,
+//             variantId: String? = null,
+//             runId: String? = null
+//         ): Intent {
+//             return Intent(context, AppStorysNotificationActivity::class.java).apply {
+//                 addFlags(
+//                     Intent.FLAG_ACTIVITY_NEW_TASK or
+//                             Intent.FLAG_ACTIVITY_CLEAR_TOP
+//                 )
+//                 putExtra(EXTRA_NOTIFICATION_ID, notificationId)
+//                 putExtra(EXTRA_DEEP_LINK, deepLink)
+//                 putExtra(EXTRA_VARIANT_ID, variantId)
+//                 putExtra(EXTRA_RUN_ID, runId)
+//             }
+//         }
+//     }
+// }

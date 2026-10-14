@@ -1,14 +1,14 @@
 package com.example.carousal
 
 import android.app.Application
-import android.app.NotificationChannel
-import android.app.NotificationManager
+// import android.app.NotificationChannel   // NOTIFICATIONS DISABLED
+// import android.app.NotificationManager   // NOTIFICATIONS DISABLED
 import android.content.Context
 import android.os.Build
-import android.util.Log
+// import android.util.Log   // NOTIFICATIONS DISABLED
 import androidx.annotation.RequiresApi
 import com.appversal.appstorys.AppStorys
-import com.google.firebase.messaging.FirebaseMessaging
+// import com.google.firebase.messaging.FirebaseMessaging   // NOTIFICATIONS DISABLED
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
@@ -28,12 +28,14 @@ class App : Application() {
         // Initialize CampaignManager with userId and appId
         AppStorys.initialize(
             context = this,
-            appId =  "37ca2d75-8484-4cc1-97ed-d9475ce5a631",
-            accountId = "4e109ac3-be92-4a5c-bbe6-42e6c712ec9a",
+//            appId =  "37ca2d75-8484-4cc1-97ed-d9475ce5a631",
+//            accountId = "4e109ac3-be92-4a5c-bbe6-42e6c712ec9a",
+            // v3: paste the API key issued from the AppStorys dashboard (never commit a real key — public repo)
+            apiKey = "YOUR_APPSTORYS_API_KEY",
 //            appId = "f69bdccf-b20f-4938-b39e-7075d76db791",  // dev test
 //            accountId = "12a9eac5-94ee-4735-9aa6-b8a94cb8fbbb",  // dev test
-//            userId = userId,
-            userId = "anirudhsuserid",
+            userId = userId,
+//            userId = "anirudhsuserid",
 //            userId = "001e756sdf27948b",
             navigateToScreen = { screen ->
                 println("Navigating to $screen")
@@ -41,29 +43,30 @@ class App : Application() {
             }
         )
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                "appstorys_outreach",
-                "Outreach",
-                NotificationManager.IMPORTANCE_HIGH
-            )
-            val mgr = getSystemService(NotificationManager::class.java)
-            mgr.createNotificationChannel(channel)
-        }
+        // NOTIFICATIONS DISABLED: uncomment to re-enable push notifications.
+        // if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        //     val channel = NotificationChannel(
+        //         "appstorys_outreach",
+        //         "Outreach",
+        //         NotificationManager.IMPORTANCE_HIGH
+        //     )
+        //     val mgr = getSystemService(NotificationManager::class.java)
+        //     mgr.createNotificationChannel(channel)
+        // }
 
-        Log.d("FCM_TOKEN", "requesting token...")
-        try {
-            FirebaseMessaging.getInstance().token
-                .addOnSuccessListener { token ->
-                    AppStorys.setFirebaseToken(token)
-                    Log.d("FCM_TOKEN", "success: $token")
-                }
-                .addOnFailureListener { e ->
-                    Log.w("FCM_TOKEN", "FCM token fetch failed", e)
-                }
-        } catch (e: Exception) {
-            Log.e("FCM_TOKEN", "getInstance().token threw synchronously", e)
-        }
+        // Log.d("FCM_TOKEN", "requesting token...")
+        // try {
+        //     FirebaseMessaging.getInstance().token
+        //         .addOnSuccessListener { token ->
+        //             AppStorys.setFirebaseToken(token)
+        //             Log.d("FCM_TOKEN", "success: $token")
+        //         }
+        //         .addOnFailureListener { e ->
+        //             Log.w("FCM_TOKEN", "FCM token fetch failed", e)
+        //         }
+        // } catch (e: Exception) {
+        //     Log.e("FCM_TOKEN", "getInstance().token threw synchronously", e)
+        // }
 
         appStorys = AppStorys
     }

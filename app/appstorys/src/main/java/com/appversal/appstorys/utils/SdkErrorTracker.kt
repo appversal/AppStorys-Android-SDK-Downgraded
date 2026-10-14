@@ -79,7 +79,7 @@ internal object SdkErrorTracker {
 
     private const val TAG = "AppStorysErrorTracker"
     private const val COMPONENT = "sdk.state_machine"
-    private const val ENDPOINT = "https://tracking.appstorys.com/capture-error-log"
+    private const val ENDPOINT = "https://tracking.appstorys.co/capture-error-log"
     private const val SDK_PACKAGE = "com.appversal.appstorys"
 
     private const val PREFS = "appstorys_error_tracker"
