@@ -56,6 +56,7 @@ retrofit-kotlinx-serialization = { group = "com.jakewharton.retrofit", name = "r
 retrofit-scalars = { group = "com.squareup.retrofit2", name = "converter-scalars", version.ref = "retrofit" }
 okhttp-logging = { group = "com.squareup.okhttp3", name = "logging-interceptor", version.ref = "okhttp" }
 coil-gif = { group = "io.coil-kt", name = "coil-gif", version.ref = "coilGif" }
+coil-svg = { group = "io.coil-kt", name = "coil-svg", version.ref = "coilGif" }
 androidx-activity-ktx = { group = "androidx.activity", name = "activity-ktx", version.ref = "activityKtx" }
 exoplayer-ui = { group = "com.google.android.exoplayer", name = "exoplayer-ui", version.ref = "exoplayerUi" }
 exoplayer-core = { group = "com.google.android.exoplayer", name = "exoplayer-core", version.ref = "exoplayerCore" }

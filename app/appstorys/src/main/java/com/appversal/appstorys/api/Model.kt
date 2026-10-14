@@ -554,6 +554,7 @@ data class StoryContentCtaStyling(
     val arrowSize: Float? = null,
     val ctaAnimation: String? = null,
     val animation: StoryAnimation? = null,
+    val duration: JsonElement? = null,     // { start, end } seconds into the slide, or null
     val pillH: Float? = null,
     val z: Int? = null
 )
@@ -600,6 +601,7 @@ data class StoryContentElementStyling(
     val rotation: Float? = null,
     val flip: String? = null,
     val animation: StoryAnimation? = null,
+    val duration: JsonElement? = null,     // { start, end } seconds into the slide, or null
     val z: Int? = null
 )
 
