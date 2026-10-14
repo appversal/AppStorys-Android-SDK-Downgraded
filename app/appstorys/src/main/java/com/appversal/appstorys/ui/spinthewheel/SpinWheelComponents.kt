@@ -1,6 +1,7 @@
 package com.appversal.appstorys.ui.spinwheel
 
 import com.appversal.appstorys.utils.SdkErrorTracker
+
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -10,6 +11,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
@@ -23,6 +25,7 @@ import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -32,6 +35,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
 import com.appversal.appstorys.api.WheelSlice
+import com.appversal.appstorys.ui.scratchcard.RewardMedia
 import kotlin.math.min
 
 /**
@@ -42,7 +46,15 @@ fun WheelView(
     modifier: Modifier = Modifier,
     slices: List<WheelSlice>,
     rotation: Float,
+    /**
+     * The angle the wheel settles at, which is where the labels have to read the
+     * right way up. During a spin this is the angle it is heading for, not the
+     * live one — deciding per-frame would snap each label 180 degrees as it
+     * crossed the horizontal, most visibly during the slow final deceleration.
+     */
+    restAngle: Float = rotation,
     wheelImage: String?,
+    wheelImageAlpha: Float = 1f,
     backgroundColor: String?,
     borderColor: Color = Color.White,
     borderWidth: Int = 5,
@@ -72,7 +84,8 @@ fun WheelView(
                 },
                 modifier = Modifier
                     .fillMaxSize()
-                    .rotate(rotation),
+                    .rotate(rotation)
+                    .alpha(wheelImageAlpha.coerceIn(0f, 1f)),
                 contentScale = ContentScale.Fit,
                 loading = {
                     Box(
@@ -98,9 +111,16 @@ fun WheelView(
                     val sliceAngle = 360f / slices.size
 
                     val fullRadius = size.minDimension / 2
+                    // The ring is drawn OUTSIDE the slices, so its width comes off
+                    // the radius before anything else. This gap used to be a flat
+                    // 4% that ignored borderWidth, so any ring thicker than ~4% of
+                    // the radius painted over the slices' outer edge instead of
+                    // sitting around them — which is what made a wide ring look
+                    // like it was eating into the wheel.
+                    val ringWidth = if (borderWidth > 0) borderWidth.dp.toPx() else 0f
                     val gapPercent = 0.04f
                     val gapBetweenRingAndWheel = fullRadius * gapPercent
-                    val sliceRadius = fullRadius - gapBetweenRingAndWheel
+                    val sliceRadius = fullRadius - ringWidth - gapBetweenRingAndWheel
 
                     val centerOffset = center
 
@@ -274,22 +294,31 @@ fun WheelView(
                             )
                         )
 
-                        drawPath(
-                            path = path,
-                            color = sliceStrokeColor,
-                            style = Stroke(
-                                width = sliceStrokeWidth.toFloat(),
+                        // Skia draws Stroke(width = 0) as a HAIRLINE, not as nothing, so
+                        // a width of 0 from the dashboard has to skip the draw outright.
+                        if (sliceStrokeWidth > 0) {
+                            drawPath(
+                                path = path,
+                                color = sliceStrokeColor,
+                                style = Stroke(
+                                    // dp, like every other dashboard dimension — as raw px
+                                    // this was a hairline on dense screens.
+                                    width = sliceStrokeWidth.dp.toPx(),
+                                )
                             )
-                        )
+                        }
                     }
 
-                    // Draw outer ring for premium look (using border styling from backend)
-                    drawCircle(
-                        color = borderColor,
-                        radius = fullRadius - borderWidth.dp.toPx() / 2,
-                        center = centerOffset,
-                        style = Stroke(width = borderWidth.dp.toPx())
-                    )
+                    // Outer ring, from the backend's border styling. Width 0 means no
+                    // ring — see the hairline note above.
+                    if (borderWidth > 0) {
+                        drawCircle(
+                            color = borderColor,
+                            radius = fullRadius - borderWidth.dp.toPx() / 2,
+                            center = centerOffset,
+                            style = Stroke(width = borderWidth.dp.toPx())
+                        )
+                    }
 
 
                     // Draw inner decorative ring
@@ -369,12 +398,15 @@ fun WheelView(
                 // Render text labels and images on each slice
                 BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
                     val actualWheelSize = minOf(this.maxWidth, this.maxHeight)
+                    val ringWidthDp = if (borderWidth > 0) borderWidth.dp else 0.dp
                     slices.forEachIndexed { index, slice ->
                         WheelSliceContent(
                             slice = slice,
                             index = index,
                             totalSlices = slices.size,
                             wheelSizeDp = actualWheelSize,
+                            wheelRestAngle = restAngle,
+                            ringWidthDp = ringWidthDp,
                             modifier = Modifier.fillMaxSize()
                         )
                     }
@@ -382,14 +414,10 @@ fun WheelView(
             }
         }
 
-        // Enhanced Pointer/Indicator at top with shadow
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .offset(y = (-8).dp)
-        ) {
-            WheelPointer()
-        }
+        // Pointer: a hub at the centre with the arrow rising out of it, rather than
+        // a separate triangle floating at the rim. Drawn outside the rotating layer so
+        // it stays put while the wheel turns.
+        WheelPointer(modifier = Modifier.fillMaxSize())
     }
 }
 
@@ -403,6 +431,10 @@ private fun WheelSliceContent(
     index: Int,
     totalSlices: Int,
     wheelSizeDp: Dp,
+    /** Where the wheel settles; see [WheelView]. */
+    wheelRestAngle: Float = 0f,
+    /** Width of the outer ring, which content sits inside of rather than under. */
+    ringWidthDp: Dp = 0.dp,
     modifier: Modifier = Modifier
 ) {
     Box(modifier = modifier) {
@@ -410,8 +442,9 @@ private fun WheelSliceContent(
         val sliceMiddleAngle = (index * sliceAngle) + (sliceAngle / 2f)
         val angleInRadians = Math.toRadians((sliceMiddleAngle - 90).toDouble())
 
-        val gapBetweenRingAndWheel = (wheelSizeDp.value / 2f) * 0.06f
-        val radius = (wheelSizeDp.value / 2f) - gapBetweenRingAndWheel
+        val contentRadius = (wheelSizeDp.value / 2f) - ringWidthDp.value
+        val gapBetweenRingAndWheel = contentRadius * 0.06f
+        val radius = contentRadius - gapBetweenRingAndWheel
 
         // Get styling from backend
         val sliceStyling = slice.styling?.wheelStyling
@@ -437,9 +470,18 @@ private fun WheelSliceContent(
         val fontSize = priceLabelStyle?.fontSize?.toFloat()
             ?: dynamicFontSize
 
-        // Rotation so content reads along the slice direction (pointing outward)
+        // Content reads along the slice, pointing outward. Which way up that is
+        // depends on where the slice ENDS UP on screen, not on its index: the whole
+        // wheel is inside a rotate(), so a slice that starts in the upper half can
+        // come to rest in the lower half and read upside down. That is why the flip
+        // is decided from the slice's on-screen angle at rest.
+        //
+        // The rotation applied stays relative (sliceMiddleAngle), because this
+        // content is already inside the rotating layer — only the DECISION uses the
+        // on-screen angle.
+        val restingAngle = ((sliceMiddleAngle + wheelRestAngle) % 360f + 360f) % 360f
         val contentRotation = when {
-            sliceMiddleAngle > 90 && sliceMiddleAngle <= 270 -> sliceMiddleAngle + 180f
+            restingAngle > 90f && restingAngle <= 270f -> sliceMiddleAngle + 180f
             else -> sliceMiddleAngle
         }
 
@@ -481,23 +523,20 @@ private fun WheelSliceContent(
                     .rotate(contentRotation + imageRotation.toFloat()),
                 contentAlignment = Alignment.Center
             ) {
-                SubcomposeAsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
-                        .data(imageUrl)
-                        .crossfade(true)
-                        .build(),
-                    contentDescription = slice.prizeLabel,
-                    onError = { assetError ->
-                        SdkErrorTracker.onAssetFailed(
-                            campaignId = null,
-                            campaignType = "STW",
-                            screen = null,
-                            assetType = "image",
-                            url = assetError.result.request.data.toString(),
-                            message = assetError.result.throwable.message
-                                ?: assetError.result.throwable::class.java.simpleName
-                        )
-                    },
+                // The same renderer the reward card uses, so a GIF or Lottie prize
+                // works on the wheel too. A bare SubcomposeAsyncImage runs on the
+                // DEFAULT ImageLoader, which has no GIF decoder registered anywhere
+                // in this SDK and cannot decode a Lottie .json at all — so those two
+                // uploads froze on a single frame or fell through to the error glyph,
+                // even though coil-gif and lottie-compose are already dependencies.
+                //
+                // The trade: RewardMedia has no error slot, so a broken URL now draws
+                // the empty tile rather than the 🎁 / 😔 glyph.
+                val sliceMediaPx = with(LocalDensity.current) { imageSize.roundToPx() }
+                RewardMedia(
+                    bannerImageUrl = imageUrl,
+                    targetWidthPx = sliceMediaPx,
+                    targetHeightPx = sliceMediaPx,
                     modifier = Modifier
                         .padding(
                             top = (sliceMargin?.top ?: 0).dp,
@@ -508,34 +547,7 @@ private fun WheelSliceContent(
                         .fillMaxSize()
                         .clip(imageShape)
                         .background(Color.White.copy(alpha = 0.2f), imageShape),
-                    contentScale = ContentScale.Crop,
-                    loading = {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(Color.White.copy(alpha = 0.2f), imageShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
-                                strokeWidth = 2.dp,
-                                color = Color.White
-                            )
-                        }
-                    },
-                    error = {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(Color.White.copy(alpha = 0.15f), imageShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = if (slice.noPrize == true) "😔" else "🎁",
-                                fontSize = 18.sp
-                            )
-                        }
-                    }
+                    contentScale = ContentScale.Crop
                 )
             }
         }
@@ -586,59 +598,66 @@ private fun WheelSliceContent(
 }
 
 /**
- * Triangle pointer indicator for the wheel with enhanced styling
+ * The wheel's pointer: a coin-like hub at the centre with a short arrow rising from its
+ * top edge. Sizes are fractions of the wheel, so it scales with `wheelConfiguration.size`.
  */
 @Composable
 fun WheelPointer(
-    color: Color = Color(0xFFFF1744)
+    modifier: Modifier = Modifier,
+    hubFill: Color = Color(0xFFFFD469),
+    hubEdge: Color = Color(0xFFB9791A)
 ) {
-    Box(
-        modifier = Modifier.size(width = 40.dp, height = 40.dp)
-    ) {
-        // Shadow layer
-        Canvas(
-            modifier = Modifier
-                .size(width = 40.dp, height = 40.dp)
-                .offset(y = 2.dp)
-        ) {
-            val shadowPath = Path().apply {
-                moveTo(size.width / 2, size.height)
-                lineTo(0f, 0f)
-                lineTo(size.width, 0f)
-                close()
-            }
-            drawPath(
-                path = shadowPath,
-                color = Color.Black.copy(alpha = 0.3f)
-            )
-        }
+    Canvas(modifier = modifier) {
+        val radius = size.minDimension / 2f
+        val hubRadius = radius * 0.105f
+        // A slim needle, not a spike: the reference arrow is roughly half the hub's
+        // width and barely taller than the hub itself.
+        val arrowHeight = hubRadius * 1.25f
+        val arrowHalfWidth = hubRadius * 0.64f
+        val c = center
 
-        // Main pointer with gradient
-        Canvas(
-            modifier = Modifier.size(width = 40.dp, height = 40.dp)
-        ) {
-            val path = Path().apply {
-                moveTo(size.width / 2, size.height)
-                lineTo(0f, 0f)
-                lineTo(size.width, 0f)
-                close()
-            }
-            drawPath(
-                path = path,
-                brush = androidx.compose.ui.graphics.Brush.verticalGradient(
-                    colors = listOf(
-                        Color(0xFFFF1744),
-                        Color(0xFFFF4081)
-                    )
-                )
-            )
-            // Border
-            drawPath(
-                path = path,
-                color = Color.White,
-                style = Stroke(width = 3f)
-            )
+        // Arrow first, so the hub's rim overlaps its base and the two read as one piece.
+        val arrow = Path().apply {
+            moveTo(c.x, c.y - hubRadius - arrowHeight)
+            lineTo(c.x - arrowHalfWidth, c.y - hubRadius * 0.15f)
+            lineTo(c.x + arrowHalfWidth, c.y - hubRadius * 0.15f)
+            close()
         }
+        drawPath(
+            path = arrow,
+            brush = Brush.verticalGradient(
+                colors = listOf(Color(0xFFFFCF6A), Color(0xFFE59317)),
+                startY = c.y - hubRadius - arrowHeight,
+                endY = c.y
+            )
+        )
+
+        // Coin: solid gold face with a darker rim and a soft highlight, no emblem.
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(Color(0xFFFFE9A8), Color(0xFFF3C24D), Color(0xFFDC9A1F)),
+                center = Offset(c.x - hubRadius * 0.35f, c.y - hubRadius * 0.4f),
+                radius = hubRadius * 1.9f
+            ),
+            radius = hubRadius,
+            center = c
+        )
+        drawCircle(
+            color = hubEdge,
+            radius = hubRadius,
+            center = c,
+            style = Stroke(width = hubRadius * 0.14f)
+        )
+        // Inner face, a shade lighter than the rim — reads as a struck coin.
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(Color(0xFFFFF1C6), Color(0xFFF6CB63)),
+                center = Offset(c.x - hubRadius * 0.2f, c.y - hubRadius * 0.25f),
+                radius = hubRadius
+            ),
+            radius = hubRadius * 0.66f,
+            center = c
+        )
     }
 }
 

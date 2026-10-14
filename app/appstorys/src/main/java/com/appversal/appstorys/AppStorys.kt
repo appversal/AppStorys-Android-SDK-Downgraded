@@ -101,7 +101,9 @@ import com.appversal.appstorys.api.WidgetImage
 import com.appversal.appstorys.api.safeApiCall
 import com.appversal.appstorys.ui.AutoSlidingCarousel
 import com.appversal.appstorys.ui.BottomSheetComponent
-import com.appversal.appstorys.ui.CardScratch
+import com.appversal.appstorys.ui.scratchcard.CardScratch
+import com.appversal.appstorys.ui.scratchcard.prefetchScratchCardCover
+import com.appversal.appstorys.ui.scratchcard.ScratchCardConfig
 import com.appversal.appstorys.ui.CarousalImage
 import com.appversal.appstorys.ui.CsatDialog
 import com.appversal.appstorys.ui.DoubleWidgets
@@ -119,11 +121,12 @@ import com.appversal.appstorys.ui.stories.StoryAppMain
 import com.appversal.appstorys.ui.SurveyBottomSheet
 import com.appversal.appstorys.ui.common_components.createCrossButtonConfig
 import com.appversal.appstorys.ui.reels.getLikedReels
-import com.appversal.appstorys.ui.getScratchedCampaigns
+import com.appversal.appstorys.ui.scratchcard.getScratchedCampaigns
 import com.appversal.appstorys.ui.common_components.createExpandButtonConfig
 import com.appversal.appstorys.ui.common_components.createSoundToggleButtonConfig
 import com.appversal.appstorys.ui.reels.saveLikedReels
-import com.appversal.appstorys.ui.saveScratchedCampaigns
+import com.appversal.appstorys.ui.scratchcard.saveScratchedCampaigns
+import com.appversal.appstorys.ui.spinwheel.SpinRun
 import com.appversal.appstorys.ui.spinwheel.getSpinCount
 import com.appversal.appstorys.ui.spinwheel.saveSpinCount
 import com.appversal.appstorys.utils.AppStorysSdkState
@@ -218,6 +221,19 @@ object AppStorys {
     private val scratchedCampaigns = MutableStateFlow<List<String>>(emptyList())
 
     // In-memory spin count per campaign — keyed by campaign ID, value = remaining spins
+    /** In-flight or landed spins, kept here so a rotation cannot cancel one. */
+    private val _spinRunByCampaign = MutableStateFlow<Map<String, SpinRun>>(emptyMap())
+
+    /**
+     * Spin wheels the user has closed this session. Lives here, beside the spin run
+     * and spin count, for the same reason they do: a rotation recreates the
+     * Activity and throws away composable state, and a wheel the user had just
+     * closed was coming straight back — an accidental rotation handing out another
+     * look at the spins. Process-scoped on purpose; a fresh launch is governed by
+     * the campaign's own frequency rules, not by this.
+     */
+    private val _dismissedSpinWheels = MutableStateFlow<Set<String>>(emptySet())
+
     private val _spinCountByCampaign = MutableStateFlow<Map<String, Int>>(emptyMap())
 
     private var accessToken = ""
@@ -529,6 +545,9 @@ object AppStorys {
                         widgetSlotFrames.clear()
                     }
                     disabledCampaigns.emit(emptyList())
+                    // A closed wheel comes back on the next screen entry, like every
+                    // other campaign; only a rotation (same screen) keeps it closed.
+                    _dismissedSpinWheels.update { emptySet() }
                     impressions.emit(emptyList())
                     campaigns.emit(emptyList())
                     _trackedEventNames.emit(emptySet())
@@ -564,6 +583,7 @@ object AppStorys {
 
                 campaignsList?.let { list ->
                     campaigns.emit(list.sortedBy { it.priority })
+                    prefetchScratchCardCovers(list)
                 }
 
                 // S3 -> S4 (campaigns available) or S3 -> S10 (idle, a normal terminal state).
@@ -599,9 +619,57 @@ object AppStorys {
         }
     }
 
+    /**
+     * Warms scratch-card covers into Coil's cache as soon as the campaigns for a
+     * screen are known. The cover is typically a multi-megabyte image, and without
+     * this the fetch only starts when the card is about to render, so the card is
+     * held back for the whole download.
+     *
+     * Sizes come from [ScratchCardConfig.from] — the same pure parse the UI uses —
+     * so the prefetched entry has the cache key the card will look up.
+     */
+    private fun prefetchScratchCardCovers(list: List<Campaign>) {
+        val screenWidthDp = context.resources.configuration.screenWidthDp.dp
+        val screenHeightDp = context.resources.configuration.screenHeightDp.dp
+        val density = context.resources.displayMetrics.density
+        list.asSequence()
+            .filter { it.campaignType == "SCRT" }
+            .mapNotNull { it.details as? ScratchCardDetails }
+            .forEach { details ->
+                runCatching {
+                    val cfg = ScratchCardConfig.from(details, screenWidthDp)
+                    prefetchScratchCardCover(
+                        context = context,
+                        url = cfg.overlayImage,
+                        widthPx = (cfg.cardWidth.value * density).roundToInt(),
+                        // Must match the decode box in CardScratch (screen height x
+                        // the same 0.75 cap) or this warms a key the card never reads.
+                        heightPx = (screenHeightDp.value * 0.75f * density).roundToInt()
+                    )
+                }.onFailure { Log.w("AppStorys", "SCRT cover prefetch skipped: ${it.message}") }
+            }
+    }
+
     fun getPersonalizationData(): Map<String, String> {
         return personalizationData ?: emptyMap()
     }
+
+    /**
+     * Events that are pure analytics. Everything else a campaign emits is also written
+     * into [_trackedEventNames], the trigger registry — so an event named here can never
+     * accidentally launch another campaign that is waiting on that name.
+     */
+    private val analyticsOnlyEvents = setOf(
+        "viewed",
+        "clicked",
+        "csat captured",
+        "survey captured",
+        "shared",
+        "SurveySubmitted",
+        "SurveyDismissed",
+        "ThankYouCTAClicked",
+        "spin_completed"
+    )
 
     fun trackEvents(
         campaign_id: String? = null,
@@ -610,16 +678,7 @@ object AppStorys {
     ) {
         coroutineScope.launch {
             if (accessToken.isNotEmpty()) {
-                if (
-                    event != "viewed"
-                    && event != "clicked"
-                    && event != "csat captured"
-                    && event != "survey captured"
-                    && event != "shared"
-                    && event != "SurveySubmitted"
-                    && event != "SurveyDismissed"
-                    && event != "ThankYouCTAClicked"
-                ) {
+                if (event !in analyticsOnlyEvents) {
                     _trackedEventNames.update { it + TrackedEventData(event, metadata) }
                 }
                 try {
@@ -636,16 +695,7 @@ object AppStorys {
                     val deviceInfo = getDeviceInfo(context)
 
                     val mergedMetadata =
-                        if (
-                            event != "viewed"
-                            && event != "clicked"
-                            && event != "csat captured"
-                            && event != "survey captured"
-                            && event != "shared"
-                            && event != "SurveySubmitted"
-                            && event != "SurveyDismissed"
-                            && event != "ThankYouCTAClicked"
-                        ) {
+                        if (event !in analyticsOnlyEvents) {
                             updatedMetadata + deviceInfo
                         } else {
                             updatedMetadata
@@ -2643,12 +2693,6 @@ object AppStorys {
 
             if (scratchCardDetails != null && shouldShowScratchCard && isPresented) {
 
-                LaunchedEffect(Unit) {
-                    campaign?.id?.let {
-                        trackEvents(it, "viewed")
-                    }
-                }
-
                 LaunchedEffect(wasFullyScratched) {
                     if (wasFullyScratched && campaign?.id != null && !isAlreadyScratched) {
                         trackEvents(campaign.id, "scratched")
@@ -2691,52 +2735,12 @@ object AppStorys {
                     wasFullyScratched = wasFullyScratched,
                     onWasFullyScratched = { wasFullyScratched = it },
 
-                    crossButtonConfig = run {
-
-                        val crossObj = scratchCardDetails.content
-                            ?.get("crossButton")
-                            ?.takeIf { it !is kotlinx.serialization.json.JsonNull }
-                            ?.jsonObject
-
-                        val colors = crossObj
-                            ?.get("color")
-                            ?.takeIf { it !is kotlinx.serialization.json.JsonNull }
-                            ?.jsonObject
-
-                        val margin = crossObj
-                            ?.get("margin")
-                            ?.takeIf { it !is kotlinx.serialization.json.JsonNull }
-                            ?.jsonObject
-
-                        createCrossButtonConfig(
-                            fillColorString = colors?.get("fill")?.jsonPrimitive?.contentOrNull,
-                            crossColorString = colors?.get("cross")?.jsonPrimitive?.contentOrNull,
-                            strokeColorString = colors?.get("stroke")?.jsonPrimitive?.contentOrNull,
-                            marginTop = margin?.get("top")?.jsonPrimitive?.intOrNull,
-                            marginEnd = margin?.get("right")?.jsonPrimitive?.intOrNull,
-                            size = crossObj?.get("size")?.jsonPrimitive?.intOrNull,
-                            imageUrl = crossObj?.get("image")?.jsonPrimitive?.contentOrNull
-                        )
-                    },
-                    crossButtonMarginBottom = run {
-                        val crossObj = scratchCardDetails.content
-                            ?.get("crossButton")
-                            ?.takeIf { it !is kotlinx.serialization.json.JsonNull }
-                            ?.jsonObject
-                        val margin = crossObj
-                            ?.get("margin")
-                            ?.takeIf { it !is kotlinx.serialization.json.JsonNull }
-                            ?.jsonObject
-                        margin?.get("bottom")?.jsonPrimitive?.intOrNull?.dp ?: 0.dp
-                    },
-                    crossButtonAlignment = run {
-                        val crossObj = scratchCardDetails.content
-                            ?.get("crossButton")
-                            ?.takeIf { it !is kotlinx.serialization.json.JsonNull }
-                            ?.jsonObject
-                        crossObj?.get("alignment")?.jsonPrimitive?.contentOrNull ?: "center"
-                    },
                     scratchCardDetails = scratchCardDetails,
+                    onCardShown = {
+                        campaign?.id?.let {
+                            trackEvents(it, "viewed")
+                        }
+                    },
                     onCtaClick = {
                         campaign?.id?.let {
                             clickEvent(link = ctaUrl, campaignId = it)
@@ -2773,12 +2777,20 @@ object AppStorys {
                 )
             }
 
-            var isPresented by remember(campaign?.id) { mutableStateOf(true) }
+            val dismissedWheels by _dismissedSpinWheels.collectAsStateWithLifecycle()
+            val isPresented = campaign?.id?.let { it !in dismissedWheels } ?: true
 
+            // A trigger event firing AGAIN after a dismissal re-presents the wheel. The
+            // first evaluation after an Activity recreation is not that — it is the same
+            // trigger being re-read — so only a false→true transition counts. Keyed on
+            // a plain remember deliberately: it resets to the current value on
+            // recreation, which is exactly what makes the first read a no-op.
+            var wasShowing by remember(campaign?.id) { mutableStateOf(shouldShowSpinWheel) }
             LaunchedEffect(shouldShowSpinWheel) {
-                if (shouldShowSpinWheel && !isPresented) {
-                    isPresented = true
+                if (shouldShowSpinWheel && !wasShowing) {
+                    campaign?.id?.let { id -> _dismissedSpinWheels.update { it - id } }
                 }
+                wasShowing = shouldShowSpinWheel
             }
 
             // ── Spin count: hoist here so it survives recomposition and screen navigation ──
@@ -2810,11 +2822,12 @@ object AppStorys {
                     }
 
                     val redirectUrl = spinTheWheelDetails.link ?: ""
+                    val spinRuns by _spinRunByCampaign.collectAsStateWithLifecycle()
 
                     com.appversal.appstorys.ui.spinwheel.SpinTheWheel(
                         isPresented = isPresented,
                         onDismiss = {
-                            isPresented = false
+                            _dismissedSpinWheels.update { it + campaignId }
                             campaign?.triggerEvent?.let { trigger ->
                                 val eventName = when (trigger) {
                                     is TriggerEvent.StringTrigger -> trigger.event
@@ -2829,6 +2842,22 @@ object AppStorys {
                         },
                         spinTheWheelDetails = spinTheWheelDetails,
                         spinsLeft = spinsLeft,
+                        spinRun = spinRuns[campaignId],
+                        onSpinStarted = { run ->
+                            _spinRunByCampaign.update { it + (campaignId to run) }
+                        },
+                        onSpinResolved = {
+                            // Marking it finished is what makes the charge idempotent: a
+                            // wheel recreated after this point sees a finished run and does
+                            // not pay again.
+                            _spinRunByCampaign.update { runs ->
+                                runs[campaignId]?.let { runs + (campaignId to it.copy(finished = true)) }
+                                    ?: runs
+                            }
+                        },
+                        onRewardDismissed = {
+                            _spinRunByCampaign.update { it - campaignId }
+                        },
                         onSpinUsed = {
                             val updated = (spinCountMap[campaignId] ?: initialSpins) - 1
                             val clamped = updated.coerceAtLeast(0)
