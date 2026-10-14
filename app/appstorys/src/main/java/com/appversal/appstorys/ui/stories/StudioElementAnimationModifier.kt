@@ -46,7 +46,7 @@ import kotlinx.serialization.json.JsonPrimitive
  *   classic  scale 0.05 → 1.0 + fade in
  *   slide    directional offset (60dp) → 0 + fade in
  *   fade     directional offset (40dp) → 0 + fade in
- *   rotate   ±[ROTATE_SETTLE_DEGREES]° → 0 + fade in
+ *   rotate   ∓[ROTATE_SETTLE_DEGREES]° → 0 (swings in the authored direction) + fade in
  *   bounce   y 0 → -12 → 0, one bob (easeInOut, so the bob eases at both ends)
  *   <other>  visible only while inside the duration window (if a window is set)
  *
@@ -157,10 +157,14 @@ fun Modifier.studioElementAnimation(
         }
 
         // ---- rotate: angular settle + fade-in entrance ----
+        // Compose's rotate() is positive = clockwise, so to MOVE clockwise (left →
+        // right) into the rest angle the element must start on the negative side.
+        // The signs used to be the other way round, so every "clockwise" element
+        // visibly swung anticlockwise and vice versa.
         "rotate" -> {
             val appeared = rememberEntrance(isInDuration)
             val from =
-                if (dir == "anticlockwise") -ROTATE_SETTLE_DEGREES else ROTATE_SETTLE_DEGREES
+                if (dir == "anticlockwise") ROTATE_SETTLE_DEGREES else -ROTATE_SETTLE_DEGREES
             val angle by animateFloatAsState(
                 targetValue = if (appeared) 0f else from,
                 animationSpec = floatSpec,
@@ -212,9 +216,8 @@ fun Modifier.studioElementAnimation(
  *
  * Both numbers are measured off the studio's own preview: the element group
  * moves for 0.96 s and is then pixel-for-pixel static for the rest of the
- * slide, and "rotate" travels +0.48° → -22.39° — a small decelerating settle
- * back to the element's authored angle, not a spin. (The SDK used to read
- * "rotate" as a continuous 0 → ±360° turn, which is a different animation.)
+ * slide, and "rotate" travels ~22° — a small decelerating settle back to the
+ * element's authored angle, not a spin.
  *
  * These are the tuning knobs: ENTRANCE_MILLIS sets how long every entrance
  * runs, ROTATE_SETTLE_DEGREES how far the settle swings.

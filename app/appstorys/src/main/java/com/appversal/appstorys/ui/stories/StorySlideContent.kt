@@ -68,7 +68,20 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
+import android.content.Context
+import android.net.Uri
+import android.util.Base64
+import coil.ImageLoader
 import coil.compose.rememberAsyncImagePainter
+import coil.decode.DecodeResult
+import coil.decode.DecodeUtils
+import coil.decode.Decoder
+import coil.decode.ImageSource
+import coil.decode.SvgDecoder
+import coil.decode.isSvg
+import coil.fetch.SourceResult
+import coil.request.Options
+import okio.Buffer
 import com.appversal.appstorys.api.StoryContentCta
 import com.appversal.appstorys.api.StoryContentCtaStyling
 import com.appversal.appstorys.api.StoryContentElement
@@ -138,7 +151,11 @@ internal fun StorySlideForeground(
     // Slide-level mute state, driven by the header sound toggle. When true every
     // foreground (studio-canvas) video on this slide is silenced, alongside the
     // background video the caller owns — so one toggle governs all of them.
-    muted: Boolean = false
+    muted: Boolean = false,
+    // Reports each studio-canvas video's length (ms) once ExoPlayer knows it, so
+    // the slide can last at least as long as its longest video instead of cutting
+    // it off at slideShowTime.
+    onVideoDuration: (Long) -> Unit = {}
 ) {
     val content = slide.content ?: return
     val styling = slide.styling
@@ -177,7 +194,8 @@ internal fun StorySlideForeground(
                 style = styleFor,
                 scope = scope,
                 currentTime = currentTime,
-                slideMuted = muted
+                slideMuted = muted,
+                onDurationKnown = onVideoDuration
             )
         }
 
@@ -240,9 +258,6 @@ internal fun StorySlideForeground(
             // the other studio elements, but nothing read it — poll/quiz/rating/… had no
             // entrance animation at all. Applied on this shared wrapper so all eight
             // types are covered in one place.
-            // `duration` is deliberately not forwarded: the studio sends a window here
-            // but currentTime never advances (see StorySlideForeground's param), so
-            // passing it would gate visibility on a clock that is always 0.
             val interactionAnimation = jsonObjectOrNull(s?.get("animation"))?.let {
                 StoryAnimation(
                     type = jsonString(it["type"]),
@@ -256,7 +271,7 @@ internal fun StorySlideForeground(
                     .rotate(rotationVal)
                     .studioElementAnimation(
                         interactionAnimation,
-                        duration = null,
+                        duration = s?.get("duration"),
                         currentTime = currentTime
                     )
             ) {
@@ -532,7 +547,8 @@ private fun ForegroundVideo(
     // Header sound toggle. Combined with the element's own `style.muted` flag: a
     // video the studio marked muted stays muted, and the toggle can silence
     // everything on top of that.
-    slideMuted: Boolean = false
+    slideMuted: Boolean = false,
+    onDurationKnown: (Long) -> Unit = {}
 ) {
     val url = vid.link ?: return
     val context = LocalContext.current
@@ -564,8 +580,18 @@ private fun ForegroundVideo(
                 prepare()
             }
     }
+    val currentOnDurationKnown = rememberUpdatedState(onDurationKnown)
     DisposableEffect(player) {
+        val listener = object : Player.Listener {
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                // duration is C.TIME_UNSET (negative) until the media is ready.
+                val d = player.duration
+                if (playbackState == Player.STATE_READY && d > 0L) currentOnDurationKnown.value(d)
+            }
+        }
+        player.addListener(listener)
         onDispose {
+            player.removeListener(listener)
             runCatching { player.release() }
                 .onFailure { Log.w("StorySlideForeground", "release failed", it) }
         }
@@ -810,7 +836,7 @@ private fun ForegroundCta(
         .canvaPlace(scope, x, y, w, h)
         .rotate(rotation)
         .alpha(opacity)
-        .studioElementAnimation(style?.animation, duration = null, currentTime = currentTime)
+        .studioElementAnimation(style?.animation, style?.duration, currentTime)
         .clip(RoundedCornerShape(radius))
         .background(if (transparent) Color.Transparent else bg)
         .let {
@@ -902,7 +928,7 @@ private fun ForegroundCta(
                 .alpha(opacity)
                 .studioElementAnimation(
                     if (useDefaultBounce) null else style?.animation,
-                    duration = null,
+                    duration = style?.duration,
                     currentTime = currentTime
                 )
                 .offset(y = if (useDefaultBounce) defaultBobDy.dp else 0.dp)
@@ -987,6 +1013,10 @@ private fun ForegroundCta(
 
             val pillHeightFraction = ((62f) / 100f).coerceIn(0.3f, 0.9f)
             val arrowColor = parseStoryColorElement(style?.arrowColor) ?: textColor
+            // The studio lays the swipe-up out on a 440px-wide template and scales the
+            // whole thing to the element width, so the authored radius grows with the
+            // pill: every live snapshot measures rx = borderRadius_px * width_px / 440.
+            val pillRadius = radius * (scope.widthPctDp(w) / scope.sizeDp(440f))
 
             androidx.compose.foundation.layout.Column(
                 modifier = swipeUpModifier,
@@ -1038,7 +1068,7 @@ private fun ForegroundCta(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(pillHeightFraction)
-                        .clip(RoundedCornerShape(50))
+                        .clip(RoundedCornerShape(pillRadius))
                         .background(if (transparent) Color.Transparent else bg),
                     contentAlignment = Alignment.Center
                 ) {
@@ -1110,44 +1140,23 @@ private fun ForegroundElement(
         .scale(scaleX = flipX, scaleY = flipY)
         .rotate(rotation)
         .alpha(opacity)
-        .studioElementAnimation(style?.animation, duration = null, currentTime = currentTime)
+        .studioElementAnimation(style?.animation, style?.duration, currentTime)
 
     when (el.type) {
         "sticker" -> {
             val img = el.image ?: el.url ?: return
             Image(
-                painter = rememberAsyncImagePainter(img),
+                painter = rememberAsyncImagePainter(img, storyElementImageLoader(LocalContext.current)),
                 contentDescription = el.label,
                 contentScale = ContentScale.Fit,
                 modifier = baseModifier
             )
         }
 
-        "frame" -> {
-            val stroke =
-                parseStoryColorElement(style?.strokeColor ?: el.stroke) ?: Color.Transparent
-            // Same unit and same field preference as the "shape" branch above.
-            val strokeW = el.strokeWidth ?: style?.strokeWidth ?: 0f
-            val cr = scope.sizeDp(style?.cornerRadius ?: el.cornerRadius ?: 0f)
-            Box(
-                modifier = baseModifier
-                    .clip(RoundedCornerShape(cr))
-                    .let {
-                        if (strokeW > 0f) it.border(
-                            scope.heightPctDp(strokeW).coerceAtLeast(0.5.dp),
-                            stroke,
-                            RoundedCornerShape(cr)
-                        ) else it
-                    }
-            )
-        }
-
         "shape" -> {
             // Shapes ship both a vector `svgPath` (authored in a 0-100 viewBox) and a
-            // rendered `.svg` url. Coil has no SVG decoder wired up in this SDK, so the
-            // url silently failed to decode and shapes never appeared. Draw the path
-            // ourselves instead — it needs no extra dependency and, unlike the baked
-            // .svg file, it honours the fill / stroke colours the studio sends.
+            // rendered `.svg` url. Draw the path ourselves — unlike the baked .svg
+            // file, it honours the fill / stroke colours the studio sends.
             val parsedPath = remember(el.svgPath) { el.svgPath?.let { parseSvgPathData(it) } }
             val fillColor = parseStoryColorElement(style?.color ?: el.fill)
             val strokeColor = parseStoryColorElement(style?.strokeColor ?: el.stroke)
@@ -1193,7 +1202,7 @@ private fun ForegroundElement(
                 val img = el.url
                 if (!img.isNullOrEmpty()) {
                     Image(
-                        painter = rememberAsyncImagePainter(img),
+                        painter = rememberAsyncImagePainter(img, storyElementImageLoader(LocalContext.current)),
                         contentDescription = null,
                         contentScale = ContentScale.Fit,
                         modifier = baseModifier
@@ -1203,11 +1212,13 @@ private fun ForegroundElement(
         }
 
         else -> {
-            // Unknown element type — try to render via url if present.
+            // "line", "frame" and anything new: the studio saves a rendered .svg of the
+            // element (stroke, dashes, corner radius, fill all baked in) at `url`, sized
+            // to the element box, so drawing that snapshot IS the studio look.
             val img = el.url ?: el.image
             if (!img.isNullOrEmpty()) {
                 Image(
-                    painter = rememberAsyncImagePainter(img),
+                    painter = rememberAsyncImagePainter(img, storyElementImageLoader(LocalContext.current)),
                     contentDescription = null,
                     contentScale = ContentScale.Fit,
                     modifier = baseModifier
@@ -1216,6 +1227,61 @@ private fun ForegroundElement(
         }
     }
 }
+
+// =====================================================================
+// SVG image loading for elements
+//
+// Plain Coil has no SVG decoder, so every element url (all .svg) failed to
+// decode and nothing appeared. Stickers are worse: the studio exports them as
+// an SVG whose only content is <image href="data:image/svg+xml..."> — nested
+// up to three deep — around the real emoji vector. AndroidSVG does not render
+// SVG-in-<image>, so the decoder below unwraps to the innermost document first.
+// =====================================================================
+
+private val NESTED_SVG_HREF =
+    Regex("""href=["']data:image/svg\+xml(;base64)?,([^"']+)["']""")
+
+/** Peels `<image href="data:image/svg+xml,…">` wrappers until a real SVG remains. */
+internal fun unwrapNestedSvg(svg: String): String {
+    var s = svg
+    // ponytail: 8 levels is far past the studio's 3; loop bound only guards a cycle.
+    repeat(8) {
+        val m = NESTED_SVG_HREF.find(s) ?: return s
+        val payload = m.groupValues[2]
+        s = if (m.groupValues[1].isNotEmpty()) {
+            String(Base64.decode(payload, Base64.DEFAULT), Charsets.UTF_8)
+        } else {
+            Uri.decode(payload.replace("&apos;", "'").replace("&quot;", "\""))
+        }
+    }
+    return s
+}
+
+private class NestedSvgDecoder(
+    private val source: ImageSource,
+    private val options: Options
+) : Decoder {
+    override suspend fun decode(): DecodeResult? {
+        val inner = unwrapNestedSvg(source.source().readUtf8())
+        val buffer = Buffer().writeUtf8(inner)
+        return SvgDecoder(ImageSource(buffer, options.context), options).decode()
+    }
+
+    class Factory : Decoder.Factory {
+        override fun create(result: SourceResult, options: Options, imageLoader: ImageLoader): Decoder? =
+            if (DecodeUtils.isSvg(result.source.source())) NestedSvgDecoder(result.source, options) else null
+    }
+}
+
+@Volatile
+private var elementImageLoader: ImageLoader? = null
+
+/** One process-wide loader with SVG support, shared by every story element. */
+private fun storyElementImageLoader(context: Context): ImageLoader =
+    elementImageLoader ?: ImageLoader.Builder(context.applicationContext)
+        .components { add(NestedSvgDecoder.Factory()) }
+        .build()
+        .also { elementImageLoader = it }
 
 // =====================================================================
 // Minimal SVG path-data parser (shapes)

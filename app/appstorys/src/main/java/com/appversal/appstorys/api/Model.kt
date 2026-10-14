@@ -33,12 +33,13 @@ data class CampaignVariant(
     val v_id: String
 )
 
-@Keep
-@Serializable
-data class FcmSubscriptionRequest(
-    val user_id: String,
-    val device_push_token: String? = null
-)
+// NOTIFICATIONS DISABLED: request body for subscribe-fcm / unsubscribe-fcm, uncomment to re-enable.
+// @Keep
+// @Serializable
+// data class FcmSubscriptionRequest(
+//     val user_id: String,
+//     val device_push_token: String? = null
+// )
 
 @Keep
 @Serializable
@@ -61,7 +62,18 @@ data class EligibleCampaignsResponse(
 @Serializable
 data class IdentifyPositionsRequest(
     val screen_name: String?,
-    val position_list: List<String>?
+    val position_list: List<String>?,
+    // position -> where that widget slot sits on the captured screenshot
+    val identifier_data: Map<String, WidgetSlotFrame>? = null
+)
+
+/** `y` = top of the slot in window px on the identify-elements screenshot; screen size for scaling. */
+@Keep
+@Serializable
+data class WidgetSlotFrame(
+    val y: Int,
+    val screenWidth: Int,
+    val screenHeight: Int
 )
 
 @Keep
@@ -542,6 +554,7 @@ data class StoryContentCtaStyling(
     val arrowSize: Float? = null,
     val ctaAnimation: String? = null,
     val animation: StoryAnimation? = null,
+    val duration: JsonElement? = null,     // { start, end } seconds into the slide, or null
     val pillH: Float? = null,
     val z: Int? = null
 )
@@ -588,6 +601,7 @@ data class StoryContentElementStyling(
     val rotation: Float? = null,
     val flip: String? = null,
     val animation: StoryAnimation? = null,
+    val duration: JsonElement? = null,     // { start, end } seconds into the slide, or null
     val z: Int? = null
 )
 
@@ -756,6 +770,7 @@ data class WidgetStyling(
     val topRightRadius: Int?,
     val bottomLeftRadius: Int?,
     val bottomRightRadius: Int?,
+    val soundToggle: SoundToggle? = null,
 )
 
 @Keep
@@ -1197,7 +1212,15 @@ data class Tooltip(
     val titleText: String?,
     val subtitleText: String?,
     val ctaText: String?,
-    val styling: TooltipStyling?
+    val styling: TooltipStyling?,
+    // Per-step audio uploaded on the dashboard. Defaulted so payloads without it still decode.
+    val audioConfig: TooltipAudioConfig? = null
+)
+
+@Keep
+@Serializable
+data class TooltipAudioConfig(
+    val link: String? = null
 )
 
 @Keep
@@ -1863,7 +1886,18 @@ data class ModalContent(
     @SerialName("secondayCta") val secondayCta: String? = null,
     @SerialName("secondaryCta") val secondaryCtaAlt: String? = null,
     // Accept content-level enable flag (some payloads put this under content)
-    @SerialName("enableCrossButton") val enableCrossButton: String? = null
+    @SerialName("enableCrossButton") val enableCrossButton: String? = null,
+    // N-CTA format: "vertical" stacks the buttons, "horizontal" puts them in one row
+    val layout: String? = null,
+    @SerialName("cta_config") val ctaConfig: List<ModalCtaItem>? = null
+)
+
+@Serializable
+data class ModalCtaItem(
+    val text: String? = null,
+    val order: Int? = null,
+    val styling: ModalCta? = null,
+    val redirection: ModalRedirection? = null
 )
 
 @Serializable

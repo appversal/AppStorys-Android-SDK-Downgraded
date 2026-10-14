@@ -2,7 +2,7 @@ package com.appversal.appstorys
 
 import android.app.Activity
 import android.app.Application
-import android.app.NotificationManager
+// import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.rememberPagerState
@@ -34,6 +35,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateListOf
@@ -50,6 +52,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
@@ -60,7 +63,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
-import androidx.core.app.NotificationManagerCompat
+// import androidx.core.app.NotificationManagerCompat
 import androidx.core.net.toUri
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
@@ -75,7 +78,7 @@ import com.appversal.appstorys.api.CSATDetails
 import com.appversal.appstorys.api.Campaign
 import com.appversal.appstorys.api.CampaignVariant
 import com.appversal.appstorys.api.CsatFeedbackPostRequest
-import com.appversal.appstorys.api.FcmSubscriptionRequest
+// import com.appversal.appstorys.api.FcmSubscriptionRequest
 import com.appversal.appstorys.api.FloaterDetails
 import com.appversal.appstorys.api.MilestoneDetails
 import com.appversal.appstorys.api.ModalDetails
@@ -93,6 +96,7 @@ import com.appversal.appstorys.api.TooltipsDetails
 import com.appversal.appstorys.api.TriggerEvent
 import com.appversal.appstorys.api.UpdateUserPropertiesRequest
 import com.appversal.appstorys.api.WidgetDetails
+import com.appversal.appstorys.api.WidgetSlotFrame
 import com.appversal.appstorys.api.WidgetImage
 import com.appversal.appstorys.api.safeApiCall
 import com.appversal.appstorys.ui.AutoSlidingCarousel
@@ -128,6 +132,7 @@ import com.appversal.appstorys.utils.SdkErrorTracker
 import com.appversal.appstorys.utils.SdkFailureClass
 import com.appversal.appstorys.utils.TriggerEventMatcher
 import com.appversal.appstorys.utils.ViewTreeAnalyzer
+import kotlin.math.roundToInt
 import com.appversal.appstorys.utils.getDeviceInfo
 import com.appversal.appstorys.utils.toJsonElementMap
 import com.appversal.appstorys.utils.toMap
@@ -142,6 +147,9 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import androidx.core.content.edit
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
@@ -157,10 +165,10 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import kotlin.collections.plus
 import kotlin.toString
-import com.appversal.appstorys.notifications.OutreachEventTracker
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.withTimeoutOrNull
-import kotlin.time.Duration.Companion.milliseconds
+// import com.appversal.appstorys.notifications.OutreachEventTracker
+// import kotlinx.coroutines.CompletableDeferred
+// import kotlinx.coroutines.withTimeoutOrNull
+// import kotlin.time.Duration.Companion.milliseconds
 
 object AppStorys {
     private lateinit var context: Application
@@ -177,6 +185,10 @@ object AppStorys {
 
     private const val PREFS_USER_ID = "appstorys_user_id"
     private const val PREFS_IS_ANONYMOUS = "appstorys_is_anonymous"
+
+    // A reconcile that failed in setUserId(), retried on the next initialize().
+    private const val PREFS_PENDING_RECONCILE_ANON = "appstorys_pending_reconcile_anonymous"
+    private const val PREFS_PENDING_RECONCILE_IDENTIFIED = "appstorys_pending_reconcile_identified"
 
     internal lateinit var navigateToScreen: (String) -> Unit
 
@@ -234,6 +246,9 @@ object AppStorys {
 
     private var widgetPositionList = listOf<String>()
 
+    // position -> last laid-out slot frame; written by Widget's capture-mode probe (main thread only)
+    private val widgetSlotFrames = mutableMapOf<String, WidgetSlotFrame>()
+
     private val viewedTooltips = MutableStateFlow<Set<String>>(emptySet())
 
     private val campaignVariants = MutableStateFlow<List<CampaignVariant>>(emptyList())
@@ -250,10 +265,10 @@ object AppStorys {
     private val currentMilestoneIndex = MutableStateFlow(0)
     private val _showMilestone = MutableStateFlow(true)
 
-    private const val KEY_NOTIF_REACHABILITY = "notif_reachability_enabled"
-    private const val OUTREACH_CHANNEL_ID = "appstorys_outreach"
+    // private const val KEY_NOTIF_REACHABILITY = "notif_reachability_enabled"
+    // private const val OUTREACH_CHANNEL_ID = "appstorys_outreach"
 
-    private val subscribeSyncDeferred = CompletableDeferred<Unit>()
+    // private val subscribeSyncDeferred = CompletableDeferred<Unit>()
 
     private fun generateAnonymousUserId(): String {
         val timestamp = System.currentTimeMillis()
@@ -400,7 +415,7 @@ object AppStorys {
                         sdkState = AppStorysSdkState.Initialized
                         getScreenCampaigns(currentScreen, emptyList())
                     }
-                    syncNotificationReachability()
+                    // syncNotificationReachability()
                 }
 
                 override fun onStop(owner: LifecycleOwner) {
@@ -443,21 +458,22 @@ object AppStorys {
                     // Token is available now — drain anything the error tracker buffered offline.
                     SdkErrorTracker.flushPending()
 
-                    try {
-                        OutreachEventTracker.saveUserId(context, this@AppStorys.userId)
-                        OutreachEventTracker.saveSdkAccessToken(context, accessToken)
-                        OutreachEventTracker.drainPendingQueue(context)
-                    } catch (e: Exception) {
-                        Log.e("AppStorys", "Outreach tracker setup failed: ${e.message}", e)
-                        SdkErrorTracker.onLogicError(
-                            step = "outreach-setup",
-                            message = e.message ?: e::class.java.simpleName,
-                            throwable = e,
-                            failureClass = SdkFailureClass.P3
-                        )
-                    }
+                    // try {
+                        // OutreachEventTracker.saveUserId(context, this@AppStorys.userId)
+                        // OutreachEventTracker.saveSdkAccessToken(context, accessToken)
+                        // OutreachEventTracker.drainPendingQueue(context)
+                    // } catch (e: Exception) {
+                        // Log.e("AppStorys", "Outreach tracker setup failed: ${e.message}", e)
+                        // SdkErrorTracker.onLogicError(
+                            // step = "outreach-setup",
+                            // message = e.message ?: e::class.java.simpleName,
+                            // throwable = e,
+                            // failureClass = SdkFailureClass.P3
+                        // )
+                    // }
 
-                    syncNotificationReachability()
+                    // syncNotificationReachability()
+                    retryPendingReconcile()
 
                     val savedScratchedCampaigns = getScratchedCampaigns(
                         context.getSharedPreferences("AppStory", Context.MODE_PRIVATE)
@@ -510,6 +526,7 @@ object AppStorys {
                 if (currentScreen != screenName) {
                     withContext(Dispatchers.Main) {   // ← add this
                         OverlayContainer.clearAll()
+                        widgetSlotFrames.clear()
                     }
                     disabledCampaigns.emit(emptyList())
                     impressions.emit(emptyList())
@@ -747,51 +764,67 @@ object AppStorys {
         }
     }
 
-    fun setFirebaseToken(fcmToken: String) {
-        try {
-            if (fcmToken.isBlank()) {
-                Log.w("AppStorys", "setFirebaseToken: empty token, ignoring")
-                return
-            }
-            Log.d("AppStorys", "setFirebaseToken: updating device_push_token")
+    // NOTIFICATIONS DISABLED: push notification support is commented out. Uncomment to re-enable.
+    // fun setFirebaseToken(fcmToken: String) {
+        // try {
+            // if (fcmToken.isBlank()) {
+                // Log.w("AppStorys", "setFirebaseToken: empty token, ignoring")
+                // return
+            // }
+            // Log.d("AppStorys", "setFirebaseToken: updating device_push_token")
 
-            // Cache locally right away — no gating, no network. This is what lets
-            // subscribeNotificationsInternal() find a token to put in subscribe-fcm's
-            // body, even on a fresh install where this is the very first call ever.
-            if (::context.isInitialized) {
-                OutreachEventTracker.cacheDeviceTokenLocally(context, userId, fcmToken)
-            }
+            // // Cache locally right away — no gating, no network. This is what lets
+            // // subscribeNotificationsInternal() find a token to put in subscribe-fcm's
+            // // body, even on a fresh install where this is the very first call ever.
+            // if (::context.isInitialized) {
+                // OutreachEventTracker.cacheDeviceTokenLocally(context, userId, fcmToken)
+            // }
 
-            coroutineScope.launch {
-                try {
-                    if (!::context.isInitialized) {
-                        Log.w("AppStores", "setFirebaseToken: context not ready, skipping")
-                        return@launch
-                    }
-                    // Only the network registration waits for subscribe-fcm's first pass.
-                    withTimeoutOrNull(5_000.milliseconds) { subscribeSyncDeferred.await() }
-                    OutreachEventTracker.ensureAccessToken(context, userId, fcmToken)
-                } catch (e: Exception) {
-                    Log.e("AppStorys", "Outreach ensureAccessToken failed: ${e.message}", e)
-                    SdkErrorTracker.onLogicError(
-                        step = "outreach-ensure-access-token",
-                        message = e.message ?: e::class.java.simpleName,
-                        throwable = e,
-                        failureClass = SdkFailureClass.P3
-                    )
-                }
-            }
-        } catch (e: Exception) {
-            Log.e("AppStorys", "setFirebaseToken failed: ${e.message}", e)
-            SdkErrorTracker.onLogicError(
-                step = "set-firebase-token",
-                message = e.message ?: e::class.java.simpleName,
-                throwable = e,
-                failureClass = SdkFailureClass.P3
-            )
-        }
-    }
+            // coroutineScope.launch {
+                // try {
+                    // if (!::context.isInitialized) {
+                        // Log.w("AppStores", "setFirebaseToken: context not ready, skipping")
+                        // return@launch
+                    // }
+                    // // Only the network registration waits for subscribe-fcm's first pass.
+                    // withTimeoutOrNull(5_000.milliseconds) { subscribeSyncDeferred.await() }
+                    // OutreachEventTracker.ensureAccessToken(context, userId, fcmToken)
+                // } catch (e: Exception) {
+                    // Log.e("AppStorys", "Outreach ensureAccessToken failed: ${e.message}", e)
+                    // SdkErrorTracker.onLogicError(
+                        // step = "outreach-ensure-access-token",
+                        // message = e.message ?: e::class.java.simpleName,
+                        // throwable = e,
+                        // failureClass = SdkFailureClass.P3
+                    // )
+                // }
+            // }
+        // } catch (e: Exception) {
+            // Log.e("AppStorys", "setFirebaseToken failed: ${e.message}", e)
+            // SdkErrorTracker.onLogicError(
+                // step = "set-firebase-token",
+                // message = e.message ?: e::class.java.simpleName,
+                // throwable = e,
+                // failureClass = SdkFailureClass.P3
+            // )
+        // }
+    // }
 
+    /** Serialises setUserId() calls so a quick second login can't interleave with the first. */
+    private val userSwitchMutex = Mutex()
+
+    /**
+     * Switches the SDK to [newUserId], typically right after the user logs in.
+     *
+     * Coming from an anonymous ID, the backend is first told both IDs are the same person
+     * (reconcile-anonymous-user) so the pre-login history is kept; a failed reconcile is saved
+     * and retried on the next launch.
+     *
+     * Deliberately no new login and no campaign reload: the access token is tied to the account,
+     * not the end user, so it stays valid; and reloading the screen would re-send `viewed` for
+     * campaigns the user already saw while anonymous. The next screen change or app resume
+     * fetches campaigns with the new ID.
+     */
     fun setUserId(newUserId: String) {
         if (newUserId.isEmpty()) {
             Log.w("AppStorys", "Cannot set empty user ID")
@@ -803,71 +836,117 @@ object AppStorys {
                 Log.e("AppStorys", "SDK not initialized. Call initialize() first")
                 return@launch
             }
-
-            val previousUserId = userId
-            val wasAnonymous = isAnonymousUser
-
-            // If already using this identified user ID, no need to reconcile
-            if (!wasAnonymous && previousUserId == newUserId) {
-                Log.d("AppStorys", "User ID already set to: $newUserId")
-                return@launch
-            }
-
-            try {
-                // Only call reconcile endpoint if we're transitioning from anonymous to identified
-                if (wasAnonymous) {
-                    Log.d(
-                        "AppStorys",
-                        "Reconciling anonymous user $previousUserId with identified user $newUserId"
-                    )
-
-                    val result = webSocketService.reconcileAnonymousUser(
-
-                        token = "Bearer $accessToken",
-                        request = ReconcileUserRequest(
-                            anonymous_user_id = previousUserId,
-                            identified_user_id = newUserId
-                        )
-                    )
-
-                    when (result) {
-                        else -> {
-                            Log.i(
-                                "AppStorys",
-                                "Successfully reconciled anonymous user with identified user"
-                            )
-                        }
-                    }
+            userSwitchMutex.withLock {
+                // Reconcile needs the session token, so wait for init to finish.
+                if (!checkIfInitialized()) {
+                    Log.e("AppStorys", "setUserId: SDK failed to initialize, user ID not changed")
+                    return@withLock
                 }
 
-                // Update user ID
-                userId = newUserId
-                isAnonymousUser = false
-                saveUserId(newUserId, false)
+                val previousUserId = userId
+                val wasAnonymous = isAnonymousUser
+
+                // If already using this identified user ID, no need to reconcile
+                if (!wasAnonymous && previousUserId == newUserId) {
+                    Log.d("AppStorys", "User ID already set to: $newUserId")
+                    return@withLock
+                }
 
                 try {
-                    OutreachEventTracker.saveUserId(context, newUserId)
+                    // 1. Only call reconcile when going from anonymous to identified.
+                    if (wasAnonymous) {
+                        Log.d(
+                            "AppStorys",
+                            "Reconciling anonymous user $previousUserId with identified user $newUserId"
+                        )
+                        if (reconcile(previousUserId, newUserId)) {
+                            Log.i("AppStorys", "Reconcile accepted by backend")
+                        } else {
+                            savePendingReconcile(previousUserId, newUserId)
+                            Log.w("AppStorys", "Reconcile failed — will retry on next app launch")
+                        }
+                    }
+
+                    // 2. Update user ID
+                    userId = newUserId
+                    isAnonymousUser = false
+                    saveUserId(newUserId, false)
+
+                    // try {
+                        // OutreachEventTracker.saveUserId(context, newUserId)
+                    // } catch (e: Exception) {
+                        // Log.e("AppStorys", "Outreach saveUserId failed: ${e.message}", e)
+                        // SdkErrorTracker.onLogicError(
+                            // step = "outreach-save-user-id",
+                            // message = e.message ?: e::class.java.simpleName,
+                            // throwable = e,
+                            // failureClass = SdkFailureClass.P3
+                        // )
+                    // }
+
+                    Log.i("AppStorys", "User ID updated to: $newUserId")
+
                 } catch (e: Exception) {
-                    Log.e("AppStorys", "Outreach saveUserId failed: ${e.message}", e)
+                    Log.e("AppStorys", "Error setting user ID: ${e.message}", e)
                     SdkErrorTracker.onLogicError(
-                        step = "outreach-save-user-id",
+                        step = "set-user-id",
                         message = e.message ?: e::class.java.simpleName,
                         throwable = e,
                         failureClass = SdkFailureClass.P3
                     )
                 }
+            }
+        }
+    }
 
-                Log.i("AppStorys", "User ID updated to: $newUserId")
-
-            } catch (e: Exception) {
-                Log.e("AppStorys", "Error setting user ID: ${e.message}", e)
+    /** True only when the backend accepted the merge (any 2xx; it answers 202). */
+    private suspend fun reconcile(anonymousUserId: String, identifiedUserId: String): Boolean =
+        try {
+            val response = webSocketService.reconcileAnonymousUser(
+                token = "Bearer $accessToken",
+                request = ReconcileUserRequest(
+                    anonymous_user_id = anonymousUserId,
+                    identified_user_id = identifiedUserId
+                )
+            )
+            if (!response.isSuccessful) {
+                Log.e("AppStorys", "Reconcile rejected: ${response.code()} ${response.errorBody()?.string()}")
                 SdkErrorTracker.onLogicError(
                     step = "reconcile-anonymous-user",
-                    message = e.message ?: e::class.java.simpleName,
-                    throwable = e,
+                    message = "HTTP ${response.code()}",
                     failureClass = SdkFailureClass.P3
                 )
             }
+            response.isSuccessful
+        } catch (e: Exception) {
+            Log.e("AppStorys", "Reconcile request failed: ${e.message}", e)
+            SdkErrorTracker.onLogicError(
+                step = "reconcile-anonymous-user",
+                message = e.message ?: e::class.java.simpleName,
+                throwable = e,
+                failureClass = SdkFailureClass.P3
+            )
+            false
+        }
+
+    private fun savePendingReconcile(anonymousUserId: String, identifiedUserId: String) {
+        context.getSharedPreferences("AppStory", Context.MODE_PRIVATE).edit {
+            putString(PREFS_PENDING_RECONCILE_ANON, anonymousUserId)
+            putString(PREFS_PENDING_RECONCILE_IDENTIFIED, identifiedUserId)
+        }
+    }
+
+    /** Retries a reconcile that failed in setUserId() on an earlier launch. */
+    private suspend fun retryPendingReconcile() {
+        val prefs = context.getSharedPreferences("AppStory", Context.MODE_PRIVATE)
+        val anonymousUserId = prefs.getString(PREFS_PENDING_RECONCILE_ANON, null) ?: return
+        val identifiedUserId = prefs.getString(PREFS_PENDING_RECONCILE_IDENTIFIED, null) ?: return
+        if (reconcile(anonymousUserId, identifiedUserId)) {
+            prefs.edit {
+                remove(PREFS_PENDING_RECONCILE_ANON)
+                remove(PREFS_PENDING_RECONCILE_IDENTIFIED)
+            }
+            Log.i("AppStorys", "Pending reconcile retried successfully")
         }
     }
 
@@ -883,172 +962,173 @@ object AppStorys {
         }
     }
 
-    fun subscribeNotifications() {
-        coroutineScope.launch { subscribeNotificationsInternal() }
-    }
+    // NOTIFICATIONS DISABLED: push notification support is commented out. Uncomment to re-enable.
+    // fun subscribeNotifications() {
+        // coroutineScope.launch { subscribeNotificationsInternal() }
+    // }
 
-    private suspend fun subscribeNotificationsInternal(): Boolean {
-        if (userId.isBlank() || !checkIfInitialized()) {
-            Log.e(
-                "AppStorys",
-                "Cannot subscribe to notifications: SDK not initialized or user ID not available"
-            )
-            return false
-        }
+    // private suspend fun subscribeNotificationsInternal(): Boolean {
+        // if (userId.isBlank() || !checkIfInitialized()) {
+            // Log.e(
+                // "AppStorys",
+                // "Cannot subscribe to notifications: SDK not initialized or user ID not available"
+            // )
+            // return false
+        // }
 
-        val currentFcmToken = OutreachEventTracker.getCachedDeviceToken(context)
+        // val currentFcmToken = OutreachEventTracker.getCachedDeviceToken(context)
 
-        val result = safeApiCall {
-            webSocketService.subscribeFcm(
-                token = "Bearer $accessToken",
-                request = FcmSubscriptionRequest(
-                    user_id = userId,
-                    device_push_token = currentFcmToken?.takeIf { it.isNotBlank() }
-                )
-            )
-        }
+        // val result = safeApiCall {
+            // webSocketService.subscribeFcm(
+                // token = "Bearer $accessToken",
+                // request = FcmSubscriptionRequest(
+                    // user_id = userId,
+                    // device_push_token = currentFcmToken?.takeIf { it.isNotBlank() }
+                // )
+            // )
+        // }
 
-        return when (result) {
-            is ApiResult.Success -> {
-                Log.i("AppStorys", "Subscribed to notifications successfully for user: $userId")
-                true
-            }
+        // return when (result) {
+            // is ApiResult.Success -> {
+                // Log.i("AppStorys", "Subscribed to notifications successfully for user: $userId")
+                // true
+            // }
 
-            is ApiResult.Error -> {
-                Log.e("AppStorys", "Error subscribing to notifications: ${result.message}")
-                SdkErrorTracker.onApiFailed(
-                    step = "subscribe-fcm",
-                    failureClass = SdkFailureClass.P3,
-                    message = result.message,
-                    httpStatus = result.code,
-                    screen = currentScreen
-                )
-                false
-            }
-        }
-    }
+            // is ApiResult.Error -> {
+                // Log.e("AppStorys", "Error subscribing to notifications: ${result.message}")
+                // SdkErrorTracker.onApiFailed(
+                    // step = "subscribe-fcm",
+                    // failureClass = SdkFailureClass.P3,
+                    // message = result.message,
+                    // httpStatus = result.code,
+                    // screen = currentScreen
+                // )
+                // false
+            // }
+        // }
+    // }
 
-    fun unsubscribeNotifications() {
-        coroutineScope.launch { unsubscribeNotificationsInternal() }
-    }
+    // fun unsubscribeNotifications() {
+        // coroutineScope.launch { unsubscribeNotificationsInternal() }
+    // }
 
-    private suspend fun unsubscribeNotificationsInternal(): Boolean {
-        if (userId.isBlank() || !checkIfInitialized()) {
-            Log.e(
-                "AppStorys",
-                "Cannot unsubscribe from notifications: SDK not initialized or user ID not available"
-            )
-            return false
-        }
+    // private suspend fun unsubscribeNotificationsInternal(): Boolean {
+        // if (userId.isBlank() || !checkIfInitialized()) {
+            // Log.e(
+                // "AppStorys",
+                // "Cannot unsubscribe from notifications: SDK not initialized or user ID not available"
+            // )
+            // return false
+        // }
 
-        val result = safeApiCall {
-            webSocketService.unsubscribeFcm(
-                token = "Bearer $accessToken",
-                request = FcmSubscriptionRequest(user_id = userId)
-            )
-        }
+        // val result = safeApiCall {
+            // webSocketService.unsubscribeFcm(
+                // token = "Bearer $accessToken",
+                // request = FcmSubscriptionRequest(user_id = userId)
+            // )
+        // }
 
-        return when (result) {
-            is ApiResult.Success -> {
-                Log.i("AppStorys", "Unsubscribed from notifications successfully for user: $userId")
-                true
-            }
+        // return when (result) {
+            // is ApiResult.Success -> {
+                // Log.i("AppStorys", "Unsubscribed from notifications successfully for user: $userId")
+                // true
+            // }
 
-            is ApiResult.Error -> {
-                Log.e("AppStorys", "Error unsubscribing from notifications: ${result.message}")
-                SdkErrorTracker.onApiFailed(
-                    step = "unsubscribe-fcm",
-                    failureClass = SdkFailureClass.P3,
-                    message = result.message,
-                    httpStatus = result.code,
-                    screen = currentScreen
-                )
-                false
-            }
-        }
-    }
+            // is ApiResult.Error -> {
+                // Log.e("AppStorys", "Error unsubscribing from notifications: ${result.message}")
+                // SdkErrorTracker.onApiFailed(
+                    // step = "unsubscribe-fcm",
+                    // failureClass = SdkFailureClass.P3,
+                    // message = result.message,
+                    // httpStatus = result.code,
+                    // screen = currentScreen
+                // )
+                // false
+            // }
+        // }
+    // }
 
-    private fun currentNotificationsEnabled(): Boolean {
-        val nm = NotificationManagerCompat.from(context)
-        if (!nm.areNotificationsEnabled()) return false
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = nm.getNotificationChannel(OUTREACH_CHANNEL_ID)
-            if (channel != null && channel.importance == NotificationManager.IMPORTANCE_NONE) {
-                return false
-            }
-        }
-        return true
-    }
+    // private fun currentNotificationsEnabled(): Boolean {
+        // val nm = NotificationManagerCompat.from(context)
+        // if (!nm.areNotificationsEnabled()) return false
+        // if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            // val channel = nm.getNotificationChannel(OUTREACH_CHANNEL_ID)
+            // if (channel != null && channel.importance == NotificationManager.IMPORTANCE_NONE) {
+                // return false
+            // }
+        // }
+        // return true
+    // }
 
-    private fun syncNotificationReachability() {
-        coroutineScope.launch {
-            if (!::context.isInitialized) return@launch
-            if (userId.isBlank() ||
-                sdkState != AppStorysSdkState.Initialized ||
-                accessToken.isBlank()
-            ) return@launch   // not ready yet — deferred stays open, waiters keep waiting
+    // private fun syncNotificationReachability() {
+        // coroutineScope.launch {
+            // if (!::context.isInitialized) return@launch
+            // if (userId.isBlank() ||
+                // sdkState != AppStorysSdkState.Initialized ||
+                // accessToken.isBlank()
+            // ) return@launch   // not ready yet — deferred stays open, waiters keep waiting
 
-            try {
-                val enabled = currentNotificationsEnabled()
-                val prefs = context.getSharedPreferences("AppStory", Context.MODE_PRIVATE)
-                val last: Boolean? =
-                    if (prefs.contains(KEY_NOTIF_REACHABILITY))
-                        prefs.getBoolean(KEY_NOTIF_REACHABILITY, false)
-                    else null
+            // try {
+                // val enabled = currentNotificationsEnabled()
+                // val prefs = context.getSharedPreferences("AppStory", Context.MODE_PRIVATE)
+                // val last: Boolean? =
+                    // if (prefs.contains(KEY_NOTIF_REACHABILITY))
+                        // prefs.getBoolean(KEY_NOTIF_REACHABILITY, false)
+                    // else null
 
-                if (last != enabled) {
-                    if (enabled) {
-                        val subscribed = subscribeNotificationsInternal()
-                        val currentFcmToken = OutreachEventTracker.getCachedDeviceToken(context)
-                        if (!currentFcmToken.isNullOrBlank()) {
-                            if (subscribed) {
-                                OutreachEventTracker.forceResyncDeviceToken(
-                                    context,
-                                    userId,
-                                    currentFcmToken
-                                )  // ← was ensureAccessToken
-                            } else {
-                                Log.w(
-                                    "AppStorys",
-                                    "subscribe-fcm failed — skipping device token resync"
-                                )
-                            }
-                        } else {
-                            Log.w(
-                                "AppStorys",
-                                "No cached fcm token on device — cannot resync after subscribe"
-                            )
-                        }
-                    } else {
-                        val unsubscribed = unsubscribeNotificationsInternal()
-                        if (unsubscribed) {
-                            OutreachEventTracker.invalidateOutreachToken(context)
-                        }
-                    }
-                    prefs.edit().putBoolean(KEY_NOTIF_REACHABILITY, enabled).apply()
-                    Log.i(
-                        "AppStorys",
-                        "Notification reachability changed → enabled=$enabled (was ${last ?: "unset"}); synced to backend"
-                    )
-                }
-            } catch (e: Exception) {
-                Log.e("AppStorys", "syncNotificationReachability failed: ${e.message}", e)
-                SdkErrorTracker.onLogicError(
-                    step = "sync-notification-reachability",
-                    message = e.message ?: e::class.java.simpleName,
-                    throwable = e,
-                    failureClass = SdkFailureClass.P3
-                )
-            } finally {
-                // First real pass this session is done (whatever the outcome) — release any setFirebaseToken() waiters.
-                subscribeSyncDeferred.complete(Unit)
-            }
-        }
-    }
+                // if (last != enabled) {
+                    // if (enabled) {
+                        // val subscribed = subscribeNotificationsInternal()
+                        // val currentFcmToken = OutreachEventTracker.getCachedDeviceToken(context)
+                        // if (!currentFcmToken.isNullOrBlank()) {
+                            // if (subscribed) {
+                                // OutreachEventTracker.forceResyncDeviceToken(
+                                    // context,
+                                    // userId,
+                                    // currentFcmToken
+                                // )  // ← was ensureAccessToken
+                            // } else {
+                                // Log.w(
+                                    // "AppStorys",
+                                    // "subscribe-fcm failed — skipping device token resync"
+                                // )
+                            // }
+                        // } else {
+                            // Log.w(
+                                // "AppStorys",
+                                // "No cached fcm token on device — cannot resync after subscribe"
+                            // )
+                        // }
+                    // } else {
+                        // val unsubscribed = unsubscribeNotificationsInternal()
+                        // if (unsubscribed) {
+                            // OutreachEventTracker.invalidateOutreachToken(context)
+                        // }
+                    // }
+                    // prefs.edit().putBoolean(KEY_NOTIF_REACHABILITY, enabled).apply()
+                    // Log.i(
+                        // "AppStorys",
+                        // "Notification reachability changed → enabled=$enabled (was ${last ?: "unset"}); synced to backend"
+                    // )
+                // }
+            // } catch (e: Exception) {
+                // Log.e("AppStorys", "syncNotificationReachability failed: ${e.message}", e)
+                // SdkErrorTracker.onLogicError(
+                    // step = "sync-notification-reachability",
+                    // message = e.message ?: e::class.java.simpleName,
+                    // throwable = e,
+                    // failureClass = SdkFailureClass.P3
+                // )
+            // } finally {
+                // // First real pass this session is done (whatever the outcome) — release any setFirebaseToken() waiters.
+                // subscribeSyncDeferred.complete(Unit)
+            // }
+        // }
+    // }
 
-    fun onNotificationPermissionResult() {
-        syncNotificationReachability()
-    }
+    // fun onNotificationPermissionResult() {
+        // syncNotificationReachability()
+    // }
 
     @Composable
     fun overlayElements(
@@ -1940,6 +2020,11 @@ object AppStorys {
                     }
             val widgetDetails = campaign?.details as? WidgetDetails
 
+            val isScreenCaptureEnabled by _isScreenCaptureEnabled.collectAsStateWithLifecycle()
+            if (isScreenCaptureEnabled && position != null) {
+                WidgetSlotProbe(position)
+            }
+
             val trackedEventsData = trackedEventNames.collectAsStateWithLifecycle()
 
             val shouldShowWidget = remember(campaign, trackedEventsData.value.size) {
@@ -1974,6 +2059,32 @@ object AppStorys {
         }
     }
 
+
+    /**
+     * Zero-height, full-width marker at the top of the slot, so the dashboard learns where a
+     * widget position sits even when no campaign fills it yet: it cuts the screenshot at `y` and
+     * inserts the widget there. Composed only for test users with screen capture on, so real
+     * users' layouts are untouched. `y` is window px, matching the identify-elements screenshot.
+     */
+    @Composable
+    private fun WidgetSlotProbe(position: String) {
+        val context = LocalContext.current
+        val screenSize = remember(context) { ViewTreeAnalyzer.getScreenSize(context) }
+        Spacer(
+            modifier = Modifier
+                .fillMaxWidth()
+                .onGloballyPositioned { coordinates ->
+                    widgetSlotFrames[position] = WidgetSlotFrame(
+                        y = coordinates.positionInWindow().y.roundToInt(),
+                        screenWidth = screenSize.first,
+                        screenHeight = screenSize.second
+                    )
+                }
+        )
+        DisposableEffect(position) {
+            onDispose { widgetSlotFrames.remove(position) }
+        }
+    }
 
     @Composable
     private fun FullWidget(
@@ -2106,7 +2217,8 @@ object AppStorys {
                                 placeHolder = placeHolder,
                                 height = calculatedHeight,
                                 width = widthInDp ?: staticWidth,
-                                placeholderContent = placeholderContent
+                                placeholderContent = placeholderContent,
+                                soundToggle = widgetDetails.styling?.soundToggle
                             )
                         }
                     }
@@ -2926,12 +3038,17 @@ object AppStorys {
 
                     if (widgetPositionList.isNotEmpty() && widgetPositionList[0].isNotEmpty()) {
                         Log.i(TAG, "widgetPositionList is valid")
+                        // Snapshot on the main thread; positions never laid out are left out.
+                        val identifierData = widgetPositionList
+                            .mapNotNull { p -> widgetSlotFrames[p]?.let { p to it } }
+                            .toMap()
                         coroutineScope.launch {
-                            Log.i(TAG, "Calling repository.sendWidgetPositions()")
+                            Log.i(TAG, "Calling repository.sendWidgetPositions() with $identifierData")
                             repository.sendWidgetPositions(
                                 accessToken = accessToken,
                                 screenName = currentScreen,
-                                positionList = widgetPositionList
+                                positionList = widgetPositionList,
+                                identifierData = identifierData
                             )
                         }
                     }

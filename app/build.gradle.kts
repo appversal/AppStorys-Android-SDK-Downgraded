@@ -48,7 +48,8 @@ android {
 dependencies {
     implementation(platform("com.google.firebase:firebase-bom:32.7.0"))
     implementation("com.google.firebase:firebase-analytics")
-    implementation("com.google.firebase:firebase-messaging")
+    // NOTIFICATIONS DISABLED: uncomment to re-enable push notifications.
+    // implementation("com.google.firebase:firebase-messaging")
 
     implementation(libs.exoplayer)
     implementation(libs.androidx.core.ktx)

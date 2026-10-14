@@ -212,7 +212,8 @@ private fun ModalWithCTA(
                         val hasContent = !modal.content?.titleText.isNullOrBlank() ||
                                 !modal.content?.subtitleText.isNullOrBlank() ||
                                 !modal.content?.primaryCtaText.isNullOrBlank() ||
-                                !modal.content?.secondaryCtaText.isNullOrBlank()
+                                !modal.content?.secondaryCtaText.isNullOrBlank() ||
+                                !modal.content?.ctaConfig.isNullOrEmpty()
 
                         if (hasContent) {
                             ModalContentSection(
@@ -316,6 +317,8 @@ private fun ModalCtaRow(
     onPrimaryCta: ((String?) -> Unit)?,
     onSecondaryCta: ((String?) -> Unit)?
 ) {
+    if (ModalCtaList(modal.content?.ctaConfig, modal.content?.layout, onPrimaryCta, onSecondaryCta)) return
+
     val primaryText = modal.content?.primaryCtaText
     val secondaryText = modal.content?.secondaryCtaText
 

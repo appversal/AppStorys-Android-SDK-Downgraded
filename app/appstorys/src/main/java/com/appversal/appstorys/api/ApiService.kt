@@ -1,6 +1,5 @@
 package com.appversal.appstorys.api
 
-import androidx.annotation.Nullable
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
 import retrofit2.HttpException
@@ -32,7 +31,7 @@ internal interface ApiService {
     suspend fun identifyPositions(
         @Header("Authorization") token: String,
         @Body request: IdentifyPositionsRequest
-    ): Nullable
+    ): Response<Unit>
 
     @POST("v2/{accountId}/track-user-res")
     suspend fun getEligibleCampaigns(
@@ -59,17 +58,18 @@ internal interface ApiService {
         @Body request: UpdateUserPropertiesRequest
     ): Response<Unit>
 
-    @POST("subscribe-fcm")
-    suspend fun subscribeFcm(
-        @Header("Authorization") token: String,
-        @Body request: FcmSubscriptionRequest
-    ): Response<Unit>
+    // NOTIFICATIONS DISABLED: push notification endpoints, uncomment to re-enable.
+    // @POST("subscribe-fcm")
+    // suspend fun subscribeFcm(
+        // @Header("Authorization") token: String,
+        // @Body request: FcmSubscriptionRequest
+    // ): Response<Unit>
 
-    @POST("unsubscribe-fcm")
-    suspend fun unsubscribeFcm(
-        @Header("Authorization") token: String,
-        @Body request: FcmSubscriptionRequest
-    ): Response<Unit>
+    // @POST("unsubscribe-fcm")
+    // suspend fun unsubscribeFcm(
+        // @Header("Authorization") token: String,
+        // @Body request: FcmSubscriptionRequest
+    // ): Response<Unit>
 
     @POST("api/v1/campaigns/capture-csat-response/")
     suspend fun sendCSATResponse(

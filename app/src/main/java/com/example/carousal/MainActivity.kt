@@ -72,12 +72,12 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import com.appversal.appstorys.ui.CardScratch
 import kotlinx.coroutines.delay
-import android.Manifest
-import android.content.pm.PackageManager
+// import android.Manifest   // NOTIFICATIONS DISABLED
+// import android.content.pm.PackageManager   // NOTIFICATIONS DISABLED
 import android.os.Build
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.ContextCompat
+// import androidx.activity.compose.rememberLauncherForActivityResult   // NOTIFICATIONS DISABLED
+// import androidx.activity.result.contract.ActivityResultContracts   // NOTIFICATIONS DISABLED
+// import androidx.core.content.ContextCompat   // NOTIFICATIONS DISABLED
 
 
 class MainActivity : ComponentActivity() {
@@ -102,7 +102,7 @@ fun MyApp() {
     val screenName by app.screenNameNavigation.collectAsState()
     var currentScreen by remember { mutableStateOf("HomeScreen") }
 
-    RequestNotificationPermission()
+    // RequestNotificationPermission()   // NOTIFICATIONS DISABLED
 
     var selectedTab by remember { mutableStateOf(0) } // Track selected tab index
 
@@ -194,30 +194,31 @@ fun MyApp() {
     }
 }
 
-@Composable
-fun RequestNotificationPermission() {
-    val context = LocalContext.current
+// NOTIFICATIONS DISABLED: uncomment to re-enable push notifications.
+// @Composable
+// fun RequestNotificationPermission() {
+//     val context = LocalContext.current
 
-    val launcher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        Log.d("NotifPerm", if (granted) "granted" else "denied")
-    }
+//     val launcher = rememberLauncherForActivityResult(
+//         contract = ActivityResultContracts.RequestPermission()
+//     ) { granted ->
+//         Log.d("NotifPerm", if (granted) "granted" else "denied")
+//     }
 
-    LaunchedEffect(Unit) {
-        // Below Android 13 the permission is granted automatically — nothing to do.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val alreadyGranted = ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.POST_NOTIFICATIONS
-            ) == PackageManager.PERMISSION_GRANTED
+//     LaunchedEffect(Unit) {
+//         // Below Android 13 the permission is granted automatically — nothing to do.
+//         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+//             val alreadyGranted = ContextCompat.checkSelfPermission(
+//                 context,
+//                 Manifest.permission.POST_NOTIFICATIONS
+//             ) == PackageManager.PERMISSION_GRANTED
 
-            if (!alreadyGranted) {
-                launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
-            }
-        }
-    }
-}
+//             if (!alreadyGranted) {
+//                 launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
+//             }
+//         }
+//     }
+// }
 
 @Composable
 fun CopyUserIdText() {
@@ -259,7 +260,7 @@ fun HomeScreen(
 //        val screenName = "Home Screen Kotlin"
 //        val screenName = "Home Screen Flutter"
         val screenName = "Home Screen Kotlin"
-        val positions = listOf("widget_one")
+        val positions = listOf("widget_one", "widget_two")
         campaignManager.getScreenCampaigns(
             screenName,
             positions,
@@ -312,14 +313,6 @@ fun HomeScreen(
                     position = "widget_one",
                 )
 
-                campaignManager.Widget(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .appstorys("tooltip_home_prem_test"),
-                    placeholder = context.getDrawable(R.drawable.ic_launcher_foreground),
-                    position = "widget_two",
-                )
-
 //                campaignManager.Streaks()
 
                 // NEW: Scratch Card Button
@@ -356,6 +349,7 @@ fun HomeScreen(
                 ) {
                     Button(
                         onClick = {
+                            showBottomSheet = true
 //                            campaignManager.handleBackPress {
 //                                showBottomSheet = true
 //                                campaignManager.trackEvents(
@@ -372,12 +366,17 @@ fun HomeScreen(
                 }
 
                 if (showBottomSheet) {
+                    // The sheet is its own AppStorys screen; hand Home back its campaigns on close.
+                    val closeSheet = {
+                        showBottomSheet = false
+                        campaignManager.getScreenCampaigns("Home Screen Kotlin", listOf("widget_one"))
+                    }
                     LaunchedEffect(Unit) {
-                        delay(1000)
+                        delay(1000) // let the sheet finish sliding up so tagged positions are final
                         campaignManager.getScreenCampaigns("Bottom Sheet Kotlin")
                     }
                     ModalBottomSheet(
-                        onDismissRequest = { showBottomSheet = false },
+                        onDismissRequest = closeSheet,
                         sheetState = sheetState,
                         containerColor = Color.White
                     ) {
@@ -402,7 +401,7 @@ fun HomeScreen(
                                 color = Color.Gray
                             )
                             Button(
-                                onClick = { showBottomSheet = false },
+                                onClick = closeSheet,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .appstorys("closebutton"),
@@ -413,6 +412,7 @@ fun HomeScreen(
                                 Text("Close")
                             }
                         }
+                        // Tooltips only, drawn in the sheet's window so they sit above it.
                         campaignManager.overlayElements(insideBottomSheet = true)
                     }
                 }
@@ -478,7 +478,7 @@ fun HomeScreen(
 
                 Button(
                     onClick = {
-                        campaignManager.subscribeNotifications()
+                        // campaignManager.subscribeNotifications()   // NOTIFICATIONS DISABLED
                     },
                     modifier = Modifier.appstorys("tooltip_two")
                 ) {
@@ -487,7 +487,7 @@ fun HomeScreen(
 
                 Button(
                     onClick = {
-                        campaignManager.unsubscribeNotifications()
+                        // campaignManager.unsubscribeNotifications()   // NOTIFICATIONS DISABLED
                     },
                     modifier = Modifier
                 ) {
@@ -518,6 +518,14 @@ fun HomeScreen(
 
                 Spacer(
                     Modifier.height(30.dp)
+                )
+
+                campaignManager.Widget(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .appstorys("tooltip_home_prem_test"),
+                    placeholder = context.getDrawable(R.drawable.ic_launcher_foreground),
+                    position = "widget_two",
                 )
 
                 // First user property input and button
@@ -821,7 +829,7 @@ fun BottomNavigationBar(selectedTab: Int, onTabSelected: (Int) -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .height(70.dp)
-
+            .appstorys("bottom_navigation_bar")
     ) {
         val items = listOf("Parties", "More")
         val icons = listOf(Icons.Filled.Person, Icons.Filled.List)

@@ -30,6 +30,8 @@ import com.airbnb.lottie.compose.LottieCompositionSpec
 import com.airbnb.lottie.compose.LottieConstants
 import com.airbnb.lottie.compose.rememberLottieComposition
 import com.appversal.appstorys.api.WidgetDetails
+import com.appversal.appstorys.ui.modals.MediaType
+import com.appversal.appstorys.ui.modals.determineMediaType
 
 @Composable
 internal fun DoubleWidgets(
@@ -116,6 +118,11 @@ internal fun ImageCard(
                         .then(if (height != null) Modifier.height(height) else Modifier)
                         .fillMaxWidth()
                 )
+            }
+
+            // Video sizes to its own aspect ratio, so it is never cropped or stretched.
+            determineMediaType(imageUrl) == MediaType.VIDEO -> {
+                WidgetVideo(videoUrl = imageUrl, soundToggle = widgetDetails.styling?.soundToggle)
             }
 
             isGifUrl(imageUrl) -> {
