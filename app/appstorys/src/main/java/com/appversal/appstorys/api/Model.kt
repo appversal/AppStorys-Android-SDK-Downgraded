@@ -958,7 +958,7 @@ data class CsatOptions(
 @Keep
 @Serializable
 data class CsatOptionStyle(
-    val borderWidth: Int?,
+    val borderWidth: Double?,
     val colors: CsatColors?,
     val textStyle: CsatTextStyle?
 )
