@@ -44,6 +44,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
@@ -1160,15 +1162,14 @@ private fun ForegroundElement(
             val parsedPath = remember(el.svgPath) { el.svgPath?.let { parseSvgPathData(it) } }
             val fillColor = parseStoryColorElement(style?.color ?: el.fill)
             val strokeColor = parseStoryColorElement(style?.strokeColor ?: el.stroke)
-            // strokeWidth is a % of canva HEIGHT, like every other scalar (font size,
-            // border radius). Proof from the studio payload: 0.1667 / 0.0417 / 0.4167
-            // map to exactly 4 / 1 / 10 canva px against a 2400-tall canvas, but to
-            // 1.8 / 0.45 / 4.5 against its 1080 width. Measuring against width rendered
-            // every shape outline 2.22x too thin.
-            // Note `content.strokeWidth` is the authored value; `styling.strokeWidth`
-            // carries the same stroke divided by 24, so it must stay the fallback.
-            val strokeWidthDp = scope.heightPctDp(el.strokeWidth ?: style?.strokeWidth ?: 0f)
-            val strokeWidthPx = with(LocalDensity.current) { strokeWidthDp.toPx() }
+            // strokeWidth is a % of canva HEIGHT (0.1563 × 1920 = 3), but the studio
+            // draws that 3 in the path's own 0-100 units: its snapshot has
+            // stroke-width="3" inside scale(box/100), so the outline grows with the
+            // shape. `styling.strokeWidth` is the same value divided again by
+            // canvaHeight/100, so only `content.strokeWidth` is read.
+            val strokeUnits = with(LocalDensity.current) {
+                scope.heightPctDp(el.strokeWidth ?: 0f).toPx()
+            } / scope.scale
             val outlined = el.styleType.equals("outline", ignoreCase = true)
 
             if (parsedPath != null) {
@@ -1184,14 +1185,17 @@ private fun ForegroundElement(
                         if (!outlined && fillColor != null) {
                             drawPath(path = parsedPath, color = fillColor)
                         }
-                        if (strokeColor != null && strokeWidthPx > 0f) {
-                            // Undo the (possibly non-uniform) canvas scale so the stroke
-                            // keeps the requested on-screen thickness.
-                            val avgScale = ((sx + sy) / 2f).coerceAtLeast(0.0001f)
+                        if (strokeColor != null && strokeUnits > 0f) {
+                            // Drawn inside the viewBox scale on purpose: the stroke
+                            // stretches with the box exactly like the studio's SVG.
                             drawPath(
                                 path = parsedPath,
                                 color = strokeColor,
-                                style = Stroke(width = strokeWidthPx / avgScale)
+                                style = Stroke(
+                                    width = strokeUnits,
+                                    cap = StrokeCap.Round,
+                                    join = StrokeJoin.Round
+                                )
                             )
                         }
                     }

@@ -989,15 +989,23 @@ internal fun StoryScreenContent(
                     StorySlideForeground(
                         slide = currentSlide,
                         onCtaClick = { redirect ->
-                            if (!redirect.isNullOrEmpty()) {
+                            sendEvent(Pair(currentSlide, "CLK"))
+                            sendClickEvent(Pair(currentSlide, "clicked"))
+                            if (AppStorys.isCloseLink(redirect)) {
+                                onDismiss()
+                            } else if (AppStorys.openCampaignLink(redirect, onDismiss)) {
+                                // closed; the linked campaign opens
+                            } else if (!redirect.isNullOrEmpty() && !AppStorys.isValidUrl(redirect)) {
+                                // Page name / deep link: close the story so the host screen shows
+                                onDismiss()
+                                AppStorys.navigateToScreen(redirect)
+                            } else if (!redirect.isNullOrEmpty()) {
                                 try {
                                     uriHandler.openUri(redirect)
                                 } catch (e: Exception) {
                                     Log.e("StoryScreen", "Failed to open CTA link: ${e.message}")
                                 }
                             }
-                            sendEvent(Pair(currentSlide, "CLK"))
-                            sendClickEvent(Pair(currentSlide, "clicked"))
                         },
                         muted = isMuted,
                         // Seconds into the slide, from the same progress the bar shows —
@@ -1060,13 +1068,21 @@ internal fun StoryScreenContent(
                                 text = currentSlide.buttonText ?: "",
                                 config = ctaButtonConfig,
                                 onClick = {
-                                    try {
-                                        uriHandler.openUri(currentSlide.link)
-                                    } catch (e: Exception) {
-                                        Log.e("StoryScreen", "Failed to open link: ${e.message}")
-                                    }
                                     sendEvent(Pair(currentSlide, "CLK"))
                                     sendClickEvent(Pair(currentSlide, "clicked"))
+                                    if (AppStorys.isCloseLink(currentSlide.link)) {
+                                        onDismiss()
+                                    } else if (!AppStorys.openCampaignLink(currentSlide.link, onDismiss)) {
+                                        if (!AppStorys.isValidUrl(currentSlide.link)) {
+                                            // Page name / deep link: close the story so the host screen shows
+                                            onDismiss()
+                                            AppStorys.navigateToScreen(currentSlide.link)
+                                        } else try {
+                                            uriHandler.openUri(currentSlide.link)
+                                        } catch (e: Exception) {
+                                            Log.e("StoryScreen", "Failed to open link: ${e.message}")
+                                        }
+                                    }
                                 }
                             )
                         }
@@ -1330,6 +1346,10 @@ internal fun StoryScreenContent(
                                 CrossButton(
                                     config = crossButtonConfig,
                                     onClose = {
+                                        AppStorys.trackDismissed(
+                                            campaignId,
+                                            mapOf("story_slide" to (currentSlide.id ?: ""))
+                                        )
                                         scope.launch {
                                             sheetState.hide()
                                             onDismiss()
@@ -1379,7 +1399,11 @@ internal fun StoryScreenWrapper(
     ModalBottomSheet(
         modifier = Modifier.fillMaxSize(),
         shape = RectangleShape,
-        onDismissRequest = onDismiss,
+        // Swipe-down or back press
+        onDismissRequest = {
+            AppStorys.trackDismissed(campaignId)
+            onDismiss()
+        },
         sheetState = sheetState,
         containerColor = Color.Black,
         contentColor = Color.White,

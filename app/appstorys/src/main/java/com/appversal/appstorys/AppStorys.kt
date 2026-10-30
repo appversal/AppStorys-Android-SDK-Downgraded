@@ -177,7 +177,7 @@ object AppStorys {
     private lateinit var context: Application
 
     // v2 only — v3 authenticates with the dashboard API key instead.
-//    private lateinit var appId: String
+    // private lateinit var appId: String
 
     // Set from the validate-account token (v3), no longer passed in by the host app.
     private lateinit var accountId: String
@@ -247,6 +247,8 @@ object AppStorys {
     private val _showModal = MutableStateFlow(true)
 
     private val _showBottomSheet = MutableStateFlow(true)
+
+    private val _showSurvey = MutableStateFlow(true)
 
     private var backPressCampaignConsumed = false
 
@@ -391,7 +393,10 @@ object AppStorys {
         this.context = context
 //        this.appId = appId
 //        this.accountId = accountId
-        this.navigateToScreen = navigateToScreen
+        // The Close sentinel is never a screen name; keep it out of the host's navigation.
+        this.navigateToScreen = { screen ->
+            if (!isCloseLink(screen)) navigateToScreen(screen)
+        }
 
         if (userId.isNotEmpty()) {
             // User provided an ID
@@ -441,6 +446,9 @@ object AppStorys {
                     _showModal.update { true }
                     _showCsat.update { false }
                     _showBottomSheet.update { true }
+                    _showSurvey.update { true }
+                    // Closed/tapped banners, widgets and floaters come back on return, like Flutter's resume
+                    disabledCampaigns.update { emptyList() }
                     backPressCampaignConsumed = false
                     _trackedEventNames.update { emptySet() }
                     campaignsJob?.cancel()
@@ -554,6 +562,7 @@ object AppStorys {
                     currentScreen = screenName
                     backPressCampaignConsumed = false
                     _showBottomSheet.update { true }
+                    _showSurvey.update { true }
                     _showCsat.update { false }
                     _showModal.update { true }
                     tooltipViewed.update { emptyList() }
@@ -667,6 +676,7 @@ object AppStorys {
         "shared",
         "SurveySubmitted",
         "SurveyDismissed",
+        "dismissed",
         "ThankYouCTAClicked",
         "spin_completed"
     )
@@ -1391,7 +1401,10 @@ object AppStorys {
                 )
             }
 
-            if (floaterDetails != null && (!floaterDetails.image.isNullOrEmpty() || !floaterDetails.lottie_data.isNullOrEmpty()) && shouldShowFloater) {
+            // A Close CTA hides the floater through disabledCampaigns (it has no ✕ of its own).
+            val disabled by disabledCampaigns.collectAsStateWithLifecycle()
+
+            if (floaterDetails != null && (!floaterDetails.image.isNullOrEmpty() || !floaterDetails.lottie_data.isNullOrEmpty()) && shouldShowFloater && campaign?.id !in disabled) {
                 LaunchedEffect(Unit) {
                     campaign?.id?.let {
                         trackEvents(it, "viewed")
@@ -1491,6 +1504,21 @@ object AppStorys {
                                 pipDetails.styling?.appearance?.pipWidth?.toIntOrNull()?.dp
                                     ?: pipDetails.width?.dp ?: 113.dp
 
+                            val hidePip: () -> Unit = {
+                                showPip = false
+                                campaign?.triggerEvent?.let { trigger ->
+                                    val eventName = when (trigger) {
+                                        is TriggerEvent.StringTrigger -> trigger.event
+                                        is TriggerEvent.ObjectTrigger -> trigger.event
+                                    }
+                                    _trackedEventNames.update { currentSet ->
+                                        currentSet.filterNot {
+                                            it.eventName == eventName
+                                        }.toSet()
+                                    }
+                                }
+                            }
+
                             PipVideo(
                                 videoUri = pipDetails.small_video,
                                 fullScreenVideoUri = if (!pipDetails.large_video.isNullOrEmpty()) {
@@ -1498,20 +1526,13 @@ object AppStorys {
                                 } else {
                                     null
                                 },
-                                onClose = {
-                                    showPip = false
-                                    campaign?.triggerEvent?.let { trigger ->
-                                        val eventName = when (trigger) {
-                                            is TriggerEvent.StringTrigger -> trigger.event
-                                            is TriggerEvent.ObjectTrigger -> trigger.event
-                                        }
-                                        _trackedEventNames.update { currentSet ->
-                                            currentSet.filterNot {
-                                                it.eventName == eventName
-                                            }.toSet()
-                                        }
-                                    }
+                                // ✕ on the small or large PIP
+                                onClose = { isSmallVideo ->
+                                    trackDismissed(campaign?.id, mapOf("is_small_video" to isSmallVideo))
+                                    hidePip()
                                 },
+                                // CTA whose redirect is Close: its "clicked" is sent by onButtonClick / onSmallVideoClick
+                                onCloseCta = hidePip,
                                 height = pipHeight,
                                 width = pipWidth,
                                 button_text = pipDetails.button_text.toString(),
@@ -1869,6 +1890,8 @@ object AppStorys {
                                         )
                                     }
                                 }
+                            } else if (it.second == "DIS") {
+                                trackDismissed(campaignId, mapOf("reel_id" to (it.first.id ?: "")))
                             } else {
                                 coroutineScope.launch {
                                     trackEvents(
@@ -1993,13 +2016,7 @@ object AppStorys {
                         exitIcon = (style?.crossButton?.enabled
                             ?: style?.enableCloseButton) != false,
                         exitUnit = {
-                            val ids: ArrayList<String> = ArrayList(disabledCampaigns.value)
-                            campaign.id?.let {
-                                ids.add(it)
-                                coroutineScope.launch {
-                                    this@AppStorys.disabledCampaigns.emit(ids.toList())
-                                }
-                            }
+                            campaign.id?.let { closeCampaign(it) }
                         },
                         shape = RoundedCornerShape(
                             topStart = style?.topLeftRadius?.toIntOrNull()?.dp ?: 0.dp,
@@ -2501,26 +2518,32 @@ object AppStorys {
                     }
                 }
 
-                BottomSheetComponent(
-                    onDismissRequest = {
-                        _showBottomSheet.update { false }
-                        campaign?.triggerEvent?.let { trigger ->
-                            val eventName = when (trigger) {
-                                is TriggerEvent.StringTrigger -> trigger.event
-                                is TriggerEvent.ObjectTrigger -> trigger.event
-                            }
-                            _trackedEventNames.update { currentSet ->
-                                currentSet.filterNot {
-                                    it.eventName == eventName
-                                }.toSet()
-                            }
+                val hideBottomSheet: () -> Unit = {
+                    _showBottomSheet.update { false }
+                    campaign?.triggerEvent?.let { trigger ->
+                        val eventName = when (trigger) {
+                            is TriggerEvent.StringTrigger -> trigger.event
+                            is TriggerEvent.ObjectTrigger -> trigger.event
                         }
+                        _trackedEventNames.update { currentSet ->
+                            currentSet.filterNot {
+                                it.eventName == eventName
+                            }.toSet()
+                        }
+                    }
+                }
+
+                BottomSheetComponent(
+                    // ✕, swipe-down or scrim tap
+                    onDismissRequest = {
+                        trackDismissed(campaign?.id)
+                        hideBottomSheet()
                     },
                     bottomSheetDetails = bottomSheetDetails,
                     onClick = { ctaLink ->
                         if (!ctaLink.isNullOrEmpty()) {
                             campaign?.id?.let { campaignId ->
-                                clickEvent(link = ctaLink, campaignId = campaignId)
+                                clickEvent(link = ctaLink, campaignId = campaignId, onClose = hideBottomSheet)
                                 trackEvents(campaignId, "clicked")
                             }
                         }
@@ -2533,7 +2556,7 @@ object AppStorys {
     @Composable
     fun Survey() {
         SdkErrorBoundary(campaignType = "SUR", screen = currentScreen) {
-            var showSurvey by remember { mutableStateOf(true) }
+            val showSurvey by _showSurvey.collectAsStateWithLifecycle()
 
             val campaignsData = campaigns.collectAsStateWithLifecycle()
 
@@ -2558,7 +2581,7 @@ object AppStorys {
             if (surveyDetails != null && showSurvey && shouldShowSurvey) {
                 SurveyBottomSheet(
                     onDismissRequest = {
-                        showSurvey = false
+                        _showSurvey.update { false }
                     },
                     surveyDetails = surveyDetails,
                     campaignId = campaign?.id,
@@ -2607,9 +2630,13 @@ object AppStorys {
                     }
                 }
 
+                val hideModal: () -> Unit = { _showModal.update { false } }
+
                 PopupModal(
+                    // ✕, backdrop tap or back press
                     onCloseClick = {
-                        _showModal.update { false }
+                        trackDismissed(campaign?.id)
+                        hideModal()
                     },
                     modalDetails = modalDetails,
                     onModalClick = {
@@ -2623,7 +2650,7 @@ object AppStorys {
 
                         campaign?.id?.let { campaignId ->
                             trackEvents(campaignId, "clicked")
-                            clickEvent(link = link, campaignId = campaignId)
+                            clickEvent(link = link, campaignId = campaignId, onClose = hideModal)
                         }
                     },
 
@@ -2632,13 +2659,13 @@ object AppStorys {
                         // primary CTA receives resolved URL string
                         campaign?.id?.let { campaignId ->
                             trackEvents(campaignId, "clicked")
-                            clickEvent(link = link, campaignId = campaignId)
+                            clickEvent(link = link, campaignId = campaignId, onClose = hideModal)
                         }
                     },
                     onSecondaryCta = { link ->
                         campaign?.id?.let { campaignId ->
                             trackEvents(campaignId, "clicked")
-                            clickEvent(link = link, campaignId = campaignId)
+                            clickEvent(link = link, campaignId = campaignId, onClose = hideModal)
                             _showModal.update { false }
                         }
                     },
@@ -2713,21 +2740,27 @@ object AppStorys {
 
                 val ctaUrl = scratchCardDetails.link ?: ""
 
+                val hideScratchCard: () -> Unit = {
+                    isPresented = false
+                    campaign?.triggerEvent?.let { trigger ->
+                        val eventName = when (trigger) {
+                            is TriggerEvent.StringTrigger -> trigger.event
+                            is TriggerEvent.ObjectTrigger -> trigger.event
+                        }
+                        _trackedEventNames.update { currentSet ->
+                            currentSet.filterNot {
+                                it.eventName == eventName
+                            }.toSet()
+                        }
+                    }
+                }
+
                 CardScratch(
                     isPresented = isPresented,
+                    // ✕
                     onDismiss = {
-                        isPresented = false
-                        campaign?.triggerEvent?.let { trigger ->
-                            val eventName = when (trigger) {
-                                is TriggerEvent.StringTrigger -> trigger.event
-                                is TriggerEvent.ObjectTrigger -> trigger.event
-                            }
-                            _trackedEventNames.update { currentSet ->
-                                currentSet.filterNot {
-                                    it.eventName == eventName
-                                }.toSet()
-                            }
-                        }
+                        trackDismissed(campaign?.id)
+                        hideScratchCard()
                     },
                     onConfettiTrigger = {
                         confettiTrigger++
@@ -2743,7 +2776,7 @@ object AppStorys {
                     },
                     onCtaClick = {
                         campaign?.id?.let {
-                            clickEvent(link = ctaUrl, campaignId = it)
+                            clickEvent(link = ctaUrl, campaignId = it, onClose = hideScratchCard)
                             trackEvents(it, "clicked")
                         }
                     }
@@ -2824,21 +2857,27 @@ object AppStorys {
                     val redirectUrl = spinTheWheelDetails.link ?: ""
                     val spinRuns by _spinRunByCampaign.collectAsStateWithLifecycle()
 
+                    val hideSpinWheel: () -> Unit = {
+                        _dismissedSpinWheels.update { it + campaignId }
+                        campaign?.triggerEvent?.let { trigger ->
+                            val eventName = when (trigger) {
+                                is TriggerEvent.StringTrigger -> trigger.event
+                                is TriggerEvent.ObjectTrigger -> trigger.event
+                            }
+                            _trackedEventNames.update { currentSet ->
+                                currentSet.filterNot {
+                                    it.eventName == eventName
+                                }.toSet()
+                            }
+                        }
+                    }
+
                     com.appversal.appstorys.ui.spinwheel.SpinTheWheel(
                         isPresented = isPresented,
+                        // ✕, backdrop tap or closing the reward
                         onDismiss = {
-                            _dismissedSpinWheels.update { it + campaignId }
-                            campaign?.triggerEvent?.let { trigger ->
-                                val eventName = when (trigger) {
-                                    is TriggerEvent.StringTrigger -> trigger.event
-                                    is TriggerEvent.ObjectTrigger -> trigger.event
-                                }
-                                _trackedEventNames.update { currentSet ->
-                                    currentSet.filterNot {
-                                        it.eventName == eventName
-                                    }.toSet()
-                                }
-                            }
+                            trackDismissed(campaignId)
+                            hideSpinWheel()
                         },
                         spinTheWheelDetails = spinTheWheelDetails,
                         spinsLeft = spinsLeft,
@@ -2874,7 +2913,7 @@ object AppStorys {
                         onCtaClick = { link ->
                             val targetLink = link?.takeIf { it.isNotEmpty() } ?: redirectUrl
                             if (targetLink.isNotEmpty()) {
-                                clickEvent(link = targetLink, campaignId = campaignId)
+                                clickEvent(link = targetLink, campaignId = campaignId, onClose = hideSpinWheel)
                                 trackEvents(campaignId, "clicked")
                             }
                         },
@@ -2966,11 +3005,7 @@ object AppStorys {
                             bottomPadding = bottomPadding,
                             onClose = {
                                 _showMilestone.update { false }
-                                val ids = ArrayList(disabledCampaigns.value)
-                                campaign.id?.let { ids.add(it) }
-                                coroutineScope.launch {
-                                    this@AppStorys.disabledCampaigns.emit(ids.toList())
-                                }
+                                campaign.id?.let { closeCampaign(it) }
                             },
                             onClick = {
 //                        campaign.id?.let { campaignId ->
@@ -2985,11 +3020,7 @@ object AppStorys {
                             bottomPadding = bottomPadding,
                             onClose = {
                                 _showMilestone.update { false }
-                                val ids = ArrayList(disabledCampaigns.value)
-                                campaign.id?.let { ids.add(it) }
-                                coroutineScope.launch {
-                                    this@AppStorys.disabledCampaigns.emit(ids.toList())
-                                }
+                                campaign.id?.let { closeCampaign(it) }
                             },
                             onClick = {
 //                        campaign.id?.let { campaignId ->
@@ -3162,14 +3193,14 @@ object AppStorys {
                         mapOf("tooltip_id" to tooltipId)
                     )
 
-                    if (tooltip.link.isNotEmpty()) {
-                        if (!isValidUrl(tooltip.link)) {
-                            navigateToScreen(tooltip.link)
-                        } else {
-                            openUrl(tooltip.link)
-                        }
-                    } else {
+                    if (isCloseLink(tooltip.link)) {
                         dismissTooltip()
+                    } else if (openCampaignLink(tooltip.link, ::dismissTooltip)) {
+                        // closed; the linked campaign opens
+                    } else if (!isValidUrl(tooltip.link)) {
+                        navigateToScreen(tooltip.link)
+                    } else {
+                        openUrl(tooltip.link)
                     }
                 } else {
                     dismissTooltip()
@@ -3178,6 +3209,7 @@ object AppStorys {
         }
     }
 
+    /** Tap outside the tooltip or back press closes the step without an event; the next step then shows. */
     internal fun dismissTooltip() {
         coroutineScope.launch {
             tooltipTargetView.emit(null)
@@ -3185,9 +3217,23 @@ object AppStorys {
         }
     }
 
-    private fun clickEvent(link: Any?, campaignId: String, widgetImageId: String? = null) {
+    /**
+     * Opens a campaign link. A Close link runs [onClose] instead, which only hides the campaign
+     * (the caller still sends "clicked"). The default hides it via [disabledCampaigns]; campaigns
+     * with their own visibility state pass theirs.
+     */
+    private fun clickEvent(
+        link: Any?,
+        campaignId: String,
+        widgetImageId: String? = null,
+        onClose: () -> Unit = { hideCampaign(campaignId) }
+    ) {
+        if (isCloseLink(link)) {
+            onClose()
+            return
+        }
 
-        viaAppStorys(event = "viaAppStorys${link}")
+        if (openCampaignLink(link, onClose)) return
 
         if (link != null && link is String) {
             if (link.isNotEmpty()) {
@@ -3238,6 +3284,48 @@ object AppStorys {
             delay(100)
         }
         return !(sdkState != AppStorysSdkState.Initialized || accessToken.isBlank())
+    }
+
+    /** Link the dashboard publishes when a CTA's "Redirect to" is set to Close, for any campaign type. */
+    internal const val CLOSE_LINK = "APPSTORYS-CLOSE"
+
+    internal fun isCloseLink(link: Any?): Boolean =
+        (link as? String)?.trim()?.removeSurrounding("\"")?.equals(CLOSE_LINK, ignoreCase = true) == true
+
+    /**
+     * A CTA whose link is the id of a campaign triggered "viaAppStorys" opens that campaign:
+     * the tapped campaign is closed by [onClose] first, then the trigger fires. Returns false
+     * for any other link, which the caller handles as before.
+     */
+    internal fun openCampaignLink(link: Any?, onClose: () -> Unit): Boolean {
+        val id = (link as? String)?.trim()?.removeSurrounding("\"")?.takeIf { it.isNotEmpty() }
+            ?: return false
+        val isTarget = campaigns.value.any {
+            it.id == id && (it.triggerEvent as? TriggerEvent.StringTrigger)?.event == "viaAppStorys"
+        }
+        if (!isTarget) return false
+        onClose()
+        viaAppStorys(event = "viaAppStorys$id")
+        return true
+    }
+
+    /**
+     * The user closed a campaign by its ✕ or by tapping outside it. A CTA whose redirect is
+     * Close is a click, not a dismiss: it sends "clicked" and only hides the campaign.
+     */
+    internal fun trackDismissed(campaignId: String?, metadata: Map<String, Any>? = null) {
+        campaignId?.let { trackEvents(it, "dismissed", metadata) }
+    }
+
+    /** Hides a campaign gated on [disabledCampaigns] (banner, widgets, floater) until the next screen entry. */
+    private fun hideCampaign(campaignId: String) {
+        disabledCampaigns.update { it + campaignId }
+    }
+
+    /** ✕ on a campaign gated on [disabledCampaigns]. */
+    private fun closeCampaign(campaignId: String) {
+        trackDismissed(campaignId)
+        hideCampaign(campaignId)
     }
 
     internal fun isValidUrl(url: String?): Boolean {

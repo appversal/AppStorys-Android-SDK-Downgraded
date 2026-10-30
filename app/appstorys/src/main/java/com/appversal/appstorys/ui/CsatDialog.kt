@@ -300,7 +300,10 @@ internal fun CsatDialog(
                     size = crossButton?.size ?: 16,
                     imageUrl = crossButton?.image
                 ),
-                onClose = onDismiss
+                onClose = {
+                    com.appversal.appstorys.AppStorys.trackDismissed(csatDetails.campaign)
+                    onDismiss()
+                }
             )
         }
     }
@@ -932,6 +935,15 @@ private fun ThankYouContent(
             onClick = {
                 if (csatDetails.link.isNullOrEmpty() || selectedStars < 4) {
                     onDone()
+                } else if (com.appversal.appstorys.AppStorys.isCloseLink(csatDetails.link)) {
+                    trackEvents(csatDetails.campaign, "clicked")
+                    onDone()
+                } else if (com.appversal.appstorys.AppStorys.openCampaignLink(csatDetails.link, onDone)) {
+                    trackEvents(csatDetails.campaign, "clicked")
+                } else if (!com.appversal.appstorys.AppStorys.isValidUrl(csatDetails.link)) {
+                    trackEvents(csatDetails.campaign, "clicked")
+                    onDone()
+                    com.appversal.appstorys.AppStorys.navigateToScreen(csatDetails.link)
                 } else {
                     try {
                         trackEvents(csatDetails.campaign, "clicked")

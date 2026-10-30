@@ -283,7 +283,15 @@ internal fun FullScreenVideoScreen(
                                 Button(
                                     onClick = {
                                         sendEvents(Pair(reels[page], "CLK"))
-                                        try {
+                                        // Close CTA: a click that closes the reels
+                                        if (com.appversal.appstorys.AppStorys.isCloseLink(reels[page].link)) {
+                                            onBack()
+                                        } else if (com.appversal.appstorys.AppStorys.openCampaignLink(reels[page].link, onBack)) {
+                                            // closed; the linked campaign opens
+                                        } else if (!com.appversal.appstorys.AppStorys.isValidUrl(reels[page].link)) {
+                                            onBack()
+                                            com.appversal.appstorys.AppStorys.navigateToScreen(reels[page].link!!)
+                                        } else try {
                                             val uri = Uri.parse(reels[page].link)
                                             val intent = Intent(
                                                 Intent.ACTION_VIEW,
@@ -334,7 +342,11 @@ internal fun FullScreenVideoScreen(
                 .align(Alignment.TopStart)
                 .padding(12.dp),
             config = arrowButtonConfig,
-            onBack = onBack
+            onBack = {
+                // Closing the reels is a dismiss ("DIS" → "dismissed")
+                reels.getOrNull(pagerState.currentPage)?.let { sendEvents(Pair(it, "DIS")) }
+                onBack()
+            }
         )
 
         /* OLD IMPLEMENTATION: Inline arrow button (commented out)
