@@ -798,6 +798,10 @@ private fun SurveyThankYouContent(
                     // Dashboard sends action "close" for Close and "redirect" for a URL; any other
                     // action (e.g. a page pick) still carries its target in redirectUrl.
                     if (!redirectUrl.isNullOrEmpty() && buttonConfig?.action?.equals("close", ignoreCase = true) != true) {
+                        if (com.appversal.appstorys.AppStorys.openCampaignLink(redirectUrl, onDismiss)) {
+                            // closed; the linked campaign opens
+                            return@CTAButton
+                        }
                         if (com.appversal.appstorys.AppStorys.isValidUrl(redirectUrl)) {
                             try {
                                 context.startActivity(Intent(Intent.ACTION_VIEW, redirectUrl.toUri()))
