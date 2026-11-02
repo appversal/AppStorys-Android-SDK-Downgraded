@@ -212,7 +212,7 @@ internal fun PipVideo(
                                             AppStorys.isCloseLink(link) -> onCloseCta()
                                             AppStorys.openCampaignLink(link, onCloseCta) -> Unit
                                             AppStorys.isValidUrl(link) -> AppStorys.openUrl(link)
-                                            else -> AppStorys.navigateToScreen(link)
+                                            else -> AppStorys.handleDeepLink(link)
                                         }
                                     }
                                 }
@@ -658,7 +658,7 @@ fun FullScreenVideoDialog(
                                     // Link to a viaAppStorys campaign: close the PIP, then open it
                                     AppStorys.openCampaignLink(link) { onHide(onCloseCta) } -> Unit
                                     AppStorys.isValidUrl(link) -> AppStorys.openUrl(link)
-                                    else -> AppStorys.navigateToScreen(link)
+                                    else -> AppStorys.handleDeepLink(link)
                                 }
                             }
                         )

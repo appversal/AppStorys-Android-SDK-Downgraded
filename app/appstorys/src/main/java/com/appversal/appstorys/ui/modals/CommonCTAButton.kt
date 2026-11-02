@@ -1,5 +1,7 @@
 package com.appversal.appstorys.ui.modals
 
+import com.appversal.appstorys.AppStorys
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -358,8 +360,7 @@ fun ModalCtaList(
             createModalCTAButtonConfig(
                 text = it.text!!,
                 styling = it.styling,
-                redirectionUrl = it.redirection?.url?.ifBlank { null }
-                    ?: it.redirection?.value?.ifBlank { null }
+                redirectionUrl = AppStorys.buildRedirectLink(it.redirection)
             )
         }
     if (configs.isEmpty()) return false

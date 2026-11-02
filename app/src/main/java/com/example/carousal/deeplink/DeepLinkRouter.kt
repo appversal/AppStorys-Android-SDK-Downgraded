@@ -6,17 +6,21 @@ import android.util.Log
 import android.widget.Toast
 import androidx.navigation.NavController
 
-/** One request to open a link, from wherever it came: "intent" (adb, browser, other apps) or "sdk" (a campaign CTA). */
-data class LinkRequest(val raw: String, val source: String)
+/**
+ * One request to open a link, from wherever it came: "intent" (adb, browser, other apps) or
+ * "sdk" (a campaign CTA). [params] is set only for a key-value redirect, whose key is [raw].
+ */
+data class LinkRequest(val raw: String, val source: String, val params: Map<String, Any?>? = null)
 
 /** The only place that turns a link into navigation, so every source behaves the same. */
 object DeepLinkRouter {
     private const val TAG = "DeepLinkTest"
 
     fun open(nav: NavController, context: Context, request: LinkRequest, isLoggedIn: Boolean) {
-        val destination = DeepLinkParser.parse(request.raw)
+        val destination = request.params?.let { DeepLinkParser.parseKeyValue(request.raw, it) }
+            ?: DeepLinkParser.parse(request.raw).takeIf { request.params == null }
         // Quoted so stray whitespace or quotes the SDK passed along are visible in logcat.
-        val shown = "'${request.raw}'"
+        val shown = "'${request.raw}'" + (request.params?.let { " $it" } ?: "")
         if (destination == null) {
             Log.w(TAG, "[${request.source}] unhandled: $shown")
             Toast.makeText(context, "Unhandled link: $shown", Toast.LENGTH_SHORT).show()

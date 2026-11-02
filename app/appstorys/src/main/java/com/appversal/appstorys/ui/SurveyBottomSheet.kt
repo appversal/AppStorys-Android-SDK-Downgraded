@@ -809,7 +809,7 @@ private fun SurveyThankYouContent(
                             }
                         } else {
                             // Page name / deep link → host app (a Close link is filtered out there)
-                            com.appversal.appstorys.AppStorys.navigateToScreen(redirectUrl)
+                            com.appversal.appstorys.AppStorys.handleDeepLink(redirectUrl)
                         }
                     }
                     onDismiss()

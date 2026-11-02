@@ -943,7 +943,7 @@ private fun ThankYouContent(
                 } else if (!com.appversal.appstorys.AppStorys.isValidUrl(csatDetails.link)) {
                     trackEvents(csatDetails.campaign, "clicked")
                     onDone()
-                    com.appversal.appstorys.AppStorys.navigateToScreen(csatDetails.link)
+                    com.appversal.appstorys.AppStorys.handleDeepLink(csatDetails.link)
                 } else {
                     try {
                         trackEvents(csatDetails.campaign, "clicked")

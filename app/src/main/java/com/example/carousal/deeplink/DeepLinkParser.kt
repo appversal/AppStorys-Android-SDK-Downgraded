@@ -73,6 +73,14 @@ object DeepLinkParser {
 
         return fromPath(uri.path.orEmpty(), queryOf(uri.rawQuery))
     }
+
+    /**
+     * A key-value redirect: the key names the screen, the params are its arguments
+     * (`product` + {"id": "4"}, `offers` + {"code": "DIWALI50"}). Same rule as the Flutter demo.
+     */
+    fun parseKeyValue(key: String, params: Map<String, Any?>): Destination? =
+        fromPath("/$key/${params["id"] ?: ""}", params.mapValues { "${it.value}" })
+
     private fun fromPath(path: String, query: Map<String, String>): Destination? {
         val segments = path.split('/').filter { it.isNotEmpty() }
         return when (segments.firstOrNull()?.lowercase()) {

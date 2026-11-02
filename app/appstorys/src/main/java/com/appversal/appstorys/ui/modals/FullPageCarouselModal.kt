@@ -1,5 +1,7 @@
 package com.appversal.appstorys.ui.modals
 
+import com.appversal.appstorys.AppStorys
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -238,7 +240,7 @@ internal fun FullPageCarouselModal(
 
                         // Create CTA configs using the common helper with fallback-resolved text
                         val primaryConfig = if (!primaryText.isNullOrEmpty()) {
-                            val link = slide.primaryCtaRedirection?.url ?: slide.primaryCtaRedirection?.value
+                            val link = AppStorys.buildRedirectLink(slide.primaryCtaRedirection)
                             createModalCTAButtonConfig(
                                 text = primaryText,
                                 styling = primaryStyling,
@@ -250,7 +252,7 @@ internal fun FullPageCarouselModal(
                         } else null
 
                         val secondaryConfig = if (!secondaryText.isNullOrEmpty()) {
-                            val link = slide.secondaryCtaRedirection?.url ?: slide.secondaryCtaRedirection?.value
+                            val link = AppStorys.buildRedirectLink(slide.secondaryCtaRedirection)
                             createModalCTAButtonConfig(
                                 text = secondaryText,
                                 styling = secondaryStyling,

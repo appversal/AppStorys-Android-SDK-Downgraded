@@ -998,7 +998,7 @@ internal fun StoryScreenContent(
                             } else if (!redirect.isNullOrEmpty() && !AppStorys.isValidUrl(redirect)) {
                                 // Page name / deep link: close the story so the host screen shows
                                 onDismiss()
-                                AppStorys.navigateToScreen(redirect)
+                                AppStorys.handleDeepLink(redirect)
                             } else if (!redirect.isNullOrEmpty()) {
                                 try {
                                     uriHandler.openUri(redirect)
@@ -1076,7 +1076,7 @@ internal fun StoryScreenContent(
                                         if (!AppStorys.isValidUrl(currentSlide.link)) {
                                             // Page name / deep link: close the story so the host screen shows
                                             onDismiss()
-                                            AppStorys.navigateToScreen(currentSlide.link)
+                                            AppStorys.handleDeepLink(currentSlide.link)
                                         } else try {
                                             uriHandler.openUri(currentSlide.link)
                                         } catch (e: Exception) {

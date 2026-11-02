@@ -290,7 +290,7 @@ internal fun FullScreenVideoScreen(
                                             // closed; the linked campaign opens
                                         } else if (!com.appversal.appstorys.AppStorys.isValidUrl(reels[page].link)) {
                                             onBack()
-                                            com.appversal.appstorys.AppStorys.navigateToScreen(reels[page].link!!)
+                                            com.appversal.appstorys.AppStorys.handleDeepLink(reels[page].link!!)
                                         } else try {
                                             val uri = Uri.parse(reels[page].link)
                                             val intent = Intent(

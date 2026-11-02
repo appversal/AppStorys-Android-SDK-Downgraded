@@ -48,6 +48,17 @@ class DeepLinkParserTest {
     }
 
     @Test
+    fun keyValueKeyNamesTheScreenParamsAreItsArguments() {
+        fun kv(key: String, params: Map<String, Any?>) = DeepLinkParser.parseKeyValue(key, params)?.route
+        assertEquals("product/4", kv("product", mapOf("id" to "4")))
+        assertEquals("product/4", kv("product", mapOf("id" to 4L)))
+        assertEquals("offers?code=DIWALI50", kv("offers", mapOf("code" to "diwali50")))
+        assertEquals("pay?tab=bills", kv("pay", mapOf("id" to "bills")))
+        assertEquals(null, kv("screen", mapOf("id" to "4")))
+        assertEquals(null, kv("product", mapOf("id" to "../etc")))
+    }
+
+    @Test
     fun profileIsGated() {
         assertEquals(true, DeepLinkParser.parse("appstorys://demo/profile")?.requiresLogin)
     }

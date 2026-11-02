@@ -82,6 +82,7 @@ import com.appversal.appstorys.api.CsatFeedbackPostRequest
 import com.appversal.appstorys.api.FloaterDetails
 import com.appversal.appstorys.api.MilestoneDetails
 import com.appversal.appstorys.api.ModalDetails
+import com.appversal.appstorys.api.ModalRedirection
 import com.appversal.appstorys.api.PipDetails
 import com.appversal.appstorys.api.ReconcileUserRequest
 import com.appversal.appstorys.api.ReelStatusRequest
@@ -153,6 +154,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import androidx.core.content.edit
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
@@ -193,7 +198,7 @@ object AppStorys {
     private const val PREFS_PENDING_RECONCILE_ANON = "appstorys_pending_reconcile_anonymous"
     private const val PREFS_PENDING_RECONCILE_IDENTIFIED = "appstorys_pending_reconcile_identified"
 
-    internal lateinit var navigateToScreen: (String) -> Unit
+    private var navigateToScreen: ((route: String, params: Map<String, Any?>?) -> Unit)? = null
 
     private val apiService = RetrofitClient.apiService
 
@@ -379,11 +384,15 @@ object AppStorys {
 //        userId: String = "",
 //        navigateToScreen: (String) -> Unit
 //    ) {
+    /**
+     * @param navigateToScreen receives every in-app link a campaign opens, like the Flutter SDK's
+     * onNavigate: a key-value redirect as (key, params), a page name or deep link as (link, null).
+     */
     fun initialize(
         context: Application,
         apiKey: String,
         userId: String = "",
-        navigateToScreen: (String) -> Unit
+        navigateToScreen: ((route: String, params: Map<String, Any?>?) -> Unit)? = null
     ) {
         if (::context.isInitialized) {
             Log.w("AppStorys", "SDK is already initialized")
@@ -393,10 +402,7 @@ object AppStorys {
         this.context = context
 //        this.appId = appId
 //        this.accountId = accountId
-        // The Close sentinel is never a screen name; keep it out of the host's navigation.
-        this.navigateToScreen = { screen ->
-            if (!isCloseLink(screen)) navigateToScreen(screen)
-        }
+        this.navigateToScreen = navigateToScreen
 
         if (userId.isNotEmpty()) {
             // User provided an ID
@@ -2050,14 +2056,9 @@ object AppStorys {
                             )
                         },
                         onClick = {
-                            if (bannerDetails.link.toString().trim().removeSurrounding("\"")
-                                    .isNotEmpty()
-                            ) {
+                            if (bannerDetails.link.linkText().isNotEmpty()) {
                                 campaign.id?.let {
-                                    clickEvent(
-                                        link = bannerDetails.link.toString().trim()
-                                            .removeSurrounding("\""), campaignId = it
-                                    )
+                                    clickEvent(link = bannerDetails.link.linkText(), campaignId = it)
                                     trackEvents(it, "clicked")
                                 }
                             }
@@ -2261,12 +2262,9 @@ object AppStorys {
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null,
                                 ) {
-                                    if (sortedWidgetImages[index].link.toString().trim()
-                                            .removeSurrounding("\"").isNotEmpty()
-                                    ) {
+                                    if (sortedWidgetImages[index].link.linkText().isNotEmpty()) {
                                         clickEvent(
-                                            link = sortedWidgetImages[index].link.toString().trim()
-                                                .removeSurrounding("\""),
+                                            link = sortedWidgetImages[index].link.linkText(),
                                             campaignId = campaign.id,
                                             widgetImageId = sortedWidgetImages[index].id
                                         )
@@ -2418,12 +2416,9 @@ object AppStorys {
                                             interactionSource = remember { MutableInteractionSource() },
                                             indication = null,
                                         ) {
-                                            if (leftImage.link.toString().trim()
-                                                    .removeSurrounding("\"").isNotEmpty()
-                                            ) {
+                                            if (leftImage.link.linkText().isNotEmpty()) {
                                                 clickEvent(
-                                                    link = leftImage.link.toString().trim()
-                                                        .removeSurrounding("\""),
+                                                    link = leftImage.link.linkText(),
                                                     campaignId = campaign.id,
                                                     widgetImageId = leftImage.id
                                                 )
@@ -2452,12 +2447,9 @@ object AppStorys {
                                             interactionSource = remember { MutableInteractionSource() },
                                             indication = null,
                                         ) {
-                                            if (rightImage.link.toString().trim()
-                                                    .removeSurrounding("\"").isNotEmpty()
-                                            ) {
+                                            if (rightImage.link.linkText().isNotEmpty()) {
                                                 clickEvent(
-                                                    link = rightImage.link.toString().trim()
-                                                        .removeSurrounding("\""),
+                                                    link = rightImage.link.linkText(),
                                                     campaignId = campaign.id,
                                                     widgetImageId = rightImage.id
                                                 )
@@ -2642,11 +2634,8 @@ object AppStorys {
                     onModalClick = {
                         val modal = modalDetails.modals?.getOrNull(0)
 
-                        val link =
-                            modal?.content?.primaryCtaRedirection?.url
-                                ?: modal?.content?.primaryCtaRedirection?.value
-                                ?: modal?.redirection?.url
-                                ?: modal?.redirection?.value
+                        val link = buildRedirectLink(modal?.content?.primaryCtaRedirection)
+                            ?: buildRedirectLink(modal?.redirection)
 
                         campaign?.id?.let { campaignId ->
                             trackEvents(campaignId, "clicked")
@@ -3198,7 +3187,7 @@ object AppStorys {
                     } else if (openCampaignLink(tooltip.link, ::dismissTooltip)) {
                         // closed; the linked campaign opens
                     } else if (!isValidUrl(tooltip.link)) {
-                        navigateToScreen(tooltip.link)
+                        handleDeepLink(tooltip.link)
                     } else {
                         openUrl(tooltip.link)
                     }
@@ -3235,35 +3224,60 @@ object AppStorys {
 
         if (openCampaignLink(link, onClose)) return
 
-        if (link != null && link is String) {
-            if (link.isNotEmpty()) {
-                if (!isValidUrl(link)) {
-                    navigateToScreen(link)
-                } else {
-                    openUrl(link)
-                }
+        if (link is String && link.isNotEmpty()) {
+            if (!isValidUrl(link)) {
+                handleDeepLink(link)
+            } else {
+                openUrl(link)
             }
-        } else if (link is Map<*, *>) {
-            val json = JSONObject(link)
-            handleDeepLink(json, campaignId, widgetImageId)
-        } else if (link is JSONObject) {
-            handleDeepLink(link, campaignId, widgetImageId)
         }
     }
 
-    private fun handleDeepLink(json: JSONObject, campaignId: String, widgetImageId: String?) {
-        try {
-            val value = json.optString("value", null)
-            val type = json.optString("type", null)
-            val context = json.optJSONObject("context")?.toMap()
-
-            if (value != null) {
-                navigateToScreen(value)
+    /**
+     * Every in-app link a campaign opens ends here, like the Flutter SDK's handleNavigation:
+     * a key-value redirect ("key:{json}") reaches the host as navigateToScreen(key, params), a page
+     * name or deep link as navigateToScreen(link, null). The Close sentinel is never a screen name.
+     */
+    internal fun handleDeepLink(link: String) {
+        if (link.isEmpty() || isCloseLink(link)) return
+        val colon = link.indexOf(':')
+        if (colon > 0) {
+            val params = runCatching { JSONObject(link.substring(colon + 1).trim()).toMap() }.getOrNull()
+            if (params != null) {
+                navigateToScreen?.invoke(link.substring(0, colon).trim(), params)
+                return
             }
-
-        } catch (e: Exception) {
-            Log.e("DeepLinkException", e.message.toString())
         }
+        navigateToScreen?.invoke(link, null)
+    }
+
+    /**
+     * The link a modal redirect opens, like the Flutter SDK's buildRedirectLink: Close, a key-value
+     * pair as "key:{json}", else the url / value / page name. Blank fields count as missing
+     * (the dashboard publishes `url: ""` for non-URL redirects).
+     */
+    internal fun buildRedirectLink(redirection: ModalRedirection?): String? {
+        redirection ?: return null
+        val type = redirection.type?.lowercase()
+        return when {
+            type == "close" || redirection.url.equals(CLOSE_LINK, ignoreCase = true) -> CLOSE_LINK
+            type == "key-value" || type == "keyvalue" || type == "key_value" ->
+                redirection.key?.takeIf { it.isNotBlank() }?.let { key ->
+                    val value = redirection.value.orEmpty().trim()
+                    if (value.startsWith("{")) "$key:$value"
+                    else "$key:${JsonObject(mapOf(key to JsonPrimitive(value)))}"
+                }
+            else -> redirection.url?.takeIf { it.isNotBlank() }
+                ?: redirection.value?.takeIf { it.isNotBlank() }
+                ?: redirection.pageName?.takeIf { it.isNotBlank() }
+        }
+    }
+
+    /** A link stored as raw JSON (banner, widgets): `toString()` would escape its quotes and print a missing link as "null". */
+    private fun JsonElement?.linkText(): String = when (this) {
+        null, is JsonNull -> ""
+        is JsonPrimitive -> content.trim()
+        else -> toString()
     }
 
     private fun List<WidgetImage>.turnToPair(): List<Pair<WidgetImage, WidgetImage>> {

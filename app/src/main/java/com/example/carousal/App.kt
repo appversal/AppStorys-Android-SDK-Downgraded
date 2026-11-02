@@ -24,8 +24,8 @@ class App : Application() {
 
     val isLoggedIn = MutableStateFlow(false)
 
-    fun openLink(raw: String, source: String) {
-        links.trySend(LinkRequest(raw, source))
+    fun openLink(raw: String, source: String, params: Map<String, Any?>? = null) {
+        links.trySend(LinkRequest(raw, source, params))
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
@@ -46,7 +46,7 @@ class App : Application() {
             userId = userId,
 //            userId = "anirudhsuserid",
 //            userId = "001e756sdf27948b",
-            navigateToScreen = { link -> openLink(link, source = "sdk") }
+            navigateToScreen = { route, params -> openLink(route, source = "sdk", params = params) }
         )
 
         // NOTIFICATIONS DISABLED: uncomment to re-enable push notifications.
