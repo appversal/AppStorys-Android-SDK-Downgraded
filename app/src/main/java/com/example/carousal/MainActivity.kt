@@ -3,9 +3,23 @@
 package com.example.carousal
 
 import android.app.Activity
+import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
+import androidx.navigation.NavType
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import com.example.carousal.deeplink.DeepLinkRouter
+import com.example.carousal.deeplink.LoginScreen
+import com.example.carousal.deeplink.OffersScreen
+import com.example.carousal.deeplink.PayTab
+import com.example.carousal.deeplink.ProductScreen
+import com.example.carousal.deeplink.ProfileScreen
+import com.example.carousal.deeplink.Routes
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
@@ -83,6 +97,9 @@ import android.os.Build
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Only a fresh launch carries a new link. After rotation or process death the
+        // NavHost restores its own back stack, and re-handling would open the link twice.
+        if (savedInstanceState == null) handleIntent(intent)
         setContent {
             CarousalTheme {
                 Box {
@@ -91,45 +108,44 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    // launchMode="singleTask": a link that arrives while the app is open lands here,
+    // not in onCreate of a second MainActivity.
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIntent(intent)
+    }
+
+    private fun handleIntent(intent: Intent?) {
+        if (intent?.action != Intent.ACTION_VIEW) return
+        // Reopening from Recents replays the intent that first started the task.
+        if (intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0) return
+        val link = intent.dataString ?: return
+        (application as App).openLink(link, source = "intent")
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MyApp() {
     val context = LocalContext.current
-    val campaignManager = App.appStorys
     val app = LocalContext.current.applicationContext as App
-    val screenName by app.screenNameNavigation.collectAsState()
-    var currentScreen by remember { mutableStateOf("HomeScreen") }
+    val navController = rememberNavController()
 
     // RequestNotificationPermission()   // NOTIFICATIONS DISABLED
 
-    var selectedTab by remember { mutableStateOf(0) } // Track selected tab index
-
-    var confettiTrigger by remember { mutableStateOf(0) }
-    var wasFullyScratched by remember { mutableStateOf(false) }
     var isPresented by remember { mutableStateOf(false) }
 
-    LaunchedEffect(screenName) {
-        if (screenName.isNotEmpty()) {
-            when (screenName) {
-                "PayScreen" -> {
-                    selectedTab = 1 // Set to PayScreen tab
-                    currentScreen = "HomeScreen" // Keep normal navigation
-                }
-
-                "HomeScreen" -> {
-                    selectedTab = 0
-                    currentScreen = "HomeScreen"
-                }
-
-                else -> {
-                    currentScreen = screenName // For other screens
-                }
-            }
-            app.resetNavigation()
+    // The single consumer of every link: CTAs from the SDK, adb, the browser, other apps.
+    LaunchedEffect(navController) {
+        app.pendingLinks.collect { request ->
+            DeepLinkRouter.open(navController, context, request, app.isLoggedIn.value)
         }
     }
+
+    val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
+    val selectedTab = if (currentRoute == Routes.PAY) 1 else 0
 
     var edgeToEdgePadding by remember { mutableStateOf(PaddingValues()) }
 
@@ -167,23 +183,67 @@ fun MyApp() {
 
 
             bottomBar = {
-                BottomNavigationBar(selectedTab) { newIndex -> selectedTab = newIndex }
+                BottomNavigationBar(selectedTab) { newIndex ->
+                    navController.navigate(if (newIndex == 0) Routes.HOME else "pay?tab=cashbook") {
+                        popUpTo(Routes.HOME)
+                        launchSingleTop = true
+                    }
+                }
             }
         ) { innerPadding ->
             edgeToEdgePadding = innerPadding
-//            if (currentScreen == "PayScreen") {
-//                PayScreen(innerPadding)
-//            } else {
-            when (selectedTab) {
-                0 -> HomeScreen(
-                    innerPadding,
-                    isPresented = isPresented,
-                    onIsPresentedChange = { isPresented = it }
-                )
-
-                1 -> PayScreen(innerPadding)
+            NavHost(navController = navController, startDestination = Routes.HOME) {
+                composable(Routes.HOME) {
+                    HomeScreen(
+                        innerPadding,
+                        isPresented = isPresented,
+                        onIsPresentedChange = { isPresented = it }
+                    )
+                }
+                composable(
+                    Routes.PAY,
+                    arguments = listOf(navArgument("tab") { defaultValue = PayTab.CASHBOOK.slug })
+                ) { entry ->
+                    val tab = PayTab.fromSlug(entry.arguments?.getString("tab")) ?: PayTab.CASHBOOK
+                    PayScreen(innerPadding, initialPage = tab.page)
+                }
+                composable(Routes.PRODUCT) { entry ->
+                    ProductScreen(innerPadding, entry.arguments?.getString("productId").orEmpty())
+                }
+                composable(
+                    Routes.OFFERS,
+                    arguments = listOf(navArgument("code") {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    })
+                ) { entry ->
+                    OffersScreen(innerPadding, entry.arguments?.getString("code"))
+                }
+                composable(Routes.PROFILE) {
+                    ProfileScreen(innerPadding, onLogout = {
+                        app.isLoggedIn.value = false
+                        navController.popBackStack()
+                    })
+                }
+                composable(
+                    Routes.LOGIN,
+                    arguments = listOf(navArgument("next") {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    })
+                ) { entry ->
+                    val next = entry.arguments?.getString("next")
+                    LoginScreen(innerPadding, next) {
+                        app.isLoggedIn.value = true
+                        // Swap login for the screen the link asked for, so Back skips login.
+                        navController.navigate(next ?: Routes.HOME) {
+                            popUpTo(Routes.LOGIN) { inclusive = true }
+                        }
+                    }
+                }
             }
-//            }
         }
 
         App.appStorys.overlayElements(
@@ -625,8 +685,10 @@ fun HomeScreen(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun PayScreen(padding: PaddingValues) {
-    val pagerState = rememberPagerState(pageCount = { 3 })
+fun PayScreen(padding: PaddingValues, initialPage: Int = 0) {
+    val pagerState = rememberPagerState(initialPage = initialPage, pageCount = { 3 })
+    // A second link to another Pay tab reuses this screen (launchSingleTop), so move the pager.
+    LaunchedEffect(initialPage) { pagerState.scrollToPage(initialPage) }
     val coroutineScope = rememberCoroutineScope()
 
     Box(
