@@ -1,12 +1,10 @@
 package com.appversal.appstorys.ui
 
 import com.appversal.appstorys.utils.SdkErrorTracker
-import android.content.Intent
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.togetherWith
-import androidx.core.net.toUri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -609,7 +607,6 @@ private fun SurveyThankYouContent(
     onDismiss: () -> Unit,
     onThankYouCtaClicked: () -> Unit,
 ) {
-    val context = LocalContext.current
     val thankyouPage = surveyDetails.styling?.thankyouPage
 
 
@@ -797,22 +794,13 @@ private fun SurveyThankYouContent(
                     // CTA here only handles optional redirect + dismissal.
                     // Dashboard sends action "close" for Close and "redirect" for a URL; any other
                     // action (e.g. a page pick) still carries its target in redirectUrl.
-                    if (!redirectUrl.isNullOrEmpty() && buttonConfig?.action?.equals("close", ignoreCase = true) != true) {
-                        if (com.appversal.appstorys.AppStorys.openCampaignLink(redirectUrl, onDismiss)) {
-                            // closed; the linked campaign opens
-                            return@CTAButton
-                        }
-                        if (com.appversal.appstorys.AppStorys.isValidUrl(redirectUrl)) {
-                            try {
-                                context.startActivity(Intent(Intent.ACTION_VIEW, redirectUrl.toUri()))
-                            } catch (_: Exception) {
-                            }
-                        } else {
-                            // Page name / deep link → host app (a Close link is filtered out there)
-                            com.appversal.appstorys.AppStorys.handleDeepLink(redirectUrl)
-                        }
-                    }
-                    onDismiss()
+                    val redirects = !redirectUrl.isNullOrEmpty() &&
+                        buttonConfig?.action?.equals("close", ignoreCase = true) != true
+                    // Close and a linked campaign dismiss the survey inside handleNavigation;
+                    // after a URL or page name it is dismissed here, as before.
+                    val dismissed = redirects &&
+                        com.appversal.appstorys.AppStorys.handleNavigation(redirectUrl, onClose = onDismiss)
+                    if (!dismissed) onDismiss()
                 }
             )
         }

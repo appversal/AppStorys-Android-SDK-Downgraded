@@ -2,10 +2,8 @@ package com.appversal.appstorys.ui.reels
 
 import android.content.Intent
 import android.content.SharedPreferences
-import android.net.Uri
 import android.view.ViewGroup
 import android.widget.FrameLayout
-import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -283,28 +281,12 @@ internal fun FullScreenVideoScreen(
                                 Button(
                                     onClick = {
                                         sendEvents(Pair(reels[page], "CLK"))
-                                        // Close CTA: a click that closes the reels
-                                        if (com.appversal.appstorys.AppStorys.isCloseLink(reels[page].link)) {
-                                            onBack()
-                                        } else if (com.appversal.appstorys.AppStorys.openCampaignLink(reels[page].link, onBack)) {
-                                            // closed; the linked campaign opens
-                                        } else if (!com.appversal.appstorys.AppStorys.isValidUrl(reels[page].link)) {
-                                            onBack()
-                                            com.appversal.appstorys.AppStorys.handleDeepLink(reels[page].link!!)
-                                        } else try {
-                                            val uri = Uri.parse(reels[page].link)
-                                            val intent = Intent(
-                                                Intent.ACTION_VIEW,
-                                                uri
-                                            )
-                                            context.startActivity(intent)
-                                        } catch (e: Exception) {
-                                            Toast.makeText(
-                                                context,
-                                                "Could not open link",
-                                                Toast.LENGTH_SHORT
-                                            ).show()
-                                        }
+                                        // Close and a page name / deep link close the reels first
+                                        com.appversal.appstorys.AppStorys.handleNavigation(
+                                            reels[page].link,
+                                            onClose = onBack,
+                                            closeBeforeInAppLink = true
+                                        )
                                     },
                                     shape = RoundedCornerShape(12.dp),
                                     colors = ButtonDefaults.buttonColors(

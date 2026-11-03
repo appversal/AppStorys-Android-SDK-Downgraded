@@ -66,7 +66,6 @@ import androidx.compose.ui.input.pointer.changedToUp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -373,7 +372,6 @@ internal fun StoryScreenContent(
     sendClickEvent: (Pair<StorySlide, String>) -> Unit,
     campaignId: String
 ) {
-    val uriHandler = LocalUriHandler.current
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -991,21 +989,8 @@ internal fun StoryScreenContent(
                         onCtaClick = { redirect ->
                             sendEvent(Pair(currentSlide, "CLK"))
                             sendClickEvent(Pair(currentSlide, "clicked"))
-                            if (AppStorys.isCloseLink(redirect)) {
-                                onDismiss()
-                            } else if (AppStorys.openCampaignLink(redirect, onDismiss)) {
-                                // closed; the linked campaign opens
-                            } else if (!redirect.isNullOrEmpty() && !AppStorys.isValidUrl(redirect)) {
-                                // Page name / deep link: close the story so the host screen shows
-                                onDismiss()
-                                AppStorys.handleDeepLink(redirect)
-                            } else if (!redirect.isNullOrEmpty()) {
-                                try {
-                                    uriHandler.openUri(redirect)
-                                } catch (e: Exception) {
-                                    Log.e("StoryScreen", "Failed to open CTA link: ${e.message}")
-                                }
-                            }
+                            // A page name / deep link closes the story first, so the host screen shows
+                            AppStorys.handleNavigation(redirect, onClose = onDismiss, closeBeforeInAppLink = true)
                         },
                         muted = isMuted,
                         // Seconds into the slide, from the same progress the bar shows —
@@ -1070,19 +1055,8 @@ internal fun StoryScreenContent(
                                 onClick = {
                                     sendEvent(Pair(currentSlide, "CLK"))
                                     sendClickEvent(Pair(currentSlide, "clicked"))
-                                    if (AppStorys.isCloseLink(currentSlide.link)) {
-                                        onDismiss()
-                                    } else if (!AppStorys.openCampaignLink(currentSlide.link, onDismiss)) {
-                                        if (!AppStorys.isValidUrl(currentSlide.link)) {
-                                            // Page name / deep link: close the story so the host screen shows
-                                            onDismiss()
-                                            AppStorys.handleDeepLink(currentSlide.link)
-                                        } else try {
-                                            uriHandler.openUri(currentSlide.link)
-                                        } catch (e: Exception) {
-                                            Log.e("StoryScreen", "Failed to open link: ${e.message}")
-                                        }
-                                    }
+                                    // A page name / deep link closes the story first, so the host screen shows
+                                    AppStorys.handleNavigation(currentSlide.link, onClose = onDismiss, closeBeforeInAppLink = true)
                                 }
                             )
                         }

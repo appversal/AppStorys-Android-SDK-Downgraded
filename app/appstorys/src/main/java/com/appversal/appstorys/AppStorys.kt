@@ -1439,7 +1439,7 @@ object AppStorys {
                             ),
                             onClick = {
                                 if (campaign?.id != null && !floaterDetails.link.isNullOrEmpty()) {
-                                    clickEvent(link = floaterDetails.link, campaignId = campaign.id)
+                                    handleNavigation(link = floaterDetails.link, campaignId = campaign.id)
                                     trackEvents(campaign.id, "clicked")
                                 }
                             },
@@ -2058,7 +2058,7 @@ object AppStorys {
                         onClick = {
                             if (bannerDetails.link.linkText().isNotEmpty()) {
                                 campaign.id?.let {
-                                    clickEvent(link = bannerDetails.link.linkText(), campaignId = it)
+                                    handleNavigation(link = bannerDetails.link.linkText(), campaignId = it)
                                     trackEvents(it, "clicked")
                                 }
                             }
@@ -2263,10 +2263,9 @@ object AppStorys {
                                     indication = null,
                                 ) {
                                     if (sortedWidgetImages[index].link.linkText().isNotEmpty()) {
-                                        clickEvent(
+                                        handleNavigation(
                                             link = sortedWidgetImages[index].link.linkText(),
-                                            campaignId = campaign.id,
-                                            widgetImageId = sortedWidgetImages[index].id
+                                            campaignId = campaign.id
                                         )
 
                                         trackEvents(
@@ -2417,10 +2416,9 @@ object AppStorys {
                                             indication = null,
                                         ) {
                                             if (leftImage.link.linkText().isNotEmpty()) {
-                                                clickEvent(
+                                                handleNavigation(
                                                     link = leftImage.link.linkText(),
-                                                    campaignId = campaign.id,
-                                                    widgetImageId = leftImage.id
+                                                    campaignId = campaign.id
                                                 )
 
                                                 trackEvents(
@@ -2448,10 +2446,9 @@ object AppStorys {
                                             indication = null,
                                         ) {
                                             if (rightImage.link.linkText().isNotEmpty()) {
-                                                clickEvent(
+                                                handleNavigation(
                                                     link = rightImage.link.linkText(),
-                                                    campaignId = campaign.id,
-                                                    widgetImageId = rightImage.id
+                                                    campaignId = campaign.id
                                                 )
 
                                                 trackEvents(
@@ -2535,7 +2532,7 @@ object AppStorys {
                     onClick = { ctaLink ->
                         if (!ctaLink.isNullOrEmpty()) {
                             campaign?.id?.let { campaignId ->
-                                clickEvent(link = ctaLink, campaignId = campaignId, onClose = hideBottomSheet)
+                                handleNavigation(link = ctaLink, campaignId = campaignId, onClose = hideBottomSheet)
                                 trackEvents(campaignId, "clicked")
                             }
                         }
@@ -2639,7 +2636,7 @@ object AppStorys {
 
                         campaign?.id?.let { campaignId ->
                             trackEvents(campaignId, "clicked")
-                            clickEvent(link = link, campaignId = campaignId, onClose = hideModal)
+                            handleNavigation(link = link, campaignId = campaignId, onClose = hideModal)
                         }
                     },
 
@@ -2648,13 +2645,13 @@ object AppStorys {
                         // primary CTA receives resolved URL string
                         campaign?.id?.let { campaignId ->
                             trackEvents(campaignId, "clicked")
-                            clickEvent(link = link, campaignId = campaignId, onClose = hideModal)
+                            handleNavigation(link = link, campaignId = campaignId, onClose = hideModal)
                         }
                     },
                     onSecondaryCta = { link ->
                         campaign?.id?.let { campaignId ->
                             trackEvents(campaignId, "clicked")
-                            clickEvent(link = link, campaignId = campaignId, onClose = hideModal)
+                            handleNavigation(link = link, campaignId = campaignId, onClose = hideModal)
                             _showModal.update { false }
                         }
                     },
@@ -2765,7 +2762,7 @@ object AppStorys {
                     },
                     onCtaClick = {
                         campaign?.id?.let {
-                            clickEvent(link = ctaUrl, campaignId = it, onClose = hideScratchCard)
+                            handleNavigation(link = ctaUrl, campaignId = it, onClose = hideScratchCard)
                             trackEvents(it, "clicked")
                         }
                     }
@@ -2902,7 +2899,7 @@ object AppStorys {
                         onCtaClick = { link ->
                             val targetLink = link?.takeIf { it.isNotEmpty() } ?: redirectUrl
                             if (targetLink.isNotEmpty()) {
-                                clickEvent(link = targetLink, campaignId = campaignId, onClose = hideSpinWheel)
+                                handleNavigation(link = targetLink, campaignId = campaignId, onClose = hideSpinWheel)
                                 trackEvents(campaignId, "clicked")
                             }
                         },
@@ -3182,15 +3179,7 @@ object AppStorys {
                         mapOf("tooltip_id" to tooltipId)
                     )
 
-                    if (isCloseLink(tooltip.link)) {
-                        dismissTooltip()
-                    } else if (openCampaignLink(tooltip.link, ::dismissTooltip)) {
-                        // closed; the linked campaign opens
-                    } else if (!isValidUrl(tooltip.link)) {
-                        handleDeepLink(tooltip.link)
-                    } else {
-                        openUrl(tooltip.link)
-                    }
+                    handleNavigation(tooltip.link, onClose = ::dismissTooltip)
                 } else {
                     dismissTooltip()
                 }
@@ -3207,38 +3196,42 @@ object AppStorys {
     }
 
     /**
-     * Opens a campaign link. A Close link runs [onClose] instead, which only hides the campaign
-     * (the caller still sends "clicked"). The default hides it via [disabledCampaigns]; campaigns
-     * with their own visibility state pass theirs.
+     * The one way every campaign opens its link, like the Flutter SDK's handleNavigation:
+     * Close → [onClose]; the id of a viaAppStorys campaign → [onClose], then that campaign
+     * opens; a web URL → the browser; anything else → the host's navigateToScreen.
+     *
+     * [onClose] defaults to hiding [campaignId] via [disabledCampaigns]; campaigns with their
+     * own visibility state pass theirs. With [closeBeforeInAppLink] the campaign also closes
+     * before an in-app link, so the host screen shows (CSAT, reels, stories). Callers send
+     * "clicked" themselves. Returns true when [onClose] ran.
      */
-    private fun clickEvent(
-        link: Any?,
-        campaignId: String,
-        widgetImageId: String? = null,
-        onClose: () -> Unit = { hideCampaign(campaignId) }
-    ) {
+    internal fun handleNavigation(
+        link: String?,
+        campaignId: String? = null,
+        onClose: () -> Unit = { campaignId?.let(::hideCampaign) },
+        closeBeforeInAppLink: Boolean = false
+    ): Boolean {
+        if (link.isNullOrEmpty()) return false
         if (isCloseLink(link)) {
             onClose()
-            return
+            return true
         }
-
-        if (openCampaignLink(link, onClose)) return
-
-        if (link is String && link.isNotEmpty()) {
-            if (!isValidUrl(link)) {
-                handleDeepLink(link)
-            } else {
-                openUrl(link)
-            }
+        if (openCampaignLink(link, onClose)) return true
+        if (isValidUrl(link)) {
+            openUrl(link)
+            return false
         }
+        if (closeBeforeInAppLink) onClose()
+        handleDeepLink(link)
+        return closeBeforeInAppLink
     }
 
     /**
-     * Every in-app link a campaign opens ends here, like the Flutter SDK's handleNavigation:
-     * a key-value redirect ("key:{json}") reaches the host as navigateToScreen(key, params), a page
-     * name or deep link as navigateToScreen(link, null). The Close sentinel is never a screen name.
+     * The in-app step of [handleNavigation]: a key-value redirect ("key:{json}") reaches the
+     * host as navigateToScreen(key, params), a page name or deep link as navigateToScreen(link, null).
+     * The Close sentinel is never a screen name.
      */
-    internal fun handleDeepLink(link: String) {
+    private fun handleDeepLink(link: String) {
         if (link.isEmpty() || isCloseLink(link)) return
         val colon = link.indexOf(':')
         if (colon > 0) {
@@ -3303,7 +3296,7 @@ object AppStorys {
     /** Link the dashboard publishes when a CTA's "Redirect to" is set to Close, for any campaign type. */
     internal const val CLOSE_LINK = "APPSTORYS-CLOSE"
 
-    internal fun isCloseLink(link: Any?): Boolean =
+    private fun isCloseLink(link: Any?): Boolean =
         (link as? String)?.trim()?.removeSurrounding("\"")?.equals(CLOSE_LINK, ignoreCase = true) == true
 
     /**
@@ -3311,7 +3304,7 @@ object AppStorys {
      * the tapped campaign is closed by [onClose] first, then the trigger fires. Returns false
      * for any other link, which the caller handles as before.
      */
-    internal fun openCampaignLink(link: Any?, onClose: () -> Unit): Boolean {
+    private fun openCampaignLink(link: Any?, onClose: () -> Unit): Boolean {
         val id = (link as? String)?.trim()?.removeSurrounding("\"")?.takeIf { it.isNotEmpty() }
             ?: return false
         val isTarget = campaigns.value.any {
@@ -3342,11 +3335,11 @@ object AppStorys {
         hideCampaign(campaignId)
     }
 
-    internal fun isValidUrl(url: String?): Boolean {
+    private fun isValidUrl(url: String?): Boolean {
         return !url.isNullOrEmpty() && Patterns.WEB_URL.matcher(url).matches()
     }
 
-    internal fun openUrl(url: String) {
+    private fun openUrl(url: String) {
         try {
             val intent = Intent(Intent.ACTION_VIEW, url.toUri())
             intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK

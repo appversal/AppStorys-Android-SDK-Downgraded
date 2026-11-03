@@ -208,12 +208,7 @@ internal fun PipVideo(
                                         onExpandClick(); isFullScreen = true; pipPlayer.pause()
                                     } else if (!link.isNullOrEmpty()) {
                                         onSmallVideoClick()
-                                        when {
-                                            AppStorys.isCloseLink(link) -> onCloseCta()
-                                            AppStorys.openCampaignLink(link, onCloseCta) -> Unit
-                                            AppStorys.isValidUrl(link) -> AppStorys.openUrl(link)
-                                            else -> AppStorys.handleDeepLink(link)
-                                        }
+                                        AppStorys.handleNavigation(link, onClose = onCloseCta)
                                     }
                                 }
                                 .then(
@@ -652,14 +647,8 @@ fun FullScreenVideoDialog(
                             config = ctaButtonConfig,
                             onClick = {
                                 onButtonClick(false)
-                                when {
-                                    // Dashboard "Redirect to → Close": a click that closes the PIP
-                                    AppStorys.isCloseLink(link) -> onHide(onCloseCta)
-                                    // Link to a viaAppStorys campaign: close the PIP, then open it
-                                    AppStorys.openCampaignLink(link) { onHide(onCloseCta) } -> Unit
-                                    AppStorys.isValidUrl(link) -> AppStorys.openUrl(link)
-                                    else -> AppStorys.handleDeepLink(link)
-                                }
+                                // Close, or a link to a viaAppStorys campaign, closes the PIP first
+                                AppStorys.handleNavigation(link, onClose = { onHide(onCloseCta) })
                             }
                         )
                     }

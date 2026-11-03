@@ -1,7 +1,6 @@
 package com.appversal.appstorys.ui
 
 import com.appversal.appstorys.utils.SdkErrorTracker
-import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.fadeIn
@@ -935,29 +934,14 @@ private fun ThankYouContent(
             onClick = {
                 if (csatDetails.link.isNullOrEmpty() || selectedStars < 4) {
                     onDone()
-                } else if (com.appversal.appstorys.AppStorys.isCloseLink(csatDetails.link)) {
-                    trackEvents(csatDetails.campaign, "clicked")
-                    onDone()
-                } else if (com.appversal.appstorys.AppStorys.openCampaignLink(csatDetails.link, onDone)) {
-                    trackEvents(csatDetails.campaign, "clicked")
-                } else if (!com.appversal.appstorys.AppStorys.isValidUrl(csatDetails.link)) {
-                    trackEvents(csatDetails.campaign, "clicked")
-                    onDone()
-                    com.appversal.appstorys.AppStorys.handleDeepLink(csatDetails.link)
                 } else {
-                    try {
-                        trackEvents(csatDetails.campaign, "clicked")
-                        val uri = Uri.parse(csatDetails.link)
-                        val intent =
-                            android.content.Intent(android.content.Intent.ACTION_VIEW, uri)
-                        context.startActivity(intent)
-                    } catch (e: Exception) {
-                        android.widget.Toast.makeText(
-                            context,
-                            "Could not open link",
-                            android.widget.Toast.LENGTH_SHORT
-                        ).show()
-                    }
+                    trackEvents(csatDetails.campaign, "clicked")
+                    // A page name / deep link closes the CSAT first, so the host screen shows
+                    com.appversal.appstorys.AppStorys.handleNavigation(
+                        csatDetails.link,
+                        onClose = onDone,
+                        closeBeforeInAppLink = true
+                    )
                 }
             }
         )
