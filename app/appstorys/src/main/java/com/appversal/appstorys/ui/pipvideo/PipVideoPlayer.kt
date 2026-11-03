@@ -111,7 +111,8 @@ internal fun PipVideo(
     maximiseImageUrl: String? = null,
     minimiseImageUrl: String? = null,
 
-    onClose: () -> Unit,
+    onClose: (isSmallVideo: Boolean) -> Unit,
+    onCloseCta: () -> Unit,
     onButtonClick: (isSmallVideo: Boolean) -> Unit,
     onSmallVideoClick: () -> Unit = {},
     onExpandClick: () -> Unit = {}
@@ -126,7 +127,8 @@ internal fun PipVideo(
                 onDismiss = {
                     isFullScreen = false
                 },
-                onClose = onClose,
+                onClose = { onClose(false) },
+                onCloseCta = onCloseCta,
                 button_text = button_text,
                 link = link,
                 pipStyling = pipStyling,
@@ -205,9 +207,8 @@ internal fun PipVideo(
                                     if (!fullScreenVideoUri.isNullOrEmpty()) {
                                         onExpandClick(); isFullScreen = true; pipPlayer.pause()
                                     } else if (!link.isNullOrEmpty()) {
-                                        if (AppStorys.isValidUrl(link)) AppStorys.openUrl(link)
-                                        else AppStorys.navigateToScreen(link)
                                         onSmallVideoClick()
+                                        AppStorys.handleNavigation(link, onClose = onCloseCta)
                                     }
                                 }
                                 .then(
@@ -245,7 +246,7 @@ internal fun PipVideo(
                                         CrossButton(
                                             modifier = Modifier.align(Alignment.TopEnd),
                                             config = crossButtonConfig,
-                                            onClose = onClose
+                                            onClose = { onClose(true) }
                                         )
                                     }
 
@@ -432,6 +433,7 @@ fun FullScreenVideoDialog(
     unmuteButtonConfig: SoundToggleButtonConfig = SoundToggleButtonConfig(),
 
     onClose: () -> Unit,
+    onCloseCta: () -> Unit,
     onButtonClick: (isSmallVideo: Boolean) -> Unit
 ) {
     // Determine initial muted state from backend configuration
@@ -644,12 +646,9 @@ fun FullScreenVideoDialog(
                                 .zIndex(10f),
                             config = ctaButtonConfig,
                             onClick = {
-                                if (AppStorys.isValidUrl(link)) {
-                                    AppStorys.openUrl(link)
-                                } else {
-                                    AppStorys.navigateToScreen(link)
-                                }
                                 onButtonClick(false)
+                                // Close, or a link to a viaAppStorys campaign, closes the PIP first
+                                AppStorys.handleNavigation(link, onClose = { onHide(onCloseCta) })
                             }
                         )
                     }

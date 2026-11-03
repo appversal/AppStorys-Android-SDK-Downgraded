@@ -66,7 +66,6 @@ import androidx.compose.ui.input.pointer.changedToUp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -373,7 +372,6 @@ internal fun StoryScreenContent(
     sendClickEvent: (Pair<StorySlide, String>) -> Unit,
     campaignId: String
 ) {
-    val uriHandler = LocalUriHandler.current
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -989,15 +987,10 @@ internal fun StoryScreenContent(
                     StorySlideForeground(
                         slide = currentSlide,
                         onCtaClick = { redirect ->
-                            if (!redirect.isNullOrEmpty()) {
-                                try {
-                                    uriHandler.openUri(redirect)
-                                } catch (e: Exception) {
-                                    Log.e("StoryScreen", "Failed to open CTA link: ${e.message}")
-                                }
-                            }
                             sendEvent(Pair(currentSlide, "CLK"))
                             sendClickEvent(Pair(currentSlide, "clicked"))
+                            // A page name / deep link closes the story first, so the host screen shows
+                            AppStorys.handleNavigation(redirect, onClose = onDismiss, closeBeforeInAppLink = true)
                         },
                         muted = isMuted,
                         // Seconds into the slide, from the same progress the bar shows —
@@ -1060,13 +1053,10 @@ internal fun StoryScreenContent(
                                 text = currentSlide.buttonText ?: "",
                                 config = ctaButtonConfig,
                                 onClick = {
-                                    try {
-                                        uriHandler.openUri(currentSlide.link)
-                                    } catch (e: Exception) {
-                                        Log.e("StoryScreen", "Failed to open link: ${e.message}")
-                                    }
                                     sendEvent(Pair(currentSlide, "CLK"))
                                     sendClickEvent(Pair(currentSlide, "clicked"))
+                                    // A page name / deep link closes the story first, so the host screen shows
+                                    AppStorys.handleNavigation(currentSlide.link, onClose = onDismiss, closeBeforeInAppLink = true)
                                 }
                             )
                         }
@@ -1330,6 +1320,10 @@ internal fun StoryScreenContent(
                                 CrossButton(
                                     config = crossButtonConfig,
                                     onClose = {
+                                        AppStorys.trackDismissed(
+                                            campaignId,
+                                            mapOf("story_slide" to (currentSlide.id ?: ""))
+                                        )
                                         scope.launch {
                                             sheetState.hide()
                                             onDismiss()
@@ -1379,7 +1373,11 @@ internal fun StoryScreenWrapper(
     ModalBottomSheet(
         modifier = Modifier.fillMaxSize(),
         shape = RectangleShape,
-        onDismissRequest = onDismiss,
+        // Swipe-down or back press
+        onDismissRequest = {
+            AppStorys.trackDismissed(campaignId)
+            onDismiss()
+        },
         sheetState = sheetState,
         containerColor = Color.Black,
         contentColor = Color.White,

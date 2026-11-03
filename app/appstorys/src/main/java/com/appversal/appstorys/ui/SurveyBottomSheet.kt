@@ -1,12 +1,10 @@
 package com.appversal.appstorys.ui
 
 import com.appversal.appstorys.utils.SdkErrorTracker
-import android.content.Intent
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.togetherWith
-import androidx.core.net.toUri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -48,6 +46,8 @@ import com.appversal.appstorys.ui.common_components.createCTAButtonConfig
 import com.appversal.appstorys.ui.common_components.createCrossButtonConfig
 import com.appversal.appstorys.utils.toColor
 import kotlinx.coroutines.delay
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 
 data class SurveyFeedback(
     // single-question backward compat
@@ -300,6 +300,8 @@ fun SurveyBottomSheet(
                                 onDismiss = onDismissRequest,
                                 onThankYouCtaClicked = {
                                     campaignId?.let {
+                                        // Every CTA tap is a click, whether it closes or redirects
+                                        onTrackEvent(it, "clicked", emptyMap())
                                         onTrackEvent(
                                             it,
                                             "ThankYouCTAClicked",
@@ -571,6 +573,7 @@ fun SurveyBottomSheet(
                                 modifier = Modifier.align(Alignment.CenterEnd),
                                 config = crossConfig,
                                 onClose = {
+                                    campaignId?.let { onTrackEvent(it, "dismissed", emptyMap()) }
                                     if (showThankYou) {
                                         onDismissRequest()
                                     } else {
@@ -604,7 +607,6 @@ private fun SurveyThankYouContent(
     onDismiss: () -> Unit,
     onThankYouCtaClicked: () -> Unit,
 ) {
-    val context = LocalContext.current
     val thankyouPage = surveyDetails.styling?.thankyouPage
 
 
@@ -790,13 +792,15 @@ private fun SurveyThankYouContent(
                     onThankYouCtaClicked()
                     // Data was already submitted when the user tapped Next/Submit on each slide.
                     // CTA here only handles optional redirect + dismissal.
-                    if (!redirectUrl.isNullOrEmpty() && buttonConfig?.action == "redirect") {
-                        try {
-                            context.startActivity(Intent(Intent.ACTION_VIEW, redirectUrl.toUri()))
-                        } catch (_: Exception) {
-                        }
-                    }
-                    onDismiss()
+                    // Dashboard sends action "close" for Close and "redirect" for a URL; any other
+                    // action (e.g. a page pick) still carries its target in redirectUrl.
+                    val redirects = !redirectUrl.isNullOrEmpty() &&
+                        buttonConfig?.action?.equals("close", ignoreCase = true) != true
+                    // Close and a linked campaign dismiss the survey inside handleNavigation;
+                    // after a URL or page name it is dismissed here, as before.
+                    val dismissed = redirects &&
+                        com.appversal.appstorys.AppStorys.handleNavigation(redirectUrl, onClose = onDismiss)
+                    if (!dismissed) onDismiss()
                 }
             )
         }
@@ -950,12 +954,9 @@ private fun SurveyContent(
                 "justify" -> TextAlign.Justify
                 else -> TextAlign.Start
             }
-            val addlBorderWidth = (addlTextStyle?.borderwidth
-                ?.let {
-                    if (it.toString() == "null") null else it.toString().removeSuffix(".0")
-                        .toIntOrNull()
-                }
-                ?: 1).dp
+            // Dashboard sends a number or, once edited, a string ("2")
+            val addlBorderWidth = ((addlTextStyle?.borderwidth as? JsonPrimitive)
+                ?.contentOrNull?.toFloatOrNull() ?: 1f).dp
 
             // additionalComments has no cornerRadius field, so it follows the
             // options.cornerRadius the rest of the list uses.
@@ -1067,12 +1068,9 @@ private fun SurveyOptionItem(
         else styling?.optionTextColor.toColorOr(Color(0xFF111827))
     )
 
-    // Border width from textStyle.borderwidth
-    val borderWidth = (activeTextStyle?.borderwidth
-        ?.let {
-            if (it.toString() == "null") null else it.toString().removeSuffix(".0").toIntOrNull()
-        }
-        ?: 1).dp
+    // Border width from textStyle.borderwidth — a number, or a string ("2") once edited on the dashboard
+    val borderWidth = ((activeTextStyle?.borderwidth as? JsonPrimitive)
+        ?.contentOrNull?.toFloatOrNull() ?: 1f).dp
 
     Box(
         modifier = Modifier

@@ -1,5 +1,7 @@
 package com.appversal.appstorys.ui.modals
 
+import com.appversal.appstorys.AppStorys
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -329,8 +331,7 @@ private fun ModalCtaRow(
 
     // Create configs using the common helper
     val primaryConfig = if (hasPrimary) {
-        val link = modal.content?.primaryCtaRedirection?.url
-            ?: modal.content?.primaryCtaRedirection?.value
+        val link = AppStorys.buildRedirectLink(modal.content?.primaryCtaRedirection)
         createModalCTAButtonConfig(
             text = primaryText!!,
             styling = modal.styling?.primaryCta,
@@ -342,8 +343,7 @@ private fun ModalCtaRow(
     } else null
 
     val secondaryConfig = if (hasSecondary) {
-        val link = modal.content?.secondaryCtaRedirection?.url
-            ?: modal.content?.secondaryCtaRedirection?.value
+        val link = AppStorys.buildRedirectLink(modal.content?.secondaryCtaRedirection)
         createModalCTAButtonConfig(
             text = secondaryText!!,
             styling = modal.styling?.secondaryCta,

@@ -9,15 +9,24 @@ import android.os.Build
 import androidx.annotation.RequiresApi
 import com.appversal.appstorys.AppStorys
 // import com.google.firebase.messaging.FirebaseMessaging   // NOTIFICATIONS DISABLED
-import kotlinx.coroutines.MainScope
+import com.example.carousal.deeplink.LinkRequest
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.receiveAsFlow
 import java.util.UUID
 
 class App : Application() {
 
-    val screenNameNavigation = MutableStateFlow("")
-    private val appScope = MainScope()
+    // Buffered: a link that arrives before the UI exists (cold start) waits here.
+    // Channel, not StateFlow: each link is delivered once, and the same link twice is two events.
+    private val links = Channel<LinkRequest>(Channel.BUFFERED)
+    val pendingLinks = links.receiveAsFlow()
+
+    val isLoggedIn = MutableStateFlow(false)
+
+    fun openLink(raw: String, source: String, params: Map<String, Any?>? = null) {
+        links.trySend(LinkRequest(raw, source, params))
+    }
 
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate() {
@@ -37,10 +46,7 @@ class App : Application() {
             userId = userId,
 //            userId = "anirudhsuserid",
 //            userId = "001e756sdf27948b",
-            navigateToScreen = { screen ->
-                println("Navigating to $screen")
-                navigateToScreen(screen)
-            }
+            navigateToScreen = { route, params -> openLink(route, source = "sdk", params = params) }
         )
 
         // NOTIFICATIONS DISABLED: uncomment to re-enable push notifications.
@@ -83,18 +89,6 @@ class App : Application() {
         }
     }
 
-
-    fun navigateToScreen(name: String) {
-        appScope.launch {
-            screenNameNavigation.emit(name)
-        }
-    }
-
-    fun resetNavigation() {
-        appScope.launch {
-            screenNameNavigation.emit("")
-        }
-    }
 
     companion object {
         lateinit var appStorys: AppStorys

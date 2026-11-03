@@ -1,5 +1,7 @@
 package com.appversal.appstorys.ui.modals
 
+import com.appversal.appstorys.AppStorys
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -142,7 +144,7 @@ fun MediaOnlyModal(
                         indication = null,
                         interactionSource = remember { MutableInteractionSource() }
                     ) {
-                        val redirectUrl = modal.redirection?.url ?: modal.link
+                        val redirectUrl = AppStorys.buildRedirectLink(modal.redirection) ?: modal.link
                         if (!redirectUrl.isNullOrBlank()) {
                             onPrimaryCta?.invoke(redirectUrl)
                         }
